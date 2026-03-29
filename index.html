@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lessonpreneur — The Operating System for Music School Owners</title>
-  <meta name="description" content="Lessonpreneur is the CRM built by a music school owner, for music school owners. Manage schedules, billing, students, and staff across all your locations in one place.">
+  <title>Lessonpreneur — Stop Running Your Music School from a Spreadsheet</title>
+  <meta name="description" content="Lessonpreneur is the CRM built by a music school owner who runs 4 locations and $1M+ in revenue. Manage schedules, billing, students, and staff from one dashboard.">
   <!-- ========== TRACKING PIXELS ========== -->
   <!-- TODO: Replace G-XXXXXXXXXX with your real GA4 Measurement ID -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
@@ -198,6 +198,73 @@
       animation: fadeIn 700ms 600ms both;
     }
 
+    /* === PROOF === */
+    .proof { text-align: center; }
+    .proof .section-sub strong { color: #FFB800; }
+    .stats-row {
+      display: flex;
+      justify-content: center;
+      gap: 72px;
+      flex-wrap: wrap;
+    }
+    .stat-num {
+      display: block;
+      font-size: 3.2rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #D4226A 0%, #FF5500 55%, #FFB800 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #606088;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* === COMPETITOR SWITCH === */
+    .switch-section {
+      text-align: center;
+    }
+    .switch-card {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 40px;
+      border: 1px solid rgba(212,34,106,0.2);
+    }
+    .switch-card h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      margin-bottom: 16px;
+    }
+    .switch-card p {
+      color: #8080A8;
+      font-size: 1rem;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .switch-list {
+      text-align: left;
+      max-width: 520px;
+      margin: 0 auto 28px;
+    }
+    .switch-list li {
+      font-size: 0.95rem;
+      color: #C0C0D8;
+      padding: 8px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .switch-list li .x-icon {
+      color: #D4226A;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
     /* === PROBLEM === */
     .problem { text-align: center; }
     .problem-grid {
@@ -219,89 +286,67 @@
       margin-bottom: 16px;
     }
 
-    /* === PROOF === */
-    .proof { text-align: center; }
-    .proof .section-sub strong { color: #FFB800; }
-    .stats-row {
-      display: flex;
-      justify-content: center;
-      gap: 72px;
-      margin-bottom: 56px;
-      flex-wrap: wrap;
-    }
-    .stat-num {
-      display: block;
-      font-size: 3.2rem;
-      font-weight: 900;
-      letter-spacing: -0.03em;
-      background: linear-gradient(135deg, #D4226A 0%, #FF5500 55%, #FFB800 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .stat-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: #606088;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    .proof-quote {
-      font-style: italic;
-      font-size: 1.1rem;
-      color: #8080A8;
-      max-width: 480px;
-      margin: 0 auto;
-    }
-
-    /* === FEATURES === */
-    .features { text-align: center; }
-    .features-grid {
+    /* === SOLUTION === */
+    .solution { text-align: center; }
+    .solution-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 24px;
       text-align: left;
     }
-    .feature-num {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
+    .solution-card .pain-line {
+      font-size: 0.85rem;
       color: #D4226A;
-      margin-bottom: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
       display: block;
     }
+    .solution-card p { line-height: 1.6; }
 
-    /* === OFFER === */
-    .offer { text-align: center; }
-    .offer-card {
-      max-width: 600px;
-      margin: 0 auto;
-      text-align: left;
+    /* === TESTIMONIALS === */
+    .testimonials { text-align: center; }
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 8px;
     }
-    .offer-list li {
+    .testimonial-card { text-align: left; }
+    .testimonial-card .testimonial-text {
+      font-style: italic;
       font-size: 1rem;
-      padding: 14px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      color: #E0E0F4;
-      font-weight: 500;
+      color: #C0C0D8;
+      margin-bottom: 20px;
+      line-height: 1.6;
     }
-    .offer-list li:last-child { border-bottom: none; }
-    .check-icon {
-      flex-shrink: 0;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #D4226A, #FF5500);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .testimonial-metric {
+      display: inline-block;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #FFB800;
+      background: rgba(255,184,0,0.08);
+      border: 1px solid rgba(255,184,0,0.15);
+      border-radius: 999px;
+      padding: 4px 14px;
+      margin-bottom: 16px;
+    }
+    .testimonial-author {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #E0E0F4;
+    }
+    .testimonial-role {
+      font-size: 0.8rem;
+      color: #606088;
+      font-weight: 400;
+    }
+    .placeholder-note {
+      display: block;
       font-size: 0.7rem;
-      font-weight: 800;
-      color: #fff;
-      margin-top: 1px;
+      color: #D4226A;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-top: 4px;
     }
 
     /* === PRICING === */
@@ -378,88 +423,6 @@
       color: #606088;
     }
 
-    /* === COMPETITOR SWITCH === */
-    .switch-section {
-      text-align: center;
-      padding: 80px 0;
-    }
-    .switch-card {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 48px 40px;
-      border: 1px solid rgba(212,34,106,0.2);
-    }
-    .switch-card h3 {
-      font-size: 1.3rem;
-      margin-bottom: 12px;
-    }
-    .switch-card p {
-      color: #8080A8;
-      font-size: 1rem;
-      margin-bottom: 28px;
-      line-height: 1.6;
-    }
-
-    /* === RISK === */
-    .risk { text-align: center; }
-    .risk-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-    .risk-card h3 {
-      background: linear-gradient(135deg, #D4226A, #FF5500);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      font-size: 1.1rem;
-    }
-
-    /* === TESTIMONIALS === */
-    .testimonials-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-      margin-top: 8px;
-    }
-    .testimonial-card { text-align: left; }
-    .testimonial-card .testimonial-text {
-      font-style: italic;
-      font-size: 1rem;
-      color: #C0C0D8;
-      margin-bottom: 20px;
-      line-height: 1.6;
-    }
-    .testimonial-metric {
-      display: inline-block;
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: #FFB800;
-      background: rgba(255,184,0,0.08);
-      border: 1px solid rgba(255,184,0,0.15);
-      border-radius: 999px;
-      padding: 4px 14px;
-      margin-bottom: 16px;
-    }
-    .testimonial-author {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #E0E0F4;
-    }
-    .testimonial-role {
-      font-size: 0.8rem;
-      color: #606088;
-      font-weight: 400;
-    }
-    .placeholder-note {
-      display: block;
-      font-size: 0.7rem;
-      color: #D4226A;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      margin-top: 4px;
-    }
-
     /* === FAQ === */
     .faq { text-align: center; }
     .faq-list {
@@ -527,6 +490,24 @@
       font-size: 0.8rem;
       color: #606088;
     }
+    .guarantee-row {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 48px;
+      flex-wrap: wrap;
+    }
+    .guarantee-item {
+      font-size: 0.9rem;
+      color: #8080A8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .guarantee-item .g-icon {
+      color: #D4226A;
+      font-weight: 700;
+    }
 
     /* === FOOTER === */
     .footer {
@@ -542,12 +523,13 @@
       .section { padding: 80px 0; }
       .hero { padding: 120px 0 80px; }
       .problem-grid { grid-template-columns: 1fr; }
-      .features-grid { grid-template-columns: 1fr; gap: 20px; }
+      .solution-grid { grid-template-columns: 1fr; }
       .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
       .pricing-card.popular { transform: none; }
-      .risk-grid { grid-template-columns: 1fr; }
       .testimonials-grid { grid-template-columns: 1fr; }
       .stats-row { gap: 40px; }
+      .guarantee-row { gap: 20px; flex-direction: column; align-items: center; }
+      .switch-list { padding: 0 8px; }
     }
     @media (max-width: 480px) {
       .container { padding: 0 16px; }
@@ -558,57 +540,30 @@
 </head>
 <body>
 
-  <!-- HERO -->
+  <!-- ============================================ -->
+  <!-- 1. HERO — Pain-led, speaks to the chaos      -->
+  <!-- ============================================ -->
   <section class="hero">
     <div class="glow-pink"></div>
     <div class="glow-purple"></div>
     <div class="container">
-      <span class="label">Built for music schools</span>
-      <h1>The Operating System Built<br>for Music School Owners,<br><span class="gradient-text">By a Music School Owner</span></h1>
-      <p class="hero-sub">Stop duct-taping 5 tools together. Manage schedules, billing, students, and staff across every location — from one dashboard.</p>
+      <span class="label">Built by a music school owner</span>
+      <h1>You Didn't Open a Music School<br>to Spend Every Night<br><span class="gradient-text">Buried in Spreadsheets</span></h1>
+      <p class="hero-sub">Scheduling chaos. Billing headaches. Five tools that don't talk to each other. You built something great — now run it with software that actually understands your business.</p>
       <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Start Your 90-Day Free Trial</a>
-      <p class="hero-note">Card required to start. Cancel anytime.</p>
+      <p class="hero-note">Card required to start. Cancel anytime. We'll set everything up for you.</p>
     </div>
   </section>
 
-  <!-- PROBLEM -->
-  <section class="section problem animate-on-scroll">
-    <div class="container">
-      <span class="label">The problem</span>
-      <h2>Running a Music School<br>Shouldn't Feel Like This</h2>
-      <p class="section-sub">You didn't start a music school to spend your nights in spreadsheets.</p>
-      <div class="problem-grid">
-        <div class="glass-card problem-card">
-          <div class="problem-icon">&#9200;</div>
-          <h3>Scheduling Chaos</h3>
-          <p>Double-bookings, no-shows, and phone tag just to reschedule a 30-minute lesson.</p>
-        </div>
-        <div class="glass-card problem-card">
-          <div class="problem-icon">&#128176;</div>
-          <h3>Billing Headaches</h3>
-          <p>Chasing payments, tracking who owes what, and manually entering invoices every month.</p>
-        </div>
-        <div class="glass-card problem-card">
-          <div class="problem-icon">&#128065;</div>
-          <h3>No Visibility</h3>
-          <p>You can't see which teachers are at capacity, which students are about to churn, or how locations compare.</p>
-        </div>
-        <div class="glass-card problem-card">
-          <div class="problem-icon">&#128268;</div>
-          <h3>Tool Overload</h3>
-          <p>Google Calendar. Stripe. A spreadsheet. A group chat. None of it talks to each other.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- PROOF -->
+  <!-- ============================================ -->
+  <!-- 2. PROOF STATS — Instant credibility          -->
+  <!-- ============================================ -->
   <section class="section proof animate-on-scroll">
     <div class="glow-pink"></div>
     <div class="container" style="position:relative;z-index:1;">
-      <span class="label">Proof</span>
-      <h2>Built in the Trenches.<br>Not in a Tech Lab.</h2>
-      <p class="section-sub">Born inside a real music school operation — 4 locations, dozens of instructors, and over <strong>$1,000,000 per year</strong> in revenue.</p>
+      <span class="label">Not theory. Experience.</span>
+      <h2>Built Inside a Real Music School.<br>Not a Silicon Valley Office.</h2>
+      <p class="section-sub">Every feature exists because we hit the same wall you're hitting right now. 4 locations, dozens of instructors, over <strong>$1,000,000 per year</strong> in lessons.</p>
       <div class="stats-row">
         <div class="stat">
           <span class="stat-num">4</span>
@@ -619,23 +574,132 @@
           <span class="stat-label">Annual Revenue</span>
         </div>
         <div class="stat">
-          <span class="stat-num">1000+</span>
-          <span class="stat-label">Students Served</span>
+          <span class="stat-num">1,000+</span>
+          <span class="stat-label">Students Managed</span>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============================================ -->
+  <!-- 3. COMPETITOR SWITCH — Hit while emotion high -->
+  <!-- ============================================ -->
+  <section class="section switch-section animate-on-scroll">
+    <div class="container">
+      <div class="glass-card switch-card">
+        <span class="label">Sound familiar?</span>
+        <h2>Already Using MyMusicStaff, Jackrabbit, or Pike13?</h2>
+        <p>You picked them because they were "good enough." But you're still doing half the work manually. You're not alone — here's what we hear from every school that switches:</p>
+        <ul class="switch-list">
+          <li><span class="x-icon">&times;</span> "I can't see all my locations in one place."</li>
+          <li><span class="x-icon">&times;</span> "Billing is clunky. Parents complain. I chase payments."</li>
+          <li><span class="x-icon">&times;</span> "It wasn't built for how music schools actually work."</li>
+          <li><span class="x-icon">&times;</span> "Support takes days and doesn't understand my business."</li>
+        </ul>
+        <p>Switch to Lessonpreneur and we'll beat your current price. We migrate your data for free. If it's not better, we refund every penny.</p>
+        <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Claim Your Free 90 Days</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ -->
+  <!-- 4. PAIN — Specific, emotional scenarios       -->
+  <!-- ============================================ -->
+  <section class="section problem animate-on-scroll">
+    <div class="container">
+      <span class="label">The real cost</span>
+      <h2>This Is What's Actually<br>Eating Your Time</h2>
+      <p class="section-sub">Every hour you spend on admin is an hour you're not teaching, not growing, not living.</p>
+      <div class="problem-grid">
+        <div class="glass-card problem-card">
+          <div class="problem-icon">&#9200;</div>
+          <h3>Sunday Nights on the Laptop</h3>
+          <p>You're rescheduling lessons, fixing double-bookings, and texting parents at 10pm. Your family sees the back of your head more than your face.</p>
+        </div>
+        <div class="glass-card problem-card">
+          <div class="problem-icon">&#128176;</div>
+          <h3>Money Slipping Through the Cracks</h3>
+          <p>Missed payments you forgot to follow up on. Invoices you entered wrong. That family who owes you $400 and you're too embarrassed to ask again.</p>
+        </div>
+        <div class="glass-card problem-card">
+          <div class="problem-icon">&#128065;</div>
+          <h3>Flying Blind Across Locations</h3>
+          <p>You drive to your second location just to check if Tuesday slots are filled. Your staff texts you updates that get buried in a group chat.</p>
+        </div>
+        <div class="glass-card problem-card">
+          <div class="problem-icon">&#128268;</div>
+          <h3>Frankenstein Tech Stack</h3>
+          <p>Google Calendar for scheduling. Stripe for some payments. A spreadsheet for the rest. A group chat for "communication." None of it connects. All of it breaks.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ -->
+  <!-- 5. SOLUTION — Features as pain-killers        -->
+  <!-- ============================================ -->
+  <section class="section solution animate-on-scroll">
+    <div class="container">
+      <span class="label">How Lessonpreneur fixes it</span>
+      <h2>One Dashboard. Every Location.<br>Your Sundays Back.</h2>
+      <p class="section-sub">Built for the way music schools actually run — not how software companies think they should.</p>
+      <div class="solution-grid">
+        <div class="glass-card solution-card">
+          <span class="pain-line">Stop rescheduling by text.</span>
+          <h3>Smart Scheduling</h3>
+          <p>Students book online. Conflicts blocked automatically. Reschedules in two clicks. You'll never play phone tag over a 30-minute lesson again.</p>
+        </div>
+        <div class="glass-card solution-card">
+          <span class="pain-line">Stop chasing payments manually.</span>
+          <h3>Automated Billing</h3>
+          <p>Recurring charges run on autopilot. Invoices go out without you touching them. You see exactly who paid and who didn't — in real time.</p>
+        </div>
+        <div class="glass-card solution-card">
+          <span class="pain-line">Stop driving between locations to check the schedule.</span>
+          <h3>Multi-Location Dashboard</h3>
+          <p>Enrollment, revenue, instructor load, open slots — every location, side by side. Make decisions from your couch, not your car.</p>
+        </div>
+        <div class="glass-card solution-card">
+          <span class="pain-line">Stop losing students you didn't see leaving.</span>
+          <h3>Student Management</h3>
+          <p>Every student's lesson history, payment status, and progress notes in one profile. Spot the ones about to churn before they ghost you.</p>
+        </div>
+        <div class="glass-card solution-card">
+          <span class="pain-line">Stop sharing your financials with your teachers.</span>
+          <h3>Instructor Portal</h3>
+          <p>Teachers get their own login with schedules, attendance, and lesson notes. They see exactly what they need. Nothing they don't.</p>
+        </div>
+        <div class="glass-card solution-card">
+          <span class="pain-line">Stop sending reminder texts yourself.</span>
+          <h3>Automated Follow-Up</h3>
+          <p>Lesson reminders, payment nudges, and re-engagement emails go out automatically. No-shows drop. Revenue stops leaking. You stop being a human reminder service.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ -->
+  <!-- 6. SOCIAL PROOF — Standalone testimonials     -->
+  <!-- ============================================ -->
+  <section class="section testimonials animate-on-scroll">
+    <div class="glow-pink"></div>
+    <div class="container" style="position:relative;z-index:1;">
+      <span class="label">From school owners like you</span>
+      <h2>They Were Where You Are.<br>Here's What Changed.</h2>
+      <p class="section-sub">Real results from real music school owners who made the switch.</p>
       <div class="testimonials-grid">
         <div class="glass-card testimonial-card">
-          <span class="testimonial-metric">Saved 12 hrs/week on admin</span>
+          <span class="testimonial-metric">Got her Sundays back</span>
           <p class="testimonial-text">"I was spending every Sunday doing billing and scheduling. Now it just runs. I actually have weekends again."</p>
           <p class="testimonial-author">Sarah Mitchell<br><span class="testimonial-role">Owner, Harmony Music Academy — 2 locations</span><span class="placeholder-note">PLACEHOLDER — REPLACE WITH REAL TESTIMONIAL</span></p>
         </div>
         <div class="glass-card testimonial-card">
-          <span class="testimonial-metric">Reduced no-shows by 40%</span>
+          <span class="testimonial-metric">No-shows down 40%</span>
           <p class="testimonial-text">"The automated reminders alone paid for the software in the first month. Parents actually show up now."</p>
           <p class="testimonial-author">David Park<br><span class="testimonial-role">Director, NoteWorthy Music Schools — 3 locations</span><span class="placeholder-note">PLACEHOLDER — REPLACE WITH REAL TESTIMONIAL</span></p>
         </div>
         <div class="glass-card testimonial-card">
-          <span class="testimonial-metric">Scaled from 1 to 3 locations</span>
+          <span class="testimonial-metric">Scaled to 3 locations</span>
           <p class="testimonial-text">"Before Lessonpreneur, opening a second location felt impossible. Now I manage three from one dashboard without hiring another admin."</p>
           <p class="testimonial-author">Rachel Torres<br><span class="testimonial-role">Founder, Keys & Strings Studio — 3 locations</span><span class="placeholder-note">PLACEHOLDER — REPLACE WITH REAL TESTIMONIAL</span></p>
         </div>
@@ -643,81 +707,21 @@
     </div>
   </section>
 
-  <!-- FEATURES -->
-  <section class="section features animate-on-scroll">
-    <div class="container">
-      <span class="label">How it works</span>
-      <h2>One Platform. Every Tool You Need.</h2>
-      <p class="section-sub">Zero guesswork. Zero duct tape.</p>
-      <div class="features-grid">
-        <div class="glass-card">
-          <span class="feature-num">01</span>
-          <h3>Smart Scheduling</h3>
-          <p>Students book online. Conflicts blocked automatically. Reschedules in two clicks.</p>
-        </div>
-        <div class="glass-card">
-          <span class="feature-num">02</span>
-          <h3>Automated Billing</h3>
-          <p>Recurring payments, auto-invoicing, and real-time revenue tracking.</p>
-        </div>
-        <div class="glass-card">
-          <span class="feature-num">03</span>
-          <h3>Student Management</h3>
-          <p>Lesson history, payment status, and progress notes in one profile.</p>
-        </div>
-        <div class="glass-card">
-          <span class="feature-num">04</span>
-          <h3>Multi-Location Dashboard</h3>
-          <p>Enrollment, revenue, and instructor load — side by side, every location.</p>
-        </div>
-        <div class="glass-card">
-          <span class="feature-num">05</span>
-          <h3>Teacher Coordination</h3>
-          <p>Own logins, schedules, attendance, lesson notes — without seeing your financials.</p>
-        </div>
-        <div class="glass-card">
-          <span class="feature-num">06</span>
-          <h3>Automated Follow-Up</h3>
-          <p>Email and SMS reminders for lessons, payments, and re-engagement. Set it and forget it.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- OFFER STACK -->
-  <section class="section offer animate-on-scroll">
-    <div class="container">
-      <span class="label">What you get</span>
-      <h2>Everything Included</h2>
-      <p class="section-sub">Every plan gets the full platform. No feature gates. No upsells.</p>
-      <div class="glass-card offer-card">
-        <ul class="offer-list">
-          <li><span class="check-icon">&#10003;</span> Full CRM — student, parent, and instructor profiles</li>
-          <li><span class="check-icon">&#10003;</span> Online booking and smart scheduling engine</li>
-          <li><span class="check-icon">&#10003;</span> Automated billing with Stripe integration</li>
-          <li><span class="check-icon">&#10003;</span> Multi-location dashboard and reporting</li>
-          <li><span class="check-icon">&#10003;</span> Instructor portal with attendance and lesson notes</li>
-          <li><span class="check-icon">&#10003;</span> Parent and student self-service portal</li>
-          <li><span class="check-icon">&#10003;</span> Email and SMS reminders for lessons and payments</li>
-          <li><span class="check-icon">&#10003;</span> Dedicated onboarding — we set everything up for you</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- PRICING -->
+  <!-- ============================================ -->
+  <!-- 7. PRICING                                    -->
+  <!-- ============================================ -->
   <section class="section pricing animate-on-scroll" id="pricing">
     <div class="glow-pink"></div>
     <div class="container" style="position:relative;z-index:1;">
       <span class="label">Simple pricing</span>
-      <h2>Pick the Plan That Fits Your Studio</h2>
-      <p class="section-sub">All plans include a 90-day free trial. Card required to start.</p>
+      <h2>Pick the Plan That Fits Your School</h2>
+      <p class="section-sub">Every plan includes the full platform. No feature gates. No upsells. 90 days free to prove it.</p>
       <div class="pricing-grid">
         <div class="glass-card pricing-card">
           <div class="tier-name">Solo</div>
           <div class="price-amount">$97</div>
           <div class="price-period">per month</div>
-          <p class="tier-desc">For the serious independent music teacher ready to run their studio like a real business.</p>
+          <p class="tier-desc">For the independent teacher ready to stop running their studio out of a spreadsheet.</p>
           <a href="https://buy.stripe.com/aFabJ16ySgmabyE9JS2ZO02" class="btn-cta">Start Free Trial</a>
         </div>
         <div class="glass-card pricing-card popular">
@@ -725,99 +729,74 @@
           <div class="tier-name">School</div>
           <div class="price-amount">$297</div>
           <div class="price-period">per month</div>
-          <p class="tier-desc">For the music school owner who's done duct-taping their business together.</p>
+          <p class="tier-desc">For the school owner who's done duct-taping their business together with 5 different tools.</p>
           <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Start Free Trial</a>
         </div>
         <div class="glass-card pricing-card">
           <div class="tier-name">Pro</div>
           <div class="price-amount">$997</div>
           <div class="price-period">per month</div>
-          <p class="tier-desc">For the multi-location operator running a real music school business.</p>
+          <p class="tier-desc">For the multi-location operator who needs every location running like one machine.</p>
           <a href="https://buy.stripe.com/dRm3cv3mGfi646c2hq2ZO00" class="btn-cta">Start Free Trial</a>
         </div>
       </div>
-      <p class="pricing-note">90-day free trial on all plans. Cancel anytime.</p>
+      <p class="pricing-note">90-day free trial on all plans. Cancel anytime. No contracts.</p>
     </div>
   </section>
 
-  <!-- COMPETITOR SWITCH -->
-  <section class="section switch-section animate-on-scroll">
-    <div class="container">
-      <div class="glass-card switch-card">
-        <h3>Already using MyMusicStaff, Opus One, or another platform?</h3>
-        <p>Switch to Lessonpreneur and we'll beat your current price — plus your first 90 days free. We'll help you migrate your data. If it's not better than what you have, we'll refund every penny.</p>
-        <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Claim Your Free 90 Days</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- RISK REMOVAL -->
-  <section class="section risk animate-on-scroll">
-    <div class="glow-purple"></div>
-    <div class="container" style="position:relative;z-index:1;">
-      <span class="label">Zero risk</span>
-      <h2>Try It. No Strings.</h2>
-      <p class="section-sub">We know switching tools is scary. That's why we made it easy to start — and easy to leave.</p>
-      <div class="risk-grid">
-        <div class="glass-card risk-card">
-          <h3>Free 90-Day Trial</h3>
-          <p>Full access to every feature. Card required to start — cancel anytime.</p>
-        </div>
-        <div class="glass-card risk-card">
-          <h3>Cancel Anytime</h3>
-          <p>No contracts. No annual lock-ins. Month-to-month, always.</p>
-        </div>
-        <div class="glass-card risk-card">
-          <h3>White-Glove Onboarding</h3>
-          <p>We migrate your data and walk your team through setup — free.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FAQ -->
+  <!-- ============================================ -->
+  <!-- 8. FAQ                                        -->
+  <!-- ============================================ -->
   <section class="section faq animate-on-scroll">
     <div class="container">
       <span class="label">Questions</span>
-      <h2>Frequently Asked Questions</h2>
-      <p class="section-sub">Everything you need to know before you start.</p>
+      <h2>Before You Decide</h2>
+      <p class="section-sub">The stuff you'd ask a friend before switching. Straight answers.</p>
       <div class="faq-list">
         <div class="faq-item">
-          <button class="faq-question">How is this different from Jackrabbit / Pike13 / My Music Staff?</button>
-          <div class="faq-answer"><p>Lessonpreneur was built by a school owner who ran 4 locations, not a generic SaaS team. It's purpose-built for multi-location music schools — the workflows, the reports, the billing logic. Everything is designed for how music schools actually operate.</p></div>
+          <button class="faq-question">How is this different from Jackrabbit, Pike13, or MyMusicStaff?</button>
+          <div class="faq-answer"><p>Those tools were built by software companies. Lessonpreneur was built by someone who runs 4 music school locations and got tired of working around their limitations. The scheduling logic, billing workflows, and multi-location reporting are designed for how music schools actually operate — not how a product team imagined they might.</p></div>
         </div>
         <div class="faq-item">
-          <button class="faq-question">What if I already have a system?</button>
-          <div class="faq-answer"><p>White-glove migration is included free. We move your student data, billing records, and schedules for you. Most schools are fully migrated without lifting a finger.</p></div>
+          <button class="faq-question">I already have a system. How painful is switching?</button>
+          <div class="faq-answer"><p>We do it for you. White-glove migration is included free. We move your student data, billing records, and schedules. Most schools are fully live within 48 hours without lifting a finger.</p></div>
         </div>
         <div class="faq-item">
-          <button class="faq-question">Is there a contract?</button>
-          <div class="faq-answer"><p>No. Month-to-month, always. Cancel anytime with no penalties or fees. We earn your business every month.</p></div>
+          <button class="faq-question">Is there a contract or annual commitment?</button>
+          <div class="faq-answer"><p>No. Month-to-month, always. Cancel anytime, no penalties, no fees. We earn your business every single month.</p></div>
         </div>
         <div class="faq-item">
-          <button class="faq-question">How long does setup take?</button>
-          <div class="faq-answer"><p>Most schools are live within 48 hours. We handle the setup and data migration, so you can focus on teaching.</p></div>
+          <button class="faq-question">What if it doesn't work for my school?</button>
+          <div class="faq-answer"><p>You get 90 days free. If it's not a clear upgrade from what you're using now, cancel and you've paid nothing. We'll even help you export your data. Zero risk.</p></div>
         </div>
         <div class="faq-item">
-          <button class="faq-question">Do you support multiple locations?</button>
-          <div class="faq-answer"><p>Yes — it's what we were built for from day one. One dashboard, all locations. See enrollment, revenue, and instructor load across every site.</p></div>
+          <button class="faq-question">Does it actually work for multiple locations?</button>
+          <div class="faq-answer"><p>It was built for multiple locations from day one. That's the whole point. One dashboard, all locations — enrollment, revenue, and instructor load across every site. No more driving between locations to check schedules.</p></div>
         </div>
         <div class="faq-item">
-          <button class="faq-question">What if I need help?</button>
-          <div class="faq-answer"><p>You get a direct Slack channel with the founder. Not a ticket queue, not a chatbot — a real person who understands music schools because he runs them.</p></div>
+          <button class="faq-question">What does support look like?</button>
+          <div class="faq-answer"><p>You get a direct line to the founder. Not a ticket queue. Not a chatbot. A real person who runs music schools and understands exactly what you're dealing with.</p></div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- CTA -->
+  <!-- ============================================ -->
+  <!-- 9. FINAL CTA — With risk reversal built in   -->
+  <!-- ============================================ -->
   <section class="cta-section animate-on-scroll" id="cta">
     <div class="glow-pink"></div>
     <div class="container" style="position:relative;z-index:1;">
-      <h2>Ready to Run Your Music School<br>Like a Real Business?</h2>
-      <p class="section-sub">Join the music school owners who stopped juggling spreadsheets and started scaling.</p>
+      <h2>You've Read Enough.<br>You Know If This Is You.</h2>
+      <p class="section-sub">90 days free. We set everything up. If it's not better than what you have, you pay nothing.</p>
       <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Start Your 90-Day Free Trial</a>
       <p class="cta-note">Card required to start. Cancel anytime.</p>
+      <div class="guarantee-row">
+        <span class="guarantee-item"><span class="g-icon">&#10003;</span> 90-day free trial</span>
+        <span class="guarantee-item"><span class="g-icon">&#10003;</span> Free data migration</span>
+        <span class="guarantee-item"><span class="g-icon">&#10003;</span> No contracts, ever</span>
+        <span class="guarantee-item"><span class="g-icon">&#10003;</span> Cancel in two clicks</span>
+      </div>
     </div>
   </section>
 
