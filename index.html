@@ -5,6 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lessonpreneur — The Operating System for Music School Owners</title>
   <meta name="description" content="Lessonpreneur is the CRM built by a music school owner, for music school owners. Manage schedules, billing, students, and staff across all your locations in one place.">
+  <!-- ========== TRACKING PIXELS ========== -->
+  <!-- TODO: Replace G-XXXXXXXXXX with your real GA4 Measurement ID -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+
+  <!-- TODO: Replace XXXXXXXXXXXXXXXX with your real Meta Pixel ID -->
+  <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', 'XXXXXXXXXXXXXXXX');
+    fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=XXXXXXXXXXXXXXXX&ev=PageView&noscript=1"/></noscript>
+
+  <!-- TODO: Replace XXXXXXXXXX with your real Microsoft Clarity Project ID -->
+  <script>
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "XXXXXXXXXX");
+  </script>
+  <!-- ========== END TRACKING PIXELS ========== -->
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -351,6 +387,105 @@
       font-size: 1.1rem;
     }
 
+    /* === TESTIMONIALS === */
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 8px;
+    }
+    .testimonial-card { text-align: left; }
+    .testimonial-card .testimonial-text {
+      font-style: italic;
+      font-size: 1rem;
+      color: #C0C0D8;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .testimonial-metric {
+      display: inline-block;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #FFB800;
+      background: rgba(255,184,0,0.08);
+      border: 1px solid rgba(255,184,0,0.15);
+      border-radius: 999px;
+      padding: 4px 14px;
+      margin-bottom: 16px;
+    }
+    .testimonial-author {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #E0E0F4;
+    }
+    .testimonial-role {
+      font-size: 0.8rem;
+      color: #606088;
+      font-weight: 400;
+    }
+    .placeholder-note {
+      display: block;
+      font-size: 0.7rem;
+      color: #D4226A;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-top: 4px;
+    }
+
+    /* === FAQ === */
+    .faq { text-align: center; }
+    .faq-list {
+      max-width: 720px;
+      margin: 0 auto;
+      text-align: left;
+    }
+    .faq-item {
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .faq-question {
+      width: 100%;
+      background: none;
+      border: none;
+      color: #E0E0F4;
+      font-family: inherit;
+      font-size: 1.05rem;
+      font-weight: 600;
+      padding: 24px 40px 24px 0;
+      cursor: pointer;
+      text-align: left;
+      position: relative;
+      transition: color 200ms;
+    }
+    .faq-question:hover { color: #FFFFFF; }
+    .faq-question::after {
+      content: '+';
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.4rem;
+      font-weight: 300;
+      color: #D4226A;
+      transition: transform 300ms;
+    }
+    .faq-item.open .faq-question::after {
+      transform: translateY(-50%) rotate(45deg);
+    }
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 300ms ease, padding 300ms ease;
+    }
+    .faq-item.open .faq-answer {
+      max-height: 200px;
+    }
+    .faq-answer p {
+      font-size: 0.95rem;
+      color: #8080A8;
+      padding: 0 0 24px;
+      line-height: 1.6;
+    }
+
     /* === CTA SECTION === */
     .cta-section {
       text-align: center;
@@ -381,6 +516,7 @@
       .problem-grid { grid-template-columns: 1fr; }
       .features-grid { grid-template-columns: 1fr; gap: 20px; }
       .risk-grid { grid-template-columns: 1fr; }
+      .testimonials-grid { grid-template-columns: 1fr; }
       .stats-row { gap: 40px; }
     }
     @media (max-width: 480px) {
@@ -457,7 +593,23 @@
           <span class="stat-label">Students Served</span>
         </div>
       </div>
-      <p class="proof-quote">"We built this because nothing else worked for how music schools actually run."</p>
+      <div class="testimonials-grid">
+        <div class="glass-card testimonial-card">
+          <span class="testimonial-metric">Saved 12 hrs/week on admin</span>
+          <p class="testimonial-text">"I was spending every Sunday doing billing and scheduling. Now it just runs. I actually have weekends again."</p>
+          <p class="testimonial-author">Sarah Mitchell<br><span class="testimonial-role">Owner, Harmony Music Academy — 2 locations</span><span class="placeholder-note">PLACEHOLDER — REPLACE WITH REAL TESTIMONIAL</span></p>
+        </div>
+        <div class="glass-card testimonial-card">
+          <span class="testimonial-metric">Reduced no-shows by 40%</span>
+          <p class="testimonial-text">"The automated reminders alone paid for the software in the first month. Parents actually show up now."</p>
+          <p class="testimonial-author">David Park<br><span class="testimonial-role">Director, NoteWorthy Music Schools — 3 locations</span><span class="placeholder-note">PLACEHOLDER — REPLACE WITH REAL TESTIMONIAL</span></p>
+        </div>
+        <div class="glass-card testimonial-card">
+          <span class="testimonial-metric">Scaled from 1 to 3 locations</span>
+          <p class="testimonial-text">"Before Lessonpreneur, opening a second location felt impossible. Now I manage three from one dashboard without hiring another admin."</p>
+          <p class="testimonial-author">Rachel Torres<br><span class="testimonial-role">Founder, Keys & Strings Studio — 3 locations</span><span class="placeholder-note">PLACEHOLDER — REPLACE WITH REAL TESTIMONIAL</span></p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -572,6 +724,41 @@
     </div>
   </section>
 
+  <!-- FAQ -->
+  <section class="section faq animate-on-scroll">
+    <div class="container">
+      <span class="label">Questions</span>
+      <h2>Frequently Asked Questions</h2>
+      <p class="section-sub">Everything you need to know before you start.</p>
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-question">How is this different from Jackrabbit / Pike13 / My Music Staff?</button>
+          <div class="faq-answer"><p>Lessonpreneur was built by a school owner who ran 4 locations, not a generic SaaS team. It's purpose-built for multi-location music schools — the workflows, the reports, the billing logic. Everything is designed for how music schools actually operate.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">What if I already have a system?</button>
+          <div class="faq-answer"><p>White-glove migration is included free. We move your student data, billing records, and schedules for you. Most schools are fully migrated without lifting a finger.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Is there a contract?</button>
+          <div class="faq-answer"><p>No. Month-to-month, always. Cancel anytime with no penalties or fees. We earn your business every month.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">How long does setup take?</button>
+          <div class="faq-answer"><p>Most schools are live within 48 hours. We handle the setup and data migration, so you can focus on teaching.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Do you support multiple locations?</button>
+          <div class="faq-answer"><p>Yes — it's what we were built for from day one. One dashboard, all locations. See enrollment, revenue, and instructor load across every site.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">What if I need help?</button>
+          <div class="faq-answer"><p>You get a direct Slack channel with the founder. Not a ticket queue, not a chatbot — a real person who understands music schools because he runs them.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- CTA -->
   <section class="cta-section animate-on-scroll" id="cta">
     <div class="glow-pink"></div>
@@ -601,6 +788,35 @@
       });
     }, { threshold: 0.15 });
     document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+
+    // FAQ accordion toggle
+    document.querySelectorAll('.faq-question').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var item = btn.parentElement;
+        var isOpen = item.classList.contains('open');
+        // Close all others
+        document.querySelectorAll('.faq-item.open').forEach(function(el) { el.classList.remove('open'); });
+        // Toggle clicked
+        if (!isOpen) item.classList.add('open');
+      });
+    });
+
+    // Track CTA clicks — fires GA4 + Meta Pixel events
+    document.querySelectorAll('.btn-cta').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        // GA4: generate_lead event
+        if (typeof gtag === 'function') {
+          gtag('event', 'generate_lead', {
+            event_category: 'CTA',
+            event_label: btn.textContent.trim()
+          });
+        }
+        // Meta Pixel: Lead event
+        if (typeof fbq === 'function') {
+          fbq('track', 'Lead');
+        }
+      });
+    });
   </script>
 </body>
 </html>
