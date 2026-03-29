@@ -268,6 +268,74 @@
       margin-top: 1px;
     }
 
+    /* === PRICING === */
+    .pricing { text-align: center; }
+    .pricing-card {
+      max-width: 520px;
+      margin: 0 auto;
+      text-align: center;
+      padding: 48px 40px;
+      border: 2px solid rgba(212,34,106,0.3);
+    }
+    .founding-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #D4226A, #FF5500);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 16px;
+      border-radius: 999px;
+      margin-bottom: 24px;
+    }
+    .price-amount {
+      font-size: clamp(3rem, 6vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, #D4226A 0%, #FF5500 55%, #FFB800 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .price-period {
+      font-size: 1rem;
+      color: #606088;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .price-value-line {
+      font-size: 1.05rem;
+      color: #8080A8;
+      font-weight: 500;
+      margin-bottom: 32px;
+    }
+    .pricing-includes {
+      text-align: left;
+      margin-bottom: 32px;
+    }
+    .pricing-includes li {
+      font-size: 0.95rem;
+      color: #E0E0F4;
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pricing-includes .check-icon {
+      width: 18px;
+      height: 18px;
+      font-size: 0.6rem;
+    }
+    .pricing .btn-cta { margin-top: 8px; }
+    .pricing-note {
+      margin-top: 16px;
+      font-size: 0.8rem;
+      color: #606088;
+    }
+
     /* === RISK === */
     .risk { text-align: center; }
     .risk-grid {
@@ -332,7 +400,7 @@
       <span class="label">Built for music schools</span>
       <h1>The Operating System Built<br>for Music School Owners,<br><span class="gradient-text">By a Music School Owner</span></h1>
       <p class="hero-sub">Stop duct-taping 5 tools together. Manage schedules, billing, students, and staff across every location — from one dashboard.</p>
-      <a href="#cta" class="btn-cta">Start Your Free Trial</a>
+      <a href="https://lessonpreneur.vercel.app/signup" class="btn-cta">Start Your Free Trial</a>
       <p class="hero-note">No credit card required. Cancel anytime.</p>
     </div>
   </section>
@@ -455,6 +523,31 @@
     </div>
   </section>
 
+  <!-- PRICING -->
+  <section class="section pricing animate-on-scroll" id="pricing">
+    <div class="glow-pink"></div>
+    <div class="container" style="position:relative;z-index:1;">
+      <span class="label">Simple pricing</span>
+      <h2>One Plan. Everything Included.</h2>
+      <p class="section-sub">No tiers, no hidden fees, no surprises.</p>
+      <div class="glass-card pricing-card">
+        <span class="founding-badge">Founding Member</span>
+        <div class="price-amount">$997</div>
+        <div class="price-period">per month</div>
+        <div class="price-value-line">Less than the cost of one part-time admin.</div>
+        <ul class="pricing-includes">
+          <li><span class="check-icon">&#10003;</span> Full CRM + scheduling + billing</li>
+          <li><span class="check-icon">&#10003;</span> Unlimited locations, students, and instructors</li>
+          <li><span class="check-icon">&#10003;</span> Automated follow-ups (email + SMS)</li>
+          <li><span class="check-icon">&#10003;</span> White-glove onboarding and data migration</li>
+          <li><span class="check-icon">&#10003;</span> Priority support</li>
+        </ul>
+        <a href="https://lessonpreneur.vercel.app/signup" class="btn-cta">Start Your Free Trial</a>
+        <p class="pricing-note">14-day free trial. No credit card required. Cancel anytime.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- RISK REMOVAL -->
   <section class="section risk animate-on-scroll">
     <div class="glow-purple"></div>
@@ -485,7 +578,7 @@
     <div class="container" style="position:relative;z-index:1;">
       <h2>Ready to Run Your Music School<br>Like a Real Business?</h2>
       <p class="section-sub">Join the music school owners who stopped juggling spreadsheets and started scaling.</p>
-      <a href="https://lessonpreneur.vercel.app" class="btn-cta">Start Your Free Trial</a>
+      <a href="https://lessonpreneur.vercel.app/signup" class="btn-cta">Start Your Free Trial</a>
       <p class="cta-note">No credit card required. Set up in under 10 minutes.</p>
     </div>
   </section>
