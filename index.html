@@ -132,6 +132,128 @@
       box-shadow: 0 6px 22px rgba(212,34,106,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
     }
 
+    /* === SECONDARY CTA (Book a Demo) === */
+    .btn-demo {
+      display: inline-block;
+      background: transparent;
+      color: #D4226A;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: 0.02em;
+      padding: 16px 40px;
+      border: 2px solid rgba(212,34,106,0.5);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: border-color 220ms, color 220ms, transform 220ms;
+      margin-left: 16px;
+    }
+    .btn-demo:hover {
+      border-color: #D4226A;
+      color: #FF5500;
+      transform: scale(1.02);
+    }
+    .hero-cta-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .hero-cta-row .btn-demo { margin-left: 0; animation: fadeInUp 700ms 400ms cubic-bezier(0.4,0,0.2,1) both; }
+
+    /* === DEMO MODAL === */
+    .demo-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(2,2,9,0.85);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+    }
+    .demo-overlay.open { display: flex; }
+    .demo-modal {
+      background: linear-gradient(150deg, rgba(22,20,40,0.99), rgba(16,14,30,1));
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 440px;
+      margin: 24px;
+      position: relative;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+      animation: slideUp 400ms cubic-bezier(0.4,0,0.2,1) both;
+    }
+    .demo-modal h2 {
+      font-size: 1.5rem;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .demo-modal .modal-sub {
+      color: #8080A8;
+      font-size: 0.9rem;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .demo-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: none;
+      border: none;
+      color: #606088;
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+    }
+    .demo-close:hover { color: #fff; }
+    .demo-field {
+      display: block;
+      width: 100%;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 200ms;
+    }
+    .demo-field:focus {
+      border-color: #D4226A;
+    }
+    .demo-field::placeholder { color: #606088; }
+    .demo-submit {
+      display: block;
+      width: 100%;
+      background: linear-gradient(135deg, #D4226A, #FF5500);
+      color: #fff;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 16px;
+      padding: 16px;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: transform 220ms, opacity 220ms;
+    }
+    .demo-submit:hover { transform: scale(1.02); }
+    .demo-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .demo-msg {
+      text-align: center;
+      margin-top: 14px;
+      font-size: 0.9rem;
+    }
+    .demo-msg.success { color: #34D399; }
+    .demo-msg.error { color: #F87171; }
+
     /* === GLASS CARD === */
     .glass-card {
       position: relative;
@@ -550,7 +672,10 @@
       <span class="label">Built by a music school owner</span>
       <h1>You Didn't Open a Music School<br>to Spend Every Night<br><span class="gradient-text">Buried in Spreadsheets</span></h1>
       <p class="hero-sub">Scheduling chaos. Billing headaches. Five tools that don't talk to each other. You built something great — now run it with software that actually understands your business.</p>
-      <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Start Your 90-Day Free Trial</a>
+      <div class="hero-cta-row">
+        <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Start Your 90-Day Free Trial</a>
+        <button class="btn-demo" onclick="openDemoModal()">Book a Demo</button>
+      </div>
       <p class="hero-note">Card required to start. Cancel anytime. We'll set everything up for you.</p>
     </div>
   </section>
@@ -789,7 +914,10 @@
     <div class="container" style="position:relative;z-index:1;">
       <h2>You've Read Enough.<br>You Know If This Is You.</h2>
       <p class="section-sub">90 days free. We set everything up. If it's not better than what you have, you pay nothing.</p>
-      <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Start Your 90-Day Free Trial</a>
+      <div class="hero-cta-row">
+        <a href="https://buy.stripe.com/7sYdR97CW4Ds46c5tC2ZO01" class="btn-cta">Start Your 90-Day Free Trial</a>
+        <button class="btn-demo" onclick="openDemoModal()">Book a Demo</button>
+      </div>
       <p class="cta-note">Card required to start. Cancel anytime.</p>
       <div class="guarantee-row">
         <span class="guarantee-item"><span class="g-icon">&#10003;</span> 90-day free trial</span>
@@ -806,6 +934,23 @@
       <p>&copy; 2026 Lessonpreneur. All rights reserved.</p>
     </div>
   </footer>
+
+  <!-- DEMO MODAL -->
+  <div class="demo-overlay" id="demoOverlay">
+    <div class="demo-modal">
+      <button class="demo-close" onclick="closeDemoModal()">&times;</button>
+      <h2>Book a Demo</h2>
+      <p class="modal-sub">See how Lessonpreneur runs your school. We'll reach out within 24 hours.</p>
+      <form id="demoForm" onsubmit="submitDemoForm(event)">
+        <input class="demo-field" type="text" id="demoName" placeholder="Your Name" required>
+        <input class="demo-field" type="text" id="demoSchool" placeholder="School Name" required>
+        <input class="demo-field" type="email" id="demoEmail" placeholder="Email" required>
+        <input class="demo-field" type="tel" id="demoPhone" placeholder="Phone" required>
+        <button class="demo-submit" type="submit" id="demoSubmitBtn">Request a Demo</button>
+      </form>
+      <div class="demo-msg" id="demoMsg"></div>
+    </div>
+  </div>
 
   <script>
     // Intersection Observer for scroll animations
@@ -847,6 +992,89 @@
         }
       });
     });
+
+    // === DEMO MODAL ===
+    function openDemoModal() {
+      document.getElementById('demoOverlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeDemoModal() {
+      document.getElementById('demoOverlay').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    // Close on overlay click
+    document.getElementById('demoOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closeDemoModal();
+    });
+    // Close on Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeDemoModal();
+    });
+
+    function submitDemoForm(e) {
+      e.preventDefault();
+      var btn = document.getElementById('demoSubmitBtn');
+      var msg = document.getElementById('demoMsg');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      msg.textContent = '';
+      msg.className = 'demo-msg';
+
+      var fullName = document.getElementById('demoName').value.trim();
+      var parts = fullName.split(/\s+/);
+      var firstName = parts[0] || '';
+      var lastName = parts.slice(1).join(' ') || '';
+      var school = document.getElementById('demoSchool').value.trim();
+      var email = document.getElementById('demoEmail').value.trim();
+      var phone = document.getElementById('demoPhone').value.trim();
+
+      var SUPABASE_URL = 'https://dhsyxyhtoadrqfrlmsqe.supabase.co';
+      var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoc3l4eWh0b2FkcnFmcmxtc3FlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNzk5MDAsImV4cCI6MjA4OTk1NTkwMH0.1NlCe4rQ5-rWYqdT8-cEGB3xhD7cudXYloIjRBa6fGc';
+
+      fetch(SUPABASE_URL + '/rest/v1/leads', {
+        method: 'POST',
+        headers: {
+          'apikey': ANON_KEY,
+          'Authorization': 'Bearer ' + ANON_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          tenant_id: '00000000-0000-0000-0000-000000000001',
+          first_name: firstName,
+          last_name: lastName,
+          email: email,
+          phone: phone,
+          source: 'website_demo',
+          source_page: 'lessonpreneur.vercel.app',
+          stage: 'inquiry',
+          notes: 'School: ' + school + '. Requested demo via sales page.'
+        })
+      })
+      .then(function(res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        // Fire tracking events
+        if (typeof gtag === 'function') {
+          gtag('event', 'generate_lead', {
+            event_category: 'Demo',
+            event_label: 'Book a Demo Form'
+          });
+        }
+        if (typeof fbq === 'function') {
+          fbq('track', 'Lead');
+        }
+        // Show success
+        document.getElementById('demoForm').style.display = 'none';
+        msg.textContent = 'Got it. We will reach out within 24 hours.';
+        msg.className = 'demo-msg success';
+      })
+      .catch(function() {
+        msg.textContent = 'Something went wrong. Email us at adkinsguitarandmusic@gmail.com';
+        msg.className = 'demo-msg error';
+        btn.disabled = false;
+        btn.textContent = 'Request a Demo';
+      });
+    }
   </script>
 </body>
 </html>
