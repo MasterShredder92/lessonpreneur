@@ -1,0 +1,8 @@
+UPDATE students SET 
+  bio = 'Lily is a sweet, shy 7-year-old who is just starting her piano journey. She takes a few minutes to warm up at the beginning of each lesson but once she is comfortable she becomes very focused and engaged. She loves singing along while she plays and gets excited when she recognizes a melody. She responds best to positive reinforcement and gentle correction — she shuts down if she feels like she made a mistake. Her mom Wei wants her to eventually learn to read sheet music, but right now the priority is keeping it fun so she stays motivated. Lily loves Disney songs and anything from Frozen. She has a short attention span so breaking lessons into 5-minute activity blocks works best. She is left-handed which affects her finger positioning.',
+  notes = '[3/20/2026, 2:15:00 PM] Zach: Mom called to say Lily has been practicing every day this week. She is really excited about the Frozen song we started. Keep going with that.\n[3/15/2026, 10:30:00 AM] Andrea: Moved Lily from Tuesday to Wednesday per mom request. New time works better with school pickup.\n[3/10/2026, 4:00:00 PM] Zach: Lily had a rough lesson today. She got frustrated with the C scale and started crying. Sarah handled it well — switched to a fun song and she recovered. May need to slow down on theory for now.\n[3/1/2026, 9:00:00 AM] Alicia: First contact with Wei Chen. Very nice, wants Lily to love music first, theory second. Signed up for 1x/week piano at Bellevue with Sarah.',
+  first_lesson_date = '2026-01-10',
+  total_lessons_taken = 12,
+  total_paid = 540,
+  age = '7'
+WHERE first_name = 'Lily' AND last_name = 'Chen';

@@ -1,0 +1,47 @@
+{
+  "buildCommand": "npx vite build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "omahaguitarandmusiclessons.com" }],
+      "destination": "/omaha/$1"
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.omahaguitarandmusiclessons.com" }],
+      "destination": "/omaha/$1"
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "gretnamusiclessons.com" }],
+      "destination": "/gretna/$1"
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.gretnamusiclessons.com" }],
+      "destination": "/gretna/$1"
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "musiclessonsbellevue.com" }],
+      "destination": "/bellevue/$1"
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.musiclessonsbellevue.com" }],
+      "destination": "/bellevue/$1"
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "elkhornlessons.com" }],
+      "destination": "/elkhorn/$1"
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.elkhornlessons.com" }],
+      "destination": "/elkhorn/$1"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lessonpreneur — The Operating System for Music Schools</title>
+    <meta name="description" content="Run your music school from your phone in 15 minutes a day. Scheduling, billing, leads, teacher portals, parent portals, AI-powered matching — all in one place. Built by a music school owner doing $1.2M/year. 90-day free trial.">
+    <meta property="og:title" content="Lessonpreneur — The Operating System for Music Schools">
+    <meta property="og:description" content="Run your music school from your phone in 15 minutes a day. Scheduling, billing, leads, AI-powered matching — all in one place. 90-day free trial.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://www.lessonpreneur.io">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Lessonpreneur — The Operating System for Music Schools">
+    <meta name="twitter:description" content="Run your music school from your phone in 15 minutes a day. Built by a music school owner doing $1.2M/year. 90-day free trial.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;900&family=Bebas+Neue&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:,">
+
+    <!-- GA4 + Meta Pixel — domain-aware per-location tracking -->
+    <script>
+      (function(){
+        var m = {
+          'omahaguitarandmusiclessons.com': { ga: 'G-0KT89GHX52', fb: '426901091077909' },
+          'musiclessonsbellevue.com':       { ga: 'G-Q5C7W68SC9', fb: '216419921006041' },
+          'elkhornlessons.com':             { ga: 'G-KNEM7VHEC1', fb: '873626412816671' },
+          'gretnamusiclessons.com':         { ga: 'G-FBMP7Y8M2X', fb: '696662488386167' }
+        };
+        var h = window.location.hostname.replace(/^www\./, '');
+        var t = m[h] || { ga: 'G-PQWBNEDH0L', fb: '1121184396815192' };
+
+        // GA4
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + t.ga;
+        document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        window.gtag = gtag;
+        gtag('js', new Date());
+        gtag('config', t.ga);
+
+        // Meta Pixel
+        !function(f,b,e,v,n,t2,s2)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t2=b.createElement(e);t2.async=!0;
+        t2.src=v;s2=b.getElementsByTagName(e)[0];
+        s2.parentNode.insertBefore(t2,s2)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', t.fb);
+        fbq('track', 'PageView');
+      })();
+    </script>
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=1121184396815192&ev=PageView&noscript=1" /></noscript>
+
+    <!-- Microsoft Clarity -->
+    <script>
+      (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+      })(window, document, "clarity", "script", "w3j28uoufo");
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

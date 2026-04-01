@@ -1,0 +1,1 @@
+CREATE POLICY "Owner updates all locations" ON locations FOR UPDATE TO authenticated USING (tenant_id = get_user_tenant_id() AND get_user_role() = 'owner') WITH CHECK (tenant_id = get_user_tenant_id() AND get_user_role() = 'owner');

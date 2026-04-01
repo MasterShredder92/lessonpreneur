@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /d/music-school-os/app/src/hooks/*.ts)",
+      "WebSearch"
+    ]
+  }
+}

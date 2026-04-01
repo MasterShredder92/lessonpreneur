@@ -1,0 +1,691 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase as anon } from '../lib/supabase'
+import InstrumentTabBar from '../components/shared/InstrumentTabBar'
+import EnrollmentForm from '../components/enrollment/EnrollmentForm'
+import { trackChatStarted, trackChatCompleted, trackLocationSwitched } from '../lib/analytics'
+import { usePublicTenantId } from '../hooks/usePublicTenantId'
+import ReviewsSection from '../components/site/ReviewsSection'
+import SiteHeader from '../components/site/SiteHeader'
+import './adkins.css'
+
+// ═══════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════
+
+type LocKey = 'omaha' | 'bellevue' | 'elkhorn' | 'gretna'
+
+interface LocData {
+  c: string; cg: string; cl: string
+  name: string; full: string; badge: string; dbId: string
+  reviews: { t: string; n: string; r: string }[]
+}
+
+const LOCS: Record<LocKey, LocData> = {
+  omaha: {
+    c: '#D41113', cg: 'rgba(212,17,19,0.22)', cl: 'rgba(212,17,19,0.11)',
+    name: 'Omaha', full: 'Omaha Music Lessons', badge: 'Guitar \u2014 Now Enrolling in Omaha',
+    dbId: 'd48229c1-b70a-4d29-893e-5079887dab76',
+    reviews: [
+      { t: "My daughter wanted to play guitar for years but her old teacher just had her doing scales. She switched here and learned her first full song in two weeks. She has not put the guitar down since.", n: "Rachel", r: "Parent" },
+      { t: "I am 28 and always wanted to play acoustic guitar. My teacher had me strumming campfire songs by the third lesson. Now I play at family gatherings and it feels incredible.", n: "Miguel", r: "Student" },
+      { t: "Our son is on the spectrum and his guitar teacher here is unbelievably patient. The way he connects music to things our son loves has been a game changer. We see growth every single week.", n: "Karen", r: "Parent" },
+    ],
+  },
+  bellevue: {
+    c: '#A333FF', cg: 'rgba(163,51,255,0.22)', cl: 'rgba(163,51,255,0.11)',
+    name: 'Bellevue', full: 'Bellevue Music Lessons', badge: 'Guitar \u2014 Now Enrolling in Bellevue',
+    dbId: 'f7b52dd5-12ee-437f-9c60-f8adf454ac31',
+    reviews: [
+      { t: "My son begged for an electric guitar for Christmas. We signed him up here and within a month he was playing riffs from his favorite bands. The teachers make it cool, not boring.", n: "Tom", r: "Parent" },
+      { t: "I quit guitar lessons twice as a kid because the teachers were terrible. Came back at 31 and this place changed everything. My teacher actually listens to what I want to play.", n: "Samantha", r: "Student" },
+      { t: "Both of our kids take guitar here. Our older one is into metal and our younger one loves Taylor Swift. They each have teachers who match their vibe perfectly. That is hard to find.", n: "Brian", r: "Parent" },
+    ],
+  },
+  elkhorn: {
+    c: '#00A5E8', cg: 'rgba(0,165,232,0.22)', cl: 'rgba(0,165,232,0.11)',
+    name: 'Elkhorn', full: 'Elkhorn Music Lessons', badge: 'Guitar \u2014 Now Enrolling in Elkhorn',
+    dbId: 'cebd97d4-c241-4de2-8ade-49e5cc0070d5',
+    reviews: [
+      { t: "My teenager was glued to his phone all day. His guitar teacher got him hooked on learning solos and now he spends his free time practicing instead of scrolling. Worth every penny.", n: "Danielle", r: "Parent" },
+      { t: "I picked up guitar at 40 thinking it was too late. My teacher proved me wrong in the first lesson. Six months later I am playing blues jams with friends on weekends.", n: "Chris", r: "Student" },
+      { t: "Our daughter had terrible stage fright but wanted to play guitar. Her teacher built her confidence slowly and she performed at the recital with a huge smile. We were in tears.", n: "Megan", r: "Parent" },
+    ],
+  },
+  gretna: {
+    c: '#00A651', cg: 'rgba(0,166,81,0.22)', cl: 'rgba(0,166,81,0.11)',
+    name: 'Gretna', full: 'Gretna Music Lessons', badge: 'Guitar \u2014 Now Enrolling in Gretna',
+    dbId: '40c67ffc-91b5-46a9-94bd-6ddffdfb7638',
+    reviews: [
+      { t: "We tried a group guitar class at another place and our son hated it. The one-on-one attention here is completely different. His teacher knows exactly how to keep him engaged and challenged.", n: "Jeff", r: "Parent" },
+      { t: "I am a complete beginner at 52 and was nervous about looking foolish. My teacher made me comfortable from minute one. I can already play five songs and I have only been here two months.", n: "Linda", r: "Student" },
+      { t: "My daughter started guitar lessons here before her school talent show. Her teacher helped her prepare a performance piece and she absolutely nailed it. The confidence boost was priceless.", n: "Nicole", r: "Parent" },
+    ],
+  },
+}
+
+interface ChatStep {
+  id: string; type: 'single' | 'multi' | 'text' | 'contact'
+  q: (loc: LocKey, a: string[]) => string
+  opts?: string[]; placeholder?: string
+}
+
+const FLOWS: ChatStep[] = [
+  { id: 'who', type: 'single', q: (loc) => `Hey! I'm Cornelius \u{1F33D} Welcome to ${LOCS[loc].full}! First things first \u2014 who are we signing up for guitar lessons today?`, opts: ['My kid', 'Myself'] },
+  { id: 'age', type: 'single', q: (_, a) => a[0] === 'My kid' ? 'How old is your child?' : 'How old are you?', opts: ['Under 5', '5 \u2013 10', '11 \u2013 17', '18 \u2013 25', '26 or older'] },
+  { id: 'instrument', type: 'multi', q: () => 'Guitar is already locked in! Any other instruments you are interested in? Tap all that apply! \u{1F3B5}', opts: ['\u{1F3B8} Guitar', '\u{1F3B9} Piano', '\u{1F941} Drums', '\u{1F3A4} Vocals', '\u{1F3BB} Violin', 'Something else'] },
+  { id: 'experience', type: 'single', q: (_, a) => a[0] === 'My kid' ? 'What is their current guitar experience level?' : 'What is your current guitar experience level?', opts: ['None \u2014 total beginner', '1 \u2013 2 years', '2 \u2013 4 years', '4+ years'] },
+  { id: 'has_instrument', type: 'single', q: () => 'Does the student own a guitar?', opts: ['Yes', 'Acoustic only', 'Electric only', 'No, not yet', 'Need help getting one'] },
+  { id: 'location', type: 'multi', q: () => 'Which location works best? Tap all that apply! \u{1F4CD}', opts: ['Bellevue (13th & Harlan)', 'Omaha (96th & L)', 'Gretna (203rd Hwy 370)', 'Elkhorn (204th & Hwy 6)'] },
+  { id: 'days', type: 'multi', q: () => 'What days work best for your schedule? Tap all that apply! \u{1F4C5}', opts: ['Mon 3:30\u20139pm', 'Tue 3:30\u20139pm', 'Wed 3:30\u20139pm', 'Thu 3:30\u20139pm', 'Sat 10am\u20133pm', 'Any of these work', 'None of these work'] },
+  { id: 'military', type: 'single', q: () => 'Is this student part of a military family?', opts: ['Yes', 'No'] },
+  { id: 'personality', type: 'text', q: (_, a) => { const who = a[0] === 'My kid' ? 'your child' : 'yourself'; return `Almost there! \u{1F3AF} This is where the magic happens \u2014 it is what locks in your compatibility score. Tell us a little about ${who}: personality, learning style, goals, anything that helps us find the perfect guitar teacher.`; }, placeholder: 'e.g. My daughter loves indie music and wants to learn fingerpicking. She is a bit shy but really passionate about songwriting...' },
+  { id: 'contact', type: 'contact', q: () => 'Perfect \u2014 we have everything we need to find your guitar teacher match. Last step: how do we reach you? We will get you set up to book your first lesson within 24 hours! \u{1F4F1}' },
+  { id: 'source', type: 'single', q: () => 'One last quick question \u2014 how did you hear about us?', opts: ['Facebook', 'Instagram', 'Google', 'Signage', 'Driving by', 'Referral', 'Other'] },
+]
+
+const LOC_TO_OPT: Record<LocKey, string> = {
+  omaha: 'Omaha (96th & L)',
+  bellevue: 'Bellevue (13th & Harlan)',
+  elkhorn: 'Elkhorn (204th & Hwy 6)',
+  gretna: 'Gretna (203rd Hwy 370)',
+}
+
+function playPowerChord() {
+  try {
+    const ctx = new AudioContext()
+
+    // Distortion curve
+    const distortion = ctx.createWaveShaper()
+    const samples = 44100
+    const curve = new Float32Array(samples)
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1
+      curve[i] = (Math.PI + 200) * x / (Math.PI + 200 * Math.abs(x))
+    }
+    distortion.curve = curve
+    distortion.oversample = '4x'
+
+    const masterGain = ctx.createGain()
+    masterGain.gain.setValueAtTime(0.4, ctx.currentTime)
+    masterGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2)
+
+    distortion.connect(masterGain)
+    masterGain.connect(ctx.destination)
+
+    // Root note: E2 (~82Hz)
+    const oscRoot = ctx.createOscillator()
+    const gainRoot = ctx.createGain()
+    oscRoot.type = 'sawtooth'
+    oscRoot.frequency.setValueAtTime(82, ctx.currentTime)
+    gainRoot.gain.setValueAtTime(0.5, ctx.currentTime)
+    oscRoot.connect(gainRoot)
+    gainRoot.connect(distortion)
+    oscRoot.start()
+    oscRoot.stop(ctx.currentTime + 1.2)
+
+    // Fifth: B2 (~123Hz)
+    const oscFifth = ctx.createOscillator()
+    const gainFifth = ctx.createGain()
+    oscFifth.type = 'sawtooth'
+    oscFifth.frequency.setValueAtTime(123, ctx.currentTime)
+    gainFifth.gain.setValueAtTime(0.5, ctx.currentTime)
+    oscFifth.connect(gainFifth)
+    gainFifth.connect(distortion)
+    oscFifth.start()
+    oscFifth.stop(ctx.currentTime + 1.2)
+
+    // Octave: E3 (~164Hz) for fullness
+    const oscOctave = ctx.createOscillator()
+    const gainOctave = ctx.createGain()
+    oscOctave.type = 'sawtooth'
+    oscOctave.frequency.setValueAtTime(164, ctx.currentTime)
+    gainOctave.gain.setValueAtTime(0.3, ctx.currentTime)
+    oscOctave.connect(gainOctave)
+    gainOctave.connect(distortion)
+    oscOctave.start()
+    oscOctave.stop(ctx.currentTime + 1.2)
+  } catch (_) { /* ignore */ }
+}
+
+// ═══════════════════════════════════════
+// COMPONENT
+// ═══════════════════════════════════════
+
+export default function GuitarLanding() {
+  const tenantId = usePublicTenantId()
+  const [loc, setLoc] = useState<LocKey>('omaha')
+  const [logos, setLogos] = useState<Record<string, string>>({})
+  const [tipOpen, setTipOpen] = useState(false)
+  const [enrollOpen, setEnrollOpen] = useState(false)
+  const enrollRef = useRef<HTMLElement>(null)
+  const [stringsVibrating, setStringsVibrating] = useState(false)
+
+  useEffect(() => {
+    document.title = 'Guitar Lessons in Omaha, NE | Electric & Acoustic — Adkins Music Lessons'
+    document.querySelector('meta[name="description"]')?.setAttribute('content',
+      'Private guitar lessons in Omaha, Bellevue, Elkhorn & Gretna. Electric and acoustic. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds.')
+  }, [])
+
+  // Chat state
+  const [chatStep, setChatStep] = useState(0)
+  const [chatAnswers, setChatAnswers] = useState<string[]>([])
+  const [chatMsgs, setChatMsgs] = useState<{ from: 'bot' | 'usr'; text: string }[]>([{ from: 'bot', text: FLOWS[0].q('omaha', []) }])
+  const [multiSel, setMultiSel] = useState<string[]>(['\u{1F3B8} Guitar'])
+  const [chatDone, setChatDone] = useState(false)
+  const [contactForm, setContactForm] = useState({ name: '', parent: '', phone: '', email: '' })
+  const [textInput, setTextInput] = useState('')
+  const msgsEndRef = useRef<HTMLDivElement>(null)
+  const locMountedRef = useRef(false)
+
+  const L = LOCS[loc]
+
+  // Fetch logos from Supabase
+  useEffect(() => {
+    anon.from('locations').select('id, name, logo_url').then(({ data }) => {
+      const map: Record<string, string> = {}
+      data?.forEach((l: any) => {
+        const key = (l.name as string).split(' ')[0].toLowerCase()
+        if (l.logo_url) map[key] = l.logo_url
+      })
+      setLogos(map)
+    })
+  }, [])
+
+  // Set CSS vars on location change
+  useEffect(() => {
+    const r = document.documentElement.style
+    r.setProperty('--c', L.c); r.setProperty('--cg', L.cg); r.setProperty('--cl', L.cl)
+  }, [L])
+
+  // Reset chat on location change (skip initial mount — chatMsgs already initialized)
+  useEffect(() => {
+    if (!locMountedRef.current) { locMountedRef.current = true; return }
+    setChatStep(0); setChatAnswers([]); setMultiSel(['\u{1F3B8} Guitar']); setChatDone(false)
+    setTextInput(''); setContactForm({ name: '', parent: '', phone: '', email: '' })
+    setChatMsgs([{ from: 'bot', text: FLOWS[0].q(loc, []) }])
+    trackChatStarted('guitar', loc)
+  }, [loc])
+
+  // Auto-scroll chat only after user interaction (more than the initial bot message)
+  useEffect(() => {
+    if (chatMsgs.length <= 1) return
+    const el = msgsEndRef.current?.parentElement
+    if (el) el.scrollTop = el.scrollHeight
+  }, [chatMsgs])
+
+  const goEnroll = useCallback(() => setEnrollOpen(true), [])
+
+  // Guitar string strum animation
+  const handleStringStrum = useCallback(() => {
+    setStringsVibrating(true)
+    playPowerChord()
+    setTimeout(() => setStringsVibrating(false), 1200)
+  }, [])
+
+  // Chat answer handler
+  async function advance(val: string, step: number) {
+    const newAnswers = [...chatAnswers]
+    newAnswers[step] = val
+    setChatAnswers(newAnswers)
+
+    const disp = val.length > 72 ? val.substring(0, 72) + '...' : val
+    const newMsgs = [...chatMsgs, { from: 'usr' as const, text: disp }]
+
+    const nextStep = step + 1
+    if (nextStep < FLOWS.length) {
+      const botMsg = FLOWS[nextStep].q(loc, newAnswers)
+      setChatMsgs([...newMsgs, { from: 'bot' as const, text: botMsg }])
+      setChatStep(nextStep)
+      setMultiSel(FLOWS[nextStep].id === 'location' ? [LOC_TO_OPT[loc]] : FLOWS[nextStep].id === 'instrument' ? ['\u{1F3B8} Guitar'] : [])
+      setTextInput('')
+      setContactForm({ name: '', parent: '', phone: '', email: '' })
+    } else {
+      setChatMsgs([...newMsgs, { from: 'bot' as const, text: 'Finding your best guitar teacher match...' }])
+      setChatDone(true)
+      trackChatCompleted('guitar', loc)
+      setChatStep(nextStep)
+
+      const rawInstruments = (newAnswers[2] ?? '').split(',').map(s => s.trim())
+      const firstInstr = rawInstruments[0]?.replace(/[\u{1F000}-\u{1FFFF}]/gu, '').trim().toLowerCase() || 'guitar'
+
+      const locOptToName: Record<string, string> = {
+        'Bellevue (13th & Harlan)': 'Bellevue Music Lessons',
+        'Omaha (96th & L)': 'Omaha Music Lessons',
+        'Gretna (203rd Hwy 370)': 'Gretna Music Lessons',
+        'Elkhorn (204th & Hwy 6)': 'Elkhorn Music Lessons',
+      }
+      const selectedLocs = (newAnswers[5] ?? '').split(',').map(s => s.trim())
+      const locationNames = selectedLocs.map(s => locOptToName[s] ?? s).filter(Boolean)
+      if (locationNames.length === 0) locationNames.push(LOCS[loc].full)
+
+      let matchScore = 0
+      let matchName = ''
+      try {
+        const { data: matchData } = await anon.rpc('match_teacher', {
+          p_tenant_id: tenantId!,
+          p_instrument: firstInstr,
+          p_location_names: locationNames,
+          p_age_range: newAnswers[1] ?? '',
+          p_personality_notes: newAnswers[8] ?? '',
+        })
+        if (matchData && matchData.length > 0) {
+          matchScore = matchData[0].score ?? 0
+          matchName = matchData[0].first_name ?? ''
+        }
+      } catch (err) {
+        console.error('Teacher match RPC failed:', err)
+      }
+
+      let finalMsg: string
+      if (matchScore >= 90) {
+        finalMsg = `\u{1F3AF} Your compatibility score is ${matchScore}%! We found an excellent guitar teacher match${matchName ? ` \u2014 ${matchName} is going to be perfect` : ''}. You can book your first lesson within 24 hours! \u{1F3B8}`
+      } else if (matchScore >= 75) {
+        finalMsg = '\u{1F3B8} We found a great guitar teacher match for you! You can book your first lesson within 24 hours!'
+      } else {
+        finalMsg = '\u{1F3B8} We will find the right guitar teacher for you \u2014 book your first lesson within 24 hours!'
+      }
+      setChatMsgs(prev => [...prev.slice(0, -1), { from: 'bot' as const, text: finalMsg }])
+
+      const contact = newAnswers[9]?.split('|') ?? []
+      anon.from('leads').insert({
+        tenant_id: tenantId!,
+        location_id: L.dbId,
+        who: newAnswers[0] ?? null,
+        age: newAnswers[1] ?? null,
+        instrument: newAnswers[2] ?? null,
+        experience: newAnswers[3] ?? null,
+        notes: [
+          `Has instrument: ${newAnswers[4] ?? 'N/A'}`,
+          `Preferred locations: ${newAnswers[5] ?? 'N/A'}`,
+          `Preferred days: ${newAnswers[6] ?? 'N/A'}`,
+          `Military: ${newAnswers[7] ?? 'N/A'}`,
+          `Personality: ${newAnswers[8] ?? 'N/A'}`,
+          `Source: ${newAnswers[10] ?? 'N/A'}`,
+          `Compatibility score: ${matchScore}%`,
+        ].join('\n'),
+        student_first_name: contact[0] ?? null,
+        parent_name: contact[1] ?? null,
+        phone: contact[2] ?? null,
+        email: contact[3] ?? null,
+        source: 'website_guitar',
+        status: 'new',
+      }).then(({ error }) => { if (error) console.error('Lead save failed:', error) })
+    }
+  }
+
+  const logoUrl = logos[loc] || ''
+
+  return (
+    <div className="ak-page">
+      <SiteHeader activeInstrument="guitar" />
+
+      {/* HERO */}
+      <section className="ak-hero">
+        <div className="ak-hbg-glow" />
+        <div className="ak-hgrid" />
+        <div className="ak-hcontent">
+          <div className="ak-hbadge"><div className="ak-bdot" /><span>{L.badge}</span></div>
+          <h1 className="ak-htitle">
+            <span className="ak-htitle-line1">Pick Up the</span>
+            <span className="ak-htitle-born">GUITAR.</span>
+            <span className="ak-htitle-line3">Play Real Songs.</span>
+          </h1>
+          <p className="ak-hsub">Private one-on-one guitar lessons in <strong>{L.name}</strong>. No long-term commitments. Month to month. Expert teachers who actually make it fun. <strong>Most families book their first lesson within 24 hours.</strong></p>
+          <div className="ak-hctas">
+            <button className="ak-btnp" onClick={goEnroll}>Find My Guitar Teacher in 60 Seconds {'\u{2192}'}</button>
+            <button className="ak-btng">Watch Our Story {'\u{25B6}'}</button>
+          </div>
+          <div className="ak-htrust">
+            <div className="ak-tstat"><div className="ak-tnum">2,000+</div><div className="ak-tlbl">Students Taught</div></div>
+            <div className="ak-tdiv" />
+            <div className="ak-tstat"><div className="ak-tnum">4</div><div className="ak-tlbl">Locations</div></div>
+            <div className="ak-tdiv" />
+            <div className="ak-tstat"><div className="ak-tnum">#1</div><div className="ak-tlbl">in Nebraska 2025</div></div>
+            <div className="ak-tdiv" />
+            <div className="ak-tstat"><div className="ak-tnum">0</div><div className="ak-tlbl">Contracts. Ever.</div></div>
+          </div>
+        </div>
+        <div className="ak-hvis">
+          <div
+            className="ak-scene"
+            onClick={handleStringStrum}
+            style={{ cursor: 'pointer', position: 'relative', overflow: 'visible' }}
+          >
+            <div className="ak-lcard" style={{ position: 'relative' }}>
+              <div className="ak-lring">
+                {logoUrl && <img src={logoUrl} alt={L.name} />}
+              </div>
+              {/* Guitar strings */}
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '-10%',
+                width: '120%',
+                transform: 'translateY(-50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                pointerEvents: 'none',
+              }}>
+                {[1, 2, 3, 4, 5, 6].map(s => (
+                  <div
+                    key={s}
+                    style={{
+                      height: s <= 3 ? 1 : s <= 5 ? 2 : 3,
+                      background: `linear-gradient(90deg, transparent 0%, ${L.c}88 20%, ${L.c} 50%, ${L.c}88 80%, transparent 100%)`,
+                      borderRadius: 1,
+                      animation: stringsVibrating ? `guitarStringVibrate${s} ${0.08 + s * 0.02}s ease-in-out ${s * 0.03}s infinite` : 'none',
+                      opacity: stringsVibrating ? 1 : 0.5,
+                      transition: 'opacity 0.3s',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* GUITAR FAQ — concerns */}
+      <section className="ak-sec">
+        <div className="ak-slbl">We Know What You Are Thinking</div>
+        <h2 className="ak-stitle">Every Guitar Student Has<br />These Concerns.</h2>
+        <p className="ak-secdesc">Tried it before and quit? Bad teacher? Never learned a real song? We hear this every single day, and we fix it.</p>
+        <div className="ak-pgrid">
+          {[
+            { icon: '\u{1F3B8}', title: '"I tried lessons before and quit"', desc: '90% of students who quit did not have the right teacher. Our matching system pairs personality, style, and goals. When the connection clicks, quitting is not an option.' },
+            { icon: '\u{1F4DA}', title: '"I never learned real songs"', desc: 'No scales for 6 months. No music theory worksheets. You play songs you actually like from lesson one. That is our promise.' },
+            { icon: '\u{23F0}', title: '"I do not have time to practice"', desc: '15 minutes a day is enough. Our teachers give focused practice plans that fit real life, not conservatory life.' },
+            { icon: '\u{1F4B0}', title: '"Lessons are too expensive"', desc: 'Month to month. Cancel anytime. No enrollment fees. No long-term contracts. And one private lesson per week costs less than most streaming subscriptions.' },
+          ].map((p, i) => (
+            <div className="ak-pcard" key={i}>
+              <span className="ak-picon">{p.icon}</span>
+              <h3>{p.title}</h3>
+              <p>{p.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div className="ak-pcta-box">
+          <h3>Stop Overthinking It. Start Playing.</h3>
+          <p>We will match your family with the perfect guitar teacher and have your first lesson on the calendar within 24 hours.</p>
+          <button className="ak-btnp" onClick={goEnroll}>Check Availability Now {'\u{2192}'}</button>
+        </div>
+      </section>
+
+      {/* COMPATIBILITY */}
+      <section className="ak-compat-sec">
+        <div className="ak-compat-inner">
+          <div className="ak-slbl">Our Matching System</div>
+          <h2 className="ak-stitle">We Find You <em>The Right Guitar Teacher.</em></h2>
+          <p className="ak-csub">Not every guitar teacher clicks with every student. Some kids need high-energy, play-along-to-rock teachers. Some adults want fingerpicking and patience. Our compatibility system matches playing style, personality, and goals.</p>
+          <div className="ak-ccard">
+            <div className="ak-cscore-row">
+              <div className="ak-sring"><div className="ak-snum">95</div><div className="ak-spct">% MATCH</div></div>
+              <div className="ak-sdetails">
+                <h3>We Found Your Match {'\u{1F3B8}'}</h3>
+                <p>Based on answers to our enrollment questions, we identify a guitar teacher with a high compatibility score. We only show the number when we are confident.</p>
+              </div>
+            </div>
+            <div className="ak-cbars">
+              {[{ l: 'Personality', v: 96 }, { l: 'Schedule', v: 100 }, { l: 'Age Experience', v: 92 }, { l: 'Teaching Style', v: 94 }].map(b => (
+                <div className="ak-cbrow" key={b.l}>
+                  <span className="ak-cblbl">{b.l}</span>
+                  <div className="ak-cbtrack"><div className="ak-cbfill" style={{ width: `${b.v}%` }} /></div>
+                  <span className="ak-cbval">{b.v}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* AGE TABS */}
+      <section className="ak-sec">
+        <div style={{ textAlign: 'center' }}>
+          <div className="ak-slbl">Guitar for Every Age</div>
+          <h2 className="ak-stitle">From First Chords to<br />Full Solos</h2>
+        </div>
+        <div className="ak-pgrid">
+          {[
+            { icon: '\u{1F476}', title: 'Kids (5 \u2013 10)', desc: 'Sized-down guitars, fun songs, coordination games. Real songs from day one \u2014 nursery rhymes to pop hits. We build confidence and a love for the instrument before anything else.' },
+            { icon: '\u{1F9D2}', title: 'Teens (11 \u2013 17)', desc: 'Learn the songs they listen to. Rock, pop, indie, metal \u2014 whatever fires them up. Band prep, audition coaching, and performance skills for students who want to take it further.' },
+            { icon: '\u{1F9D1}', title: 'Adults (18+)', desc: 'Never too late. Whether returning after years away or picking it up for the first time. Campfire chords to jazz standards \u2014 adults progress fast because they are motivated.' },
+          ].map((p, i) => (
+            <div className="ak-pcard" key={i}>
+              <span className="ak-picon">{p.icon}</span>
+              <h3>{p.title}</h3>
+              <p>{p.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 3 STEPS */}
+      <section className="ak-steps-sec">
+        <div style={{ textAlign: 'center' }}>
+          <div className="ak-slbl">Ridiculously Simple</div>
+          <h2 className="ak-stitle">3 Steps to Your First Guitar Lesson</h2>
+        </div>
+        <div className="ak-sgrid">
+          {[
+            { n: 1, title: 'Tell us about your family', desc: '30 seconds. Age, experience, and availability. That is it for now.' },
+            { n: 2, title: 'We find your guitar teacher match', desc: 'Our system picks the teacher most likely to connect with the student \u2014 not just whoever is available.' },
+            { n: 3, title: 'Book your first lesson within 24 hours', desc: 'Most families have their first guitar lesson locked in same day.' },
+          ].map(s => (
+            <div className="ak-scard" key={s.n}>
+              <div className="ak-snum2">{s.n}</div>
+              <h3>{s.title}</h3>
+              <p>{s.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 36 }}>
+          <button className="ak-btnp" onClick={goEnroll}>Get Started \u2014 Free to Try {'\u{2192}'}</button>
+        </div>
+      </section>
+
+      {/* REVIEWS */}
+      <section className="ak-rev-sec">
+        <div style={{ textAlign: 'center' }}>
+          <div className="ak-slbl">Real Families. Real Results.</div>
+          <h2 className="ak-stitle">Do Not Take Our Word For It.</h2>
+        </div>
+        <div className="ak-rgrid">
+          {L.reviews.map((rv, i) => (
+            <div className="ak-rcard" key={`${loc}-${i}`}>
+              <div className="ak-stars">{'\u{2B50}\u{2B50}\u{2B50}\u{2B50}\u{2B50}'}</div>
+              <p className="ak-rtext">"{rv.t}"</p>
+              <div className="ak-reviewer">
+                <div className="ak-ravatar">{rv.n[0]}</div>
+                <div><div className="ak-rname">{rv.n}</div><div className="ak-rrole">{rv.r}</div></div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 36 }}>
+          <button className="ak-btnp" onClick={goEnroll}>Join These Families {'\u{2192}'}</button>
+        </div>
+      </section>
+
+      {/* GUITAR FAQ */}
+      <section className="ak-sec">
+        <div style={{ textAlign: 'center' }}>
+          <div className="ak-slbl">Common Questions</div>
+          <h2 className="ak-stitle">Guitar Lesson FAQ</h2>
+        </div>
+        <div className="ak-pgrid" style={{ maxWidth: 800, margin: '20px auto 0' }}>
+          {[
+            { icon: '\u{2753}', title: 'Do I need my own guitar to start?', desc: 'Not necessarily. We can help you find the right guitar for your budget and playing style. Many students start with an affordable acoustic or a borrowed instrument for the first few lessons.' },
+            { icon: '\u{2753}', title: 'What age can kids start guitar?', desc: 'Most kids start between ages 5 and 7. We use sized-down guitars for smaller hands. By 8 or 9, most students are comfortable on a full-size acoustic or a 3/4 electric.' },
+            { icon: '\u{2753}', title: 'Electric or acoustic \u2014 which should I start with?', desc: 'Either works great. Acoustic builds finger strength and is portable. Electric is easier on the fingers and great for rock and pop. Your teacher will help you choose based on your goals and music taste.' },
+            { icon: '\u{2753}', title: 'How long until I can play a real song?', desc: 'Most beginners are strumming along to a simple song within 2 to 4 weeks. Full songs with chord changes and strumming patterns usually come around the 2 to 3 month mark.' },
+            { icon: '\u{2753}', title: 'I tried before and quit. Will this be different?', desc: 'Almost certainly. Most people quit because of a bad teacher match, not because guitar is too hard. Our compatibility system ensures you get a teacher who fits your personality, goals, and style.' },
+            { icon: '\u{2753}', title: 'Can adults really learn guitar?', desc: 'Absolutely. Adults are some of our fastest-progressing guitar students because they come in motivated, focused, and disciplined. There is no age limit on learning an instrument.' },
+          ].map((p, i) => (
+            <div className="ak-pcard" key={i}>
+              <span className="ak-picon">{p.icon}</span>
+              <h3>{p.title}</h3>
+              <p>{p.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ENROLLMENT CHAT */}
+      <section className="ak-enroll-sec" ref={enrollRef}>
+        <div className="ak-einner">
+          <div style={{ textAlign: 'center' }}>
+            <div className="ak-slbl">Let Cornelius Help</div>
+            <h2 className="ak-stitle">Ready to Start Playing Guitar? Takes 2 Minutes.</h2>
+            <p style={{ fontSize: 15, color: '#9A96B4', marginTop: 10 }}>Answer a few quick questions and book your first lesson within 24 hours.</p>
+          </div>
+          <div className="ak-chat-ui">
+            <div className="ak-ctopbar">
+              <img className="ak-cava" src="/cornelius.png" alt="Cornelius" />
+              <div className="ak-cinfo"><h4>Cornelius Cobb</h4><p>{L.full} — Guitar</p></div>
+              <div className="ak-odot" />
+            </div>
+            <div className="ak-cmsgs">
+              {chatMsgs.map((m, i) => (
+                <div key={i} className={`ak-cmsg ${m.from}`}>
+                  <div className="ak-cbub">{m.text}</div>
+                </div>
+              ))}
+              <div ref={msgsEndRef} />
+            </div>
+            {!chatDone && chatStep < FLOWS.length && (
+              <div className="ak-copts">
+                {FLOWS[chatStep].type === 'single' && FLOWS[chatStep].opts?.map(op => (
+                  <button key={op} className="ak-copt" onClick={() => advance(op, chatStep)}>{op}</button>
+                ))}
+                {FLOWS[chatStep].type === 'multi' && (
+                  <>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, width: '100%' }}>
+                      {FLOWS[chatStep].opts?.map(op => (
+                        <button key={op} className={`ak-copt${multiSel.includes(op) ? ' sel' : ''}`} onClick={() => setMultiSel(s => s.includes(op) ? s.filter(v => v !== op) : [...s, op])}>{op}</button>
+                      ))}
+                    </div>
+                    <button className="ak-copt sel" style={{ width: '100%', marginTop: 5 }} onClick={() => advance(multiSel.length > 0 ? multiSel.join(', ') : 'No preference', chatStep)}>Next {'\u{2192}'}</button>
+                  </>
+                )}
+                {FLOWS[chatStep].type === 'text' && (
+                  <div style={{ width: '100%', padding: '3px 0' }}>
+                    <textarea className="ak-tinp" placeholder={FLOWS[chatStep].placeholder} value={textInput} onChange={e => setTextInput(e.target.value)} />
+                    <button className="ak-copt sel" style={{ width: '100%', marginTop: 7 }} onClick={() => { advance(textInput.trim() || 'No details provided', chatStep); setTextInput('') }}>Lock In My Score {'\u{2192}'}</button>
+                  </div>
+                )}
+                {FLOWS[chatStep].type === 'contact' && (
+                  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    <input className="ak-cinp" placeholder="Your first name" value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))} />
+                    <input className="ak-cinp" placeholder="Parent / guardian name (if for a child)" value={contactForm.parent} onChange={e => setContactForm(f => ({ ...f, parent: e.target.value }))} />
+                    <input className="ak-cinp" placeholder="Phone number" type="tel" value={contactForm.phone} onChange={e => setContactForm(f => ({ ...f, phone: e.target.value }))} />
+                    <input className="ak-cinp" placeholder="Email address" type="email" value={contactForm.email} onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))} />
+                    <button className="ak-copt sel" style={{ marginTop: 3 }} onClick={() => {
+                      if (!contactForm.name || !contactForm.phone) return
+                      advance(`${contactForm.name}|${contactForm.parent}|${contactForm.phone}|${contactForm.email}`, chatStep)
+                    }}>Get My Compatibility Score {'\u{2192}'}</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {chatDone && (
+              <div className="ak-copts" style={{ justifyContent: 'center', fontSize: 13, color: '#9A96B4' }}>
+                {'\u{1F389}'} Sit tight — we will reach out very soon!
+              </div>
+            )}
+            <div className="ak-cdots">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className={`ak-cdot2${i === Math.min(chatStep, 11) ? ' on' : ''}`} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* NO RISK */}
+      <section className="ak-norisk-sec">
+        <div className="ak-nrinner">
+          <div className="ak-nri">{'\u{1F6E1}{FE0F}'}</div>
+          <h2>We Do Not Believe in<br />Trapping Families.</h2>
+          <p>Month to month. Always. If it is not working after the first month, we will make it right — no awkward conversations, no fees, no drama. That is a promise.</p>
+          <div className="ak-rpoints">
+            {['No long-term contracts', 'Cancel anytime', 'No enrollment fees', 'Month to month billing'].map(r => (
+              <div className="ak-rpt" key={r}><div className="ak-rck">{'\u{2713}'}</div>{r}</div>
+            ))}
+          </div>
+          <button className="ak-btnp" onClick={goEnroll}>Start Month-to-Month {'\u{2192}'}</button>
+        </div>
+      </section>
+
+      {/* DYNAMIC REVIEWS */}
+      <ReviewsSection instrumentTag="guitar" />
+
+      {/* FINAL CTA */}
+      <section className="ak-final-sec">
+        <h2>Your First <span>Guitar Lesson</span><br />Is Waiting.</h2>
+        <p>Join 2,000+ students across the Omaha metro. Book in the next 60 seconds.</p>
+        <div className="ak-fbtns">
+          <button className="ak-btnp" style={{ fontSize: 16, padding: '16px 34px' }} onClick={goEnroll}>Sign Up For Guitar Lessons Now {'\u{2192}'}</button>
+          <button className="ak-btng" onClick={goEnroll}>Or Text Us First</button>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="ak-footer">
+        <div className="ak-fname">{L.full.toUpperCase()}</div>
+        <div style={{ fontSize: 11, color: '#55516E', marginBottom: 8 }}>By Adkins Music Lessons</div>
+        <div className="ak-fpow">Powered by <span>Lessonpreneur</span></div>
+      </footer>
+
+      {/* CORNELIUS MASCOT */}
+      <img
+        id="ak-corn"
+        src="/cornelius.png"
+        alt="Cornelius Cobb"
+        onClick={() => { setTipOpen(t => !t); playPowerChord() }}
+      />
+      <div id="ak-ctip" className={tipOpen ? 'show' : ''}>
+        <h4>Hey! I am Cornelius {'\u{1F33D}'}</h4>
+        <p>Ready to start playing guitar? I can walk you through finding the perfect guitar teacher right now!</p>
+        <br />
+        <button className="ak-copt" style={{ fontSize: 11, padding: '6px 12px' }} onClick={() => { goEnroll(); setTipOpen(false) }}>Find My Guitar Teacher {'\u{2192}'}</button>
+      </div>
+
+      {/* Guitar string vibration keyframes */}
+      <style>{`
+        @keyframes guitarStringVibrate1 {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-2px); }
+          75% { transform: translateY(2px); }
+        }
+        @keyframes guitarStringVibrate2 {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-2.5px); }
+          75% { transform: translateY(2.5px); }
+        }
+        @keyframes guitarStringVibrate3 {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-3px); }
+          75% { transform: translateY(3px); }
+        }
+        @keyframes guitarStringVibrate4 {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-3.5px); }
+          75% { transform: translateY(3.5px); }
+        }
+        @keyframes guitarStringVibrate5 {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-4px); }
+          75% { transform: translateY(4px); }
+        }
+        @keyframes guitarStringVibrate6 {
+          0%, 100% { transform: translateY(0); }
+          25% { transform: translateY(-4.5px); }
+          75% { transform: translateY(4.5px); }
+        }
+      `}</style>
+
+      <EnrollmentForm isOpen={enrollOpen} onClose={() => setEnrollOpen(false)} defaultLocation={loc} />
+    </div>
+  )
+}

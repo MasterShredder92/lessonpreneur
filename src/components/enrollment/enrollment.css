@@ -1,0 +1,663 @@
+/* ═══════════════════════════════════════════════════════
+   ENROLLMENT FORM — Full-screen conversational overlay
+   ═══════════════════════════════════════════════════════ */
+
+.ef-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: #020209;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ─── PROGRESS BAR ─────────────────────────────────── */
+.ef-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #1a1a2e;
+  z-index: 1000001;
+}
+
+.ef-progress-fill {
+  height: 100%;
+  background: #D4226A;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ─── TOP BAR ──────────────────────────────────────── */
+.ef-topbar {
+  position: fixed;
+  top: 4px;
+  left: 0;
+  right: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  z-index: 1000001;
+}
+
+.ef-topbar-spacer {
+  flex: 1;
+}
+
+.ef-back,
+.ef-close {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.ef-back:hover,
+.ef-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ─── CONTENT ──────────────────────────────────────── */
+.ef-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 80px 24px 40px;
+  display: flex;
+  justify-content: center;
+}
+
+.ef-slide {
+  width: 100%;
+  max-width: 520px;
+  animation: ef-slideIn 0.3s ease-out;
+}
+
+.ef-slide--forward {
+  animation-name: ef-slideInForward;
+}
+
+.ef-slide--back {
+  animation-name: ef-slideInBack;
+}
+
+@keyframes ef-slideInForward {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes ef-slideInBack {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ─── SCREEN ───────────────────────────────────────── */
+.ef-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 40px;
+}
+
+.ef-screen--center {
+  align-items: center;
+  text-align: center;
+  padding-top: 24px;
+}
+
+/* ─── TYPOGRAPHY ───────────────────────────────────── */
+.ef-question {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.ef-subtext {
+  font-size: 14px;
+  color: #8888B0;
+  margin-top: -12px;
+}
+
+/* ─── LARGE OPTION BLOCKS (Who / How Many) ─────────── */
+.ef-options-lg {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ef-option-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #fff;
+}
+
+.ef-option-block:hover {
+  background: rgba(212, 34, 106, 0.08);
+  border-color: rgba(212, 34, 106, 0.3);
+}
+
+.ef-option-block:active {
+  transform: scale(0.98);
+}
+
+.ef-option-label {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ef-option-sub {
+  font-size: 13px;
+  color: #8888B0;
+}
+
+/* ─── INSTRUMENT GRID ──────────────────────────────── */
+.ef-instrument-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.ef-instrument-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #fff;
+}
+
+.ef-instrument-tile:hover {
+  background: rgba(212, 34, 106, 0.08);
+  border-color: rgba(212, 34, 106, 0.3);
+}
+
+.ef-instrument-tile--on {
+  background: rgba(212, 34, 106, 0.15);
+  border-color: #D4226A;
+}
+
+.ef-tile-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.ef-tile-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ─── PILLS ────────────────────────────────────────── */
+.ef-pills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ef-pill {
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  color: #E8E8FC;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ef-pill:hover {
+  background: rgba(212, 34, 106, 0.08);
+  border-color: rgba(212, 34, 106, 0.3);
+}
+
+.ef-pill--on {
+  background: rgba(212, 34, 106, 0.18);
+  border-color: #D4226A;
+  color: #fff;
+}
+
+.ef-pill--locked {
+  background: rgba(212, 34, 106, 0.25);
+  border-color: #D4226A;
+  color: #D4226A;
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* ─── LOCATION BLOCKS ──────────────────────────────── */
+.ef-location-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ef-location-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: #fff;
+}
+
+.ef-location-block:hover {
+  background: rgba(212, 34, 106, 0.08);
+  border-color: rgba(212, 34, 106, 0.3);
+}
+
+.ef-location-block--on {
+  background: rgba(212, 34, 106, 0.15);
+  border-color: #D4226A;
+}
+
+.ef-loc-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ef-loc-addr {
+  font-size: 13px;
+  color: #8888B0;
+}
+
+/* ─── LINK BUTTON ──────────────────────────────────── */
+.ef-link-btn {
+  background: none;
+  border: none;
+  color: #8888B0;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  align-self: center;
+  padding: 8px;
+}
+
+.ef-link-btn:hover {
+  color: #E8E8FC;
+}
+
+/* ─── CTA BUTTON ───────────────────────────────────── */
+.ef-cta {
+  width: 100%;
+  padding: 16px 24px;
+  background: #D4226A;
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.01em;
+}
+
+.ef-cta:hover:not(:disabled) {
+  background: #E8488A;
+  transform: translateY(-1px);
+}
+
+.ef-cta:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ef-cta:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ef-cta--score {
+  font-size: 17px;
+  padding: 18px 24px;
+}
+
+/* ─── FORM FIELDS ──────────────────────────────────── */
+.ef-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ef-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ef-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ef-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #A0A0C8;
+}
+
+.ef-label--important {
+  color: #D4226A;
+  font-size: 15px;
+}
+
+.ef-label-hint {
+  font-weight: 400;
+  color: #6868A0;
+  font-size: 12px;
+}
+
+.ef-field-hint {
+  font-size: 13px;
+  color: #8888B0;
+  line-height: 1.5;
+  margin-top: -4px;
+}
+
+.ef-input {
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+.ef-input:focus {
+  border-color: #D4226A;
+}
+
+.ef-input::placeholder {
+  color: #6868A0;
+}
+
+.ef-textarea {
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  resize: vertical;
+  min-height: 120px;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+.ef-textarea:focus {
+  border-color: #D4226A;
+}
+
+.ef-textarea::placeholder {
+  color: #6868A0;
+}
+
+.ef-validation {
+  font-size: 12px;
+  color: #D4226A;
+  text-align: center;
+  margin-top: -12px;
+}
+
+/* ─── MILITARY TOGGLE ──────────────────────────────── */
+.ef-military-toggle {
+  padding: 16px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ef-toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #A0A0C8;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ef-toggle {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.ef-toggle--on {
+  background: #D4226A;
+}
+
+.ef-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.ef-toggle--on .ef-toggle-knob {
+  transform: translateX(20px);
+}
+
+/* ─── CHILD SUMMARY ────────────────────────────────── */
+.ef-child-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ef-child-summary--final {
+  margin-top: 8px;
+}
+
+.ef-child-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.ef-child-row + .ef-child-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ef-child-name {
+  font-weight: 600;
+  color: #fff;
+  font-size: 15px;
+}
+
+.ef-child-inst {
+  color: #D4226A;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+/* ─── LOADING / SCORE ──────────────────────────────── */
+.ef-loader {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 24px;
+}
+
+.ef-loader-ring {
+  width: 80px;
+  height: 80px;
+  border: 4px solid rgba(212, 34, 106, 0.15);
+  border-top-color: #D4226A;
+  border-radius: 50%;
+  animation: ef-spin 1s linear infinite;
+}
+
+@keyframes ef-spin {
+  to { transform: rotate(360deg); }
+}
+
+.ef-calculating {
+  font-size: 22px;
+  font-weight: 600;
+  color: #A0A0C8;
+}
+
+/* ─── SCORE CIRCLE ─────────────────────────────────── */
+.ef-score-circle {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin-bottom: 24px;
+}
+
+.ef-score-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+/* ─── RESULT SCREEN ────────────────────────────────── */
+.ef-result-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.ef-result-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.ef-result-sub {
+  font-size: 15px;
+  color: #A0A0C8;
+  line-height: 1.6;
+  max-width: 440px;
+}
+
+.ef-result-confirm {
+  font-size: 15px;
+  color: #D4226A;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.ef-result-footer {
+  font-size: 13px;
+  color: #6868A0;
+  margin-top: 16px;
+}
+
+/* ─── SUMMARY CARD ─────────────────────────────────── */
+.ef-summary-card {
+  width: 100%;
+  max-width: 380px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-top: 8px;
+}
+
+.ef-summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.ef-summary-row + .ef-summary-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ef-summary-label {
+  font-size: 13px;
+  color: #8888B0;
+  font-weight: 500;
+}
+
+.ef-summary-value {
+  font-size: 14px;
+  color: #fff;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ─── RESPONSIVE ───────────────────────────────────── */
+@media (max-width: 480px) {
+  .ef-content {
+    padding: 72px 16px 32px;
+  }
+
+  .ef-question {
+    font-size: 24px;
+  }
+
+  .ef-instrument-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .ef-option-block {
+    padding: 22px 20px;
+  }
+
+  .ef-cta {
+    padding: 14px 20px;
+    font-size: 15px;
+  }
+
+  .ef-pill {
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+}

@@ -1,0 +1,209 @@
+/* DrumsLanding — drum-specific overrides only.
+   All base styles come from adkins.css */
+
+/* ─── INTRO OVERLAY ──────────────────── */
+.dr-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #000; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 24px;
+  transition: opacity 0.5s ease;
+}
+.dr-overlay.done { opacity: 0; pointer-events: none; }
+.dr-overlay-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: clamp(48px, 10vw, 96px);
+  letter-spacing: 3px; color: #fff;
+}
+.dr-overlay-title span { color: var(--c); }
+.dr-eq-intro { display: flex; gap: 3px; align-items: flex-end; height: 40px; }
+.dr-eq-intro-bar {
+  width: 4px; border-radius: 2px; background: var(--c);
+  animation: dr-eqPulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes dr-eqPulse {
+  0% { height: 8px; opacity: 0.4; }
+  100% { height: 36px; opacity: 1; }
+}
+
+/* ─── EQ STRIP (hero background) ─────── */
+.dr-eq-strip {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  display: flex; gap: 2px; justify-content: center;
+  height: 36px; overflow: hidden; pointer-events: none;
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 100%);
+}
+.dr-eq-bar {
+  width: 3px; border-radius: 2px 2px 0 0;
+  background: var(--c);
+  opacity: var(--op);
+  animation: dr-eqBounce var(--spd) ease-in-out infinite alternate;
+}
+@keyframes dr-eqBounce {
+  0% { height: var(--h1); }
+  100% { height: var(--h2); }
+}
+
+/* ─── DRUM KIT GRID ──────────────────── */
+.dr-kit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.dr-pad {
+  position: relative;
+  background: #141420;
+  border: 1px solid #1C1C2A;
+  border-radius: 14px;
+  padding: 28px 14px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dr-pad:hover { border-color: var(--c); transform: translateY(-3px); box-shadow: 0 14px 36px rgba(0,0,0,0.4); }
+.dr-pad.hit { transform: scale(0.95); border-color: var(--c); box-shadow: 0 0 20px var(--cg); }
+.dr-pad-wide { grid-column: 1 / -1; }
+.dr-pad-flash {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at center, var(--cg), transparent 70%);
+  opacity: 0; transition: opacity 0.12s;
+}
+.dr-pad.hit .dr-pad-flash { opacity: 1; }
+.dr-pad-ripple {
+  position: absolute; width: 40px; height: 40px;
+  border-radius: 50%; border: 2px solid var(--c);
+  animation: dr-rippleOut 0.48s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes dr-rippleOut {
+  0% { transform: scale(0.2); opacity: 1; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+.dr-pad-icon { font-size: 32px; display: block; margin-bottom: 8px; transition: transform 0.15s; }
+.dr-pad.hit .dr-pad-icon { transform: scale(1.2) rotate(-8deg); }
+.dr-pad-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px; color: #fff; letter-spacing: 1px;
+  display: block; margin-bottom: 4px;
+}
+.dr-pad-key {
+  font-size: 10px; color: #55516E; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+}
+
+/* ─── VIDEO ──────────────────────────── */
+.dr-vid-wrap {
+  position: relative; border-radius: 14px; overflow: hidden;
+  background: #141420; border: 1px solid #1C1C2A;
+  aspect-ratio: 16/9; cursor: pointer; transition: all 0.28s;
+}
+.dr-vid-wrap:hover { border-color: var(--c); transform: translateY(-3px); }
+.dr-vid-thumb { width: 100%; height: 100%; object-fit: cover; }
+.dr-vid-play {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 56px; height: 56px; background: var(--c);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 18px var(--cg); transition: all 0.25s;
+}
+.dr-vid-wrap:hover .dr-vid-play { transform: translate(-50%, -50%) scale(1.1); }
+.dr-vid-play svg { width: 22px; height: 22px; fill: #fff; margin-left: 3px; }
+.dr-vid-iframe { width: 100%; height: 100%; border: 0; }
+
+/* ─── FAQ ─────────────────────────────── */
+.dr-faq-item {
+  border-bottom: 1px solid #1C1C2A;
+}
+.dr-faq-q {
+  width: 100%; padding: 18px 0;
+  background: none; border: none;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15px; font-weight: 700; color: #fff;
+  cursor: pointer; text-align: left;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: color 0.2s;
+}
+.dr-faq-q:hover { color: var(--c); }
+.dr-faq-q svg { flex-shrink: 0; transition: transform 0.25s; color: #55516E; }
+.dr-faq-q.open svg { transform: rotate(180deg); color: var(--c); }
+.dr-faq-a {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+.dr-faq-a.open { max-height: 200px; padding-bottom: 18px; }
+.dr-faq-a p { font-size: 14px; color: #9A96B4; line-height: 1.7; }
+
+/* ─── CTA GLOW PULSE ─────────────────── */
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
+}
+
+/* ─── MOBILE ─────────────────────────── */
+@media (max-width: 640px) {
+  .dr-teacher-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    grid-template-columns: none !important;
+  }
+  .dr-teacher-grid > * { width: 100%; }
+
+  /* Why drums carousel */
+  .dr-why-desktop { display: none !important; }
+  .dr-why-mobile { display: block !important; }
+  .dr-why-carousel {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 0 20px 16px 20px;
+  }
+  .dr-why-carousel::-webkit-scrollbar { display: none; }
+  .dr-why-card {
+    min-width: 80vw !important;
+    max-width: 80vw !important;
+    min-height: 220px;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 24px 20px !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+  }
+  .dr-why-card .ak-picon { font-size: 28px !important; margin-bottom: 10px !important; display: block !important; }
+  .dr-why-card h3 { font-size: 17px !important; font-weight: 700 !important; color: #fff !important; margin-bottom: 8px !important; white-space: normal !important; }
+  .dr-why-card p { font-size: 14px !important; line-height: 1.65 !important; color: #aaa !important; white-space: normal !important; overflow-wrap: break-word !important; }
+
+  /* 3 Steps compact */
+  .ak-steps-sec { padding-top: 47px !important; padding-bottom: 47px !important; }
+  .ak-sgrid { gap: 12px !important; }
+  .ak-scard { padding: 18px 12px !important; }
+  .ak-scard h3 { font-size: 15px !important; }
+  .ak-scard p { font-size: 13px !important; }
+  .ak-snum2 { width: 32px !important; height: 32px !important; font-size: 16px !important; }
+
+  /* What We Teach compact */
+  .dr-crosssell-sec { padding-top: 43px !important; padding-bottom: 43px !important; }
+  .dr-crosssell-card { width: 72px !important; padding: 8px 6px !important; }
+  .dr-crosssell-emoji { font-size: 18px !important; }
+  .dr-crosssell-name { font-size: 9px !important; }
+
+  /* Kit section compact */
+  #dr-kit { padding-top: 43px !important; padding-bottom: 43px !important; }
+  .dr-kit-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; padding: 0 12px; max-width: 100% !important; }
+  .dr-pad { height: 64px; font-size: 10px; border-radius: 10px; padding: 8px 4px; }
+  .dr-pad-icon { font-size: 18px !important; margin-bottom: 4px !important; }
+  .dr-pad-wide { grid-column: 1 / -1 !important; height: 48px; font-size: 11px; }
+}
+@media (max-width: 768px) {
+  .dr-kit-grid { grid-template-columns: repeat(2, 1fr); max-width: 100%; }
+  .dr-pad-wide { grid-column: 1 / -1; }
+}
