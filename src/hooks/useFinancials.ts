@@ -118,14 +118,8 @@ export function usePLSummary() {
         if (i.location_id) revByLoc.set(i.location_id, (revByLoc.get(i.location_id) ?? 0) + (i.requested_amount ?? 0))
       })
 
-      // 2. Teacher payroll — from session_log this month
-      const { data: sessions } = await supabase
-        .from('session_log')
-        .select('teacher_rate')
-        .eq('status', 'completed')
-        .gte('block_date', monthStart)
-
-      const teacherPayrollCents = (sessions ?? []).reduce((s, r: any) => s + Math.round(Number(r.teacher_rate) * 100), 0)
+      // 2. Teacher payroll — always 50% of gross revenue
+      const teacherPayrollCents = Math.round(grossRevenueCents * 0.5)
 
       // 3. Operating expenses — recurring monthly from expenses table
       const { data: expenses } = await supabase
@@ -165,7 +159,8 @@ export function usePLSummary() {
         .lt('invoice_date', prevMonthEnd)
 
       const prevMonthRevenueCents = (prevInvoices ?? []).reduce((s, i: any) => s + (i.requested_amount ?? 0), 0)
-      const prevMonthTakeHomeCents = prevMonthRevenueCents - teacherPayrollCents - operatingExpensesCents // approximate
+      const prevMonthPayrollCents = Math.round(prevMonthRevenueCents * 0.5)
+      const prevMonthTakeHomeCents = prevMonthRevenueCents - prevMonthPayrollCents - operatingExpensesCents
       const prevMonthMarginPercent = prevMonthRevenueCents > 0 ? (prevMonthTakeHomeCents / prevMonthRevenueCents) * 100 : 0
 
       // 6. Location breakdown

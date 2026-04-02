@@ -315,7 +315,7 @@ export default function AdminShell() {
       </aside>
 
       <main className="admin-main">
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px 0', maxWidth: '100%', overflowX: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px 0', maxWidth: '100%', overflowX: 'visible', overflow: 'visible' }}>
           <RoleSwitcher />
         </div>
         <PageTransition><Outlet /></PageTransition>

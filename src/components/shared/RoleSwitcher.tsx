@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
@@ -30,6 +30,8 @@ export default function RoleSwitcher() {
   const navigate = useNavigate()
   const [showPicker, setShowPicker] = useState(false)
   const [pendingRole, setPendingRole] = useState<string | null>(null)
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const studioBtnRef = useRef<HTMLButtonElement>(null)
 
   const userLevel = ROLE_LEVEL[role ?? ''] ?? 0
   // Only owner and company_director can preview
@@ -51,6 +53,10 @@ export default function RoleSwitcher() {
     // Studio director needs location picker
     if (roleKey === 'studio_director') {
       setPendingRole(roleKey)
+      if (studioBtnRef.current) {
+        const rect = studioBtnRef.current.getBoundingClientRect()
+        setPickerPos({ top: rect.bottom + 4, left: rect.left })
+      }
       setShowPicker(true)
       return
     }
@@ -76,7 +82,7 @@ export default function RoleSwitcher() {
         {availableRoles.map(r => {
           const isActive = effectiveRole === r.key || (!preview.active && r.key === role)
           return (
-            <button key={r.key} onClick={() => handleRoleClick(r.key)} style={{
+            <button key={r.key} ref={r.key === 'studio_director' ? studioBtnRef : undefined} onClick={() => handleRoleClick(r.key)} style={{
               padding: '6px 12px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer',
               background: isActive ? 'rgba(245,158,11,0.12)' : 'transparent',
               color: isActive ? '#f59e0b' : '#606088',
@@ -93,7 +99,7 @@ export default function RoleSwitcher() {
       {/* Location picker for studio director preview */}
       {showPicker && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100,
+          position: 'fixed', top: pickerPos.top, left: pickerPos.left, zIndex: 9999,
           background: '#101018', border: '1px solid #1a1a28', borderRadius: 10,
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)', padding: 4, minWidth: 180,
         }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import './lessonpreneur-landing.css'
 
 const PLANS = [
@@ -143,8 +143,12 @@ const FAQS = [
   },
 ]
 
+const SHOWCASE_TABS = ['Studio', 'Schedule', 'Roster', 'The Band', 'Your Books'] as const
+
 export default function LesssonpreneurLanding() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [showcaseTab, setShowcaseTab] = useState(0)
+  const pageRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     document.title = 'Lessonpreneur — The Operating System for Music Schools'
@@ -154,8 +158,28 @@ export default function LesssonpreneurLanding() {
     document.querySelector('meta[property="og:url"]')?.setAttribute('content', 'https://www.lessonpreneur.io/lessonpreneur')
   }, [])
 
+  // Scroll-triggered fade-in
+  useEffect(() => {
+    const els = document.querySelectorAll('.lp-fade-in')
+    if (!els.length) return
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('lp-visible'); obs.unobserve(e.target) } })
+    }, { threshold: 0.12 })
+    els.forEach(el => obs.observe(el))
+    return () => obs.disconnect()
+  }, [])
+
+  // Mobile showcase carousel scroll-snap
+  const showcaseScrollRef = useRef<HTMLDivElement>(null)
+  const handleShowcaseScroll = useCallback(() => {
+    const el = showcaseScrollRef.current
+    if (!el) return
+    const idx = Math.round(el.scrollLeft / el.clientWidth)
+    setShowcaseTab(idx)
+  }, [])
+
   return (
-    <div className="lp-page">
+    <div className="lp-page" ref={pageRef}>
       {/* NAV */}
       <nav className="lp-nav">
         <div className="lp-nav-brand">
@@ -171,6 +195,8 @@ export default function LesssonpreneurLanding() {
 
       {/* HERO */}
       <section className="lp-hero">
+        <div className="lp-hero-orb lp-hero-orb-pink" />
+        <div className="lp-hero-orb lp-hero-orb-gold" />
         <div className="lp-hero-glow" />
         <div className="lp-hero-grid" />
         <div className="lp-hero-content">
@@ -188,7 +214,7 @@ export default function LesssonpreneurLanding() {
             <strong> No more duct-taping 5 different tools together.</strong>
           </p>
           <div className="lp-hero-ctas">
-            <a href="#pricing" className="lp-btn-primary">Start Your 90-Day Free Trial &rarr;</a>
+            <a href="#pricing" className="lp-btn-primary lp-btn-pulse">Start Your 90-Day Free Trial &rarr;</a>
           </div>
           <div className="lp-trust-row">
             <div className="lp-trust-stat">
@@ -209,8 +235,62 @@ export default function LesssonpreneurLanding() {
         </div>
       </section>
 
+      {/* PRODUCT SHOWCASE */}
+      <section className="lp-sec lp-showcase-sec lp-fade-in" id="showcase">
+        <div className="lp-sec-inner">
+          <div className="lp-sec-label">See It In Action</div>
+          <h2 className="lp-sec-title">Your Entire School.<br /><em>One Screen.</em></h2>
+
+          {/* Desktop: browser chrome frame */}
+          <div className="lp-showcase-desktop">
+            <div className="lp-browser-chrome">
+              <div className="lp-browser-dots"><span /><span /><span /></div>
+              <div className="lp-browser-url">app.lessonpreneur.io</div>
+            </div>
+            <div className="lp-showcase-tabs">
+              {SHOWCASE_TABS.map((t, i) => (
+                <button key={t} className={`lp-showcase-tab${showcaseTab === i ? ' active' : ''}`} onClick={() => setShowcaseTab(i)}>{t}</button>
+              ))}
+            </div>
+            <div className="lp-showcase-panel">
+              {showcaseTab === 0 && <ShowcaseStudio />}
+              {showcaseTab === 1 && <ShowcaseSchedule />}
+              {showcaseTab === 2 && <ShowcaseRoster />}
+              {showcaseTab === 3 && <ShowcaseBand />}
+              {showcaseTab === 4 && <ShowcaseBooks />}
+            </div>
+          </div>
+
+          {/* Mobile: phone frame carousel */}
+          <div className="lp-showcase-mobile">
+            <div className="lp-phone-frame">
+              <div className="lp-phone-notch" />
+              <div className="lp-phone-screen" ref={showcaseScrollRef} onScroll={handleShowcaseScroll}>
+                <div className="lp-phone-slide"><ShowcaseStudio /></div>
+                <div className="lp-phone-slide"><ShowcaseSchedule /></div>
+                <div className="lp-phone-slide"><ShowcaseRoster /></div>
+                <div className="lp-phone-slide"><ShowcaseBand /></div>
+                <div className="lp-phone-slide"><ShowcaseBooks /></div>
+              </div>
+            </div>
+            <div className="lp-showcase-dots">
+              {SHOWCASE_TABS.map((t, i) => (
+                <button key={t} className={`lp-dot${showcaseTab === i ? ' active' : ''}`} onClick={() => showcaseScrollRef.current?.scrollTo({ left: i * (showcaseScrollRef.current?.clientWidth ?? 0), behavior: 'smooth' })} />
+              ))}
+            </div>
+            <div className="lp-showcase-dot-labels">
+              {SHOWCASE_TABS.map((t, i) => (
+                <span key={t} className={showcaseTab === i ? 'active' : ''}>{t}</span>
+              ))}
+            </div>
+          </div>
+
+          <p className="lp-showcase-tagline">Every tab. Every tool. One app. <span>Your phone.</span></p>
+        </div>
+      </section>
+
       {/* PAIN POINTS */}
-      <section className="lp-sec lp-pain-sec">
+      <section className="lp-sec lp-pain-sec lp-fade-in">
         <div className="lp-sec-inner">
           <div className="lp-sec-label">Sound Familiar?</div>
           <h2 className="lp-sec-title">You Got Into Music Because You <em>Love It.</em><br />Not Because You Wanted to Be an Admin.</h2>
@@ -227,7 +307,7 @@ export default function LesssonpreneurLanding() {
       </section>
 
       {/* FEATURES */}
-      <section className="lp-sec lp-feat-sec" id="features">
+      <section className="lp-sec lp-feat-sec lp-fade-in" id="features">
         <div className="lp-sec-inner">
           <div className="lp-sec-label">The System</div>
           <h2 className="lp-sec-title">Everything You Need.<br /><em>Nothing You Don't.</em></h2>
@@ -247,7 +327,7 @@ export default function LesssonpreneurLanding() {
       </section>
 
       {/* SOCIAL PROOF */}
-      <section className="lp-sec lp-proof-sec">
+      <section className="lp-sec lp-proof-sec lp-fade-in">
         <div className="lp-sec-inner lp-proof-inner">
           <div className="lp-proof-quote">
             <div className="lp-proof-mark">&ldquo;</div>
@@ -263,7 +343,7 @@ export default function LesssonpreneurLanding() {
       </section>
 
       {/* COMPETITOR COMPARISON */}
-      <section className="lp-sec lp-comp-sec">
+      <section className="lp-sec lp-comp-sec lp-fade-in">
         <div className="lp-sec-inner">
           <div className="lp-sec-label">Compare</div>
           <h2 className="lp-sec-title">How We Stack Up Against<br /><em>Everything Else</em></h2>
@@ -301,7 +381,7 @@ export default function LesssonpreneurLanding() {
       </section>
 
       {/* PRICING */}
-      <section className="lp-sec lp-price-sec" id="pricing">
+      <section className="lp-sec lp-price-sec lp-fade-in" id="pricing">
         <div className="lp-sec-inner">
           <div className="lp-sec-label">Pricing</div>
           <h2 className="lp-sec-title">90 Days Free. <em>No Risk.</em></h2>
@@ -337,7 +417,7 @@ export default function LesssonpreneurLanding() {
       </section>
 
       {/* FAQ */}
-      <section className="lp-sec lp-faq-sec" id="faq">
+      <section className="lp-sec lp-faq-sec lp-fade-in" id="faq">
         <div className="lp-sec-inner">
           <div className="lp-sec-label">FAQ</div>
           <h2 className="lp-sec-title">Questions? <em>Answers.</em></h2>
@@ -381,7 +461,143 @@ export default function LesssonpreneurLanding() {
 
       {/* STICKY MOBILE CTA */}
       <div className="lp-sticky-cta">
-        <a href="#pricing" className="lp-btn-primary" style={{ width: '100%', textAlign: 'center' }}>Start Free Trial &rarr;</a>
+        <a href="#pricing" className="lp-btn-primary lp-btn-pulse" style={{ width: '100%', textAlign: 'center' }}>Start Free Trial &rarr;</a>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Showcase Mock Panels ─── */
+
+function ShowcaseStudio() {
+  const locs = [
+    { name: 'Omaha', color: '#D41113', students: 87, revenue: '$15,460' },
+    { name: 'Gretna', color: '#00A651', students: 171, revenue: '$38,000' },
+    { name: 'Bellevue', color: '#A333FF', students: 146, revenue: '$28,795' },
+    { name: 'Elkhorn', color: '#00A5E8', students: 81, revenue: '$16,210' },
+  ]
+  return (
+    <div className="sc-panel">
+      <div className="sc-header">Studio Overview</div>
+      <div className="sc-stat-row">
+        <div className="sc-stat"><span className="sc-stat-num">485</span><span className="sc-stat-label">Families</span></div>
+        <div className="sc-stat"><span className="sc-stat-num">603</span><span className="sc-stat-label">Students</span></div>
+        <div className="sc-stat"><span className="sc-stat-num sc-green">$98,465</span><span className="sc-stat-label">Monthly</span></div>
+      </div>
+      <div className="sc-loc-grid">
+        {locs.map(l => (
+          <div key={l.name} className="sc-loc-card" style={{ borderLeftColor: l.color }}>
+            <div className="sc-loc-name" style={{ color: l.color }}>{l.name}</div>
+            <div className="sc-loc-detail">{l.students} students &middot; {l.revenue}/mo</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ShowcaseSchedule() {
+  const slots = [
+    { teacher: 'Sarah M.', time: '3:00', student: 'Jamie K.', inst: 'Piano', color: '#D4226A' },
+    { teacher: 'Sarah M.', time: '3:30', student: 'Open Slot', inst: '', color: '#363656' },
+    { teacher: 'Sarah M.', time: '4:00', student: 'Tyler R.', inst: 'Piano', color: '#D4226A' },
+    { teacher: 'Marcus T.', time: '3:00', student: 'Jesse W.', inst: 'Guitar', color: '#FF5500' },
+    { teacher: 'Marcus T.', time: '3:30', student: 'Ava C.', inst: 'Guitar', color: '#FF5500' },
+    { teacher: 'Marcus T.', time: '4:00', student: 'Noah P.', inst: 'Guitar', color: '#FF5500' },
+  ]
+  return (
+    <div className="sc-panel">
+      <div className="sc-header">Today's Schedule</div>
+      <div className="sc-schedule-grid">
+        {slots.map((s, i) => (
+          <div key={i} className="sc-slot" style={{ borderLeftColor: s.color }}>
+            <div className="sc-slot-time">{s.time}</div>
+            <div className="sc-slot-info">
+              <span className="sc-slot-student">{s.student}</span>
+              {s.inst && <span className="sc-slot-inst">{s.inst}</span>}
+            </div>
+            <div className="sc-slot-teacher">{s.teacher}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ShowcaseRoster() {
+  const students = [
+    { name: 'Jamie Kim', inst: 'Piano', status: 'Active', teacher: 'Sarah M.' },
+    { name: 'Tyler Rodriguez', inst: 'Drums', status: 'Active', teacher: 'Alex B.' },
+    { name: 'Ava Chen', inst: 'Guitar', status: 'Active', teacher: 'Marcus T.' },
+    { name: 'Noah Parker', inst: 'Guitar', status: 'At Risk', teacher: 'Marcus T.' },
+    { name: 'Lily Tran', inst: 'Vocals', status: 'Active', teacher: 'Dana W.' },
+  ]
+  return (
+    <div className="sc-panel">
+      <div className="sc-header">Student Roster</div>
+      <div className="sc-roster">
+        {students.map((s, i) => (
+          <div key={i} className="sc-roster-row">
+            <div className="sc-roster-avatar">{s.name[0]}</div>
+            <div className="sc-roster-info">
+              <span className="sc-roster-name">{s.name}</span>
+              <span className="sc-roster-sub">{s.inst} &middot; {s.teacher}</span>
+            </div>
+            <span className={`sc-badge ${s.status === 'At Risk' ? 'sc-badge-warn' : 'sc-badge-ok'}`}>{s.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ShowcaseBand() {
+  const teachers = [
+    { name: 'Sarah Mitchell', instruments: 'Piano, Vocals', students: 24, status: 'Active' },
+    { name: 'Marcus Thompson', instruments: 'Guitar, Bass', students: 18, status: 'Active' },
+    { name: 'Alex Brooks', instruments: 'Drums, Percussion', students: 15, status: 'At Capacity' },
+    { name: 'Dana Williams', instruments: 'Vocals', students: 12, status: 'Active' },
+  ]
+  return (
+    <div className="sc-panel">
+      <div className="sc-header">The Band</div>
+      <div className="sc-roster">
+        {teachers.map((t, i) => (
+          <div key={i} className="sc-roster-row">
+            <div className="sc-roster-avatar sc-avatar-teacher">{t.name[0]}</div>
+            <div className="sc-roster-info">
+              <span className="sc-roster-name">{t.name}</span>
+              <span className="sc-roster-sub">{t.instruments} &middot; {t.students} students</span>
+            </div>
+            <span className={`sc-badge ${t.status === 'At Capacity' ? 'sc-badge-gold' : 'sc-badge-ok'}`}>{t.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ShowcaseBooks() {
+  const invoices = [
+    { family: 'Kim Family', amount: '$180', status: 'Paid', date: 'Apr 1' },
+    { family: 'Rodriguez Family', amount: '$360', status: 'Paid', date: 'Apr 1' },
+    { family: 'Chen Family', amount: '$180', status: 'Due', date: 'Apr 5' },
+    { family: 'Parker Family', amount: '$180', status: 'Overdue', date: 'Mar 28' },
+    { family: 'Tran Family', amount: '$180', status: 'Paid', date: 'Apr 2' },
+  ]
+  return (
+    <div className="sc-panel">
+      <div className="sc-header">Your Books</div>
+      <div className="sc-roster">
+        {invoices.map((inv, i) => (
+          <div key={i} className="sc-roster-row">
+            <div className="sc-roster-info">
+              <span className="sc-roster-name">{inv.family}</span>
+              <span className="sc-roster-sub">{inv.date} &middot; {inv.amount}</span>
+            </div>
+            <span className={`sc-badge ${inv.status === 'Paid' ? 'sc-badge-ok' : inv.status === 'Overdue' ? 'sc-badge-warn' : 'sc-badge-due'}`}>{inv.status}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
