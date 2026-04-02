@@ -74,6 +74,10 @@ export function useAuth(): AuthState & {
     await supabase.auth.signOut()
     setProfile(null)
     setLocationIds([])
+    // Clear SW cache so next login gets fresh assets
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' })
+    }
   }
 
   return {
