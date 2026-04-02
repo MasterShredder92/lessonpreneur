@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useCheckIn } from '../../hooks/useCheckIn'
 import { useRooms } from '../../hooks/useRooms'
 import { useChangeBlockType, useUnassignBlock, type GridBlock, type BlockType } from '../../hooks/useScheduleGrid'
 import { supabase } from '../../lib/supabase'
-import { useQueryClient } from '@tanstack/react-query'
+import { sendAppointmentNotification } from '../../lib/appointmentNotifications'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '../shared/Toast'
-import { Check, Phone, UserX, X, Bell, BellOff, RefreshCw } from 'lucide-react'
+import { Check, Phone, UserX, X, Bell, BellOff, RefreshCw, ExternalLink, Video } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -32,6 +34,30 @@ const TYPE_OPTIONS: { value: BlockType; label: string; color: string; tally: boo
   { value: 'teacher_training', label: 'Training', color: '#4F46E5', tally: false },
 ]
 
+function timeAgo(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(ms / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days === 1) return 'yesterday'
+  return `${days}d ago`
+}
+
+// Shared responsive styles for modal shell
+const MOBILE_BP = 600
+function useIsMobile() {
+  const [m, setM] = useState(window.innerWidth < MOBILE_BP)
+  useEffect(() => {
+    const h = () => setM(window.innerWidth < MOBILE_BP)
+    window.addEventListener('resize', h)
+    return () => window.removeEventListener('resize', h)
+  }, [])
+  return m
+}
+
 export default function CheckInModal({ block, onClose }: Props) {
   const { user } = useAuthContext()
   const { canDo } = usePermissions()
@@ -40,6 +66,16 @@ export default function CheckInModal({ block, onClose }: Props) {
   const checkIn = useCheckIn()
   const changeBlockType = useChangeBlockType()
   const unassignBlock = useUnassignBlock()
+  const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const [familyId, setFamilyId] = useState<string | null>(null)
+
+  // Fetch student's family_id for quick nav
+  useEffect(() => {
+    if (!block.student_id) return
+    supabase.from('students').select('family_id').eq('id', block.student_id).single()
+      .then(({ data }) => { if (data?.family_id) setFamilyId(data.family_id) })
+  }, [block.student_id])
 
   const [currentType, setCurrentType] = useState<BlockType>(block.block_type)
   const [showCancel, setShowCancel] = useState(false)
@@ -56,6 +92,10 @@ export default function CheckInModal({ block, onClose }: Props) {
   const [selectedSubTeacherId, setSelectedSubTeacherId] = useState<string>(block.teacher_id)
   const [subTeachers, setSubTeachers] = useState<{ id: string; name: string; score: number; tier: string }[]>([])
   const [subChanging, setSubChanging] = useState(false)
+
+  // Virtual session conversion
+  const [showVirtualConfirm, setShowVirtualConfirm] = useState(false)
+  const [virtualConverting, setVirtualConverting] = useState(false)
 
   // Load and score sub candidates when block is a sub
   useEffect(() => {
@@ -123,9 +163,33 @@ export default function CheckInModal({ block, onClose }: Props) {
 
   const currentOption = TYPE_OPTIONS.find(o => o.value === currentType)
 
+  // Notification log for this block
+  const { data: blockNotifications } = useQuery({
+    queryKey: ['block-notifications', block.block_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('appointment_notifications')
+        .select('id, event_type, channel, recipient_type, recipient_name, success, error_message, sent_at')
+        .eq('block_id', block.block_id)
+        .order('sent_at', { ascending: false })
+        .limit(20)
+      return data ?? []
+    },
+  })
+
   const dateStr = new Date(block.block_date + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
   })
+
+  // Responsive modal styles — centered on desktop, bottom-sheet on mobile
+  const overlayStyle: React.CSSProperties = isMobile
+    ? { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(2px)' }
+    : {}
+  const modalStyle: React.CSSProperties = isMobile
+    ? { maxWidth: '100vw', width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '92vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }
+    : { maxWidth: 420 }
+  // Touch-friendly button min height
+  const btnMinH = isMobile ? 48 : undefined
 
   const handleCheckIn = async () => {
     if (!user) return
@@ -194,6 +258,21 @@ export default function CheckInModal({ block, onClose }: Props) {
         performed_by: user?.id ?? null,
       }).then(() => {}) // fire and forget if table doesn't exist yet
 
+      // Fire cancelled notification (non-blocking)
+      sendAppointmentNotification('cancelled', {
+        block_id: block.block_id,
+        student_name: block.student_name ?? 'Student',
+        student_first_name: (block.student_name ?? 'Student').split(' ')[0],
+        instrument: block.instrument,
+        teacher_name: block.teacher_name,
+        teacher_first_name: block.teacher_name.split(' ')[0],
+        location_name: block.location_name ?? 'Studio',
+        block_date: block.block_date,
+        start_time: block.start_time,
+        family_id: null, // buildBlockContext will be used for full lookup
+        teacher_id: block.teacher_id,
+      })
+
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
       onClose()
     } catch (err: any) { setError(err.message) }
@@ -210,11 +289,20 @@ export default function CheckInModal({ block, onClose }: Props) {
     ]
 
     return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#EF4444' }}>Cancel Lesson</span>
-            <div style={{ fontSize: 13, color: '#C0C0E0', marginTop: 6 }}>{block.student_name} — {formatTime(block.start_time)}, {dateStr}</div>
+      <div className={isMobile ? undefined : 'modal-overlay'} style={overlayStyle} onClick={onClose}>
+        <div className="modal" onClick={(e) => e.stopPropagation()} style={isMobile ? { ...modalStyle } : { maxWidth: 420 }}>
+          {/* Drag handle on mobile */}
+          {isMobile && (
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+            </div>
+          )}
+          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#EF4444' }}>Cancel Lesson</span>
+              <div style={{ fontSize: 13, color: '#C0C0E0', marginTop: 6 }}>{block.student_name} — {formatTime(block.start_time)}, {dateStr}</div>
+            </div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 4, minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
           </div>
 
           <div style={{ padding: '16px 20px' }}>
@@ -237,6 +325,12 @@ export default function CheckInModal({ block, onClose }: Props) {
                             description: `Accidental Booking: ${block.student_name} — ${block.teacher_name} @ ${formatTime(block.start_time)} on ${dateStr}`,
                             performed_by: user?.id ?? null,
                           }).then(() => {})
+                          sendAppointmentNotification('cancelled', {
+                            block_id: block.block_id, student_name: block.student_name ?? 'Student', student_first_name: (block.student_name ?? 'Student').split(' ')[0],
+                            instrument: block.instrument, teacher_name: block.teacher_name, teacher_first_name: block.teacher_name.split(' ')[0],
+                            location_name: block.location_name ?? 'Studio', block_date: block.block_date, start_time: block.start_time,
+                            family_id: null, teacher_id: block.teacher_id,
+                          })
                           qc.invalidateQueries({ queryKey: ['schedule-grid'] })
                           onClose()
                         } catch (err: any) { setError(err.message) }
@@ -246,7 +340,7 @@ export default function CheckInModal({ block, onClose }: Props) {
                       }
                     }}
                     disabled={cancelSubmitting}
-                    style={{ padding: '12px 14px', borderRadius: 10, background: opt.bg, border: `1px solid ${opt.border}`, cursor: 'pointer', textAlign: 'left', transition: 'transform 100ms ease' }}
+                    style={{ padding: '14px 14px', borderRadius: 10, background: opt.bg, border: `1px solid ${opt.border}`, cursor: 'pointer', textAlign: 'left', transition: 'transform 100ms ease', minHeight: btnMinH }}
                     onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.01)')}
                     onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                   >
@@ -307,11 +401,18 @@ export default function CheckInModal({ block, onClose }: Props) {
 
   // Main view
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
+    <div className={isMobile ? undefined : 'modal-overlay'} style={overlayStyle} onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={modalStyle}>
+        {/* Drag handle on mobile */}
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+          </div>
+        )}
         {/* Header */}
-        <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>Lesson Details</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 4, minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
         </div>
 
         <div style={{ padding: '16px 20px' }}>
@@ -328,7 +429,47 @@ export default function CheckInModal({ block, onClose }: Props) {
               </div>
             )}
             {block.fifth_week && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,184,0,0.15)', color: '#FFB800', fontWeight: 700, display: 'inline-block', marginTop: 6 }}>5th Week</span>}
+            {block.student_id && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => { onClose(); navigate(`/admin/students/${block.student_id}`) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '8px 14px' : '3px 10px', minHeight: isMobile ? 44 : undefined, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8', fontSize: isMobile ? 13 : 11, fontWeight: 600, cursor: 'pointer' }}>
+                  <ExternalLink size={isMobile ? 14 : 10} /> Go to Student
+                </button>
+                <button onClick={() => { onClose(); navigate(familyId ? `/admin/families?family=${familyId}` : `/admin/families`) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '8px 14px' : '3px 10px', minHeight: isMobile ? 44 : undefined, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8', fontSize: isMobile ? 13 : 11, fontWeight: 600, cursor: 'pointer' }}>
+                  <ExternalLink size={isMobile ? 14 : 10} /> Go to Family
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Session Log — from teacher quick-input */}
+          {block.has_session_log && block.session_log && (
+            <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.12)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#22C55E', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Session Log</div>
+              {block.session_log.worked_on.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+                  {block.session_log.worked_on.map((tag: string) => (
+                    <span key={tag} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', color: '#22C55E', fontWeight: 600 }}>{tag}</span>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#A0A0C8' }}>
+                {block.session_log.engagement_level && (
+                  <span>Energy: {['', '😴', '😐', '🙂', '😄', '🔥'][block.session_log.engagement_level]}</span>
+                )}
+                {block.session_log.progress_indicator && (
+                  <span style={{ color: block.session_log.progress_indicator === 'crushing_it' ? '#22C55E' : block.session_log.progress_indicator === 'on_track' ? '#FFB800' : '#EF4444' }}>
+                    {block.session_log.progress_indicator === 'crushing_it' ? 'Crushing It' : block.session_log.progress_indicator === 'on_track' ? 'On Track' : 'Needs Work'}
+                  </span>
+                )}
+                {block.session_log.parent_update_status === 'sent' && (
+                  <span style={{ color: '#8080A8' }}>Parent update sent</span>
+                )}
+              </div>
+              {block.session_log.teacher_note && (
+                <div style={{ fontSize: 11, color: '#C0C0E0', marginTop: 6, fontStyle: 'italic' }}>"{block.session_log.teacher_note}"</div>
+              )}
+            </div>
+          )}
 
           {/* Change Substitute Teacher */}
           {block.original_teacher_name && subTeachers.length > 0 && (
@@ -338,9 +479,10 @@ export default function CheckInModal({ block, onClose }: Props) {
                 value={selectedSubTeacherId}
                 onChange={(e) => setSelectedSubTeacherId(e.target.value)}
                 style={{
-                  width: '100%', padding: '10px 14px', borderRadius: 10,
+                  width: '100%', padding: isMobile ? '14px 14px' : '10px 14px', borderRadius: 10,
                   border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.06)',
-                  color: '#E0E0F4', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+                  color: '#E0E0F4', fontSize: isMobile ? 14 : 13, outline: 'none', fontFamily: 'inherit',
+                  minHeight: isMobile ? 48 : undefined,
                 }}
               >
                 {subTeachers.map((t) => (
@@ -372,7 +514,7 @@ export default function CheckInModal({ block, onClose }: Props) {
             <select
               value={currentType}
               onChange={(e) => setCurrentType(e.target.value as BlockType)}
-              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 13, outline: 'none' }}
+              style={{ width: '100%', padding: isMobile ? '14px 14px' : '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: isMobile ? 14 : 13, outline: 'none', minHeight: isMobile ? 48 : undefined }}
             >
               {TYPE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}{opt.tally ? '' : ' (no tally)'}</option>
@@ -385,6 +527,99 @@ export default function CheckInModal({ block, onClose }: Props) {
 
           {/* Room selector */}
           <RoomSelector block={block} />
+
+          {/* Virtual session toggle */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Virtual Session</div>
+            {block.is_virtual && block.meet_link ? (
+              <div style={{ padding: '10px 14px', background: 'rgba(0,188,212,0.06)', border: '1px solid rgba(0,188,212,0.15)', borderRadius: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Video size={14} style={{ color: '#00BCD4' }} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#00BCD4' }}>Virtual — Google Meet</span>
+                </div>
+                <a href={block.meet_link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#38BDF8', wordBreak: 'break-all' }}>{block.meet_link}</a>
+                <button
+                  onClick={() => setShowVirtualConfirm(true)}
+                  style={{ marginTop: 8, width: '100%', padding: '8px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Convert Back to In-Person
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowVirtualConfirm(true)}
+                disabled={virtualConverting}
+                style={{ width: '100%', padding: isMobile ? '14px 14px' : '10px 14px', borderRadius: 10, background: 'rgba(0,188,212,0.06)', border: '1px solid rgba(0,188,212,0.15)', color: '#00BCD4', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: isMobile ? 48 : undefined }}
+              >
+                <Video size={14} /> {virtualConverting ? 'Converting...' : 'Make Virtual (Google Meet)'}
+              </button>
+            )}
+          </div>
+
+          {/* Virtual confirmation modal */}
+          {showVirtualConfirm && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setShowVirtualConfirm(false)}>
+              <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: '0 16px', background: '#141224', border: '1px solid rgba(0,188,212,0.2)', borderRadius: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.6)', padding: '24px' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 8 }}>
+                  {block.is_virtual ? 'Convert Back to In-Person?' : 'Convert to Virtual Session?'}
+                </div>
+                <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 20 }}>
+                  {block.is_virtual
+                    ? 'The Google Meet link will be deactivated and teacher and parent will be notified it\'s back in-person.'
+                    : `You're about to convert ${block.student_name}'s session on ${dateStr} at ${formatTime(block.start_time)} to a Google Meet virtual session. A Meet link will be generated and sent to ${block.teacher_name.split(' ')[0]} and the family immediately.`}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setShowVirtualConfirm(false)} style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', fontWeight: 600, fontSize: 13, cursor: 'pointer', minHeight: 44 }}>Cancel</button>
+                  <button
+                    disabled={virtualConverting}
+                    onClick={async () => {
+                      setVirtualConverting(true)
+                      try {
+                        if (block.is_virtual) {
+                          // Revert to in-person
+                          await supabase.from('schedule_blocks').update({ is_virtual: false, meet_link: null, meet_event_id: null }).eq('id', block.block_id)
+                          qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                          toast('Converted back to in-person', 'success')
+                        } else {
+                          // Convert to virtual
+                          const token = (await supabase.auth.getSession()).data.session?.access_token
+                          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-google-meet`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ block_id: block.block_id, tenant_id: block.tenant_id, user_id: user?.id }),
+                          })
+                          const result = await res.json()
+                          if (!result.success) throw new Error(result.error)
+
+                          // Send virtual notification
+                          sendAppointmentNotification('virtual_converted', {
+                            block_id: block.block_id, student_name: block.student_name ?? 'Student',
+                            student_first_name: (block.student_name ?? 'Student').split(' ')[0],
+                            instrument: block.instrument, teacher_name: block.teacher_name,
+                            teacher_first_name: block.teacher_name.split(' ')[0],
+                            location_name: block.location_name ?? 'Studio',
+                            block_date: block.block_date, start_time: block.start_time,
+                            family_id: null, teacher_id: block.teacher_id,
+                            meet_link: result.meet_link,
+                          })
+
+                          qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                          toast('Virtual session created. Link sent to teacher and parent.', 'success')
+                        }
+                        setShowVirtualConfirm(false)
+                        onClose()
+                      } catch (err: any) {
+                        toast(err.message || 'Failed to convert', 'error')
+                      } finally { setVirtualConverting(false) }
+                    }}
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: block.is_virtual ? '#EF4444' : '#00BCD4', border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: virtualConverting ? 'default' : 'pointer', minHeight: 44, opacity: virtualConverting ? 0.6 : 1 }}
+                  >
+                    {virtualConverting ? 'Processing...' : block.is_virtual ? 'Yes, Back to In-Person' : 'Yes, Make it Virtual'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Check-in status (if already checked in) */}
           {!block.fifth_week && block.checked_in && (
@@ -442,9 +677,58 @@ export default function CheckInModal({ block, onClose }: Props) {
 
           {error && <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, fontSize: 12, color: '#EF4444', marginBottom: 12 }}>{error}</div>}
 
-          {/* Bottom actions — Update on top, spacer, then Check-in + Cancel on same line */}
-          <div style={{ paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-            {/* Update Appointment — primary action */}
+          {/* Notification log */}
+          {blockNotifications && blockNotifications.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Notifications sent</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {blockNotifications.map((n: any) => {
+                  const ago = timeAgo(n.sent_at)
+                  const eventLabels: Record<string, string> = { booked: 'Session booked', cancelled: 'Cancelled', rescheduled: 'Rescheduled', reminder_24hr: '24hr reminder', reminder_4hr: '4hr reminder', reminder_1hr: '1hr reminder', virtual_converted: 'Virtual converted' }
+                  return (
+                    <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8080A8', padding: '3px 0' }}>
+                      <span style={{ fontSize: 11 }}>{n.channel === 'sms' ? '📱' : '✉️'}</span>
+                      <span style={{ textTransform: 'capitalize' }}>{n.recipient_type}</span>
+                      <span style={{ color: '#363656' }}>·</span>
+                      <span>{eventLabels[n.event_type] ?? n.event_type}</span>
+                      <span style={{ color: '#363656' }}>·</span>
+                      <span style={{ color: '#606088' }}>{ago}</span>
+                      <span title={n.success ? 'Sent' : n.error_message || 'Failed'} style={{ color: n.success ? '#22C55E' : '#EF4444', fontSize: 11 }}>{n.success ? '✓' : '✗'}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Bottom actions — Check-in prominent on top, then Update + Cancel */}
+          <div style={{ paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)', paddingBottom: isMobile ? 20 : 0 }}>
+            {/* Check-in — THE primary action, big and satisfying */}
+            {!block.fifth_week && !block.checked_in && canCheckIn && (
+              <button
+                onClick={handleCheckIn}
+                disabled={checkIn.isPending}
+                style={{
+                  width: '100%', padding: isMobile ? '16px 20px' : '13px 16px', borderRadius: 12,
+                  background: 'linear-gradient(180deg, #22C55E, #16A34A)',
+                  boxShadow: '0 4px 20px rgba(34,197,94,0.3)',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  color: '#fff', fontWeight: 800, fontSize: isMobile ? 16 : 14,
+                  minHeight: isMobile ? 56 : 44,
+                  marginBottom: 10,
+                  transition: 'transform 150ms ease, box-shadow 150ms ease',
+                }}
+                onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
+                onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+                onTouchStart={e => (e.currentTarget.style.transform = 'scale(0.97)')}
+                onTouchEnd={e => (e.currentTarget.style.transform = 'scale(1)')}
+              >
+                <Check size={isMobile ? 22 : 18} /> {checkIn.isPending ? 'Checking in...' : 'Check In'}
+              </button>
+            )}
+
+            {/* Update Appointment */}
             <button
               onClick={async () => {
                 if (currentType !== block.block_type) {
@@ -454,36 +738,16 @@ export default function CheckInModal({ block, onClose }: Props) {
                 onClose()
               }}
               disabled={changeBlockType.isPending}
-              style={{ width: '100%', padding: '11px 16px', borderRadius: 10, background: '#FACC15', border: 'none', cursor: 'pointer', color: '#1A1A2E', fontWeight: 700, fontSize: 13, marginBottom: 12 }}
+              style={{ width: '100%', padding: isMobile ? '14px 16px' : '11px 16px', borderRadius: 10, background: '#FACC15', border: 'none', cursor: 'pointer', color: '#1A1A2E', fontWeight: 700, fontSize: 13, marginBottom: 8, minHeight: isMobile ? 48 : undefined }}
             >
               {changeBlockType.isPending ? 'Saving...' : 'Update Appointment'}
             </button>
 
-            {/* Spacer line */}
-            <div style={{ height: 1, background: 'rgba(255,255,255,0.04)', marginBottom: 12 }} />
-
-            {/* Check-in (75%) + Cancel (25%) on same line */}
-            {!block.fifth_week && !block.checked_in && canCheckIn && (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  onClick={handleCheckIn}
-                  disabled={checkIn.isPending}
-                  style={{ flex: 3, padding: '11px 16px', borderRadius: 10, background: '#22C55E', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#fff', fontWeight: 700, fontSize: 13 }}
-                >
-                  <Check size={16} /> {checkIn.isPending ? 'Checking in...' : 'Check In'}
-                </button>
-                <button
-                  onClick={() => setShowCancel(true)}
-                  style={{ flex: 1, padding: '11px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)', cursor: 'pointer', color: '#EF4444', fontWeight: 600, fontSize: 11, opacity: 0.7 }}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-            {!block.fifth_week && !block.checked_in && !canCheckIn && (
+            {/* Cancel — secondary action */}
+            {!block.fifth_week && !block.checked_in && (
               <button
                 onClick={() => setShowCancel(true)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)', cursor: 'pointer', color: '#EF4444', fontWeight: 600, fontSize: 12, opacity: 0.7 }}
+                style={{ width: '100%', padding: isMobile ? '14px 12px' : '9px 12px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)', cursor: 'pointer', color: '#EF4444', fontWeight: 600, fontSize: 12, minHeight: isMobile ? 48 : undefined }}
               >
                 Cancel Session
               </button>
@@ -499,6 +763,7 @@ function RoomSelector({ block }: { block: GridBlock }) {
   const { data: rooms } = useRooms(block.location_id)
   const qc = useQueryClient()
   const [currentRoom, setCurrentRoom] = useState(block.room_id ?? '')
+  const mobile = window.innerWidth < MOBILE_BP
 
   const activeRooms = (rooms ?? []).filter((r: any) => r.is_active && r.status === 'active')
   if (activeRooms.length === 0) return null
@@ -530,7 +795,7 @@ function RoomSelector({ block }: { block: GridBlock }) {
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Room</div>
-      <select value={currentRoom} onChange={(e) => handleChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 12, outline: 'none' }}>
+      <select value={currentRoom} onChange={(e) => handleChange(e.target.value)} style={{ width: '100%', padding: mobile ? '14px 12px' : '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: mobile ? 14 : 12, outline: 'none', minHeight: mobile ? 48 : undefined }}>
         <option value="">No room</option>
         {activeRooms.map((r: any) => (
           <option key={r.id} value={r.id}>{r.name}</option>

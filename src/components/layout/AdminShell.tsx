@@ -1,58 +1,102 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { useState, useRef, useEffect, useContext, createContext, useCallback, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import PageTransition from '../shared/PageTransition'
+import MobileTabBar from './MobileTabBar'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthContext } from '../../app/AuthContext'
+import { usePermissions } from '../../hooks/usePermissions'
+import { usePreviewMode } from '../../hooks/usePreviewMode'
 import { ADMIN_NAV_ITEMS } from '../../lib/constants'
 import { useAI } from '../../hooks/useAI'
+import { useStarContext } from '../../hooks/useStarContext'
+import { useTheme } from '../../hooks/useTheme'
+import { useOnboardingMode, getOnboardingSystemPrompt } from '../../hooks/useOnboardingMode'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Users, Calendar, GraduationCap, Music2, CreditCard, DollarSign, Sparkles, Settings2, LogOut, Send, Star, Home, ChevronDown, UsersRound } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarDays, UserPlus, Music2, CreditCard, BookOpen, Settings2, LogOut, Send, Star, ChevronDown, ShieldCheck, Guitar, Plug } from 'lucide-react'
+import NotificationBell from '../shared/NotificationBell'
+import RoleSwitcher from '../shared/RoleSwitcher'
 
 const NAV_ICONS: Record<string, ReactNode> = {
-  grid: <LayoutDashboard size={15} />,
-  target: <Users size={15} />,
-  calendar: <Calendar size={15} />,
-  users: <GraduationCap size={15} />,
-  families: <Home size={15} />,
-  roster: <UsersRound size={15} />,
-  music: <Music2 size={15} />,
-  dollar: <CreditCard size={15} />,
-  payroll: <DollarSign size={15} />,
+  'dashboard': <LayoutDashboard size={18} />,
+  'user-plus': <UserPlus size={18} />,
+  'calendar': <CalendarDays size={18} />,
+  'users': <Users size={18} />,
+  'shield': <ShieldCheck size={18} />,
+  'guitar': <Guitar size={18} />,
+  'book': <BookOpen size={18} />,
 }
 
 const SUGGESTIONS = [
-  "What should I focus on today?",
-  "How can I fill more open slots this week?",
-  "Which leads need attention right now?",
-  "Find coverage for today's callouts",
+  "How are we doing today?",
+  "Who needs attention right now?",
+  "What's my revenue this month?",
+  "Compare my locations",
 ]
 
 export default function AdminShell() {
   const { profile, tenantId, signOut } = useAuthContext()
+  const { isStudioDirector, isCompanyDirector, isOwner, role: effectiveRole } = usePermissions()
+  const { preview } = usePreviewMode()
   const location = useLocation()
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [hoverExpanded, setHoverExpanded] = useState(false)
+  const hoverEnterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const sidebarPinned = !sidebarCollapsed
+  const sidebarOpen = sidebarPinned || hoverExpanded
+
+  const handleSidebarMouseEnter = () => {
+    if (isMobile || sidebarPinned) return
+    if (hoverLeaveTimer.current) { clearTimeout(hoverLeaveTimer.current); hoverLeaveTimer.current = null }
+    hoverEnterTimer.current = setTimeout(() => setHoverExpanded(true), 400)
+  }
+  const handleSidebarMouseLeave = () => {
+    if (isMobile || sidebarPinned) return
+    if (hoverEnterTimer.current) { clearTimeout(hoverEnterTimer.current); hoverEnterTimer.current = null }
+    hoverLeaveTimer.current = setTimeout(() => setHoverExpanded(false), 300)
+  }
+
+  // Cleanup hover timers on unmount
+  useEffect(() => () => {
+    if (hoverEnterTimer.current) clearTimeout(hoverEnterTimer.current)
+    if (hoverLeaveTimer.current) clearTimeout(hoverLeaveTimer.current)
+  }, [])
+
   const [inputValue, setInputValue] = useState('')
-  const { messages, isLoading, sendMessage, clearConversation, pendingAction, confirmAction, rejectAction } = useAI(tenantId)
+  const { data: starContext } = useStarContext()
+  const theme = useTheme()
+  const onboarding = useOnboardingMode()
+
+  // Use onboarding prompt for new tenants, business context for established ones
+  const aiContext = onboarding.needsOnboarding
+    ? getOnboardingSystemPrompt(onboarding.tenantName, onboarding.progress, onboarding.studentCount, onboarding.teacherCount)
+    : starContext?.summary ?? null
+  const { messages, isLoading, sendMessage, clearConversation, pendingAction, confirmAction, rejectAction } = useAI(tenantId, null, aiContext)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Roster group expand/collapse
-  const [rosterExpanded, setRosterExpanded] = useState(() => {
-    const stored = localStorage.getItem('nav_roster_expanded')
-    return stored !== null ? stored === 'true' : true // expanded by default
+  // Dropdown expand/collapse — auto-expand if on a child route
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    const set = new Set<string>()
+    for (const item of ADMIN_NAV_ITEMS) {
+      if (item.children?.some(c => location.pathname.startsWith(c.path))) set.add(item.label)
+    }
+    return set
   })
 
-  // Auto-expand Roster if on a child route
   useEffect(() => {
-    const rosterPaths = ['/admin/students', '/admin/families']
-    if (rosterPaths.some(p => location.pathname.startsWith(p)) && !rosterExpanded) {
-      setRosterExpanded(true)
+    for (const item of ADMIN_NAV_ITEMS) {
+      if (item.children?.some(c => location.pathname.startsWith(c.path))) {
+        setExpandedGroups(prev => { const next = new Set(prev); next.add(item.label); return next })
+      }
     }
   }, [location.pathname])
 
-  useEffect(() => {
-    localStorage.setItem('nav_roster_expanded', String(rosterExpanded))
-  }, [rosterExpanded])
+  const toggleGroup = (label: string) => {
+    setExpandedGroups(prev => { const next = new Set(prev); if (next.has(label)) next.delete(label); else next.add(label); return next })
+  }
+
 
   // Get tenant info for Star's branding
   const { data: tenant } = useQuery({
@@ -75,6 +119,11 @@ export default function AdminShell() {
     return () => window.removeEventListener('open-ai-panel', handler)
   }, [])
 
+  // Auto-open Star for new tenants
+  useEffect(() => {
+    if (onboarding.isNew && messages.length === 0) setAiPanelOpen(true)
+  }, [onboarding.isNew])
+
   const handleSend = () => {
     if (!inputValue.trim() || isLoading) return
     sendMessage(inputValue)
@@ -86,7 +135,7 @@ export default function AdminShell() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell" style={preview.active ? { paddingTop: 40 } : undefined}>
       {/* ATMOSPHERIC BACKGROUND - required for V9 design */}
       <div className="lp-bg">
         <svg viewBox="0 0 1200 780" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
@@ -122,92 +171,131 @@ export default function AdminShell() {
       <div className="lp-vig"></div>
 
       <aside
-        className={`admin-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}
-        onClick={sidebarCollapsed ? () => setSidebarCollapsed(false) : undefined}
-        style={sidebarCollapsed ? { cursor: 'pointer' } : undefined}
+        className={`admin-sidebar ${sidebarOpen ? '' : 'collapsed'}`}
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
+        onClick={!sidebarOpen ? () => { setSidebarCollapsed(false); setHoverExpanded(false) } : undefined}
+        style={!sidebarOpen ? { cursor: 'pointer' } : undefined}
       >
-        <div className="sidebar-brand" onClick={!sidebarCollapsed ? () => setSidebarCollapsed(true) : undefined} style={{ cursor: 'pointer' }}>
-          <div className="sidebar-logomark">L</div>
-          {!sidebarCollapsed && (
+        <div className="sidebar-brand" onClick={sidebarOpen ? () => { setSidebarCollapsed(true); setHoverExpanded(false) } : undefined} style={{ cursor: 'pointer' }}>
+          {theme.logoUrl ? (
+            <img src={theme.logoUrl} alt="" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover' }} />
+          ) : (
+            <div className="sidebar-logomark">{theme.studioName[0] ?? 'L'}</div>
+          )}
+          {sidebarOpen && (
             <div className="sidebar-brand-text">
-              <div className="sidebar-brand-name">Lessonpreneur</div>
-              <div className="sidebar-brand-sub">Music School OS</div>
+              <div className="sidebar-brand-name">{theme.studioName}</div>
+              <div className="sidebar-brand-sub">powered by Lessonpreneur</div>
             </div>
           )}
         </div>
 
+        <NavTooltipProvider sidebarOpen={sidebarOpen}>
         <nav className="sidebar-nav">
-          <div className="nav-group-label">Main</div>
-          {ADMIN_NAV_ITEMS.map((item) => {
-            // Collapsible group (Roster)
-            if (item.children) {
-              const childPaths = item.children.map(c => c.path)
-              const isChildActive = childPaths.some(p => location.pathname.startsWith(p))
-              return (
-                <div key={item.label}>
-                  <button
-                    className={`nav-item ${isChildActive ? 'active' : ''}`}
-                    onClick={(e) => { e.stopPropagation(); setRosterExpanded(!rosterExpanded) }}
-                    title={sidebarCollapsed ? item.label : undefined}
-                    style={{ width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer' }}
-                  >
-                    {NAV_ICONS[item.icon]}
-                    <span className="nav-label" style={{ flex: 1 }}>{item.label}</span>
-                    {!sidebarCollapsed && (
-                      <ChevronDown size={12} style={{
-                        transition: 'transform 200ms ease',
-                        transform: rosterExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                        color: '#8080A8',
-                      }} />
-                    )}
-                  </button>
-                  {rosterExpanded && !sidebarCollapsed && (
-                    <div style={{ paddingLeft: 14 }}>
-                      {item.children.map((child) => (
-                        <NavLink
-                          key={child.path}
-                          to={child.path}
-                          onClick={(e) => e.stopPropagation()}
-                          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                          style={{ paddingLeft: 22, fontSize: 13, borderLeft: '2px solid transparent', ...(location.pathname.startsWith(child.path) ? { borderLeftColor: '#D4226A' } : {}) }}
-                        >
-                          <span className="nav-label">{child.label}</span>
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
+          {ADMIN_NAV_ITEMS.filter(item => {
+            // Role-based nav filtering — uses effectiveRole from usePermissions (respects preview mode)
+            const HIDDEN_FOR_STUDIO_DIR = ['/admin/financials', '/admin/recruitment', '/admin/settings']
+            const HIDDEN_FOR_COMPANY_DIR = ['/admin/financials'] // hide owner take-home from co. directors
+            if (isStudioDirector) {
+              if (item.path && HIDDEN_FOR_STUDIO_DIR.includes(item.path)) return false
+              if (item.children) {
+                const filtered = item.children.filter(c => !HIDDEN_FOR_STUDIO_DIR.includes(c.path))
+                if (filtered.length === 0) return false
+              }
             }
+            if (isCompanyDirector && !isOwner) {
+              if (item.path && HIDDEN_FOR_COMPANY_DIR.includes(item.path)) return false
+            }
+            return true
+          }).map((item, idx) => {
+            const showDividerBefore = idx === 3 || idx === 5
+            const isGroup = !!item.children
+            const isGroupOpen = expandedGroups.has(item.label)
+            const isChildActive = item.children?.some(c => location.pathname.startsWith(c.path)) ?? false
+            // Show tooltip: always when collapsed; when expanded, only for dropdown parents
+            const showTip = !sidebarOpen || isGroup
 
             return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                title={sidebarCollapsed ? item.label : undefined}
-                onClick={(e) => e.stopPropagation()}
-                className={({ isActive }) =>
-                  `nav-item ${isActive ? 'active' : ''}`
-                }
-              >
-                {NAV_ICONS[item.icon]}
-                <span className="nav-label">{item.label}</span>
-              </NavLink>
+              <div key={item.label}>
+                {showDividerBefore && <div style={{ height: 1, background: 'rgba(255,255,255,0.04)', margin: '6px 14px' }} />}
+                {isGroup ? (
+                  <>
+                    <NavTooltipTrigger label={item.label} children_list={item.children} show={showTip}>
+                      <button
+                        className={`nav-item${isChildActive ? ' active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!sidebarOpen && item.children?.[0]) {
+                            window.location.href = item.children[0].path
+                            return
+                          }
+                          toggleGroup(item.label)
+                        }}
+                        style={{ width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', background: 'none', fontFamily: 'inherit' }}
+                      >
+                        {NAV_ICONS[item.icon]}
+                        <span className="nav-label" style={{ flex: 1 }}>{item.label}</span>
+                        {sidebarOpen && (
+                          <ChevronDown size={12} style={{ transition: 'transform 200ms ease', transform: isGroupOpen ? 'rotate(0deg)' : 'rotate(-90deg)', color: '#606088', flexShrink: 0 }} />
+                        )}
+                      </button>
+                    </NavTooltipTrigger>
+                    {isGroupOpen && sidebarOpen && (
+                      <div>
+                        {item.children!.map((child) => (
+                          <NavTooltipTrigger key={child.path} label={child.label} show={false}>
+                            <NavLink
+                              to={child.path}
+                              onClick={(e) => e.stopPropagation()}
+                              className={({ isActive }) => `nav-item nav-child${isActive ? ' active' : ''}`}
+                              style={{ paddingLeft: 42, fontSize: 13, fontWeight: 500 }}
+                            >
+                              <span className="nav-label">{child.label}</span>
+                            </NavLink>
+                          </NavTooltipTrigger>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <NavTooltipTrigger label={item.label} show={!sidebarOpen}>
+                    <NavLink
+                      to={item.path}
+                      onClick={(e) => e.stopPropagation()}
+                      className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                    >
+                      {NAV_ICONS[item.icon]}
+                      <span className="nav-label">{item.label}</span>
+                    </NavLink>
+                  </NavTooltipTrigger>
+                )}
+              </div>
             )
           })}
         </nav>
+        </NavTooltipProvider>
 
         <div className="sidebar-footer">
           <button
             className={`nav-item ${aiPanelOpen ? 'active' : ''}`}
             onClick={(e) => { e.stopPropagation(); setAiPanelOpen(!aiPanelOpen) }}
-            title={sidebarCollapsed ? 'AI Assistant' : undefined}
+            title={!sidebarOpen ? 'AI Assistant' : undefined}
           >
             <Star size={15} />
             <span className="nav-label">Star</span>
           </button>
 
-          <NavLink to="/admin/settings" title={sidebarCollapsed ? 'Settings' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <div className="nav-item" style={{ cursor: 'default', padding: '4px 12px' }}>
+            <NotificationBell />
+          </div>
+
+          <NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Plug size={15} />
+            <span className="nav-label">Integrations</span>
+          </NavLink>
+
+          <NavLink to="/admin/settings" title={!sidebarOpen ? 'Settings' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Settings2 size={15} />
             <span className="nav-label">Settings</span>
           </NavLink>
@@ -220,15 +308,20 @@ export default function AdminShell() {
               {profile?.first_name} {profile?.last_name}
             </span>
             <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); signOut() }} style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
-              {sidebarCollapsed ? <LogOut size={13} /> : 'Sign Out'}
+              {sidebarOpen ? 'Sign Out' : <LogOut size={13} />}
             </button>
           </div>
         </div>
       </aside>
 
       <main className="admin-main">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px 0', maxWidth: '100%', overflowX: 'hidden' }}>
+          <RoleSwitcher />
+        </div>
         <PageTransition><Outlet /></PageTransition>
       </main>
+
+      <MobileTabBar />
 
       {aiPanelOpen && (
         <aside className="ai-panel">
@@ -329,6 +422,90 @@ export default function AdminShell() {
           </div>
         </aside>
       )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// NAV TOOLTIP SYSTEM
+// ═══════════════════════════════════════
+
+interface TooltipState { label: string; children_list?: { label: string; path: string }[]; rect: DOMRect }
+const TooltipCtx = createContext<{
+  show: (s: TooltipState) => void
+  hide: () => void
+}>({ show: () => {}, hide: () => {} })
+
+function NavTooltipProvider({ children, sidebarOpen }: { children: ReactNode; sidebarOpen: boolean }) {
+  const [tip, setTip] = useState<TooltipState | null>(null)
+  const [visible, setVisible] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showTip = useCallback((s: TooltipState) => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => { setTip(s); setVisible(true) }, 300)
+  }, [])
+  const hideTip = useCallback(() => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+    setVisible(false)
+    setTimeout(() => setTip(null), 150)
+  }, [])
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+
+  const sidebarWidth = sidebarOpen ? 216 : 58
+
+  return (
+    <TooltipCtx.Provider value={{ show: showTip, hide: hideTip }}>
+      {children}
+      {tip && (
+        <div style={{
+          position: 'fixed',
+          left: sidebarWidth + 8,
+          top: tip.rect.top + tip.rect.height / 2,
+          transform: 'translateY(-50%)',
+          zIndex: 9999,
+          pointerEvents: 'none',
+          padding: '6px 10px',
+          background: 'rgba(16,16,32,0.95)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 8,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          maxWidth: 180,
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 150ms ease',
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#E0E0F4', whiteSpace: 'nowrap' }}>{tip.label}</div>
+          {tip.children_list && tip.children_list.length > 0 && (
+            <div style={{ marginTop: 3 }}>
+              {tip.children_list.map(c => (
+                <div key={c.path} style={{ fontSize: 11, color: '#8080A8', paddingLeft: 10, lineHeight: 1.6 }}>· {c.label}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </TooltipCtx.Provider>
+  )
+}
+
+function NavTooltipTrigger({ label, children_list, show, children }: {
+  label: string
+  children_list?: { label: string; path: string }[]
+  show: boolean
+  children: ReactNode
+}) {
+  const { show: showTip, hide: hideTip } = useContext(TooltipCtx)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const handleEnter = () => {
+    if (!show || !ref.current) return
+    showTip({ label, children_list, rect: ref.current.getBoundingClientRect() })
+  }
+
+  return (
+    <div ref={ref} onMouseEnter={handleEnter} onMouseLeave={hideTip}>
+      {children}
     </div>
   )
 }

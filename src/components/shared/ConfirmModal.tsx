@@ -27,7 +27,7 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirm',
 
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onCancel}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 420, background: '#141224', border: `1px solid ${colors.border}`, borderRadius: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: '0 16px', background: '#141224', border: `1px solid ${colors.border}`, borderRadius: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
         {/* Header with icon */}
         <div style={{ padding: '20px 24px 16px', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: colors.bg, border: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -63,7 +63,7 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirm',
         <div style={{ padding: '12px 24px 20px', display: 'flex', gap: 8 }}>
           <button
             onClick={onCancel}
-            style={{ flex: 1, padding: '10px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+            style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', cursor: 'pointer', fontWeight: 600, fontSize: 13, minHeight: 44 }}
           >
             {cancelLabel}
           </button>
@@ -71,9 +71,9 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirm',
             onClick={() => canConfirm && onConfirm(reason.trim() || undefined)}
             disabled={!canConfirm}
             style={{
-              flex: 1, padding: '10px 16px', borderRadius: 10, border: 'none', cursor: canConfirm ? 'pointer' : 'not-allowed',
+              flex: 1, padding: '12px 16px', borderRadius: 10, border: 'none', cursor: canConfirm ? 'pointer' : 'not-allowed',
               background: canConfirm ? colors.btn : '#606088', color: '#fff', fontWeight: 700, fontSize: 13,
-              opacity: canConfirm ? 1 : 0.5,
+              opacity: canConfirm ? 1 : 0.5, minHeight: 44,
             }}
           >
             {confirmLabel}

@@ -10,7 +10,7 @@ import { formatRate, getRateTierColor } from '../../hooks/useFamilyRate'
 import { useAI } from '../../hooks/useAI'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
-import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt } from 'lucide-react'
+import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell } from 'lucide-react'
 import { useReactivateStudent } from '../../hooks/useRetention'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_SESSIONS_PER_MONTH } from '../../lib/constants'
@@ -295,69 +295,55 @@ function FamilyCard({ family: f, onClick }: { family: Family; onClick: () => voi
   const locColor = f.locationColor ?? '#606088'
   const isInactive = (f.billing_status ?? 'active') === 'cancelled'
 
+  // Build student summary: "1 student · Drums · Payton" or "2 students · Piano, Guitar · Jamie, Jesse"
+  const activeStudents = (f.students ?? []).filter(s => s.status === 'active')
+  const studentNames = activeStudents.slice(0, 3).map(s => s.first_name).join(', ')
+  const studentInstruments = [...new Set(activeStudents.map(s => s.instrument).filter(Boolean))].slice(0, 2).map(i => i.charAt(0).toUpperCase() + i.slice(1)).join(', ')
+
   return (
-    <div className="lead-card" onClick={onClick}>
+    <div className="lead-card" onClick={onClick} style={{ position: 'relative' }}>
       <div className="lead-card-edge" style={{
         background: isInactive ? '#606088' : locColor,
         boxShadow: isInactive ? 'none' : `0 0 12px ${locColor}80`,
       }} />
-      <div className="student-card-content" style={{ flex: 1 }}>
-        <div className="student-card-zone student-card-zone-name">
-          <span className="lead-card-student">
+      <div style={{ flex: 1, padding: '14px 16px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Row 1: Family name + rate */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>
             {stripFamily(f.name)}
-            {f.is_military && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,184,0,0.15)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.25)', fontWeight: 700 }}>MIL</span>}
+          </span>
+          {f.is_military && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,184,0,0.15)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.25)', fontWeight: 700, flexShrink: 0 }}>MIL</span>}
+          <span style={{
+            fontSize: 12, fontWeight: 800, padding: '2px 8px', borderRadius: 6, flexShrink: 0,
+            background: isInactive ? 'rgba(255,255,255,0.06)' : rateEdge.solid,
+            color: isInactive ? '#606088' : '#1A1A2E',
+          }}>
+            ${(f.rate_tier / 100).toFixed(0)}
           </span>
         </div>
-        <div className="student-card-divider" />
-        <div className="student-card-zone student-card-col" style={{ gap: 2, minWidth: 130 }}>
-          <span style={labelStyle}>Contact</span>
-          <CopyText value={f.primary_email} style={{ fontSize: 12, color: '#C0C0E0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }} />
-          <CopyText value={f.primary_phone} style={{ fontSize: 11, color: '#A0A0C8' }} />
+
+        {/* Row 2: Email · Phone */}
+        <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#A0A0C8' }}>
+          {f.primary_email && <CopyText value={f.primary_email} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }} />}
+          {f.primary_phone && <CopyText value={f.primary_phone} />}
         </div>
-        <div className="student-card-divider" />
-        <div className="student-card-zone student-card-col" style={{ gap: 2 }}>
-          <span style={labelStyle}>Students</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>{f.activeStudentCount || '—'}</span>
+
+        {/* Row 3: Students · Instrument · Names */}
+        <div style={{ fontSize: 12, color: '#C0C0E0' }}>
+          {f.activeStudentCount} student{f.activeStudentCount !== 1 ? 's' : ''}
+          {studentInstruments && <span style={{ color: '#8080A8' }}> · {studentInstruments}</span>}
+          {studentNames && <span style={{ color: '#8080A8' }}> · {studentNames}</span>}
         </div>
-        <div className="student-card-divider" />
-        <div className="student-card-zone student-card-col" style={{ gap: 2 }}>
-          <span style={labelStyle}>Teachers</span>
-          {f.teacherNames.length > 0
-            ? <span style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.4 }}>{f.teacherNames.slice(0, 2).map((n) => n.split(' ')[0]).join(', ')}{f.teacherNames.length > 2 && <span style={{ color: '#8080A8' }}> +{f.teacherNames.length - 2}</span>}</span>
-            : <span style={{ fontSize: 11, color: '#606088' }}>—</span>}
-        </div>
-        <div className="student-card-divider" />
-        <div className="student-card-zone student-card-col" style={{ gap: 2 }}>
-          <span style={labelStyle}>Instruments</span>
-          {f.instrumentList.length > 0
-            ? <span style={{ fontSize: 12, color: '#C0C0E0' }}>{f.instrumentList.slice(0, 2).map((i) => i.charAt(0).toUpperCase() + i.slice(1)).join(', ')}{f.instrumentList.length > 2 && <span style={{ color: '#8080A8' }}> +{f.instrumentList.length - 2}</span>}</span>
-            : <span style={{ fontSize: 11, color: '#606088' }}>—</span>}
-        </div>
-        <div className="student-card-divider" />
-        <div className="student-card-zone student-card-col" style={{ gap: 3, minWidth: 72 }}>
-          <span style={labelStyle}>Status</span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 100, ...(f.card_last_four ? { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' } : { background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' }) }}>
-            {f.card_last_four ? 'Card \u2713' : 'No Card'}
+
+        {/* Row 4: Status pills */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, ...(f.card_last_four ? { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' } : { background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' }) }}>
+            {f.card_last_four ? 'Card ✓' : 'No Card'}
           </span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 100, ...((f as any).contract_status === 'signed' ? { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' } : { background: 'rgba(251,191,36,0.12)', color: '#FBBF24', border: '1px solid rgba(251,191,36,0.3)' }) }}>
-            {(f as any).contract_status === 'signed' ? 'Contract \u2713' : 'No Contract'}
-          </span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 100, ...(f.hasOverdueInvoice ? { background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' } : f.billing_status === 'paused' ? { background: 'rgba(148,163,184,0.12)', color: '#94A3B8', border: '1px solid rgba(148,163,184,0.3)' } : { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' }) }}>
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, ...(f.hasOverdueInvoice ? { background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' } : f.billing_status === 'paused' ? { background: 'rgba(148,163,184,0.12)', color: '#94A3B8', border: '1px solid rgba(148,163,184,0.3)' } : { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' }) }}>
             {f.hasOverdueInvoice ? 'Overdue' : f.billing_status === 'paused' ? 'Paused' : 'Current'}
           </span>
         </div>
-      </div>
-      {/* RIGHT — half-coin rate badge, full height, rounded left edge */}
-      <div style={{
-        width: 58, minWidth: 58, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        background: isInactive ? 'rgba(255,255,255,0.06)' : rateEdge.solid,
-        borderRadius: '50% 0 0 50%',
-      }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: isInactive ? '#606088' : '#1A1A2E', letterSpacing: '-0.02em' }}>
-          ${(f.rate_tier / 100).toFixed(0)}
-        </span>
-        {f.rate_tier_override && <Lock size={9} style={{ color: isInactive ? '#606088' : '#1A1A2E', marginTop: 2, opacity: 0.7 }} />}
       </div>
     </div>
   )
@@ -395,6 +381,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   const [deleteConfirm, setDeleteConfirm] = useState<FamilyFile | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showCreateInvoice, setShowCreateInvoice] = useState(false)
+  const [reviewRequested, setReviewRequested] = useState(false)
 
   // Edit form — one form for all editable fields, toggled by single Edit button
   const [form, setForm] = useState<Record<string, string>>({})
@@ -476,7 +463,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
     const ctx = [
       `Family: ${family.name}`, `Parent: ${family.parent_first_name ?? ''} ${family.parent_last_name ?? family.parent_name ?? ''}`.trim(),
       `Location: ${family.locationName ?? 'Unknown'}`, `Status: ${family.billing_status}`,
-      `Rate: $${(family.rate_tier / 100).toFixed(2)}/session${family.rate_tier_override ? ' (override)' : ''}`,
+      `Rate: $${(family.rate_tier / 100).toFixed(2)}/mo${family.rate_tier_override ? ' (override)' : ''}`,
       `Balance: ${formatDollars(family.balance)}`,
       family.overdue_balance_cents && family.overdue_balance_cents > 0 ? `Overdue: ${formatDollars(family.overdue_balance_cents)}` : null,
       `Lifetime Paid: ${formatDollars(family.lifetime_paid_cents)}`, `Active Students: ${family.activeStudentCount}`,
@@ -548,6 +535,33 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
               <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 8, background: statusStyle.bg, border: `1px solid ${statusStyle.border}`, color: statusStyle.color }}>
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </span>
+              <button
+                disabled={reviewRequested}
+                onClick={async () => {
+                  if (!family || reviewRequested) return
+                  try {
+                    await supabase.from('review_requests').insert({
+                      tenant_id: family.tenant_id ?? '00000000-0000-0000-0000-000000000001',
+                      family_id: family.id,
+                      location_id: family.location_id ?? family.students?.[0]?.location_id,
+                      sent_at: new Date().toISOString(),
+                      trigger_reason: 'manual_family_profile',
+                    })
+                    setReviewRequested(true)
+                    toast(`Review request sent to ${stripFamily(family.name)}`, 'success')
+                  } catch { toast('Failed to send review request', 'error') }
+                }}
+                style={{
+                  fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: 8,
+                  background: reviewRequested ? 'rgba(34,197,94,0.08)' : 'rgba(212,34,106,0.08)',
+                  border: `1px solid ${reviewRequested ? 'rgba(34,197,94,0.2)' : 'rgba(212,34,106,0.2)'}`,
+                  color: reviewRequested ? '#22C55E' : '#D4226A',
+                  cursor: reviewRequested ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <Star size={10} /> {reviewRequested ? 'Review Requested' : 'Request Review'}
+              </button>
               <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#8080A8' }}><X size={16} /></button>
             </div>
           </div>
@@ -631,7 +645,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                         background: rateColor.bg, border: `1px solid ${rateColor.border}`, color: rateColor.text,
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                       }}>
-                        ${formatRate(family.rate_tier)}/session
+                        ${formatRate(family.rate_tier)}/mo
                         {family.rate_tier_override && <Lock size={11} />}
                       </span>
                     </div>
@@ -759,6 +773,9 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 </div>
               )}
 
+              {/* NOTIFICATIONS */}
+              <NotificationPrefs family={family} />
+
               {/* STAR AI */}
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 16, paddingTop: 16 }}>
                 {!showStar ? (
@@ -798,7 +815,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                         background: rateColor.bg, border: `1px solid ${rateColor.border}`, color: rateColor.text,
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                       }}>
-                        ${formatRate(family.rate_tier)}/session
+                        ${formatRate(family.rate_tier)}/mo
                         {family.rate_tier_override && <Lock size={11} />}
                       </span>
                     </div>
@@ -971,6 +988,7 @@ const EVENT_ICON: Record<string, { icon: string; color: string }> = {
   billing_status:    { icon: '💳', color: '#A78BFA' },
   payment_failed:    { icon: '💳', color: '#EF4444' },
   rate_changed:      { icon: '💰', color: '#FFB800' },
+  notification:      { icon: '🔔', color: '#00BCD4' },
   other:             { icon: '•',  color: '#8080A8' },
 }
 
@@ -1191,6 +1209,128 @@ function CreateInvoiceFromFamily({ family, onClose }: { family: any; onClose: ()
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// NOTIFICATION PREFERENCES
+// ═══════════════════════════════════════
+
+function NotificationPrefs({ family }: { family: any }) {
+  const qc = useQueryClient()
+  const [sms, setSms] = useState(family.notify_via_sms ?? true)
+  const [email, setEmail] = useState(family.notify_via_email ?? true)
+  const [rem4hr, setRem4hr] = useState(family.reminder_4hr ?? true)
+  const [rem1hr, setRem1hr] = useState(family.reminder_1hr ?? false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const dirty = sms !== (family.notify_via_sms ?? true) ||
+    email !== (family.notify_via_email ?? true) ||
+    rem4hr !== (family.reminder_4hr ?? true) ||
+    rem1hr !== (family.reminder_1hr ?? false)
+
+  const handleToggle = (field: 'sms' | 'email', val: boolean) => {
+    setError('')
+    if (field === 'sms') {
+      if (!val && !email) { setError('At least one notification method is required.'); return }
+      setSms(val)
+    } else {
+      if (!val && !sms) { setError('At least one notification method is required.'); return }
+      setEmail(val)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      const { error: err } = await supabase.from('families').update({
+        notify_via_sms: sms,
+        notify_via_email: email,
+        reminder_4hr: rem4hr,
+        reminder_1hr: rem1hr,
+      }).eq('id', family.id)
+      if (err) throw err
+      qc.invalidateQueries({ queryKey: ['family_detail'] })
+      qc.invalidateQueries({ queryKey: ['families'] })
+      toast('Notification preferences saved', 'success')
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to save')
+    } finally { setSaving(false) }
+  }
+
+  const toggleStyle = (on: boolean): React.CSSProperties => ({
+    width: 40, height: 22, borderRadius: 11, cursor: 'pointer',
+    background: on ? '#22C55E' : '#333',
+    position: 'relative', transition: 'background 200ms',
+    flexShrink: 0, border: 'none',
+  })
+  const thumbStyle = (on: boolean): React.CSSProperties => ({
+    position: 'absolute', top: 2, left: on ? 20 : 2,
+    width: 18, height: 18, borderRadius: '50%', background: '#fff',
+    transition: 'left 200ms', pointerEvents: 'none',
+  })
+
+  return (
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 16, paddingTop: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+        <Bell size={13} style={{ color: '#8080A8' }} />
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notifications</span>
+      </div>
+
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>How We Reach You</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: '#C0C0E0' }}>Text message</span>
+          <button style={toggleStyle(sms)} onClick={() => handleToggle('sms', !sms)}>
+            <div style={thumbStyle(sms)} />
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: '#C0C0E0' }}>Email</span>
+          <button style={toggleStyle(email)} onClick={() => handleToggle('email', !email)}>
+            <div style={thumbStyle(email)} />
+          </button>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Session Reminders</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: '#C0C0E0' }}>24 hours before</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#22C55E', padding: '2px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.1)' }}>Always on</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: '#C0C0E0' }}>4 hours before</span>
+          <button style={toggleStyle(rem4hr)} onClick={() => setRem4hr(!rem4hr)}>
+            <div style={thumbStyle(rem4hr)} />
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: '#C0C0E0' }}>1 hour before</span>
+          <button style={toggleStyle(rem1hr)} onClick={() => setRem1hr(!rem1hr)}>
+            <div style={thumbStyle(rem1hr)} />
+          </button>
+        </div>
+      </div>
+
+      {error && <div style={{ fontSize: 12, color: '#EF4444', marginBottom: 8, padding: '6px 10px', background: 'rgba(239,68,68,0.08)', borderRadius: 8 }}>{error}</div>}
+
+      {dirty && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            width: '100%', padding: '9px 16px', borderRadius: 10,
+            background: '#22C55E', border: 'none', cursor: 'pointer',
+            color: '#fff', fontWeight: 700, fontSize: 12,
+          }}
+        >
+          {saving ? 'Saving...' : 'Save Notification Preferences'}
+        </button>
+      )}
     </div>
   )
 }

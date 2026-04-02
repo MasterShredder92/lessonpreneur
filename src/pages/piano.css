@@ -1,0 +1,273 @@
+/* PianoLanding — piano-specific overrides only.
+   All base styles come from adkins.css */
+
+/* ─── INTRO OVERLAY ──────────────────── */
+.pn-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #000; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  transition: opacity 0.5s ease;
+}
+.pn-overlay.done { opacity: 0; pointer-events: none; }
+.pn-overlay-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: clamp(48px, 10vw, 96px);
+  letter-spacing: 3px; color: #fff; text-align: center; line-height: 1;
+}
+.pn-overlay-title span { color: var(--c); }
+.pn-overlay-sub {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px; color: #666; letter-spacing: 2px; text-transform: uppercase;
+}
+.pn-note-anim { display: flex; gap: 8px; align-items: flex-end; height: 40px; margin-top: 8px; }
+.pn-note-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--c);
+  animation: pn-noteRise 0.6s ease-out forwards;
+  opacity: 0;
+}
+@keyframes pn-noteRise {
+  0% { transform: translateY(20px); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: translateY(-20px); opacity: 0.3; }
+}
+
+/* ─── EQ STRIP (hero background) ─────── */
+.pn-eq-strip {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  display: flex; gap: 2px; justify-content: center;
+  height: 36px; overflow: hidden; pointer-events: none;
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 100%);
+}
+.pn-eq-bar {
+  width: 3px; border-radius: 2px 2px 0 0;
+  background: var(--c);
+  opacity: var(--op);
+  animation: pn-eqBounce var(--spd) ease-in-out infinite alternate;
+}
+@keyframes pn-eqBounce {
+  0% { height: var(--h1); }
+  100% { height: var(--h2); }
+}
+
+/* ─── PIANO KEYBOARD ─────────────────── */
+.pn-keyboard-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0 20px;
+}
+.pn-keyboard-scroll::-webkit-scrollbar { display: none; }
+
+.pn-keyboard {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  margin: 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.pn-white-key {
+  width: 52px;
+  height: 160px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 0 0 6px 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  transition: background 0.1s, transform 0.1s;
+  position: relative;
+  z-index: 1;
+}
+.pn-white-key:hover { background: #f5f5f5; }
+.pn-white-key.hit {
+  background: color-mix(in srgb, var(--c) 20%, white);
+  transform: scale(0.97);
+}
+
+.pn-key-label {
+  font-size: 11px;
+  color: #999;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.pn-black-key {
+  width: 32px;
+  height: 100px;
+  background: #1a1a1a;
+  border-radius: 0 0 4px 4px;
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: background 0.1s, transform 0.1s;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+}
+
+.pn-black-label {
+  font-size: 9px;
+  color: #fff;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0.7;
+}
+.pn-black-key:hover { background: #2a2a2a; }
+.pn-black-key.hit {
+  background: color-mix(in srgb, var(--c) 60%, black);
+  transform: translateX(-50%) scale(0.97);
+}
+
+.pn-keyboard-hint {
+  text-align: center;
+  font-size: 11px;
+  color: #444;
+  margin-top: 16px;
+  letter-spacing: 0.5px;
+}
+@media (hover: none) {
+  .pn-keyboard-hint { display: none; }
+}
+
+/* ─── PAIN POINTS GRID ──────────────── */
+.pn-pain-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  max-width: 720px;
+  margin: 24px auto 0;
+}
+.pn-pain-card {
+  text-align: left;
+}
+
+/* ─── PAIN POINTS CAROUSEL (mobile) ──── */
+.pn-pain-carousel {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  gap: 12px;
+  padding: 0 20px 16px 20px;
+}
+.pn-pain-carousel::-webkit-scrollbar { display: none; }
+.pn-pain-swipe-card {
+  min-width: 80vw !important;
+  max-width: 80vw !important;
+  min-height: 200px;
+  scroll-snap-align: start;
+  flex-shrink: 0;
+  text-align: left;
+  padding: 24px 20px !important;
+  white-space: normal !important;
+  overflow-wrap: break-word;
+}
+
+/* ─── FAQ ─────────────────────────────── */
+.pn-faq-item {
+  border-bottom: 1px solid #1C1C2A;
+}
+.pn-faq-q {
+  width: 100%; padding: 18px 0;
+  background: none; border: none;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15px; font-weight: 700; color: #fff;
+  cursor: pointer; text-align: left;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: color 0.2s;
+}
+.pn-faq-q:hover { color: var(--c); }
+.pn-faq-q svg { flex-shrink: 0; transition: transform 0.25s; color: #55516E; }
+.pn-faq-q.open svg { transform: rotate(180deg); color: var(--c); }
+.pn-faq-a {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+.pn-faq-a.open { max-height: 200px; padding-bottom: 18px; }
+.pn-faq-a p { font-size: 14px; color: #9A96B4; line-height: 1.7; }
+
+/* ─── CTA GLOW PULSE ─────────────────── */
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
+}
+
+/* ─── MOBILE ─────────────────────────── */
+@media (max-width: 640px) {
+  .pn-teacher-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    grid-template-columns: none !important;
+  }
+  .pn-teacher-grid > * { width: 100%; }
+
+  /* Why piano carousel */
+  .pn-why-desktop { display: none !important; }
+  .pn-why-mobile { display: block !important; }
+  .pn-why-carousel {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 0 20px 16px 20px;
+  }
+  .pn-why-carousel::-webkit-scrollbar { display: none; }
+  .pn-why-card {
+    min-width: 80vw !important;
+    max-width: 80vw !important;
+    min-height: 220px;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 24px 20px !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+  }
+  .pn-why-card .ak-picon { font-size: 28px !important; margin-bottom: 10px !important; display: block !important; }
+  .pn-why-card h3 { font-size: 17px !important; font-weight: 700 !important; color: #fff !important; margin-bottom: 8px !important; white-space: normal !important; }
+  .pn-why-card p { font-size: 14px !important; line-height: 1.65 !important; color: #aaa !important; white-space: normal !important; overflow-wrap: break-word !important; }
+
+  /* Piano keyboard mobile */
+  .pn-white-key { width: 38px; height: 120px; }
+  .pn-black-key { width: 24px; height: 76px; }
+
+  /* Pain points: hide grid, show carousel */
+  .pn-pain-desktop { display: none !important; }
+  .pn-pain-mobile { display: block !important; }
+
+  /* 3 Steps compact */
+  .ak-steps-sec { padding-top: 47px !important; padding-bottom: 47px !important; }
+  .ak-sgrid { gap: 12px !important; }
+  .ak-scard { padding: 18px 12px !important; }
+  .ak-scard h3 { font-size: 15px !important; }
+  .ak-scard p { font-size: 13px !important; }
+  .ak-snum2 { width: 32px !important; height: 32px !important; font-size: 16px !important; }
+
+  /* Cross-sell compact */
+  .pn-crosssell-sec { padding-top: 43px !important; padding-bottom: 43px !important; }
+  .pn-crosssell-card { width: 72px !important; padding: 8px 6px !important; }
+  .pn-crosssell-emoji { font-size: 18px !important; }
+  .pn-crosssell-name { font-size: 9px !important; }
+
+  /* Keyboard section compact */
+  #pn-keyboard { padding-top: 43px !important; padding-bottom: 43px !important; }
+}
+@media (max-width: 768px) {
+  .pn-pain-desktop { display: none !important; }
+  .pn-pain-mobile { display: block !important; }
+}

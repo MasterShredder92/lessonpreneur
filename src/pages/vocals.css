@@ -1,0 +1,251 @@
+/* VocalsLanding — vocals-specific overrides only.
+   All base styles come from adkins.css */
+
+/* ─── INTRO OVERLAY ──────────────────── */
+.vc-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #000; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 24px;
+  transition: opacity 0.5s ease;
+}
+.vc-overlay.done { opacity: 0; pointer-events: none; }
+.vc-overlay-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: clamp(48px, 10vw, 96px);
+  letter-spacing: 3px; color: #fff;
+}
+.vc-overlay-title span { color: var(--c); }
+.vc-overlay-sub {
+  font-family: 'Barlow', sans-serif; font-size: 14px;
+  letter-spacing: 0.12em; color: #555; text-transform: uppercase;
+}
+.vc-eq-intro { display: flex; gap: 3px; align-items: flex-end; height: 40px; }
+.vc-eq-intro-bar {
+  width: 4px; border-radius: 2px; background: var(--c);
+  animation: vc-eqPulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes vc-eqPulse {
+  0% { height: 8px; opacity: 0.4; }
+  100% { height: 36px; opacity: 1; }
+}
+
+/* ─── EQ STRIP (hero background) ─────── */
+.vc-eq-strip {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  display: flex; gap: 2px; justify-content: center;
+  height: 36px; overflow: hidden; pointer-events: none;
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 100%);
+}
+.vc-eq-bar {
+  width: 3px; border-radius: 2px 2px 0 0;
+  background: var(--c);
+  opacity: var(--op);
+  animation: vc-eqBounce var(--spd) ease-in-out infinite alternate;
+}
+@keyframes vc-eqBounce {
+  0% { height: var(--h1); }
+  100% { height: var(--h2); }
+}
+
+/* ─── VOCAL RECORDER ─────────────────── */
+.vc-recorder {
+  max-width: 400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.vc-mic-btn {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #111118;
+  border: 3px solid var(--c);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  transition: box-shadow 0.3s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.vc-mic-btn.recording {
+  animation: vc-micPulse 0.6s ease-in-out infinite;
+  box-shadow: 0 0 20px var(--cg);
+}
+@keyframes vc-micPulse {
+  0%, 100% { border-width: 3px; }
+  50% { border-width: 6px; }
+}
+
+.vc-progress-ring {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 132px;
+  height: 132px;
+  transform: rotate(-90deg);
+}
+.vc-progress-ring circle {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.vc-progress-ring .vc-ring-bg {
+  stroke: rgba(255,255,255,0.06);
+}
+.vc-progress-ring .vc-ring-fg {
+  stroke: var(--c);
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+/* Waveform bars */
+.vc-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  gap: 3px;
+  margin-top: 16px;
+}
+.vc-waveform-bar {
+  width: 4px;
+  border-radius: 2px;
+  background: var(--c);
+  transition: height 0.08s ease;
+  min-height: 4px;
+}
+
+/* ─── VIDEO ──────────────────────────── */
+.vc-vid-wrap {
+  position: relative; border-radius: 14px; overflow: hidden;
+  background: #141420; border: 1px solid #1C1C2A;
+  aspect-ratio: 16/9; cursor: pointer; transition: all 0.28s;
+}
+.vc-vid-wrap:hover { border-color: var(--c); transform: translateY(-3px); }
+
+/* ─── FAQ ─────────────────────────────── */
+.vc-faq-item {
+  border-bottom: 1px solid #1C1C2A;
+}
+.vc-faq-q {
+  width: 100%; padding: 18px 0;
+  background: none; border: none;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15px; font-weight: 700; color: #fff;
+  cursor: pointer; text-align: left;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: color 0.2s;
+}
+.vc-faq-q:hover { color: var(--c); }
+.vc-faq-q svg { flex-shrink: 0; transition: transform 0.25s; color: #55516E; }
+.vc-faq-q.open svg { transform: rotate(180deg); color: var(--c); }
+.vc-faq-a {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+.vc-faq-a.open { max-height: 200px; padding-bottom: 18px; }
+.vc-faq-a p { font-size: 14px; color: #9A96B4; line-height: 1.7; }
+
+/* ─── CTA GLOW PULSE ─────────────────── */
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
+}
+
+/* ─── MOBILE ─────────────────────────── */
+@media (max-width: 640px) {
+  .vc-teacher-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    grid-template-columns: none !important;
+  }
+  .vc-teacher-grid > * { width: 100%; }
+
+  /* Pain points — hide grid, show carousel */
+  .vc-pain-desktop { display: none !important; }
+  .vc-pain-mobile { display: block !important; }
+  .vc-pain-carousel {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 0 20px 16px 20px;
+  }
+  .vc-pain-carousel::-webkit-scrollbar { display: none; }
+  .vc-pain-card {
+    min-width: 80vw !important;
+    max-width: 80vw !important;
+    min-height: 240px;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 24px 20px !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+  }
+  .vc-pain-card .ak-picon { font-size: 28px !important; margin-bottom: 10px !important; display: block !important; }
+  .vc-pain-card h3 { font-size: 17px !important; font-weight: 700 !important; color: #fff !important; margin-bottom: 8px !important; white-space: normal !important; }
+  .vc-pain-card p { font-size: 14px !important; line-height: 1.65 !important; color: #aaa !important; white-space: normal !important; overflow-wrap: break-word !important; }
+
+  /* Why vocals carousel */
+  .vc-why-desktop { display: none !important; }
+  .vc-why-mobile { display: block !important; }
+  .vc-why-carousel {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 0 20px 16px 20px;
+  }
+  .vc-why-carousel::-webkit-scrollbar { display: none; }
+  .vc-why-card {
+    min-width: 80vw !important;
+    max-width: 80vw !important;
+    min-height: 220px;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 24px 20px !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+  }
+  .vc-why-card .ak-picon { font-size: 28px !important; margin-bottom: 10px !important; display: block !important; }
+  .vc-why-card h3 { font-size: 17px !important; font-weight: 700 !important; color: #fff !important; margin-bottom: 8px !important; white-space: normal !important; }
+  .vc-why-card p { font-size: 14px !important; line-height: 1.65 !important; color: #aaa !important; white-space: normal !important; overflow-wrap: break-word !important; }
+
+  /* 3 Steps compact */
+  .ak-steps-sec { padding-top: 47px !important; padding-bottom: 47px !important; }
+  .ak-sgrid { gap: 12px !important; }
+  .ak-scard { padding: 18px 12px !important; }
+  .ak-scard h3 { font-size: 15px !important; }
+  .ak-scard p { font-size: 13px !important; }
+  .ak-snum2 { width: 32px !important; height: 32px !important; font-size: 16px !important; }
+
+  /* Cross-sell compact */
+  .vc-crosssell-sec { padding-top: 43px !important; padding-bottom: 43px !important; }
+  .vc-crosssell-card { width: 72px !important; padding: 8px 6px !important; }
+  .vc-crosssell-emoji { font-size: 18px !important; }
+  .vc-crosssell-name { font-size: 9px !important; }
+
+  /* Recorder section compact */
+  #vc-recorder { padding-top: 43px !important; padding-bottom: 43px !important; }
+  .vc-mic-btn { width: 90px !important; height: 90px !important; font-size: 36px !important; }
+  .vc-progress-ring { width: 102px !important; height: 102px !important; top: -6px !important; left: -6px !important; }
+}
+@media (max-width: 768px) {
+  .vc-recorder { max-width: 100%; padding: 0 12px; }
+}

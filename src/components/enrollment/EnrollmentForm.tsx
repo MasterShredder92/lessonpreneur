@@ -345,7 +345,7 @@ export default function EnrollmentForm({ isOpen, onClose, defaultLocation }: Enr
       }
     }
 
-    // Fire GA4 generate_lead event
+    // Fire GA4 generate_lead + lead_submitted events
     if (window.gtag) {
       window.gtag('event', 'generate_lead', {
         currency: 'USD',
@@ -353,6 +353,7 @@ export default function EnrollmentForm({ isOpen, onClose, defaultLocation }: Enr
         instrument: primaryInstrument?.toLowerCase(),
         location: preferredLocation,
       })
+      window.gtag('event', 'lead_submitted', { location: preferredLocation })
     }
 
     // Fire Meta Pixel Lead event
@@ -361,6 +362,11 @@ export default function EnrollmentForm({ isOpen, onClose, defaultLocation }: Enr
         content_name: primaryInstrument?.toLowerCase(),
         content_category: 'enrollment',
       })
+    }
+
+    // Fire TikTok SubmitForm event
+    if ((window as any).ttq) {
+      (window as any).ttq.track('SubmitForm')
     }
 
     // Animate score

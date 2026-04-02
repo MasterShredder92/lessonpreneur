@@ -16,21 +16,21 @@ const DEFAULT_COLUMNS: ColDef[] = [
   { key: 'role', label: 'Role', width: 120 },
   { key: 'primary_instruments', label: 'Primary Instruments', width: 180 },
   { key: 'secondary_instruments', label: 'Secondary Instruments', width: 180 },
-  { key: 'style_genre', label: 'Style/Genre Strengths', width: 200 },
-  { key: 'preferred_age', label: 'Preferred Age Range', width: 150 },
-  { key: 'acceptable_age', label: 'Acceptable Age Range', width: 150 },
-  { key: 'skill_levels', label: 'Skill Levels by Instrument', width: 250 },
+  { key: 'style_genre_strengths', label: 'Style/Genre Strengths', width: 200 },
+  { key: 'preferred_age_range', label: 'Preferred Age Range', width: 150 },
+  { key: 'acceptable_age_range', label: 'Acceptable Age Range', width: 150 },
+  { key: 'skill_levels_by_instrument', label: 'Skill Levels by Instrument', width: 250 },
   { key: 'lesson_style', label: 'Lesson Style', width: 200 },
   { key: 'personality', label: 'Personality', width: 200 },
   { key: 'teaching_strengths', label: 'Teaching Strengths', width: 250 },
-  { key: 'musical_background', label: 'Musical Background', width: 250 },
-  { key: 'best_first_lesson', label: 'Best First Lesson Fit', width: 200 },
-  { key: 'best_match', label: 'Best Match Students', width: 250 },
-  { key: 'use_caution', label: 'Placement Notes', width: 250 },
-  { key: 'meet_greet', label: 'Meet & Greet Fit', width: 120, type: 'select', options: ['Amazing', 'Yes', 'Very good', 'Maybe', 'No'] },
-  { key: 'sub_coverage', label: 'Substitute Coverage', width: 200 },
-  { key: 'customer_summary', label: 'Customer Summary', width: 300 },
-  { key: 'internal_tags', label: 'Internal Tags', width: 250 },
+  { key: 'musical_strengths_background', label: 'Musical Background', width: 250 },
+  { key: 'best_first_lesson_fit', label: 'Best First Lesson Fit', width: 200 },
+  { key: 'best_match_students', label: 'Best Match Students', width: 250 },
+  { key: 'use_caution_internal_placement_notes', label: 'Placement Notes', width: 250 },
+  { key: 'meet_and_greet_fit', label: 'Meet & Greet Fit', width: 120, type: 'select', options: ['Amazing', 'Yes', 'Very good', 'Maybe', 'No'] },
+  { key: 'substitute_coverage', label: 'Substitute Coverage', width: 200 },
+  { key: 'customer_facing_match_summary', label: 'Customer Summary', width: 300 },
+  { key: 'internal_matching_tags', label: 'Internal Tags', width: 250 },
   { key: 'director_notes', label: 'Director Notes', width: 300 },
   { key: 'availability_summary', label: 'Availability', width: 250 },
   { key: 'rate_per_block', label: 'Pay Rate', width: 100 },
@@ -38,10 +38,40 @@ const DEFAULT_COLUMNS: ColDef[] = [
   { key: 'needs_1099', label: '1099', width: 80 },
 ]
 
+// Direct DB column keys (written/read directly on the teachers row)
+const DIRECT_TEXT_COLUMNS = new Set([
+  'primary_instruments', 'secondary_instruments', 'style_genre_strengths',
+  'preferred_age_range', 'acceptable_age_range', 'skill_levels_by_instrument',
+  'teaching_strengths', 'musical_strengths_background', 'best_first_lesson_fit',
+  'best_match_students', 'use_caution_internal_placement_notes', 'meet_and_greet_fit',
+  'substitute_coverage', 'customer_facing_match_summary', 'internal_matching_tags',
+  'director_notes', 'personality', 'lesson_style',
+])
+
+// Fallback mapping: new DB column → old ai_context key (for migrating existing data on read)
+const AI_CONTEXT_FALLBACK: Record<string, string> = {
+  primary_instruments: 'primary_instruments',
+  secondary_instruments: 'secondary_instruments',
+  style_genre_strengths: 'style_genre',
+  preferred_age_range: 'preferred_age',
+  acceptable_age_range: 'acceptable_age',
+  skill_levels_by_instrument: 'skill_levels',
+  teaching_strengths: 'teaching_strengths',
+  musical_strengths_background: 'musical_background',
+  best_first_lesson_fit: 'best_first_lesson',
+  best_match_students: 'best_match',
+  use_caution_internal_placement_notes: 'use_caution',
+  meet_and_greet_fit: 'meet_greet',
+  substitute_coverage: 'sub_coverage',
+  customer_facing_match_summary: 'customer_summary',
+  internal_matching_tags: 'internal_tags',
+  director_notes: 'director_notes',
+}
+
 interface Props { onClose: () => void }
 
 export default function TeacherSpreadsheet({ onClose }: Props) {
-  const { role, profile } = useAuthContext()
+  const { role, profile, tenantId } = useAuthContext()
   const { canDo } = usePermissions()
   const canDeleteRow = canDo('master_sheet.delete_row')
   const canAddColumn = canDo('master_sheet.add_column')
@@ -106,7 +136,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
   const { data: teachers, isLoading } = useQuery({
     queryKey: ['teacher-spreadsheet'],
     queryFn: async () => {
-      const { data } = await supabase.from('teachers').select('id, first_name, last_name, teacher_role, ai_context, personality, lesson_style, best_age_range, square_team_member_id, needs_1099, rate_per_block, pay_rate_per_half_hour, status, is_active').order('first_name')
+      const { data } = await supabase.from('teachers').select('id, first_name, last_name, teacher_role, ai_context, personality, lesson_style, best_age_range, square_team_member_id, needs_1099, rate_per_block, pay_rate_per_half_hour, status, is_active, email, phone, primary_instruments, secondary_instruments, style_genre_strengths, preferred_age_range, acceptable_age_range, skill_levels_by_instrument, teaching_strengths, musical_strengths_background, best_first_lesson_fit, best_match_students, use_caution_internal_placement_notes, meet_and_greet_fit, substitute_coverage, customer_facing_match_summary, internal_matching_tags, director_notes').order('first_name')
       // Sort: empty names (new rows) go to the end
       return (data ?? []).sort((a: any, b: any) => {
         const aEmpty = !a.first_name && !a.last_name
@@ -186,20 +216,23 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
           const colIdx = startColIdx + i
           if (colIdx >= columns.length) break
           const c = columns[colIdx]
-          const ai = { ...(teacher.ai_context ?? {}) }
-          if (c.key === 'primary_instruments' || c.key === 'secondary_instruments') {
-            ai[c.key] = values[i].split(',').map((s: string) => s.trim()).filter(Boolean)
-          } else if (c.key !== 'role') {
-            ai[c.key] = values[i]
+          const update: any = {}
+          if (DIRECT_TEXT_COLUMNS.has(c.key)) {
+            update[c.key] = values[i]
+          } else if (c.key === 'role') {
+            update.teacher_role = values[i]
+          } else if (c.key === 'rate_per_block') {
+            update.rate_per_block = parseFloat(values[i]) || 0; update.pay_rate_per_half_hour = update.rate_per_block
+          } else if (c.key === 'status_col') {
+            update.status = values[i]; update.is_active = values[i] !== 'inactive'
+          } else if (c.key === 'needs_1099') {
+            update.needs_1099 = values[i].toLowerCase() === 'yes' || values[i] === 'true'
+          } else if (c.key === 'email') {
+            update.email = values[i]
+          } else if (c.key === 'phone') {
+            update.phone = values[i]
           }
-          const update: any = { ai_context: ai }
-          if (c.key === 'personality') update.personality = values[i]
-          if (c.key === 'lesson_style') update.lesson_style = values[i]
-          if (c.key === 'preferred_age') update.best_age_range = values[i]
-          if (c.key === 'role') update.teacher_role = values[i]
-          if (c.key === 'rate_per_block') { update.rate_per_block = parseFloat(values[i]) || 0; update.pay_rate_per_half_hour = update.rate_per_block }
-          if (c.key === 'status_col') { update.status = values[i]; update.is_active = values[i] !== 'inactive' }
-          if (c.key === 'needs_1099') update.needs_1099 = values[i].toLowerCase() === 'yes' || values[i] === 'true'
+          if (Object.keys(update).length === 0) continue
           const { error: pasteErr } = await supabase.from('teachers').update(update).eq('id', editCell.id)
           if (pasteErr) { toast('Paste failed: ' + pasteErr.message, 'error'); break }
         }
@@ -211,20 +244,23 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
           const rowIdx = startRowIdx + i
           if (rowIdx >= filtered.length) break
           const teacher = filtered[rowIdx]
-          const ai = { ...(teacher.ai_context ?? {}) }
-          if (col.key === 'primary_instruments' || col.key === 'secondary_instruments') {
-            ai[col.key] = values[i].split(',').map((s: string) => s.trim()).filter(Boolean)
-          } else if (col.key !== 'role') {
-            ai[col.key] = values[i]
+          const update: any = {}
+          if (DIRECT_TEXT_COLUMNS.has(col.key)) {
+            update[col.key] = values[i]
+          } else if (col.key === 'role') {
+            update.teacher_role = values[i]
+          } else if (col.key === 'rate_per_block') {
+            update.rate_per_block = parseFloat(values[i]) || 0; update.pay_rate_per_half_hour = update.rate_per_block
+          } else if (col.key === 'status_col') {
+            update.status = values[i]; update.is_active = values[i] !== 'inactive'
+          } else if (col.key === 'needs_1099') {
+            update.needs_1099 = values[i].toLowerCase() === 'yes' || values[i] === 'true'
+          } else if (col.key === 'email') {
+            update.email = values[i]
+          } else if (col.key === 'phone') {
+            update.phone = values[i]
           }
-          const update: any = { ai_context: ai }
-          if (col.key === 'personality') update.personality = values[i]
-          if (col.key === 'lesson_style') update.lesson_style = values[i]
-          if (col.key === 'preferred_age') update.best_age_range = values[i]
-          if (col.key === 'role') update.teacher_role = values[i]
-          if (col.key === 'rate_per_block') { update.rate_per_block = parseFloat(values[i]) || 0; update.pay_rate_per_half_hour = update.rate_per_block }
-          if (col.key === 'status_col') { update.status = values[i]; update.is_active = values[i] !== 'inactive' }
-          if (col.key === 'needs_1099') update.needs_1099 = values[i].toLowerCase() === 'yes' || values[i] === 'true'
+          if (Object.keys(update).length === 0) continue
           const { error: colPasteErr } = await supabase.from('teachers').update(update).eq('id', teacher.id)
           if (colPasteErr) { toast('Paste failed: ' + colPasteErr.message, 'error'); break }
         }
@@ -248,44 +284,40 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
 
   const getCellValue = (teacher: any, key: string): string => {
     const ai = teacher.ai_context ?? {}
-    const map: Record<string, string> = {
-      email: teacher.email ?? '',
-      phone: teacher.phone ?? '',
-      role: teacher.teacher_role ?? '',
-      primary_instruments: (ai.primary_instruments ?? []).join(', '),
-      secondary_instruments: (ai.secondary_instruments ?? []).join(', '),
-      style_genre: ai.style_genre ?? '',
-      preferred_age: ai.preferred_age ?? teacher.best_age_range ?? '',
-      acceptable_age: ai.acceptable_age ?? '',
-      skill_levels: ai.skill_levels ?? '',
-      lesson_style: teacher.lesson_style ?? ai.lesson_style ?? '',
-      personality: teacher.personality ?? ai.personality ?? '',
-      teaching_strengths: ai.teaching_strengths ?? '',
-      musical_background: ai.musical_background ?? '',
-      best_first_lesson: ai.best_first_lesson ?? '',
-      best_match: ai.best_match ?? '',
-      use_caution: ai.use_caution ?? '',
-      meet_greet: ai.meet_greet ?? '',
-      sub_coverage: ai.sub_coverage ?? '',
-      customer_summary: ai.customer_summary ?? '',
-      internal_tags: ai.internal_tags ?? '',
-      director_notes: ai.director_notes ?? '',
-      rate_per_block: String(teacher.rate_per_block ?? teacher.pay_rate_per_half_hour ?? ''),
-      status_col: teacher.status ?? (teacher.is_active ? 'active' : 'inactive'),
-      needs_1099: teacher.needs_1099 ? 'Yes' : 'No',
-      availability_summary: availabilityMap?.get(teacher.id) ?? (teacher.ai_context?.availability ?? ''),
+
+    // Special-case columns
+    if (key === 'email') return teacher.email ?? ''
+    if (key === 'phone') return teacher.phone ?? ''
+    if (key === 'role') return teacher.teacher_role ?? ''
+    if (key === 'rate_per_block') return String(teacher.rate_per_block ?? teacher.pay_rate_per_half_hour ?? '')
+    if (key === 'status_col') return teacher.status ?? (teacher.is_active ? 'active' : 'inactive')
+    if (key === 'needs_1099') return teacher.needs_1099 ? 'Yes' : 'No'
+    if (key === 'availability_summary') return availabilityMap?.get(teacher.id) ?? (ai.availability ?? '')
+
+    // Direct text columns — read from DB column, fall back to ai_context for legacy data
+    if (DIRECT_TEXT_COLUMNS.has(key)) {
+      const dbVal = teacher[key]
+      if (dbVal != null && dbVal !== '') return String(dbVal)
+      // Fallback: check ai_context with old key name
+      const fallbackKey = AI_CONTEXT_FALLBACK[key]
+      if (fallbackKey) {
+        const aiVal = ai[fallbackKey]
+        if (Array.isArray(aiVal)) return aiVal.join(', ')
+        return aiVal ?? ''
+      }
+      return ''
     }
-    return map[key] ?? ''
+
+    return ''
   }
 
   const handleSave = async (teacherId: string, key: string, value: string) => {
     const teacher = teachers?.find(t => t.id === teacherId)
     if (!teacher) return
-    const ai = { ...(teacher.ai_context ?? {}) }
 
     let updateResult: { error: any } = { error: null }
 
-    // Handle direct columns (not in ai_context)
+    // Build update payload based on column key
     if (key === 'first_name') {
       updateResult = await supabase.from('teachers').update({ first_name: value }).eq('id', teacherId)
     } else if (key === 'last_name') {
@@ -294,6 +326,8 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
       updateResult = await supabase.from('teachers').update({ email: value }).eq('id', teacherId)
     } else if (key === 'phone') {
       updateResult = await supabase.from('teachers').update({ phone: value }).eq('id', teacherId)
+    } else if (key === 'role') {
+      updateResult = await supabase.from('teachers').update({ teacher_role: value }).eq('id', teacherId)
     } else if (key === 'rate_per_block') {
       const numVal = parseFloat(value) || 0
       updateResult = await supabase.from('teachers').update({ rate_per_block: numVal, pay_rate_per_half_hour: numVal }).eq('id', teacherId)
@@ -302,24 +336,9 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
     } else if (key === 'needs_1099') {
       const boolVal = value === 'Yes' || value === 'true'
       updateResult = await supabase.from('teachers').update({ needs_1099: boolVal }).eq('id', teacherId)
-    } else {
-      // Update ai_context
-      if (key === 'primary_instruments' || key === 'secondary_instruments') {
-        ai[key] = value.split(',').map(s => s.trim()).filter(Boolean)
-      } else if (key === 'role') {
-        // role goes to teacher_role, not ai_context
-      } else {
-        ai[key] = value
-      }
-
-      // Build update object
-      const update: any = { ai_context: ai }
-      if (key === 'personality') update.personality = value
-      if (key === 'lesson_style') update.lesson_style = value
-      if (key === 'preferred_age') update.best_age_range = value
-      if (key === 'role') update.teacher_role = value
-
-      updateResult = await supabase.from('teachers').update(update).eq('id', teacherId)
+    } else if (DIRECT_TEXT_COLUMNS.has(key)) {
+      // All 16 new columns + personality/lesson_style write directly to their DB column
+      updateResult = await supabase.from('teachers').update({ [key]: value }).eq('id', teacherId)
     }
 
     if (updateResult.error) {
@@ -366,10 +385,9 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
   }
 
   const handleAddTeacher = async () => {
-    const { data: tenant } = await supabase.from('tenants').select('id').limit(1).single()
-    if (!tenant) { toast('Could not find tenant', 'error'); return }
+    if (!tenantId) { toast('No tenant context — please log in again', 'error'); return }
     const { data: newTeacher, error } = await supabase.from('teachers').insert({
-      tenant_id: tenant.id,
+      tenant_id: tenantId,
       first_name: '',
       last_name: '',
       is_active: true,

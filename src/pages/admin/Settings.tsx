@@ -8,9 +8,12 @@ import { useTeacherLocations, useToggleTeacherLocation, useToggleSubAvailable } 
 import { supabase } from '../../lib/supabase'
 import RoomsManager from '../../components/rooms/RoomsManager'
 import DataGrid from '../../components/shared/DataGrid'
-import { Upload, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react'
+import { Upload, Check, ChevronDown, ChevronUp, Clock, Video } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
 import type { Location } from '../../lib/types'
+import { useTenantBilling, useCreateCheckout, useCustomerPortal } from '../../hooks/useTenantBilling'
+import { useStripeConnectStatus, useStripeConnectOnboard } from '../../hooks/useStripeConnect'
+import { getTierByKey, TRIAL_DAYS } from '../../lib/pricing'
 
 interface LocationFormData {
   name: string; address: string; city: string; state: string; zip: string
@@ -22,7 +25,7 @@ const emptyForm: LocationFormData = {
   phone: '', email: '', website: '', google_review_url: '',
 }
 
-type Tab = 'general' | 'locations' | 'rooms' | 'teacher-locations' | 'master-control' | 'permissions'
+type Tab = 'general' | 'locations' | 'rooms' | 'teacher-locations' | 'master-control' | 'permissions' | 'branding' | 'billing' | 'payments' | 'integrations'
 
 export default function Settings() {
   const { role, tenantId } = useAuthContext()
@@ -46,6 +49,18 @@ export default function Settings() {
         {isOwner && (
           <button className={`settings-tab ${tab === 'permissions' ? 'active' : ''}`} onClick={() => setTab('permissions')}>Permissions</button>
         )}
+        {isOwner && (
+          <button className={`settings-tab ${tab === 'branding' ? 'active' : ''}`} onClick={() => setTab('branding')}>Branding</button>
+        )}
+        {isOwner && (
+          <button className={`settings-tab ${tab === 'billing' ? 'active' : ''}`} onClick={() => setTab('billing')}>Billing</button>
+        )}
+        {isOwner && (
+          <button className={`settings-tab ${tab === 'payments' ? 'active' : ''}`} onClick={() => setTab('payments')}>Payments</button>
+        )}
+        {isOwner && (
+          <button className={`settings-tab ${tab === 'integrations' ? 'active' : ''}`} onClick={() => setTab('integrations')}>Integrations</button>
+        )}
       </div>
 
       {tab === 'general' && <GeneralTab tenantId={tenantId} />}
@@ -54,6 +69,10 @@ export default function Settings() {
       {tab === 'teacher-locations' && <TeacherLocationsTab />}
       {tab === 'master-control' && isOwner && <MasterControlTab />}
       {tab === 'permissions' && isOwner && <PermissionsTab tenantId={tenantId} />}
+      {tab === 'branding' && isOwner && <BrandingTab tenantId={tenantId} />}
+      {tab === 'billing' && isOwner && <BillingSettingsTab />}
+      {tab === 'payments' && isOwner && <PaymentsTab />}
+      {tab === 'integrations' && isOwner && <IntegrationsTab tenantId={tenantId} />}
     </div>
   )
 }
@@ -923,8 +942,8 @@ function TeacherLocationRow({ teacher, locations }: { teacher: any; locations: L
         </label>
       </div>
 
-      {/* Location Pills */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {/* Location Pills — 2×2 grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {locations.map((loc) => {
           const isAssigned = assignedIds.has(loc.id)
           return (
@@ -937,10 +956,10 @@ function TeacherLocationRow({ teacher, locations }: { teacher: any; locations: L
               })}
               disabled={toggleLocation.isPending}
               style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                minWidth: 100, padding: '6px 14px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '6px 10px',
                 fontSize: 12, fontWeight: 600,
-                borderRadius: 20,
+                borderRadius: 8,
                 border: isAssigned ? '1px solid #D4226A' : '1px solid rgba(255,255,255,0.1)',
                 background: isAssigned
                   ? 'linear-gradient(135deg, rgba(212,34,106,0.25), rgba(255,85,0,0.15))'
@@ -950,7 +969,7 @@ function TeacherLocationRow({ teacher, locations }: { teacher: any; locations: L
                 transition: 'all 0.15s ease',
               }}
             >
-              {loc.name}
+              {loc.name.replace(/ Music Lessons/i, '')}
             </button>
           )
         })}
@@ -1152,6 +1171,431 @@ function PermissionsTab({ tenantId }: { tenantId: string | null }) {
               )
             })}
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// BRANDING TAB — per-location brand settings
+// ═══════════════════════════════════════
+
+function BrandingTab({ tenantId }: { tenantId: string | null }) {
+  const { data: locations } = useLocations()
+  const [selectedLocId, setSelectedLocId] = useState<string>('')
+  const [form, setForm] = useState<Record<string, any>>({})
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState<string | null>(null)
+  const qc = useQueryClient()
+
+  // Load brand settings for selected location
+  const { data: brandSettings, refetch } = useQuery({
+    queryKey: ['brand-settings', selectedLocId],
+    enabled: !!selectedLocId,
+    queryFn: async () => {
+      const { data } = await supabase.from('brand_settings').select('*').eq('location_id', selectedLocId).single()
+      return data
+    },
+  })
+
+  // Auto-select first location
+  useState(() => {
+    if (!selectedLocId && locations?.length) setSelectedLocId(locations.find((l: any) => l.is_active)?.id ?? '')
+  })
+
+  // Sync form from DB on load
+  useState(() => {
+    if (brandSettings) setForm(brandSettings)
+  })
+
+  // Update form when brandSettings changes
+  if (brandSettings && form.id !== brandSettings.id) {
+    setForm(brandSettings)
+  }
+
+  const handleSave = async () => {
+    if (!selectedLocId || !brandSettings?.id) return
+    setSaving(true)
+    try {
+      const { id: _id, created_at: _c, updated_at: _u, tenant_id: _t, location_id: _l, ...updates } = form
+      await supabase.from('brand_settings').update(updates).eq('id', brandSettings.id)
+      toast('Brand settings saved', 'success')
+      refetch()
+    } catch (err: any) {
+      toast(err.message ?? 'Failed to save', 'error')
+    }
+    setSaving(false)
+  }
+
+  const handleLogoUpload = async (type: 'logo-circle' | 'logo-wide' | 'favicon', file: File) => {
+    if (!tenantId || !selectedLocId) return
+    setUploading(type)
+    try {
+      const path = `${tenantId}/${selectedLocId}/${type}.png`
+      await supabase.storage.from('brand-assets').upload(path, file, { upsert: true })
+      const { data: urlData } = supabase.storage.from('brand-assets').getPublicUrl(path)
+      const fieldMap: Record<string, string> = { 'logo-circle': 'logo_circle_path', 'logo-wide': 'logo_wide_path', 'favicon': 'logo_favicon_path' }
+      setForm({ ...form, [fieldMap[type]]: path })
+      toast('Logo uploaded', 'success')
+    } catch (err: any) {
+      toast(err.message ?? 'Upload failed', 'error')
+    }
+    setUploading(null)
+  }
+
+  const getLogoUrl = (path: string | null) => {
+    if (!path) return null
+    return supabase.storage.from('brand-assets').getPublicUrl(path).data.publicUrl
+  }
+
+  const field = (key: string, label: string, placeholder?: string) => (
+    <div style={{ marginBottom: 10 }}>
+      <label style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.06em', display: 'block', marginBottom: 4 }}>{label}</label>
+      <input
+        value={form[key] ?? ''}
+        onChange={e => setForm({ ...form, [key]: e.target.value })}
+        placeholder={placeholder}
+        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'inherit' }}
+      />
+    </div>
+  )
+
+  const locColor = brandSettings?.primary_color ?? '#D4226A'
+
+  return (
+    <div style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+      {/* Location selector */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
+        {locations?.filter((l: any) => l.is_active).map((loc: any) => {
+          const isActive = selectedLocId === loc.id
+          const c = loc.color ?? '#D4226A'
+          return (
+            <button key={loc.id} onClick={() => setSelectedLocId(loc.id)} style={{
+              padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              background: isActive ? `${c}20` : 'rgba(255,255,255,0.03)',
+              color: isActive ? c : '#8080A8',
+              border: `1px solid ${isActive ? `${c}40` : 'rgba(255,255,255,0.06)'}`,
+            }}>
+              {loc.name.replace(' Music Lessons', '')}
+            </button>
+          )
+        })}
+      </div>
+
+      {!selectedLocId ? (
+        <div style={{ color: '#8080A8', padding: 20 }}>Select a location above.</div>
+      ) : !brandSettings ? (
+        <div style={{ color: '#8080A8', padding: 20 }}>Loading...</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Logos + Colors */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: locColor, marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Logos</div>
+            <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
+              {(['logo-circle', 'logo-wide', 'favicon'] as const).map(type => {
+                const pathKey = type === 'logo-circle' ? 'logo_circle_path' : type === 'logo-wide' ? 'logo_wide_path' : 'logo_favicon_path'
+                const url = getLogoUrl(form[pathKey])
+                const labels: Record<string, string> = { 'logo-circle': 'Circle', 'logo-wide': 'Wide', 'favicon': 'Favicon' }
+                return (
+                  <div key={type} style={{ textAlign: 'center' }}>
+                    <div style={{
+                      width: type === 'logo-wide' ? 120 : 70, height: 70, borderRadius: type === 'logo-circle' ? '50%' : 10,
+                      background: 'rgba(255,255,255,0.04)', border: '2px dashed rgba(255,255,255,0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                      cursor: 'pointer', position: 'relative',
+                    }}
+                      onClick={() => {
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = 'image/*'
+                        input.onchange = (e) => {
+                          const f = (e.target as HTMLInputElement).files?.[0]
+                          if (f) handleLogoUpload(type, f)
+                        }
+                        input.click()
+                      }}
+                    >
+                      {uploading === type ? (
+                        <span style={{ fontSize: 10, color: '#8080A8' }}>...</span>
+                      ) : url ? (
+                        <img src={url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                      ) : (
+                        <span style={{ fontSize: 20, color: '#363656' }}>+</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 9, color: '#606088', marginTop: 4 }}>{labels[type]}</div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: locColor, marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Colors</div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              {[{ key: 'primary_color', label: 'Primary' }, { key: 'secondary_color', label: 'Secondary' }, { key: 'background_color', label: 'Background' }].map(c => (
+                <div key={c.key} style={{ textAlign: 'center' }}>
+                  <input type="color" value={form[c.key] ?? '#000000'} onChange={e => setForm({ ...form, [c.key]: e.target.value })}
+                    style={{ width: 48, height: 48, borderRadius: 10, border: '2px solid rgba(255,255,255,0.1)', cursor: 'pointer', background: 'none', padding: 0 }} />
+                  <div style={{ fontSize: 9, color: '#606088', marginTop: 4 }}>{c.label}</div>
+                  <div style={{ fontSize: 8, color: '#363656', fontFamily: 'monospace' }}>{form[c.key] ?? '—'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Studio Info + Tracking */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: locColor, marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Studio Info</div>
+            {field('studio_name', 'Studio Name', 'Adkins Music Lessons')}
+            {field('tagline', 'Tagline', 'Learn to play!')}
+            {field('website_domain', 'Website Domain', 'example.com')}
+            {field('phone', 'Phone')}
+            {field('email', 'Email')}
+            {field('address_line1', 'Address')}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+              {field('address_city', 'City')}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {field('address_state', 'State')}
+                {field('address_zip', 'ZIP')}
+              </div>
+            </div>
+            {field('google_maps_url', 'Google Maps URL')}
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: locColor, marginBottom: 12, marginTop: 16, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Tracking</div>
+            {field('ga4_id', 'GA4 Measurement ID', 'G-XXXXXXXXXX')}
+            {field('meta_pixel_id', 'Meta Pixel ID')}
+            {field('tiktok_pixel_id', 'TikTok Pixel ID')}
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: locColor, marginBottom: 12, marginTop: 16, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Social</div>
+            {field('facebook_url', 'Facebook URL')}
+            {field('instagram_url', 'Instagram URL')}
+            {field('tiktok_url', 'TikTok URL')}
+            {field('youtube_url', 'YouTube URL')}
+          </div>
+        </div>
+      )}
+
+      {/* Save button */}
+      {selectedLocId && brandSettings && (
+        <div style={{ marginTop: 20 }}>
+          <button onClick={handleSave} disabled={saving} style={{
+            padding: '12px 28px', borderRadius: 8, fontSize: 14, fontWeight: 700, width: '100%',
+            background: locColor, color: '#fff', border: 'none', cursor: 'pointer',
+            opacity: saving ? 0.5 : 1, boxShadow: `0 2px 12px ${locColor}40`,
+          }}>
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// BILLING SETTINGS TAB
+// ═══════════════════════════════════════
+
+function BillingSettingsTab() {
+  const { data: billing } = useTenantBilling()
+  const checkout = useCreateCheckout()
+  const portal = useCustomerPortal()
+
+  if (!billing) return <div style={{ color: '#8080A8', padding: 20 }}>Loading...</div>
+
+  const isActive = billing.plan === 'active'
+  const isTrial = billing.plan === 'trial'
+  const isExpired = billing.isTrialExpired
+
+  return (
+    <div>
+      {/* Status card */}
+      <div style={{
+        padding: 24, borderRadius: 14, marginBottom: 20,
+        background: isActive ? 'rgba(34,197,94,0.04)' : isExpired ? 'rgba(239,68,68,0.04)' : 'rgba(245,158,11,0.04)',
+        border: `1px solid ${isActive ? 'rgba(34,197,94,0.12)' : isExpired ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)'}`,
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Current Plan</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: isActive ? '#22C55E' : isExpired ? '#EF4444' : '#f59e0b', marginBottom: 4 }}>
+          {isActive ? `${getTierByKey(billing.pricingTier).name}` : isTrial ? (isExpired ? 'Trial Expired' : 'Free Trial') : billing.plan}
+        </div>
+        {isActive && (
+          <div style={{ fontSize: 14, color: '#A0A0C8' }}>
+            {getTierByKey(billing.pricingTier).priceDisplay}/month
+          </div>
+        )}
+        {isTrial && !isExpired && billing.daysRemaining !== null && (
+          <div style={{ fontSize: 14, color: '#f59e0b' }}>
+            {billing.daysRemaining} day{billing.daysRemaining !== 1 ? 's' : ''} remaining in your free trial. Take your time getting set up.
+          </div>
+        )}
+        {isExpired && (
+          <div style={{ fontSize: 14, color: '#EF4444' }}>
+            Your trial has ended. Subscribe to continue using Lessonpreneur.
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 10 }}>
+        {isActive && (
+          <button onClick={() => portal.mutate()} disabled={portal.isPending} style={{
+            padding: '12px 24px', borderRadius: 8, fontSize: 14, fontWeight: 700,
+            background: 'rgba(255,255,255,0.06)', color: '#A0A0C8', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer',
+          }}>
+            {portal.isPending ? 'Opening...' : 'Manage Subscription'}
+          </button>
+        )}
+        {(!isActive || isExpired) && (
+          <button onClick={() => checkout.mutate()} disabled={checkout.isPending} style={{
+            padding: '12px 24px', borderRadius: 8, fontSize: 14, fontWeight: 700,
+            background: '#f59e0b', color: '#000', border: 'none', cursor: 'pointer',
+            boxShadow: '0 2px 12px rgba(245,158,11,0.3)',
+          }}>
+            {checkout.isPending ? 'Loading...' : `Subscribe Now — ${getTierByKey(billing.pricingTier).priceDisplay}/month`}
+          </button>
+        )}
+      </div>
+
+      {/* Features list for trial users */}
+      {!isActive && (
+        <div style={{ marginTop: 24, padding: 20, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 12 }}>What you get with Lessonpreneur Pro:</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {['AI progress updates', 'Churn risk scoring', 'Retention campaigns', 'Financial dashboard', 'Smart scheduling', 'Parent portal', 'Email notifications', 'Star AI assistant', 'Practice lab', 'White-label branding'].map(f => (
+              <div key={f} style={{ fontSize: 12, color: '#A0A0C8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: '#22C55E' }}>&#10003;</span> {f}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// PAYMENTS TAB — Stripe Connect
+// ═══════════════════════════════════════
+
+function PaymentsTab() {
+  const { data: connect } = useStripeConnectStatus()
+  const onboard = useStripeConnectOnboard()
+  if (!connect) return <div style={{ color: '#8080A8', padding: 20 }}>Loading...</div>
+  const isConnected = connect.status === 'active'
+  const isPending = connect.status === 'pending'
+  return (
+    <div>
+      <div style={{ padding: 24, borderRadius: 14, marginBottom: 20, background: isConnected ? 'rgba(34,197,94,0.04)' : 'rgba(59,130,246,0.04)', border: `1px solid ${isConnected ? 'rgba(34,197,94,0.12)' : 'rgba(59,130,246,0.12)'}` }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Student Payments</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: isConnected ? '#22C55E' : isPending ? '#f59e0b' : '#3b82f6', marginBottom: 8 }}>
+          {isConnected ? 'Stripe Connected' : isPending ? 'Setup In Progress' : 'Not Connected'}
+        </div>
+        <div style={{ fontSize: 13, color: '#A0A0C8' }}>
+          {isConnected ? 'You can invoice students and collect payments directly through Lessonpreneur.' : isPending ? 'Complete your Stripe setup to start accepting payments.' : 'Connect Stripe to bill students directly. Automated invoicing, auto-pay, and payment tracking.'}
+        </div>
+      </div>
+      {!isConnected && (
+        <div>
+          <button onClick={() => onboard.mutate()} disabled={onboard.isPending} style={{ padding: '12px 24px', borderRadius: 8, fontSize: 14, fontWeight: 700, background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 2px 12px rgba(59,130,246,0.3)', marginBottom: 20 }}>
+            {onboard.isPending ? 'Redirecting...' : isPending ? 'Continue Stripe Setup' : 'Connect Stripe Account'}
+          </button>
+          <div style={{ padding: 16, borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 8 }}>What you get:</div>
+            {['Automated monthly invoicing', 'Auto-pay collection', 'Payment tracking in dashboard', 'Parent-friendly payment portal', 'Reduced churn from missed payments'].map(f => (
+              <div key={f} style={{ fontSize: 12, color: '#A0A0C8', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ color: '#22C55E' }}>&#10003;</span> {f}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// INTEGRATIONS TAB
+// ═══════════════════════════════════════
+
+function IntegrationsTab({ tenantId }: { tenantId: string | null }) {
+  const qc = useQueryClient()
+
+  const { data: googleToken, isLoading } = useQuery({
+    queryKey: ['google-oauth-status', tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('google_oauth_tokens')
+        .select('connected_email, created_at')
+        .eq('tenant_id', tenantId!)
+        .single()
+      return data
+    },
+    staleTime: 1000 * 10,
+  })
+
+  const isConnected = !!googleToken?.connected_email
+
+  const handleConnect = async () => {
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (!token) { toast('Not authenticated', 'error'); return }
+
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-oauth-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (!data.url) { toast(data.error || 'Failed to start OAuth', 'error'); return }
+
+      const popup = window.open(data.url, 'google-oauth', 'width=500,height=600,left=200,top=200')
+      const interval = setInterval(async () => {
+        if (popup?.closed) {
+          clearInterval(interval)
+          // Check if connection succeeded
+          const { data: newToken } = await supabase
+            .from('google_oauth_tokens')
+            .select('connected_email')
+            .eq('tenant_id', tenantId!)
+            .single()
+          qc.invalidateQueries({ queryKey: ['google-oauth-status'] })
+          if (newToken?.connected_email) {
+            toast('Google Calendar connected!', 'success')
+          }
+        }
+      }, 500)
+    } catch (err: any) { toast(err.message || 'Failed', 'error') }
+  }
+
+  const handleDisconnect = async () => {
+    if (!tenantId) return
+    await supabase.from('google_oauth_tokens').delete().eq('tenant_id', tenantId)
+    qc.invalidateQueries({ queryKey: ['google-oauth-status'] })
+    toast('Google Calendar disconnected', 'success')
+  }
+
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <div style={{ padding: 24, borderRadius: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: isConnected ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${isConnected ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Video size={20} style={{ color: isConnected ? '#22C55E' : '#EF4444' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4' }}>Google Calendar</div>
+            <div style={{ fontSize: 12, color: '#8080A8' }}>Google Meet virtual sessions</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConnected ? '#22C55E' : '#EF4444' }} />
+          <span style={{ fontSize: 13, color: isConnected ? '#22C55E' : '#EF4444', fontWeight: 600 }}>
+            {isLoading ? 'Checking...' : isConnected ? `Connected — ${googleToken.connected_email}` : 'Not connected'}
+          </span>
+        </div>
+        {isConnected ? (
+          <button onClick={handleDisconnect} style={{ padding: '10px 20px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Disconnect</button>
+        ) : (
+          <button onClick={handleConnect} style={{ padding: '10px 20px', borderRadius: 10, background: '#22C55E', border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Connect Google Calendar</button>
         )}
       </div>
     </div>

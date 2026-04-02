@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { useLocations } from '../../hooks/useLocations'
-import { useBillingDashboard, useBillingAlerts, useBillingFamilies, useFamilyBillingDetail, useFamilyPaymentHistory, useUpdateBillingStatus, useUpdateBillingDay, useAdjustBalance, useAddBillingAdjustment, useDeleteBillingAdjustment, useSquareInvoiceSummary, useSquareInvoicesByFamily } from '../../hooks/useBillingPage'
+import { useBillingDashboard, useBillingAlerts, useBillingFamilies, useFamilyBillingDetail, useFamilyPaymentHistory, useUpdateBillingStatus, useUpdateBillingDay, useAdjustBalance, useAddBillingAdjustment, useDeleteBillingAdjustment, useSquareInvoiceSummary, useSquareInvoicesByFamily, useBillingHeroStats } from '../../hooks/useBillingPage'
 import { useOverrideFamilyRate, useRemoveFamilyRateOverride } from '../../hooks/useFamilyRate'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
@@ -15,6 +15,7 @@ import { CreditCard, Lock, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { syncSquareCustomers, type SquareCustomer } from '../../lib/squareSync'
 import { DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_PER_SESSION, DEFAULT_RATE_TIER_CENTS } from '../../lib/constants'
 import InvoicesPanel from '../../components/billing/InvoicesPanel'
+import SquareSyncPanel from '../../components/billing/SquareSyncPanel'
 import { useQuery } from '@tanstack/react-query'
 
 function dollars(cents: number | null | undefined): string {
@@ -37,6 +38,12 @@ const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
 const ALERT_ICONS: Record<string, { icon: string }> = {
   no_card: { icon: '🔴' }, overdue: { icon: '🟠' }, expiring_card: { icon: '🟡' }, paused_with_students: { icon: '🔵' },
 }
+const LOCATION_BRAND_COLORS: Record<string, string> = {
+  'd48229c1-b70a-4d29-893e-5079887dab76': '#D41113',  // Omaha
+  'f7b52dd5-12ee-437f-9c60-f8adf454ac31': '#A333FF',  // Bellevue
+  'cebd97d4-c241-4de2-8ade-49e5cc0070d5': '#00A5E8',  // Elkhorn
+  '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#00A651',  // Gretna
+}
 const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }
 
 export default function Billing() {
@@ -49,6 +56,7 @@ export default function Billing() {
   const { data: families } = useBillingFamilies(filters)
   const { data: sqSummary } = useSquareInvoiceSummary()
   const { data: sqFamilies } = useSquareInvoicesByFamily()
+  const { data: heroStats } = useBillingHeroStats(locationFilter || undefined)
   const { data: pendingInvoiceCount } = useQuery({
     queryKey: ['invoice_pending_count', tenantId],
     enabled: !!tenantId,
@@ -68,7 +76,7 @@ export default function Billing() {
   const queryClient = useQueryClient()
   const [syncLoading, setSyncLoading] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
-  const [billingView, setBillingView] = useState<'families' | 'invoices'>('families')
+  const [billingView, setBillingView] = useState<'families' | 'invoices' | 'square_sync'>('families')
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('')
   const [unmatchedCustomers, setUnmatchedCustomers] = useState<SquareCustomer[]>([])
   const [showUnmatched, setShowUnmatched] = useState(false)
@@ -86,6 +94,7 @@ export default function Billing() {
       await queryClient.invalidateQueries({ queryKey: ['billing_summary'] })
       await queryClient.invalidateQueries({ queryKey: ['square_invoices_summary'] })
       await queryClient.invalidateQueries({ queryKey: ['square_invoices_by_family'] })
+      await queryClient.invalidateQueries({ queryKey: ['billing_hero_stats'] })
       setSyncStatus('')
     } catch (err) {
       console.error('Square sync error:', err)
@@ -107,7 +116,8 @@ export default function Billing() {
 
   const visibleAlerts = (alerts ?? []).filter(a => !dismissedAlerts.has(a.id))
 
-  const locationLabel = locationFilter ? locations?.find((l: any) => l.id === locationFilter)?.name?.replace(' Music Lessons', '') : 'All Locations'
+  const activeLocName = locationFilter ? locations?.find((l: any) => l.id === locationFilter)?.name?.replace(' Music Lessons', '') : ''
+  const locationLabel = activeLocName ? `${activeLocName} only` : 'All locations'
   const billingTabFiltered = useMemo(() => {
     if (billingTab === 'active') return locationFiltered.filter((f: any) => f.billing_status === 'active')
     if (billingTab === 'paused') return locationFiltered.filter((f: any) => f.billing_status === 'paused')
@@ -139,82 +149,104 @@ export default function Billing() {
           {locations?.filter((l: any) => l.is_active).map((loc: any) => {
             const locName = loc.name.replace(' Music Lessons', '')
             const isActive = locationFilter === loc.id
-            const locColor = loc.color ?? '#D4226A'
+            const brandColor = LOCATION_BRAND_COLORS[loc.id] ?? loc.color ?? '#D4226A'
             return (
               <button key={loc.id} onClick={() => { setLocationFilter(isActive ? '' : loc.id); setPage(0) }} style={{
                 padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                background: isActive ? `${locColor}20` : 'transparent',
-                color: isActive ? locColor : '#8080A8',
-                border: isActive ? `1px solid ${locColor}40` : '1px solid transparent',
+                background: isActive ? `${brandColor}20` : 'transparent',
+                color: isActive ? brandColor : '#8080A8',
+                border: isActive ? `1px solid ${brandColor}40` : '1px solid transparent',
               }}>{locName}</button>
             )
           })}
         </div>
       </div>
 
-      {/* FINANCIAL HERO CARDS — powered by Square invoices */}
+      {/* Location label — prominent, brand-colored */}
+      {locationFilter && (() => {
+        const loc = locations?.find((l: any) => l.id === locationFilter)
+        const locName = loc?.name?.replace(' Music Lessons', '') ?? ''
+        const brandColor = LOCATION_BRAND_COLORS[locationFilter] ?? '#D4226A'
+        return (
+          <div style={{
+            padding: '8px 0 4px', textAlign: 'center',
+            animation: 'fadeIn 150ms ease',
+          }}>
+            <span style={{ fontSize: 30, fontWeight: 700, color: brandColor, letterSpacing: '-0.01em' }}>
+              {locName}
+            </span>
+          </div>
+        )
+      })()}
+
+      {/* FINANCIAL HERO CARDS — powered by useBillingHeroStats */}
       <div className="financial-grid" style={{ marginBottom: 8 }}>
-        {/* LEFT — Scheduled Invoice Revenue (SCHEDULED invoices) — GREEN */}
+        {/* LEFT — Paid This Month — GREEN */}
         <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(6,18,9,0.97), rgba(4,12,6,0.99))', border: '1px solid rgba(34,197,94,0.2)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(34,197,94,0.14)' }}>
           <div className="financial-card-edge" style={{ background: 'linear-gradient(#16A34A, #22C55E, #16A34A)', boxShadow: '0 0 24px rgba(22,163,74,0.65), 0 0 60px rgba(22,163,74,0.2)' }} />
           <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(22,163,74,0.18) 0%, transparent 70%)' }} />
           <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(22,163,74,0.08) 0%, transparent 70%)' }} />
           <div className="financial-card-content">
-            <div className="financial-label">Scheduled Invoice Revenue</div>
-            <div className="financial-value">{dollars(sqSummary?.actualRevenueCents ?? 0)}</div>
-            <div className="financial-sub">Queued to charge after adjustments · {locationLabel}</div>
+            <div className="financial-label">Paid This Month</div>
+            <div className="financial-value">{dollars(heroStats?.paidThisMonthCents ?? 0)}</div>
+            <div className="financial-sub">Confirmed Square payments collected · {locationLabel}</div>
           </div>
         </div>
 
-        {/* MIDDLE — Recurring Series Revenue (active subscriptions) — GOLD */}
+        {/* MIDDLE — Remaining to Collect — GOLD */}
         <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(13,10,4,0.97), rgba(9,7,3,0.99))', border: '1px solid rgba(251,191,36,0.18)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(251,191,36,0.12)' }}>
           <div className="financial-card-edge" style={{ background: 'linear-gradient(#D97706, #FBBF24, #D97706)', boxShadow: '0 0 24px rgba(251,191,36,0.55), 0 0 60px rgba(255,184,0,0.18)' }} />
           <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.16) 0%, transparent 70%)' }} />
           <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.07) 0%, transparent 70%)' }} />
           <div className="financial-card-content">
-            <div className="financial-label">Family Monthly Rate</div>
-            <div className="financial-value">{dollars(sqSummary?.recurringSeriesCents ?? 0)}</div>
-            <div className="financial-sub">Total locked-in monthly rate before adjustments · {locationLabel}</div>
+            <div className="financial-label">Remaining to Collect</div>
+            <div className="financial-value">{dollars(heroStats?.remainingToCollectCents ?? 0)}</div>
+            <div className="financial-sub">Invoices sent minus payments received · {locationLabel}</div>
           </div>
         </div>
 
-        {/* RIGHT — Overdue (UNPAID) — RED */}
+        {/* RIGHT — Total Overdue — RED */}
         <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(15,5,5,0.97), rgba(10,3,3,0.99))', border: '1px solid rgba(239,68,68,0.18)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(239,68,68,0.12)' }}>
           <div className="financial-card-edge" style={{ background: 'linear-gradient(#B91C1C, #EF4444, #B91C1C)', boxShadow: '0 0 24px rgba(239,68,68,0.5), 0 0 60px rgba(220,38,38,0.16)' }} />
           <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 70%)' }} />
           <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(220,38,38,0.07) 0%, transparent 70%)' }} />
           <div className="financial-card-content">
-            <div className="financial-label">Overdue</div>
-            <div className="financial-value">{(sqSummary?.overdueCents ?? 0) > 0 ? dollars(sqSummary?.overdueCents ?? 0) : '$0.00'}</div>
-            <div className="financial-sub">{(sqSummary?.overdueCents ?? 0) > 0 ? 'Unpaid invoices past due' : 'No overdue invoices'}</div>
+            <div className="financial-label">Total Overdue</div>
+            <div className="financial-value">{(heroStats?.totalOverdueCents ?? 0) > 0 ? dollars(heroStats?.totalOverdueCents ?? 0) : '$0.00'}</div>
+            <div className="financial-sub">{(heroStats?.totalOverdueCents ?? 0) > 0 ? `${heroStats?.familiesOutstanding ?? 0} families past grace period` : 'No overdue invoices'}</div>
           </div>
         </div>
       </div>
 
-      {/* Monthly Adjustments delta */}
+      {/* Collection Progress */}
       {(() => {
-        const delta = sqSummary?.adjustmentDeltaCents ?? 0
-        return delta !== 0 ? (
-          <div style={{ textAlign: 'center', marginBottom: 20, padding: '6px 0' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#8080A8' }}>Monthly Adjustments </span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#A0A0C8' }}>-{dollars(delta)}</span>
-            <span style={{ fontSize: 11, color: '#606088', marginLeft: 6 }}>credits &amp; discounts this cycle</span>
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', marginBottom: 20, padding: '6px 0' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#606088' }}>No adjustments this cycle</span>
+        const paid = heroStats?.paidThisMonthCents ?? 0
+        const total = (heroStats?.remainingToCollectCents ?? 0) + paid
+        const pct = total > 0 ? Math.round((paid / total) * 100) : 0
+        return (
+          <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#8080A8' }}>Collection Progress</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#A0A0C8' }}>{pct}%</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #16A34A, #22C55E)', width: `${pct}%`, transition: 'width 300ms ease' }} />
+            </div>
+            <div style={{ fontSize: 10, color: '#606088', marginTop: 4 }}>
+              {dollars(paid)} paid of {dollars(total)} expected · {heroStats?.familiesWithInvoices ?? 0} families
+            </div>
           </div>
         )
       })()}
 
       {/* 5 STAT CARDS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
+      <div className="billing-stat-cards">
         {[
-          { label: 'Families w/ Invoices', value: sqFamilies?.length ?? 0, color: '#22C55E', filter: {}, invoiceFilter: '' },
-          { label: 'Families Outstanding', value: sqSummary?.overdueFamilyCount ?? 0, color: '#FF8C00', filter: { balance: 'overdue' }, invoiceFilter: 'overdue' },
-          { label: 'Total Overdue', value: (sqSummary?.overdueCents ?? 0) > 0 ? dollars(sqSummary?.overdueCents ?? 0) : '$0', color: '#EF4444', filter: { balance: 'overdue' }, invoiceFilter: 'overdue' },
-          { label: 'Scheduled Revenue', value: dollars(sqSummary?.recurringSeriesCents ?? 0), color: '#38BDF8', filter: {}, invoiceFilter: '' },
-          { label: 'Paid This Month', value: dollars(sqSummary?.actualRevenueCents ?? 0), color: '#22C55E', filter: {}, invoiceFilter: '' },
+          { label: 'Families with Invoices', value: heroStats?.familiesWithInvoices ?? 0, color: '#22C55E', filter: {}, invoiceFilter: '' },
+          { label: 'Families Outstanding', value: heroStats?.familiesOutstanding ?? 0, color: '#FF8C00', filter: { balance: 'overdue' }, invoiceFilter: 'overdue' },
+          { label: 'Total Overdue', value: (heroStats?.totalOverdueCents ?? 0) > 0 ? dollars(heroStats?.totalOverdueCents ?? 0) : '$0', color: '#EF4444', filter: { balance: 'overdue' }, invoiceFilter: 'overdue' },
+          { label: 'Remaining to Collect', value: dollars(heroStats?.remainingToCollectCents ?? 0), color: '#38BDF8', filter: {}, invoiceFilter: '' },
+          { label: 'Paid This Month', value: dollars(heroStats?.paidThisMonthCents ?? 0), color: '#22C55E', filter: {}, invoiceFilter: '' },
         ].map((c, i) => (
           <div key={i} onClick={() => {
             if (c.invoiceFilter) {
@@ -233,6 +265,7 @@ export default function Billing() {
           </div>
         ))}
       </div>
+      <div className="billing-swipe-hint">Swipe to see more →</div>
 
       {/* SECTION TABS */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, padding: '4px', background: 'rgba(255,255,255,0.02)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -260,9 +293,21 @@ export default function Billing() {
             </span>
           )}
         </button>
+        <button onClick={() => setBillingView('square_sync')} style={{
+          flex: 1, padding: '12px 32px', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer',
+          background: billingView === 'square_sync' ? '#D4226A' : 'transparent',
+          color: billingView === 'square_sync' ? '#fff' : '#8080A8',
+          border: 'none',
+          boxShadow: billingView === 'square_sync' ? '0 4px 16px rgba(212,34,106,0.3)' : 'none',
+          transition: 'all 0.2s',
+        }}>
+          Square Sync
+        </button>
       </div>
 
-      {billingView === 'invoices' ? (
+      {billingView === 'square_sync' ? (
+        <SquareSyncPanel locations={locations ?? []} initialLocationFilter={locationFilter} />
+      ) : billingView === 'invoices' ? (
         <InvoicesPanel locations={locations ?? []} initialStatusFilter={invoiceStatusFilter} />
       ) : (<>
       {/* ALERTS */}
@@ -538,7 +583,7 @@ function CompactFamilyRows({ families, onSelect }: {
     <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
       {families.map((f, i) => {
         const bal = f.balance ?? 0
-        const monthlyTotal = f.students.reduce((s: number, st: any) => s + (st.monthly_cents ?? (st.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH) * (f.rate_tier ?? DEFAULT_RATE_TIER_CENTS)), 0)
+        const monthlyTotal = f.students.reduce((s: number, st: any) => s + (st.monthly_cents ?? (st.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH) * (st.rate_per_session ?? DEFAULT_RATE_PER_SESSION) * 100), 0)
 
         return (
           <div key={f.id}

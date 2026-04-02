@@ -14,8 +14,11 @@ import RetentionCaptureModal from '../../components/students/RetentionCaptureMod
 import CsvImportFlow from '../../components/shared/CsvImportFlow'
 import { useImportStudents, STUDENT_TEMPLATE } from '../../hooks/useImport'
 import { DEFAULT_RATE_PER_SESSION } from '../../lib/constants'
+import { useStudentInstruments, useSaveStudentInstruments } from '../../hooks/useStudentInstruments'
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import AddStudentModal from '../../components/students/AddStudentModal'
 import DataGrid from '../../components/shared/DataGrid'
+import { useChurnRiskScores, RISK_TIERS } from '../../hooks/useChurnRisk'
 
 const INSTRUMENT_ICON: Record<string, any> = {
   guitar: Guitar, bass: Guitar, ukulele: Guitar, banjo: Guitar,
@@ -31,7 +34,7 @@ function InstrumentIcon({ instrument, size = 16 }: { instrument: string; size?: 
   return <Icon size={size} />
 }
 
-const INSTRUMENTS = ['guitar','bass','piano','drums','voice','violin','cello','flute','clarinet','saxophone','trumpet','trombone','ukulele','banjo','viola','oboe']
+const INSTRUMENTS = ['piano','guitar','vocals','drums','banjo','bass','brass','cello','clarinet','flute','mandolin','oboe','percussion','saxophone','strings','trombone','trumpet','ukulele','viola','violin','voice','woodwinds']
 const EXIT_REASONS = ['Schedule Conflict', 'Moving Away', 'Financial', 'Lost Interest', 'Switching Schools', 'Taking a Break', 'Other']
 
 type StatusTab = 'active' | 'former' | 'all'
@@ -66,6 +69,7 @@ export default function Students() {
   const [starLoading, setStarLoading] = useState(false)
   const [viewCompact, setViewCompact] = useState(() => localStorage.getItem('student-view') === 'compact')
   const [showMasterSheet, setShowMasterSheet] = useState(false)
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [showAddStudent, setShowAddStudent] = useState(false)
 
   // Fetch all students for counts, then filter client-side for tab
@@ -81,6 +85,8 @@ export default function Students() {
   const createStudent = useCreateStudent()
   const updateStudent = useUpdateStudent()
   const { data: allLeads } = useLeads({})
+  const { data: riskScores } = useChurnRiskScores()
+  const riskMap = new Map((riskScores ?? []).map(r => [r.studentId, r]))
 
   const activeCt = allForCounts?.filter((s) => s.status === 'active').length ?? 0
   const formerCt = allForCounts?.filter((s) => s.status === 'former' || s.status === 'inactive').length ?? 0
@@ -138,10 +144,11 @@ export default function Students() {
     <div className="page">
       <div className="page-header">
         <h1>Students</h1>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Desktop buttons — hidden on mobile */}
           {role === 'owner' && (
             <button
-              className="btn-ghost"
+              className="btn-ghost student-header-desktop"
               onClick={() => setShowMasterSheet(true)}
               style={{ fontSize: 11, color: '#FFB800', borderColor: 'rgba(255,184,0,0.25)' }}
             >
@@ -149,16 +156,43 @@ export default function Students() {
             </button>
           )}
           <button
-            className="btn-ghost"
+            className="btn-ghost student-header-desktop"
             onClick={() => { const next = !viewCompact; setViewCompact(next); localStorage.setItem('student-view', next ? 'compact' : 'expanded') }}
             style={{ fontSize: 11 }}
           >
             {viewCompact ? 'Expanded View' : 'Compact View'}
           </button>
           {canEdit && (
-            <button className="btn-ghost" onClick={() => setShowImport(true)} style={{ fontSize: 11 }}>Import CSV</button>
+            <button className="btn-ghost student-header-desktop" onClick={() => setShowImport(true)} style={{ fontSize: 11 }}>Import CSV</button>
           )}
-          {canExport && <button className="btn-ghost" onClick={() => setShowExport(true)} style={{ fontSize: 11 }}>Export CSV</button>}
+          {canExport && <button className="btn-ghost student-header-desktop" onClick={() => setShowExport(true)} style={{ fontSize: 11 }}>Export CSV</button>}
+
+          {/* Mobile "More" dropdown — visible only on mobile */}
+          <div className="student-more-wrap" style={{ position: 'relative' }}>
+            <button className="btn-ghost student-header-more" onClick={() => setShowMoreMenu(!showMoreMenu)} style={{ fontSize: 11 }}>
+              More ▾
+            </button>
+            {showMoreMenu && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setShowMoreMenu(false)} />
+                <div className="student-more-dropdown">
+                  {role === 'owner' && (
+                    <button onClick={() => { setShowMasterSheet(true); setShowMoreMenu(false) }}>Master Sheet</button>
+                  )}
+                  <button onClick={() => { const next = !viewCompact; setViewCompact(next); localStorage.setItem('student-view', next ? 'compact' : 'expanded'); setShowMoreMenu(false) }}>
+                    {viewCompact ? 'Expanded View' : 'Compact View'}
+                  </button>
+                  {canEdit && (
+                    <button onClick={() => { setShowImport(true); setShowMoreMenu(false) }}>Import CSV</button>
+                  )}
+                  {canExport && (
+                    <button onClick={() => { setShowExport(true); setShowMoreMenu(false) }}>Export CSV</button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           {canEdit && (
             <button className="btn-primary" onClick={() => setShowAddStudent(true)}>
               + Add Student
@@ -179,30 +213,14 @@ export default function Students() {
 
       {/* Filters */}
       <div className="schedule-filters" style={{ marginBottom: '16px' }}>
-        <div className="filter-group" style={{ flexWrap: 'wrap' }}>
+        <div className="student-filter-row-1">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search students..."
             className="filter-select"
-            style={{ minWidth: 160 }}
+            style={{ minWidth: 160, flex: 1 }}
           />
-          <select value={instrumentFilter} onChange={(e) => setInstrumentFilter(e.target.value)} className="filter-select">
-            <option value="">All Instruments</option>
-            {instruments.map((i) => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
-          </select>
-          <select value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)} className="filter-select">
-            <option value="">All Teachers</option>
-            {teacherList?.filter((t: any) => { const s = t.status ?? (t.is_active ? 'active' : 'inactive'); return s !== 'inactive' }).map((t: any) => (
-              <option key={t.id} value={t.id}>{t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}</option>
-            ))}
-          </select>
-          <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="filter-select">
-            <option value="">All Locations</option>
-            {locations?.map((l) => (
-              <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>
-            ))}
-          </select>
           <button
             className="btn-outline"
             onClick={async () => {
@@ -247,11 +265,29 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
                 setStarLoading(false)
               }
             }}
-            style={{ fontSize: 11, padding: '5px 14px', color: '#FFB800', borderColor: 'rgba(255,184,0,0.25)', display: 'flex', alignItems: 'center', gap: 5 }}
+            style={{ fontSize: 11, padding: '5px 14px', color: '#FFB800', borderColor: 'rgba(255,184,0,0.25)', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
           >
             <Star size={12} />
             {starLoading ? 'Thinking...' : 'Ask Star About My Students'}
           </button>
+        </div>
+        <div className="student-filter-row-2">
+          <select value={instrumentFilter} onChange={(e) => setInstrumentFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value="">Instruments</option>
+            {instruments.map((i) => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
+          </select>
+          <select value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value="">Teachers</option>
+            {teacherList?.filter((t: any) => { const s = t.status ?? (t.is_active ? 'active' : 'inactive'); return s !== 'inactive' }).map((t: any) => (
+              <option key={t.id} value={t.id}>{t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}</option>
+            ))}
+          </select>
+          <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value="">Locations</option>
+            {locations?.map((l) => (
+              <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>
+            ))}
+          </select>
         </div>
         <span className="visibility-count">Showing {filtered.length} student{filtered.length !== 1 ? 's' : ''}</span>
       </div>
@@ -292,8 +328,65 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
                   boxShadow: isFormer ? 'none' : `0 0 12px ${locColor}80`,
                 }} />
 
-                {/* Content — icon | name | instrument | teacher | next lesson */}
-                <div className="student-card-content">
+                {/* ── Mobile card layout ── */}
+                <div className="student-card-mobile">
+                  {/* Row 1: Name · Age */}
+                  <div className="student-card-m-row">
+                    <span className="student-card-m-name">{s.first_name} {s.last_name}</span>
+                    <span className="student-card-m-age">{(s as any).age ? `Age ${(s as any).age}` : ''}</span>
+                    {(() => {
+                      const risk = riskMap.get(s.id)
+                      if (!risk || risk.tier === 'low') return null
+                      const t = RISK_TIERS[risk.tier]
+                      return <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: t.bg, color: t.color }}>{t.label} ({risk.score})</span>
+                    })()}
+                  </div>
+                  {/* Row 2: Email · Phone */}
+                  <div className="student-card-m-row student-card-m-contact">
+                    <span
+                      onClick={(e) => { e.stopPropagation(); if (s.family_email) { navigator.clipboard.writeText(s.family_email); toast('Copied email', 'success') } }}
+                      style={{ cursor: s.family_email ? 'pointer' : 'default' }}
+                      title={s.family_email ? 'Click to copy' : undefined}
+                    >{s.family_email ?? '—'}</span>
+                    <span
+                      onClick={(e) => { e.stopPropagation(); if (s.family_phone) { navigator.clipboard.writeText(s.family_phone); toast('Copied phone', 'success') } }}
+                      style={{ cursor: s.family_phone ? 'pointer' : 'default' }}
+                      title={s.family_phone ? 'Click to copy' : undefined}
+                    >{s.family_phone ?? '—'}</span>
+                  </div>
+                  {/* Row 3: Emoji instrument · Teacher first name + last initial */}
+                  <div className="student-card-m-row student-card-m-bottom">
+                    <span className="student-card-m-emoji">{getInstrumentEmoji(s.instrument ?? '')}</span>
+                    <span className="student-card-m-teacher">
+                      {(() => {
+                        const teachers = s.scheduled_teachers ?? []
+                        if (teachers.length > 0) {
+                          return teachers.map(st => {
+                            const parts = (st.teacherName ?? '').split(' ')
+                            return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]
+                          }).join(', ')
+                        }
+                        if (s.teacher_name && s.teacher_name !== '—') {
+                          const parts = s.teacher_name.split(' ')
+                          return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]
+                        }
+                        return '—'
+                      })()}
+                    </span>
+                  </div>
+                  {/* Monthly badge — half-coin on right side */}
+                  {canViewBilling && (
+                    <div className="student-card-m-rate">
+                      <span>${(s.rate_per_session * s.blocks_per_week * 4).toFixed(0)}</span>
+                      {Number((s as any).overdue_amount ?? 0) > 0 && (
+                        <span className="student-card-m-overdue">${Number((s as any).overdue_amount).toFixed(0)}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Desktop card layout ── */}
+                <div className="student-card-content student-card-desktop">
                   {/* Icon */}
                   <div className="student-card-zone-icon">
                     <div style={{
@@ -308,16 +401,24 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
 
                   <div className="student-card-divider" />
 
-                  {/* Name + Age */}
+                  {/* Name + Age + Risk */}
                   <div className="student-card-zone student-card-zone-name">
-                    <span className="lead-card-student">{s.first_name} {s.last_name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="lead-card-student">{s.first_name} {s.last_name}</span>
+                      {(() => {
+                        const risk = riskMap.get(s.id)
+                        if (!risk || risk.tier === 'low') return null
+                        const t = RISK_TIERS[risk.tier]
+                        return <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: t.bg, color: t.color }}>{t.label} ({risk.score})</span>
+                      })()}
+                    </div>
                     <span style={{ fontSize: 13, color: '#A0A0C8', marginTop: 2 }}>Age {(s as any).age ?? '—'}</span>
                   </div>
 
                   <div className="student-card-divider" />
 
                   {/* Contact — email + phone from family */}
-                  <div className="student-card-zone student-card-col" style={{ gap: 2, minWidth: 130 }}>
+                  <div className="student-card-zone student-card-col student-card-col-contact" style={{ gap: 2, minWidth: 130 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Contact</span>
                     <span style={{ fontSize: 12, color: '#C0C0E0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: 170, cursor: s.family_email ? 'pointer' : 'default' }}
                       onClick={(e) => { e.stopPropagation(); if (s.family_email) { navigator.clipboard.writeText(s.family_email); toast('Copied email', 'success') } }}
@@ -334,7 +435,7 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
                   <div className="student-card-divider" />
 
                   {/* Instrument(s) */}
-                  <div className="student-card-zone student-card-col" style={{ gap: 2 }}>
+                  <div className="student-card-zone student-card-col student-card-col-instrument" style={{ gap: 2 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Instrument</span>
                     {viewCompact ? (
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>
@@ -382,7 +483,7 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
                   <div className="student-card-divider" />
 
                   {/* Monthly */}
-                  <div className="student-card-zone student-card-col" style={{ gap: 3 }}>
+                  <div className="student-card-zone student-card-col student-card-col-monthly" style={{ gap: 3 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Monthly</span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>${(s.rate_per_session * s.blocks_per_week * 4).toFixed(0)}</span>
                     <span style={{ fontSize: 12, fontWeight: 500, color: Number((s as any).overdue_amount ?? 0) > 0 ? '#B45555' : '#606088' }}>
@@ -395,7 +496,7 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
                   <div className="student-card-divider" />
 
                   {/* Next Lesson */}
-                  <div className="student-card-zone student-card-col" style={{ gap: 3 }}>
+                  <div className="student-card-zone student-card-col student-card-col-next" style={{ gap: 3 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Next Lesson</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: s.next_lesson_date ? '#E0E0F4' : '#606088' }}>
                       {s.next_lesson_date
@@ -439,7 +540,10 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
         <ExitInterviewModal
           student={exitStudent}
           onSave={handleExitSave}
-          onClose={() => setExitStudent(null)}
+          onClose={() => {
+            toast('Status change cancelled — student remains ' + exitStudent.status, 'info')
+            setExitStudent(null)
+          }}
           isSaving={updateStudent.isPending}
         />
       )}
@@ -452,7 +556,10 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
           familyId={retentionTarget.student.family_id}
           newStatus={retentionTarget.newStatus}
           onComplete={() => setRetentionTarget(null)}
-          onCancel={() => setRetentionTarget(null)}
+          onCancel={() => {
+            toast('Status change cancelled — student remains ' + retentionTarget.student.status, 'info')
+            setRetentionTarget(null)
+          }}
         />
       )}
 
@@ -583,6 +690,15 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
 }
 
 // ---- Student Form Modal ----
+const CORE_FOUR_SET = new Set(['piano', 'guitar', 'vocals', 'drums'])
+
+interface InstrumentFormRow {
+  id?: string
+  instrument: string
+  teacher_id: string
+  is_primary: boolean
+}
+
 function StudentFormModal({ student, families, locations, teachers, tenantId, onSave, onClose, isSaving }: {
   student: StudentRow | null
   families: any[]
@@ -593,34 +709,71 @@ function StudentFormModal({ student, families, locations, teachers, tenantId, on
   onClose: () => void
   isSaving: boolean
 }) {
+  const { data: existingInstruments } = useStudentInstruments(student?.id)
+  const saveInstruments = useSaveStudentInstruments()
+
   const [form, setForm] = useState({
     first_name: student?.first_name ?? '',
     last_name: student?.last_name ?? '',
-    instrument: student?.instrument ?? '',
     family_id: student?.family_id ?? '',
     location_id: student?.location_id ?? '',
-    teacher_id: student?.teacher_id ?? '',
     blocks_per_week: student?.blocks_per_week ?? 1,
     rate_per_session: student?.rate_per_session ?? DEFAULT_RATE_PER_SESSION,
     start_date: student?.start_date ?? '',
     status: student?.status ?? 'active',
     notes: student?.notes ?? '',
   })
+
+  const [instrumentRows, setInstrumentRows] = useState<InstrumentFormRow[]>([
+    { instrument: student?.instrument ?? '', teacher_id: student?.teacher_id ?? '', is_primary: true },
+  ])
+  const [removedIds, setRemovedIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  // Sync from DB when editing existing student
+  useEffect(() => {
+    if (student && existingInstruments && existingInstruments.length > 0) {
+      setInstrumentRows(existingInstruments.map(si => ({
+        id: si.id, instrument: si.instrument, teacher_id: si.teacher_id ?? '', is_primary: si.is_primary,
+      })))
+    }
+  }, [existingInstruments]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateRow = (idx: number, patch: Partial<InstrumentFormRow>) => {
+    setInstrumentRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  }
+  const addRow = () => setInstrumentRows(prev => [...prev, { instrument: '', teacher_id: '', is_primary: false }])
+  const removeRow = (idx: number) => {
+    const row = instrumentRows[idx]
+    if (instrumentRows.length <= 1) return
+    if (row.id) setRemovedIds(prev => [...prev, row.id!])
+    const remaining = instrumentRows.filter((_, i) => i !== idx)
+    if (row.is_primary && remaining.length > 0) remaining[0].is_primary = true
+    setInstrumentRows(remaining)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!form.first_name || !form.last_name) {
-      setError('First and last name are required.')
-      return
-    }
-    try { await onSave(form) } catch (err: any) { setError(err.message) }
+    if (!form.first_name || !form.last_name) { setError('First and last name are required.'); return }
+    if (!instrumentRows[0]?.instrument) { setError('At least one instrument is required.'); return }
+    const primary = instrumentRows.find(r => r.is_primary) ?? instrumentRows[0]
+    try {
+      await onSave({ ...form, instrument: primary.instrument, teacher_id: primary.teacher_id || null })
+      // If editing, save instrument rows
+      if (student) {
+        await saveInstruments.mutateAsync({
+          studentId: student.id, tenantId,
+          instruments: instrumentRows.map(r => ({ id: r.id, instrument: r.instrument, teacher_id: r.teacher_id || null, is_primary: r.is_primary, rate_per_session: form.rate_per_session, sessions_per_month: form.blocks_per_week * 4 })),
+          removedIds,
+        })
+      }
+    } catch (err: any) { setError(err.message) }
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
         <div className="modal-header">
           <h2>{student ? 'Edit Student' : 'New Student'}</h2>
           <button className="btn-ghost" onClick={onClose}>✕</button>
@@ -630,14 +783,39 @@ function StudentFormModal({ student, families, locations, teachers, tenantId, on
             <div className="form-field" style={{ flex: 1 }}><label>First Name *</label><input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
             <div className="form-field" style={{ flex: 1 }}><label>Last Name *</label><input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
           </div>
-          <div className="form-row">
-            <div className="form-field" style={{ flex: 1 }}>
-              <label>Instrument *</label>
-              <select value={form.instrument} onChange={(e) => setForm({ ...form, instrument: e.target.value })} className="filter-select" style={{ width: '100%' }}>
-                <option value="">Select...</option>
-                {INSTRUMENTS.map((i) => <option key={i} value={i}>{i}</option>)}
-              </select>
+
+          {/* Instruments & Teachers */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8, display: 'block' }}>Instruments & Teachers</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {instrumentRows.map((row, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '8px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>{row.instrument ? getInstrumentEmoji(row.instrument) : '\u{1F3B5}'}</span>
+                  <select value={row.instrument} onChange={(e) => updateRow(idx, { instrument: e.target.value })} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+                    <option value="">Select...</option>
+                    <optgroup label="Core">
+                      {INSTRUMENTS.filter(i => CORE_FOUR_SET.has(i)).map(i => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
+                    </optgroup>
+                    <optgroup label="Other">
+                      {INSTRUMENTS.filter(i => !CORE_FOUR_SET.has(i)).map(i => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
+                    </optgroup>
+                  </select>
+                  <span style={{ fontSize: 11, color: '#606088', flexShrink: 0 }}>with</span>
+                  <select value={row.teacher_id} onChange={(e) => updateRow(idx, { teacher_id: e.target.value })} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+                    <option value="">Unassigned</option>
+                    {teachers.map((t: any) => <option key={t.id} value={t.id}>{t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}</option>)}
+                  </select>
+                  {row.is_primary && instrumentRows.length > 1 && <span style={{ fontSize: 8, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'rgba(212,34,106,0.15)', color: '#D4226A', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Primary</span>}
+                  {instrumentRows.length > 1 && (
+                    <button type="button" onClick={() => removeRow(idx)} style={{ width: 28, height: 28, minWidth: 28, borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, padding: 0 }}>×</button>
+                  )}
+                </div>
+              ))}
             </div>
+            <button type="button" onClick={addRow} style={{ marginTop: 6, padding: '6px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Add Another Instrument</button>
+          </div>
+
+          <div className="form-row">
             <div className="form-field" style={{ flex: 1 }}>
               <label>Family *</label>
               <select value={form.family_id} onChange={(e) => setForm({ ...form, family_id: e.target.value })} className="filter-select" style={{ width: '100%' }}>
@@ -645,20 +823,11 @@ function StudentFormModal({ student, families, locations, teachers, tenantId, on
                 {families.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
-          </div>
-          <div className="form-row">
             <div className="form-field" style={{ flex: 1 }}>
               <label>Location *</label>
               <select value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })} className="filter-select" style={{ width: '100%' }}>
                 <option value="">Select...</option>
                 {locations.filter((l: any) => l.is_active).map((l: any) => <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>)}
-              </select>
-            </div>
-            <div className="form-field" style={{ flex: 1 }}>
-              <label>Teacher</label>
-              <select value={form.teacher_id} onChange={(e) => setForm({ ...form, teacher_id: e.target.value })} className="filter-select" style={{ width: '100%' }}>
-                <option value="">Unassigned</option>
-                {teachers.map((t: any) => <option key={t.id} value={t.id}>{t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}</option>)}
               </select>
             </div>
           </div>

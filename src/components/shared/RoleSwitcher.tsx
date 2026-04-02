@@ -1,0 +1,118 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuthContext } from '../../app/AuthContext'
+import { usePreviewMode } from '../../hooks/usePreviewMode'
+import { useLocations } from '../../hooks/useLocations'
+import { Eye } from 'lucide-react'
+
+const ROLE_ROUTES: Record<string, string> = {
+  owner: '/admin/dashboard',
+  company_director: '/admin/dashboard',
+  studio_director: '/admin/dashboard',
+  teacher: '/teacher/schedule',
+  parent: '/parent/dashboard',
+}
+
+const PREVIEW_ROLES = [
+  { key: 'owner', label: 'Owner', emoji: '\uD83D\uDC51', minRole: 'owner' },
+  { key: 'company_director', label: 'Co. Director', emoji: '\uD83D\uDCCB', minRole: 'owner' },
+  { key: 'studio_director', label: 'Studio Dir', emoji: '\uD83C\uDFEB', minRole: 'company_director' },
+  { key: 'teacher', label: 'Teacher', emoji: '\uD83D\uDC68\u200D\uD83C\uDFEB', minRole: 'company_director' },
+  { key: 'parent', label: 'Parent', emoji: '\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67', minRole: 'company_director' },
+]
+
+const ROLE_LEVEL: Record<string, number> = { owner: 100, admin: 80, company_director: 80, studio_director: 60, teacher: 20, parent: 10 }
+
+export default function RoleSwitcher() {
+  const { role } = useAuthContext()
+  const { preview, startPreview, stopPreview } = usePreviewMode()
+  const { data: locations } = useLocations()
+  const navigate = useNavigate()
+  const [showPicker, setShowPicker] = useState(false)
+  const [pendingRole, setPendingRole] = useState<string | null>(null)
+
+  const userLevel = ROLE_LEVEL[role ?? ''] ?? 0
+  // Only owner and company_director can preview
+  if (userLevel < 80) return null
+
+  const availableRoles = PREVIEW_ROLES.filter(r => {
+    const minLevel = ROLE_LEVEL[r.minRole] ?? 100
+    return userLevel >= minLevel
+  })
+
+  const handleRoleClick = (roleKey: string) => {
+    if (roleKey === role || roleKey === 'owner') {
+      stopPreview()
+      setPendingRole(null)
+      setShowPicker(false)
+      navigate(ROLE_ROUTES[role ?? 'owner'] ?? '/admin/dashboard')
+      return
+    }
+    // Studio director needs location picker
+    if (roleKey === 'studio_director') {
+      setPendingRole(roleKey)
+      setShowPicker(true)
+      return
+    }
+    startPreview(roleKey)
+    setShowPicker(false)
+    navigate(ROLE_ROUTES[roleKey] ?? '/admin/dashboard')
+  }
+
+  const handleLocationPick = (locId: string, locName: string) => {
+    if (pendingRole) {
+      startPreview(pendingRole, { locationId: locId, locationName: locName })
+      navigate(ROLE_ROUTES[pendingRole] ?? '/admin/dashboard')
+    }
+    setShowPicker(false)
+    setPendingRole(null)
+  }
+
+  const effectiveRole = preview.active ? preview.role : role
+
+  return (
+    <div style={{ position: 'relative', maxWidth: '100%' }}>
+      <div style={{ display: 'flex', gap: 3, padding: '3px 3px 3px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        {availableRoles.map(r => {
+          const isActive = effectiveRole === r.key || (!preview.active && r.key === role)
+          return (
+            <button key={r.key} onClick={() => handleRoleClick(r.key)} style={{
+              padding: '6px 12px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+              background: isActive ? 'rgba(245,158,11,0.12)' : 'transparent',
+              color: isActive ? '#f59e0b' : '#606088',
+              border: 'none', display: 'flex', alignItems: 'center', gap: 4,
+              whiteSpace: 'nowrap', flexShrink: 0, minHeight: 32,
+            }}>
+              <span style={{ fontSize: 12 }}>{r.emoji}</span>
+              {r.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Location picker for studio director preview */}
+      {showPicker && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100,
+          background: '#101018', border: '1px solid #1a1a28', borderRadius: 10,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)', padding: 4, minWidth: 180,
+        }}>
+          <div style={{ padding: '6px 10px', fontSize: 10, color: '#8080A8', fontWeight: 600 }}>Preview at which location?</div>
+          {locations?.filter((l: any) => l.is_active).map((l: any) => (
+            <button key={l.id} onClick={() => handleLocationPick(l.id, l.name.replace(' Music Lessons', ''))} style={{
+              display: 'block', width: '100%', padding: '8px 10px', borderRadius: 6,
+              background: 'none', border: 'none', color: '#E0E0F4', fontSize: 12,
+              cursor: 'pointer', textAlign: 'left',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              {l.name.replace(' Music Lessons', '')}
+            </button>
+          ))}
+          <button onClick={() => { setShowPicker(false); setPendingRole(null) }} style={{ display: 'block', width: '100%', padding: '6px 10px', borderRadius: 6, background: 'none', border: 'none', color: '#606088', fontSize: 11, cursor: 'pointer', textAlign: 'left' }}>Cancel</button>
+        </div>
+      )}
+    </div>
+  )
+}

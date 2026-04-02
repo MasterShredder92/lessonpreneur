@@ -283,7 +283,7 @@ export default function AdkinsLanding() {
             <button className="ak-btng">Watch Our Story {'\u{25B6}'}</button>
           </div>
           <div className="ak-htrust">
-            <div className="ak-tstat"><div className="ak-tnum">2,000+</div><div className="ak-tlbl">Students Taught</div></div>
+            <div className="ak-tstat"><div className="ak-tnum">3,800+</div><div className="ak-tlbl">Students Taught</div></div>
             <div className="ak-tdiv" />
             <div className="ak-tstat"><div className="ak-tnum">4</div><div className="ak-tlbl">Locations</div></div>
             <div className="ak-tdiv" />
@@ -575,7 +575,7 @@ export default function AdkinsLanding() {
       {/* FINAL CTA */}
       <section className="ak-final-sec">
         <h2>Your Kid's <span>First Lesson</span><br />Is Waiting.</h2>
-        <p>Join 2,000+ students across the Omaha metro. Book in the next 60 seconds.</p>
+        <p>Join 3,800+ students across the Omaha metro. Book in the next 60 seconds.</p>
         <div className="ak-fbtns">
           <button className="ak-btnp" style={{ fontSize: 16, padding: '16px 34px' }} onClick={goEnroll}>Sign Up For Lessons Now {'\u{2192}'}</button>
           <button className="ak-btng" onClick={goEnroll}>Or Text Us First</button>

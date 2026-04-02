@@ -34,7 +34,7 @@ export interface ScheduleContext {
   time_slots: string[]
 }
 
-export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext | null) {
+export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext | null, businessContext?: string | null) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,6 +45,8 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
   messagesRef.current = messages
   const contextRef = useRef(scheduleContext)
   contextRef.current = scheduleContext
+  const bizContextRef = useRef(businessContext)
+  bizContextRef.current = businessContext
 
   const sendMessage = useCallback(async (question: string) => {
     if (!tenantId || !question.trim()) return
@@ -72,7 +74,9 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
             tenant_id: tenantId,
             conversation_history: messagesRef.current.slice(-10),
             schedule_context: ctx ?? undefined,
+            business_context: bizContextRef.current ?? undefined,
             timezone: ctx?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+            system_override: bizContextRef.current ? `You are Star, the AI business assistant for Lessonpreneur — an operating system for music schools. You help owners and administrators understand and manage their business using real-time data. Be direct, specific, and actionable. Always reference real numbers and names from the data provided. If you don't have enough data, say so clearly. Never make up numbers. Keep responses concise — 2-4 sentences for simple questions, more for complex analysis. Sessions are always 30-minute increments. Here is the current business data:\n\n${bizContextRef.current}` : undefined,
           }),
         }
       )

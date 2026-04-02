@@ -446,3 +446,93 @@ export function useBillingDashboard() {
     }
   }})
 }
+
+// ═══════════════════════════════════════
+// BILLING HERO STATS — single shared hook
+// All 5 hero boxes powered by one query
+// ═══════════════════════════════════════
+
+export interface BillingHeroStats {
+  familiesWithInvoices: number
+  familiesOutstanding: number
+  totalOverdueCents: number
+  remainingToCollectCents: number
+  paidThisMonthCents: number
+}
+
+function getCurrentMonthKey(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function useBillingHeroStats(locationId?: string) {
+  const { tenantId } = useAuthContext()
+  const monthKey = getCurrentMonthKey()
+  const locKey = locationId || 'all'
+
+  return useQuery<BillingHeroStats>({
+    queryKey: ['billing_hero_stats', tenantId, monthKey, locKey],
+    enabled: !!tenantId,
+    queryFn: async (): Promise<BillingHeroStats> => {
+      // Fetch all invoices for current calendar month, optionally filtered by location
+      let query = supabase
+        .from('square_invoices')
+        .select('family_id, requested_amount, amount_paid, due_date')
+        .eq('tenant_id', tenantId!)
+        .gte('invoice_date', `${monthKey}-01`)
+        .lt('invoice_date', nextMonthStr(monthKey))
+
+      if (locationId) {
+        query = query.eq('location_id', locationId)
+      }
+
+      const { data: invoices } = await query
+
+      const rows = invoices ?? []
+      const today = new Date().toISOString().split('T')[0]
+
+      // BOX 1: distinct families with invoices this month
+      const familyIds = new Set(rows.filter(r => r.family_id).map(r => r.family_id))
+      const familiesWithInvoices = familyIds.size
+
+      // BOX 2 + 3: outstanding = unpaid AND past grace period (due_date + 2 days)
+      const familiesOutstandingSet = new Set<string>()
+      let totalOverdueCents = 0
+      for (const row of rows) {
+        const paid = row.amount_paid ?? 0
+        if (paid > 0) continue
+        if (!row.due_date) continue
+        const due = new Date(row.due_date + 'T00:00:00')
+        const grace = new Date(due)
+        grace.setDate(grace.getDate() + 2)
+        const graceStr = grace.toISOString().split('T')[0]
+        if (today > graceStr) {
+          totalOverdueCents += row.requested_amount ?? 0
+          if (row.family_id) familiesOutstandingSet.add(row.family_id)
+        }
+      }
+
+      // BOX 4: remaining to collect = total requested - total paid
+      const totalRequestedCents = rows.reduce((s, r) => s + (r.requested_amount ?? 0), 0)
+      const totalPaidCents = rows.reduce((s, r) => s + (r.amount_paid ?? 0), 0)
+      const remainingToCollectCents = totalRequestedCents - totalPaidCents
+
+      // BOX 5: paid this month
+      const paidThisMonthCents = totalPaidCents
+
+      return {
+        familiesWithInvoices,
+        familiesOutstanding: familiesOutstandingSet.size,
+        totalOverdueCents,
+        remainingToCollectCents,
+        paidThisMonthCents,
+      }
+    },
+  })
+}
+
+function nextMonthStr(monthKey: string): string {
+  const [y, m] = monthKey.split('-').map(Number)
+  if (m === 12) return `${y + 1}-01-01`
+  return `${y}-${String(m + 1).padStart(2, '0')}-01`
+}

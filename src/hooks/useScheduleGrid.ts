@@ -1,7 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { sendAppointmentNotification, buildBlockContext } from '../lib/appointmentNotifications'
 
 export type BlockType = 'open_time' | 'student_session' | 'first_day' | 'last_day' | 'not_bookable' | 'sub' | 'call_out' | 'meet_greet' | 'teacher_training'
+
+export interface SessionLogSummary {
+  id: string
+  worked_on: string[]
+  engagement_level: number | null
+  progress_indicator: string | null
+  teacher_note: string | null
+  parent_update_status: string | null
+}
 
 export interface GridBlock {
   block_id: string
@@ -27,6 +37,11 @@ export interface GridBlock {
   notes: string | null
   original_teacher_id: string | null
   original_teacher_name: string | null
+  has_session_log: boolean
+  session_log: SessionLogSummary | null
+  is_virtual: boolean
+  meet_link: string | null
+  meet_event_id: string | null
 }
 
 export function useScheduleGrid(date: string, locationId: string | null) {
@@ -40,7 +55,8 @@ export function useScheduleGrid(date: string, locationId: string | null) {
           id, tenant_id, location_id, teacher_id, student_id,
           block_date, start_time, end_time, status, block_type,
           is_recurring, checked_in, teacher_tally, fifth_week, room, room_id, notes,
-          original_teacher_id, original_teacher_name
+          original_teacher_id, original_teacher_name,
+          is_virtual, meet_link, meet_event_id
         `)
         .eq('block_date', date)
         .order('start_time')
@@ -98,9 +114,30 @@ export function useScheduleGrid(date: string, locationId: string | null) {
         locationName = loc?.name ?? ''
       }
 
+      // Get session logs for these blocks
+      const blockIds = blocks.map((b: any) => b.id)
+      const sessionLogMap = new Map<string, SessionLogSummary>()
+      if (blockIds.length > 0) {
+        const { data: logs } = await supabase
+          .from('session_log')
+          .select('id, schedule_block_id, worked_on, engagement_level, progress_indicator, teacher_note, parent_update_status')
+          .in('schedule_block_id', blockIds)
+        logs?.forEach((l: any) => {
+          sessionLogMap.set(l.schedule_block_id, {
+            id: l.id,
+            worked_on: l.worked_on ?? [],
+            engagement_level: l.engagement_level,
+            progress_indicator: l.progress_indicator,
+            teacher_note: l.teacher_note,
+            parent_update_status: l.parent_update_status,
+          })
+        })
+      }
+
       // Build enriched blocks
       const enrichedBlocks: GridBlock[] = blocks.map((b: any) => {
         const student = b.student_id ? studentMap.get(b.student_id) : null
+        const log = sessionLogMap.get(b.id) ?? null
         return {
           block_id: b.id,
           tenant_id: b.tenant_id,
@@ -125,6 +162,11 @@ export function useScheduleGrid(date: string, locationId: string | null) {
           notes: b.notes,
           original_teacher_id: b.original_teacher_id ?? null,
           original_teacher_name: b.original_teacher_name ?? null,
+          has_session_log: !!log,
+          session_log: log,
+          is_virtual: b.is_virtual ?? false,
+          meet_link: b.meet_link ?? null,
+          meet_event_id: b.meet_event_id ?? null,
         }
       })
 
@@ -197,6 +239,11 @@ export function useAssignStudent() {
           }
         }
       }
+
+      // Fire "booked" notification (non-blocking)
+      buildBlockContext(params.blockId).then(ctx => {
+        if (ctx) sendAppointmentNotification('booked', ctx)
+      })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
@@ -213,6 +260,9 @@ export function useUnassignBlock() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (blockId: string) => {
+      // Build context BEFORE unassigning (we need student info)
+      const ctx = await buildBlockContext(blockId)
+
       const { error } = await supabase
         .from('schedule_blocks')
         .update({
@@ -223,6 +273,9 @@ export function useUnassignBlock() {
         .eq('id', blockId)
 
       if (error) throw error
+
+      // Fire "cancelled" notification (non-blocking)
+      if (ctx) sendAppointmentNotification('cancelled', ctx)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
@@ -306,7 +359,7 @@ export function useStudentsForAssignment() {
       }
 
       // Get location names
-      const locIds = [...new Set(students.map((s: any) => s.location_id))]
+      const locIds = [...new Set(students.filter((s: any) => s.location_id).map((s: any) => s.location_id))]
       const locMap = new Map<string, string>()
       if (locIds.length > 0) {
         const { data: locations } = await supabase.from('locations').select('id, name').in('id', locIds)

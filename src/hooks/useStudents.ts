@@ -265,12 +265,32 @@ export function useCreateStudent() {
         start_date: params.start_date || null,
       }).select().single()
       if (error) throw error
+
+      // Auto-create onboarding sequence
+      const enrollDate = params.start_date || new Date().toISOString().split('T')[0]
+      const base = new Date(enrollDate + 'T12:00:00')
+      const addDays = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r.toISOString().split('T')[0] }
+      await supabase.from('onboarding_sequences').insert({
+        tenant_id: params.tenant_id,
+        student_id: data.id,
+        family_id: params.family_id,
+        location_id: params.location_id,
+        enrollment_date: enrollDate,
+        day_7_due: addDays(base, 7),
+        day_14_due: addDays(base, 14),
+        day_30_due: addDays(base, 30),
+        day_60_due: addDays(base, 60),
+        day_90_due: addDays(base, 90),
+        status: 'active',
+      }).then(() => {}) // non-critical, don't block on failure
+
       return data
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['students'] })
       qc.invalidateQueries({ queryKey: ['families'] })
       qc.invalidateQueries({ queryKey: ['family'] })
+      qc.invalidateQueries({ queryKey: ['onboarding-pipeline'] })
     },
   })
 }

@@ -1,15 +1,26 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import PageTransition from '../shared/PageTransition'
 import { useAuthContext } from '../../app/AuthContext'
+import { usePreviewMode } from '../../hooks/usePreviewMode'
+import NotificationBell from '../shared/NotificationBell'
+import RoleSwitcher from '../shared/RoleSwitcher'
+import { useTheme } from '../../hooks/useTheme'
 
 export default function TeacherShell() {
   const { profile, signOut } = useAuthContext()
+  const { preview } = usePreviewMode()
+  const theme = useTheme()
 
   return (
-    <div className="portal-shell">
+    <div className="portal-shell" style={preview.active ? { paddingTop: 40 } : undefined}>
       <header className="portal-header">
-        <h1 className="text-gradient" style={{ fontSize: 'var(--text-lg)' }}>Music School OS</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {theme.logoUrl && <img src={theme.logoUrl} alt="" style={{ width: 24, height: 24, borderRadius: 6 }} />}
+          <h1 className="text-gradient" style={{ fontSize: 'var(--text-lg)', margin: 0 }}>{theme.studioName}</h1>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <RoleSwitcher />
+          <NotificationBell />
           <span className="text-muted" style={{ fontSize: '13px' }}>
             {profile?.first_name}
           </span>

@@ -5,7 +5,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { useLeads, useUpdateLeadStage, useUpdateLead, useCreateLead, type LeadRow } from '../../hooks/useLeads'
 import { useLocations } from '../../hooks/useLocations'
 import { useAIMatch, type TeacherMatch } from '../../hooks/useAIMatch'
-import { Star, Clock, MapPin, Music, UserPlus, X } from 'lucide-react'
+import { Star, Clock, MapPin, Music, UserPlus, X, ChevronLeft } from 'lucide-react'
 import ConvertLeadModal from '../../components/leads/ConvertLeadModal'
 import DataGrid from '../../components/shared/DataGrid'
 import { CORE_INSTRUMENTS, OTHER_INSTRUMENTS } from '../../lib/constants'
@@ -25,6 +25,72 @@ const STAGE_COLORS: Record<string, string> = {
 }
 const NEXT_STAGE: Record<string, string> = {
   inquiry: 'contacted', contacted: 'scheduled', scheduled: 'enrolled',
+}
+
+// Family grouping types
+interface FamilyGroup {
+  type: 'family'
+  familyId: string
+  leads: LeadRow[]
+  parentName: string
+  phone: string | null
+  email: string | null
+  students: { name: string; instrument: string | null; leadId: string }[]
+  stage: LeadRow['stage']
+  source: string | null
+  locationName: string | null
+  createdAt: string
+  daysSinceCreated: number
+  needsFollowUp: boolean
+}
+interface SoloLead {
+  type: 'solo'
+  lead: LeadRow
+}
+type PipelineItem = FamilyGroup | SoloLead
+
+function groupLeadsIntoFamilies(leads: LeadRow[]): PipelineItem[] {
+  const familyMap = new Map<string, LeadRow[]>()
+  const solos: LeadRow[] = []
+  for (const lead of leads) {
+    if (lead.family_id) {
+      const arr = familyMap.get(lead.family_id) ?? []
+      arr.push(lead)
+      familyMap.set(lead.family_id, arr)
+    } else {
+      solos.push(lead)
+    }
+  }
+  const items: PipelineItem[] = []
+  for (const [familyId, familyLeads] of familyMap) {
+    if (familyLeads.length === 1) {
+      solos.push(familyLeads[0])
+      continue
+    }
+    const stageOrder = ['enrolled', 'scheduled', 'contacted', 'inquiry', 'lost']
+    const bestStage = familyLeads.reduce((best, l) => stageOrder.indexOf(l.stage) < stageOrder.indexOf(best) ? l.stage : best, familyLeads[0].stage)
+    const earliest = familyLeads.reduce((e, l) => l.created_at < e ? l.created_at : e, familyLeads[0].created_at)
+    const daysSince = Math.floor((Date.now() - new Date(earliest).getTime()) / (1000 * 60 * 60 * 24))
+    items.push({
+      type: 'family',
+      familyId,
+      leads: familyLeads,
+      parentName: familyLeads[0].parent_name ?? familyLeads[0].first_name,
+      phone: familyLeads[0].phone,
+      email: familyLeads[0].email,
+      students: familyLeads.map(l => ({ name: l.first_name, instrument: l.instrument, leadId: l.id })),
+      stage: bestStage,
+      source: familyLeads[0].source,
+      locationName: familyLeads[0].location_name ?? null,
+      createdAt: earliest,
+      daysSinceCreated: daysSince,
+      needsFollowUp: familyLeads.some(l => l.needs_follow_up),
+    })
+  }
+  for (const lead of solos) {
+    items.push({ type: 'solo', lead })
+  }
+  return items
 }
 
 function getActionPrompt(lead: LeadRow): { text: string; color: string; urgent: boolean } {
@@ -71,6 +137,9 @@ export default function Leads() {
   const aiMatch = useAIMatch()
   const [showMasterSheet, setShowMasterSheet] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
+  const [lostCategoryLead, setLostCategoryLead] = useState<LeadRow | null>(null)
+  const [lostCategory, setLostCategory] = useState('')
+  const [lostReason, setLostReason] = useState('')
 
   // Sync filters to URL params for persistence
   useEffect(() => {
@@ -106,46 +175,78 @@ export default function Leads() {
   leads?.forEach((l) => { stageCounts[l.stage] = (stageCounts[l.stage] ?? 0) + 1 })
   const followUpCount = leads?.filter((l) => l.needs_follow_up).length ?? 0
 
-  // Tab counts
-  const lostCount = leads?.filter((l) => l.stage === 'lost').length ?? 0
-  const enrolledCount = leads?.filter((l) => l.stage === 'enrolled').length ?? 0
-  const activeCount = (leads?.length ?? 0) - lostCount - enrolledCount
-
-  // Filter for list view based on tab
+  // Filter leads based on tab
   let filteredLeads: LeadRow[]
   if (leadView === 'lost') {
     filteredLeads = (leads ?? []).filter((l) => l.stage === 'lost')
   } else if (leadView === 'enrolled') {
     filteredLeads = (leads ?? []).filter((l) => l.stage === 'enrolled')
-    // Sort enrolled by most recent first
     filteredLeads = [...filteredLeads].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
   } else {
     filteredLeads = (leads ?? []).filter((l) => !['enrolled', 'lost'].includes(l.stage))
   }
   if (stageFilter) filteredLeads = filteredLeads.filter((l) => l.stage === stageFilter)
-  // followUpOnly removed — stale leads are indicated by the action pill on each card
-  // Sort: stale first (most days since created, non-terminal)
   filteredLeads = [...filteredLeads].sort((a, b) => {
     if (!['enrolled', 'lost'].includes(a.stage) && ['enrolled', 'lost'].includes(b.stage)) return -1
     if (['enrolled', 'lost'].includes(a.stage) && !['enrolled', 'lost'].includes(b.stage)) return 1
     return b.days_since_created - a.days_since_created
   })
 
+  // Group into family cards + solo cards for pipeline display
+  const pipelineItems = groupLeadsIntoFamilies(filteredLeads)
+  // Family-aware counts for tabs
+  const allItems = groupLeadsIntoFamilies(leads ?? [])
+  const activeCount = allItems.filter(i => i.type === 'family' ? !['enrolled', 'lost'].includes(i.stage) : !['enrolled', 'lost'].includes(i.lead.stage)).length
+  const enrolledCount = allItems.filter(i => i.type === 'family' ? i.stage === 'enrolled' : i.lead.stage === 'enrolled').length
+  const lostCount = allItems.filter(i => i.type === 'family' ? i.stage === 'lost' : i.lead.stage === 'lost').length
+
   const handleAdvance = async (lead: LeadRow) => {
     const next = NEXT_STAGE[lead.stage]; if (!next) return
-    await updateStage.mutateAsync({ id: lead.id, stage: next })
-    setDetailLead({ ...lead, stage: next as any })
+    try {
+      await updateStage.mutateAsync({ id: lead.id, stage: next, familyId: lead.family_id })
+      setDetailLead({ ...lead, stage: next as any })
+    } catch (err: any) {
+      toast(err.message ?? 'Failed to advance stage', 'error')
+    }
   }
 
   const handleMarkLost = async (lead: LeadRow) => {
-    await updateStage.mutateAsync({ id: lead.id, stage: 'lost' }); setDetailLead(null)
+    setLostCategoryLead(lead)
+    setLostCategory('')
+    setLostReason('')
+  }
+
+  const confirmMarkLost = async () => {
+    if (!lostCategoryLead) return
+    try {
+      await updateStage.mutateAsync({ id: lostCategoryLead.id, stage: 'lost', familyId: lostCategoryLead.family_id })
+      if (lostCategory) {
+        // Update lost category on each lead in the family
+        if (lostCategoryLead.family_id) {
+          const siblings = (leads ?? []).filter(l => l.family_id === lostCategoryLead.family_id)
+          for (const sib of siblings) {
+            await updateLead.mutateAsync({ id: sib.id, lost_category: lostCategory, lost_reason: lostReason || null })
+          }
+        } else {
+          await updateLead.mutateAsync({ id: lostCategoryLead.id, lost_category: lostCategory, lost_reason: lostReason || null })
+        }
+      }
+      setLostCategoryLead(null)
+      setDetailLead(null)
+    } catch (err: any) {
+      toast(err.message ?? 'Failed to mark lead as lost', 'error')
+    }
   }
 
   const handleSaveNextAction = async () => {
     if (!detailLead) return
-    await updateLead.mutateAsync({ id: detailLead.id, next_action: nextActionDraft })
-    setDetailLead({ ...detailLead, next_action: nextActionDraft } as any)
-    setEditingNextAction(false)
+    try {
+      await updateLead.mutateAsync({ id: detailLead.id, next_action: nextActionDraft })
+      setDetailLead({ ...detailLead, next_action: nextActionDraft } as any)
+      setEditingNextAction(false)
+    } catch (err: any) {
+      toast(err.message ?? 'Failed to save next action', 'error')
+    }
   }
 
   const handleExportLeads = () => {
@@ -259,37 +360,107 @@ export default function Leads() {
       {leadView === 'active' && <div className="schedule-filters" style={{ marginBottom: '16px' }}>
         <div className="filter-group">
           <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className="filter-select lead-filter">
-            <option value="">All Stages ({activeCount})</option>
+            <option value="">Stages ({activeCount})</option>
             {STAGES.filter(s => s !== 'enrolled' && s !== 'lost').map((s) => (
               <option key={s} value={s}>{STAGE_LABELS[s]} ({stageCounts[s] ?? 0})</option>
             ))}
           </select>
           <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="filter-select lead-filter">
-            <option value="">All Locations ({activeCount})</option>
+            <option value="">Locations ({activeCount})</option>
             {locations?.map((l) => (
               <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')} ({locationCounts[l.id] ?? 0})</option>
             ))}
           </select>
           <select value={instrumentFilter} onChange={(e) => setInstrumentFilter(e.target.value)} className="filter-select lead-filter">
-            <option value="">All Instruments ({activeCount})</option>
+            <option value="">Instruments ({activeCount})</option>
             {instruments.map((i) => (
               <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)} ({instrumentCounts[i] ?? 0})</option>
             ))}
           </select>
         </div>
-        <span className="visibility-count">Showing {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}</span>
+        <span className="visibility-count">Showing {pipelineItems.length} lead{pipelineItems.length !== 1 ? 's' : ''}</span>
       </div>}
 
       {/* Lost view header */}
       {leadView !== 'active' && (
         <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span className="visibility-count">Showing {filteredLeads.length} {leadView} lead{filteredLeads.length !== 1 ? 's' : ''}</span>
+          <span className="visibility-count">Showing {pipelineItems.length} {leadView} lead{pipelineItems.length !== 1 ? 's' : ''}</span>
         </div>
       )}
 
-      {/* LIST VIEW (default) — premium lead cards */}
+      {/* LIST VIEW (default) — premium lead cards with family grouping */}
       <div className="lead-cards">
-          {filteredLeads.map((lead) => {
+          {pipelineItems.map((item) => {
+            if (item.type === 'family') {
+              const fg = item
+              const stageColor = STAGE_COLORS[fg.stage] ?? 'var(--text-muted)'
+              const isStale = fg.needsFollowUp
+              const primaryLead = fg.leads[0]
+              return (
+                <div
+                  key={`fam-${fg.familyId}`}
+                  className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
+                  onClick={() => { setDetailLead(primaryLead); aiMatch.clearMatch() }}
+                >
+                  <div className="lead-card-edge" style={{ background: stageColor, boxShadow: `0 0 12px ${stageColor}60` }} />
+                  <div className="lead-card-glow" style={{ background: `radial-gradient(circle, ${stageColor}18 0%, transparent 70%)` }} />
+                  <div className="lead-card-glow-bl" style={{ background: `radial-gradient(circle, ${stageColor}0C 0%, transparent 70%)` }} />
+                  <div className="lead-card-content">
+                    <div className="lead-card-stage-zone">
+                      {fg.stage === 'lost' ? (
+                        <div className="lead-card-stage-lost">LOST</div>
+                      ) : (
+                        <select
+                          className="lead-card-stage-select"
+                          value={fg.stage}
+                          style={{ color: stageColor, borderColor: `${stageColor}35`, background: `${stageColor}10` }}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={async (e) => { e.stopPropagation(); try { await updateStage.mutateAsync({ id: primaryLead.id, stage: e.target.value, familyId: fg.familyId }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
+                        >
+                          {(['inquiry', 'contacted', 'scheduled', 'enrolled'] as const)
+                            .filter((s) => { const order = ['inquiry', 'contacted', 'scheduled', 'enrolled']; return order.indexOf(s) >= order.indexOf(fg.stage) })
+                            .map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+                        </select>
+                      )}
+                    </div>
+                    <div className="lead-card-left">
+                      <div className="lead-card-names">
+                        <span className="lead-card-student" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {fg.parentName} Family
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(212,34,106,0.12)', color: '#D4226A', letterSpacing: '0.03em' }}>{fg.students.length} students</span>
+                        </span>
+                        <span className="lead-card-parent" style={{ fontSize: 12 }}>
+                          {fg.students.map(s => `${s.name}${s.instrument ? ` (${s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1)})` : ''}`).join(' · ')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="lead-card-meta">
+                      {fg.locationName && <span className="lead-card-chip"><MapPin size={12} />{fg.locationName}</span>}
+                      <span className="lead-card-chip" style={isStale ? { color: '#FFB800', borderColor: 'rgba(255,184,0,0.25)' } : undefined}>
+                        <Clock size={12} />
+                        {fg.daysSinceCreated === 0 ? 'Today' : `${fg.daysSinceCreated}d ago`}
+                      </span>
+                      {(() => {
+                        const action = getActionPrompt(primaryLead)
+                        if (!action.text) return null
+                        return (
+                          <span className={`lead-card-action${action.urgent ? ' urgent' : ''}`} style={{ color: action.color, borderColor: `${action.color}30`, background: `${action.color}0D` }}>
+                            {action.urgent && <span className="lead-action-dot" style={{ background: action.color, boxShadow: `0 0 6px ${action.color}` }} />}
+                            {action.text}
+                          </span>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                  <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); setDetailLead(primaryLead); aiMatch.runMatch(primaryLead.id, tenantId!) }}>
+                    <Star size={13} /><span>{fg.stage === 'lost' ? 'Get Them Back' : 'Ask Star'}</span>
+                  </button>
+                </div>
+              )
+            }
+
+            // Solo lead card — same as before
+            const lead = item.lead
             const studentName = `${lead.first_name} ${lead.last_name ?? ''}`.trim()
             const parentName = lead.parent_name && lead.parent_name !== studentName ? lead.parent_name : null
             const stageColor = STAGE_COLORS[lead.stage] ?? 'var(--text-muted)'
@@ -301,16 +472,10 @@ export default function Leads() {
                 className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
                 onClick={() => { setDetailLead(lead); aiMatch.clearMatch() }}
               >
-                {/* Left edge accent */}
                 <div className="lead-card-edge" style={{ background: stageColor, boxShadow: `0 0 12px ${stageColor}60` }} />
-                {/* Inner color glow — top right */}
                 <div className="lead-card-glow" style={{ background: `radial-gradient(circle, ${stageColor}18 0%, transparent 70%)` }} />
-                {/* Inner color glow — bottom left */}
                 <div className="lead-card-glow-bl" style={{ background: `radial-gradient(circle, ${stageColor}0C 0%, transparent 70%)` }} />
-
-                {/* Main content */}
                 <div className="lead-card-content">
-                  {/* Stage zone — separated left thumbnail */}
                   <div className="lead-card-stage-zone">
                     {lead.stage === 'lost' ? (
                       <div className="lead-card-stage-lost">LOST</div>
@@ -320,7 +485,7 @@ export default function Leads() {
                         value={lead.stage}
                         style={{ color: '#22C55E', borderColor: 'rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.1)' }}
                         onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => { e.stopPropagation(); updateStage.mutate({ id: lead.id, stage: e.target.value }) }}
+                        onChange={async (e) => { e.stopPropagation(); try { await updateStage.mutateAsync({ id: lead.id, stage: e.target.value }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
                       >
                         <option value="enrolled">Enrolled</option>
                         <option value="inquiry">New Lead</option>
@@ -333,21 +498,14 @@ export default function Leads() {
                         value={lead.stage}
                         style={{ color: stageColor, borderColor: `${stageColor}35`, background: `${stageColor}10` }}
                         onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => { e.stopPropagation(); updateStage.mutate({ id: lead.id, stage: e.target.value }) }}
+                        onChange={async (e) => { e.stopPropagation(); try { await updateStage.mutateAsync({ id: lead.id, stage: e.target.value }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
                       >
                         {(['inquiry', 'contacted', 'scheduled', 'enrolled'] as const)
-                          .filter((s) => {
-                            const order = ['inquiry', 'contacted', 'scheduled', 'enrolled']
-                            return order.indexOf(s) >= order.indexOf(lead.stage)
-                          })
-                          .map((s) => (
-                            <option key={s} value={s}>{STAGE_LABELS[s]}</option>
-                          ))}
+                          .filter((s) => { const order = ['inquiry', 'contacted', 'scheduled', 'enrolled']; return order.indexOf(s) >= order.indexOf(lead.stage) })
+                          .map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
                       </select>
                     )}
                   </div>
-
-                  {/* Names */}
                   <div className="lead-card-left">
                     <div className="lead-card-names">
                       <span className="lead-card-student">{studentName}</span>
@@ -355,21 +513,14 @@ export default function Leads() {
                       {!parentName && <span className="lead-card-parent">Adult Student</span>}
                     </div>
                   </div>
-
-                  {/* Chips */}
                   <div className="lead-card-meta">
-                    {lead.instrument && (
-                      <span className="lead-card-chip">
-                        <Music size={12} />
-                        {lead.instrument.charAt(0).toUpperCase() + lead.instrument.slice(1)}
-                      </span>
-                    )}
-                    {lead.location_name && (
-                      <span className="lead-card-chip">
-                        <MapPin size={12} />
-                        {lead.location_name}
-                      </span>
-                    )}
+                    {lead.instrument && <span className="lead-card-chip"><Music size={12} />{lead.instrument.charAt(0).toUpperCase() + lead.instrument.slice(1)}</span>}
+                    {lead.location_name && <span className="lead-card-chip"><MapPin size={12} />{lead.location_name}</span>}
+                    {lead.compatibility_score != null && lead.compatibility_score >= 91 ? (
+                      <span className="lead-card-chip" style={{ color: '#22C55E', borderColor: 'rgba(34,197,94,0.25)', background: 'rgba(34,197,94,0.08)' }}>{lead.compatibility_score}% Match</span>
+                    ) : lead.compatibility_score != null || lead.matched_teacher_id ? (
+                      <span className="lead-card-chip" style={{ color: '#22C55E', borderColor: 'rgba(34,197,94,0.25)', background: 'rgba(34,197,94,0.08)' }}>Great Match</span>
+                    ) : null}
                     <span className="lead-card-chip" style={isStale ? { color: '#FFB800', borderColor: 'rgba(255,184,0,0.25)' } : undefined}>
                       <Clock size={12} />
                       {lead.days_since_created === 0 ? 'Today' : `${lead.days_since_created}d ago`}
@@ -386,23 +537,13 @@ export default function Leads() {
                     })()}
                   </div>
                 </div>
-
-                {/* Ask Star button */}
-                <button
-                  className="lead-card-ask-star"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setDetailLead(lead)
-                    aiMatch.runMatch(lead.id, tenantId!)
-                  }}
-                >
-                  <Star size={13} />
-                  <span>{lead.stage === 'lost' ? 'Get Them Back' : 'Ask Star'}</span>
+                <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); setDetailLead(lead); aiMatch.runMatch(lead.id, tenantId!) }}>
+                  <Star size={13} /><span>{lead.stage === 'lost' ? 'Get Them Back' : 'Ask Star'}</span>
                 </button>
               </div>
             )
           })}
-          {filteredLeads.length === 0 && (
+          {pipelineItems.length === 0 && (
             <div className="empty-state">No leads found.</div>
           )}
       </div>
@@ -411,6 +552,7 @@ export default function Leads() {
       {detailLead && (
         <LeadDetailModal
           lead={detailLead}
+          siblingLeads={detailLead.family_id ? (leads ?? []).filter(l => l.family_id === detailLead.family_id && l.id !== detailLead.id) : []}
           stageColors={STAGE_COLORS}
           stageLabels={STAGE_LABELS}
           nextStage={NEXT_STAGE}
@@ -429,6 +571,51 @@ export default function Leads() {
 
       {convertLead && (
         <ConvertLeadModal lead={convertLead} onClose={() => setConvertLead(null)} onConverted={() => { setConvertLead(null); setDetailLead(null) }} />
+      )}
+
+      {/* Lost Category Modal */}
+      {lostCategoryLead && (
+        <div className="modal-overlay" onClick={() => setLostCategoryLead(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4' }}>Mark as Lost</div>
+              <div style={{ fontSize: 12, color: '#8080A8', marginTop: 4 }}>{lostCategoryLead.student_name || lostCategoryLead.parent_name}</div>
+            </div>
+            <div style={{ padding: '16px 24px 24px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Why did this lead not convert?</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {[
+                  { value: 'never_responded', label: 'Never Responded' },
+                  { value: 'price_objection', label: 'Price Objection' },
+                  { value: 'schedule_conflict', label: 'Schedule Conflict' },
+                  { value: 'chose_competitor', label: 'Chose Competitor' },
+                  { value: 'not_ready', label: 'Not Ready' },
+                  { value: 'other', label: 'Other' },
+                ].map(c => (
+                  <button key={c.value} onClick={() => setLostCategory(c.value)} style={{
+                    padding: '8px 16px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 36,
+                    background: lostCategory === c.value ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${lostCategory === c.value ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                    color: lostCategory === c.value ? '#EF4444' : '#585878',
+                  }}>{c.label}</button>
+                ))}
+              </div>
+              {lostCategory === 'other' && (
+                <textarea
+                  value={lostReason}
+                  onChange={e => setLostReason(e.target.value)}
+                  placeholder="Reason..."
+                  rows={2}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 14 }}
+                />
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setLostCategoryLead(null)} style={{ flex: 1, padding: '10px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', fontWeight: 600, fontSize: 13, cursor: 'pointer', minHeight: 44 }}>Cancel</button>
+                <button onClick={confirmMarkLost} disabled={!lostCategory} style={{ flex: 1, padding: '10px 16px', borderRadius: 10, background: lostCategory ? '#DC0000' : '#606088', border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: lostCategory ? 'pointer' : 'not-allowed', opacity: lostCategory ? 1 : 0.5, minHeight: 44 }}>Mark as Lost</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {showAddLead && tenantId && (
@@ -469,8 +656,9 @@ export default function Leads() {
 
 type DetailTab = 'overview' | 'form'
 
-function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, tenantId, canEdit, onClose, onAdvance, onMarkLost, onConvert, onEnroll, updateStage, updateLead }: {
+function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, nextStage, aiMatch, tenantId, canEdit, onClose, onAdvance, onMarkLost, onConvert, onEnroll, updateStage, updateLead }: {
   lead: LeadRow
+  siblingLeads?: LeadRow[]
   stageColors: Record<string, string>
   stageLabels: Record<string, string>
   nextStage: Record<string, string>
@@ -485,7 +673,10 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
   updateStage: any
   updateLead: any
 }) {
+  const isFamily = siblingLeads.length > 0
+  const allFamilyLeads = isFamily ? [lead, ...siblingLeads] : [lead]
   const [tab, setTab] = useState<DetailTab>('overview')
+  const [activeStudentIdx, setActiveStudentIdx] = useState(0)
   const [noteDraft, setNoteDraft] = useState('')
   const [showNoteInput, setShowNoteInput] = useState(false)
   const [editInstrument, setEditInstrument] = useState(false)
@@ -505,23 +696,31 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
   const personalityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savePersonality = useCallback((value: string) => {
     if (personalityTimer.current) clearTimeout(personalityTimer.current)
-    personalityTimer.current = setTimeout(() => {
-      updateLead.mutate({ id: lead.id, personality_notes: value || null })
-      lead.personality_notes = value || null
+    personalityTimer.current = setTimeout(async () => {
+      try {
+        await updateLead.mutateAsync({ id: lead.id, personality_notes: value || null })
+        setDetailLead((prev) => prev ? { ...prev, personality_notes: value || null } : prev)
+      } catch (err: any) {
+        toast(err.message ?? 'Failed to save personality notes', 'error')
+      }
     }, 800)
   }, [lead.id, updateLead])
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!noteDraft.trim()) return
     const existingNotes = lead.notes ?? ''
     const userName = profile?.first_name ?? 'Unknown'
     const timestamp = new Date().toLocaleString()
     const newNote = `[${timestamp}] ${userName}: ${noteDraft.trim()}`
     const updated = existingNotes ? `${newNote}\n${existingNotes}` : newNote
-    updateLead.mutate({ id: lead.id, notes: updated })
-    lead.notes = updated
-    setNoteDraft('')
-    setShowNoteInput(false)
+    try {
+      await updateLead.mutateAsync({ id: lead.id, notes: updated })
+      setDetailLead((prev) => prev ? { ...prev, notes: updated } : prev)
+      setNoteDraft('')
+      setShowNoteInput(false)
+    } catch (err: any) {
+      toast(err.message ?? 'Failed to save note', 'error')
+    }
   }
 
   const handleExportLead = () => {
@@ -545,33 +744,65 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
         <div className="lead-modal-glow-tr" style={{ background: `radial-gradient(circle, ${stageColor}14 0%, transparent 65%)` }} />
         <div className="lead-modal-glow-bl" style={{ background: `radial-gradient(circle, rgba(123,44,191,0.08) 0%, transparent 65%)` }} />
 
-        {/* Close button */}
-        <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6, zIndex: 5 }}>
+        {/* Mobile top bar — hidden on desktop, shown on mobile via CSS */}
+        <div className="lead-detail-topbar" style={{ alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px 6px', flexShrink: 0, position: 'relative', zIndex: 5 }}>
+          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#A0A0C8', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px 4px', minHeight: 44 }}>
+            <ChevronLeft size={18} /> Back
+          </button>
+          <button className="btn-ghost" onClick={handleExportLead} style={{ padding: '8px 14px', fontSize: 11, minHeight: 44 }}>Export</button>
+        </div>
+
+        {/* Desktop close button — hidden on mobile via CSS */}
+        <div className="lead-detail-close">
           <button className="btn-ghost" onClick={handleExportLead} style={{ padding: '4px 8px', fontSize: 10 }}>Export</button>
           <button className="btn-ghost" onClick={onClose} style={{ padding: '4px 8px' }}>X</button>
         </div>
 
-        {/* Header — centered student info */}
+        {/* Header — centered student/family info */}
         <div className="lead-detail-hero">
           <div className="lead-detail-stage-pill" style={{ color: stageColor, borderColor: `${stageColor}30`, background: `${stageColor}10` }}>
             {stageLabels[lead.stage]}
           </div>
-          <h2 className="lead-detail-name">{studentName}</h2>
-          <div className="lead-detail-sub">
-            {parentName && <span>Parent: {parentName}</span>}
-            {parentName && (lead.email || lead.phone) && <span style={{ color: '#606088' }}>·</span>}
-            {lead.email && <span>{lead.email}</span>}
-            {lead.email && lead.phone && <span style={{ color: '#606088' }}>·</span>}
-            {lead.phone && <span>{lead.phone}</span>}
-          </div>
+          {isFamily ? (
+            <>
+              <h2 className="lead-detail-name" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                {lead.parent_name ?? lead.first_name} Family
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(212,34,106,0.12)', color: '#D4226A' }}>{allFamilyLeads.length} students</span>
+              </h2>
+              <div className="lead-detail-sub">
+                {lead.email && <span>{lead.email}</span>}
+                {lead.email && lead.phone && <span style={{ color: '#606088' }}>·</span>}
+                {lead.phone && <span>{lead.phone}</span>}
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="lead-detail-name">{studentName}</h2>
+              <div className="lead-detail-sub">
+                {parentName && <span>Parent: {parentName}</span>}
+                {parentName && (lead.email || lead.phone) && <span style={{ color: '#606088' }}>·</span>}
+                {lead.email && <span>{lead.email}</span>}
+                {lead.email && lead.phone && <span style={{ color: '#606088' }}>·</span>}
+                {lead.phone && <span>{lead.phone}</span>}
+              </div>
+            </>
+          )}
           <div className="lead-detail-sub" style={{ marginTop: 2 }}>
             <span style={{ color: '#8080A8' }}>{lead.days_since_created === 0 ? 'Submitted today' : `${lead.days_since_created} days ago`}</span>
           </div>
         </div>
 
-        {/* Tabs — just 2 */}
+        {/* Tabs */}
         <div className="lead-detail-tabs">
           <button className={`lead-detail-tab${tab === 'overview' ? ' active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
+          {isFamily && allFamilyLeads.map((sl, i) => (
+            <button key={sl.id} className={`lead-detail-tab${tab === 'overview' && activeStudentIdx === i ? '' : ''}`}
+              onClick={() => { setTab('overview'); setActiveStudentIdx(i) }}
+              style={tab === 'overview' && activeStudentIdx === i ? { color: '#D4226A', borderBottomColor: 'rgba(212,34,106,0.3)' } : undefined}
+            >
+              {sl.first_name}
+            </button>
+          ))}
           <button className={`lead-detail-tab${tab === 'form' ? ' active' : ''}`} onClick={() => setTab('form')}>Contact Form</button>
         </div>
 
@@ -656,8 +887,47 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
           {tab === 'overview' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-              {/* Preferred days — editable */}
-              <div className="lead-preferred-days">
+              {/* Family student card — show active student only */}
+              {isFamily && (() => {
+                const sl = allFamilyLeads[activeStudentIdx] ?? allFamilyLeads[0]
+                return (
+                  <div>
+                    <div className="lead-section-label">{sl.first_name}'s Details</div>
+                    <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderLeft: '3px solid rgba(212,34,106,0.4)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: '#E0E0F4' }}>{sl.first_name}</span>
+                        {sl.instrument && <span style={{ fontSize: 12, fontWeight: 600, color: '#A0A0C8' }}>· {sl.instrument.charAt(0).toUpperCase() + sl.instrument.slice(1)}</span>}
+                        {sl.age_range && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.06)', color: '#8080A8' }}>{sl.age_range}</span>}
+                      </div>
+                      {(sl.personality_notes || sl.goals) && (
+                        <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 6, fontStyle: 'italic' }}>
+                          "{sl.personality_notes || sl.goals}"
+                        </div>
+                      )}
+                      {sl.preferred_days && sl.preferred_days.length > 0 && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {sl.preferred_days.map((d) => (
+                            <span key={d} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.06)', color: '#A0A0C8', fontWeight: 600 }}>{typeof d === 'string' ? d.split(' ')[0]?.slice(0, 3) : d}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          className="btn-outline"
+                          onClick={() => aiMatch.runMatch(sl.id, tenantId!)}
+                          disabled={aiMatch.isLoading}
+                          style={{ fontSize: 10, padding: '4px 12px' }}
+                        >
+                          <Star size={10} /> Find Best Teacher for {sl.first_name}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Preferred days — editable (solo leads only) */}
+              {!isFamily && <div className="lead-preferred-days">
                 <span className="lead-preferred-label">Preferred Days</span>
                 <div className="lead-preferred-list">
                   {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'].map((day) => {
@@ -667,7 +937,7 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                       <span
                         key={day}
                         className={`lead-preferred-day${isSelected ? ' selected' : ''}`}
-                        onClick={() => {
+                        onClick={async () => {
                           if (!canEdit) return
                           let updated: string[]
                           if (isSelected) {
@@ -675,8 +945,12 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                           } else {
                             updated = [...currentDays, day]
                           }
-                          updateLead.mutate({ id: lead.id, preferred_days: updated })
-                          lead.preferred_days = updated
+                          try {
+                            await updateLead.mutateAsync({ id: lead.id, preferred_days: updated })
+                            setDetailLead((prev) => prev ? { ...prev, preferred_days: updated } : prev)
+                          } catch (err: any) {
+                            toast(err.message ?? 'Failed to update preferred days', 'error')
+                          }
                         }}
                         style={{ cursor: canEdit ? 'pointer' : 'default' }}
                       >
@@ -685,10 +959,10 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                     )
                   })}
                 </div>
-              </div>
+              </div>}
 
-              {/* Personality, Learning Style & Goals — editable textarea */}
-              <div className="lead-star-section" style={{ background: 'rgba(255,184,0,0.03)' }}>
+              {/* Personality, Learning Style & Goals — editable textarea (solo leads only) */}
+              {!isFamily && <div className="lead-star-section" style={{ background: 'rgba(255,184,0,0.03)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                   <Star size={12} style={{ color: '#FFB800' }} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#FFB800', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Personality, Learning Style & Goals</span>
@@ -712,7 +986,7 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                 <p style={{ fontSize: 10.5, color: '#8080A8', marginTop: 8, fontStyle: 'italic' }}>
                   Star uses this to build a compatibility profile and recommend the best teacher match.
                 </p>
-              </div>
+              </div>}
 
               {/* Editable chips — instrument & location can be changed */}
               <div className="lead-modal-chips">
@@ -722,7 +996,16 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                     className="lead-modal-chip-edit"
                     value={lead.instrument ?? ''}
                     autoFocus
-                    onChange={(e) => { updateLead.mutate({ id: lead.id, instrument: e.target.value }); lead.instrument = e.target.value; setEditInstrument(false) }}
+                    onChange={async (e) => {
+                      const val = e.target.value
+                      try {
+                        await updateLead.mutateAsync({ id: lead.id, instrument: val })
+                        setDetailLead((prev) => prev ? { ...prev, instrument: val } : prev)
+                      } catch (err: any) {
+                        toast(err.message ?? 'Failed to update instrument', 'error')
+                      }
+                      setEditInstrument(false)
+                    }}
                     onBlur={() => setEditInstrument(false)}
                   >
                     {['guitar','bass','piano','drums','voice','violin','cello','flute','clarinet','saxophone','trumpet','trombone','ukulele'].map((i) => (
@@ -742,11 +1025,15 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                     className="lead-modal-chip-edit"
                     value={lead.location_id ?? ''}
                     autoFocus
-                    onChange={(e) => {
-                      const loc = locations?.find((l) => l.id === e.target.value)
-                      updateLead.mutate({ id: lead.id, location_id: e.target.value })
-                      if (loc) lead.location_name = loc.name
-                      lead.location_id = e.target.value
+                    onChange={async (e) => {
+                      const val = e.target.value
+                      const loc = locations?.find((l) => l.id === val)
+                      try {
+                        await updateLead.mutateAsync({ id: lead.id, location_id: val })
+                        setDetailLead((prev) => prev ? { ...prev, location_id: val, location_name: loc?.name ?? prev.location_name } : prev)
+                      } catch (err: any) {
+                        toast(err.message ?? 'Failed to update location', 'error')
+                      }
                       setEditLocation(false)
                     }}
                     onBlur={() => setEditLocation(false)}
@@ -844,7 +1131,7 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                     <>
                       <div className="lead-section-label">Recovery</div>
                       <button
-                        onClick={() => updateStage.mutate({ id: lead.id, stage: 'inquiry' })}
+                        onClick={async () => { try { await updateStage.mutateAsync({ id: lead.id, stage: 'inquiry', familyId: lead.family_id }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
                         disabled={updateStage.isPending}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E', fontSize: 15, fontWeight: 700, cursor: 'pointer', transition: 'all 140ms ease', fontFamily: 'var(--font-body)' }}
                       >
@@ -868,9 +1155,9 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                             {forwardStages.map((s) => {
                               const c = stageButtonColors[s]
                               return (
-                                <button key={s} className="lead-stage-btn" onClick={() => updateStage.mutate({ id: lead.id, stage: s })} disabled={updateStage.isPending}
+                                <button key={s} className="lead-stage-btn" onClick={async () => { try { await updateStage.mutateAsync({ id: lead.id, stage: s, familyId: lead.family_id }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }} disabled={updateStage.isPending}
                                   style={{ flex: 1, color: c.color, background: c.bg, borderColor: c.border }}>
-                                  {stageLabels[s]}
+                                  {stageLabels[s]}{isFamily ? ' Family' : ''}
                                 </button>
                               )
                             })}
@@ -881,7 +1168,7 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button onClick={onEnroll} disabled={updateStage.isPending}
                             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 140ms ease', fontFamily: 'var(--font-body)' }}>
-                            Enroll Student
+                            {isFamily ? 'Enroll Family' : 'Enroll Student'}
                           </button>
                           <button onClick={() => onMarkLost(lead)} disabled={updateStage.isPending}
                             style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
@@ -896,13 +1183,17 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
 
               {/* Activity — always last */}
               <div className="lead-section-label" style={{ marginTop: 8 }}>Activity</div>
-              <div className="lead-activity-item">
-                <div className="lead-activity-dot" />
-                <div>
-                  <div style={{ fontSize: 12.5, color: '#E0E0F4' }}>Lead created from {lead.source ?? 'intake form'}</div>
-                  <div style={{ fontSize: 10, color: '#606088', marginTop: 2 }}>{new Date(lead.created_at).toLocaleString()}</div>
+              {allFamilyLeads.map((sl) => (
+                <div key={sl.id} className="lead-activity-item">
+                  <div className="lead-activity-dot" />
+                  <div>
+                    <div style={{ fontSize: 12.5, color: '#E0E0F4' }}>
+                      {isFamily ? `${sl.first_name} — ` : ''}Lead created from {sl.source ?? 'intake form'}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#606088', marginTop: 2 }}>{new Date(sl.created_at).toLocaleString()}</div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           )}
 
@@ -910,17 +1201,53 @@ function LeadDetailModal({ lead, stageColors, stageLabels, nextStage, aiMatch, t
           {tab === 'form' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-              {/* Student Info */}
-              <div className="lead-form-section">
-                <div className="lead-form-section-title">Student Information</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="lead-modal-field"><div className="lead-modal-field-label">Student Name</div><div className="lead-modal-field-value">{studentName}</div></div>
-                  <div className="lead-modal-field"><div className="lead-modal-field-label">Parent / Guardian</div><div className="lead-modal-field-value">{parentName ?? '—'}</div></div>
-                  <div className="lead-modal-field"><div className="lead-modal-field-label">Email</div><div className="lead-modal-field-value">{lead.email ?? '—'}</div></div>
-                  <div className="lead-modal-field"><div className="lead-modal-field-label">Phone</div><div className="lead-modal-field-value">{lead.phone ?? '—'}</div></div>
-                  <div className="lead-modal-field"><div className="lead-modal-field-label">Age Range</div><div className="lead-modal-field-value">{lead.age ?? (lead as any).age_range ?? '—'}</div></div>
+              {/* Student Info — show all siblings for family leads */}
+              {allFamilyLeads.map((sl, idx) => {
+                const slName = `${sl.first_name} ${sl.last_name ?? ''}`.trim()
+                return (
+                  <div key={sl.id} className="lead-form-section">
+                    <div className="lead-form-section-title">{isFamily ? `Student ${idx + 1}: ${sl.first_name}` : 'Student Information'}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div className="lead-modal-field"><div className="lead-modal-field-label">Student Name</div><div className="lead-modal-field-value">{slName}</div></div>
+                      {idx === 0 && <div className="lead-modal-field"><div className="lead-modal-field-label">Parent / Guardian</div><div className="lead-modal-field-value">{parentName ?? '—'}</div></div>}
+                      {idx === 0 && <div className="lead-modal-field"><div className="lead-modal-field-label">Email</div><div className="lead-modal-field-value">{sl.email ?? '—'}</div></div>}
+                      {idx === 0 && <div className="lead-modal-field"><div className="lead-modal-field-label">Phone</div><div className="lead-modal-field-value">{sl.phone ?? '—'}</div></div>}
+                      <div className="lead-modal-field"><div className="lead-modal-field-label">Instrument</div><div className="lead-modal-field-value">{sl.instrument ? sl.instrument.charAt(0).toUpperCase() + sl.instrument.slice(1) : '—'}</div></div>
+                      <div className="lead-modal-field"><div className="lead-modal-field-label">Age Range</div><div className="lead-modal-field-value">{sl.age_range ?? sl.age ?? '—'}</div></div>
+                      <div className="lead-modal-field"><div className="lead-modal-field-label">Experience</div><div className="lead-modal-field-value">{sl.experience ?? '—'}</div></div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Enrollment Data — from signup form */}
+              {(lead.compatibility_score != null || lead.matched_teacher_id || lead.family_id) && (
+                <div className="lead-form-section">
+                  <div className="lead-form-section-title">Enrollment Data</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="lead-modal-field">
+                      <div className="lead-modal-field-label">Compatibility Score</div>
+                      <div className="lead-modal-field-value">
+                        {lead.compatibility_score != null && lead.compatibility_score >= 91
+                          ? <span style={{ color: '#22C55E', fontWeight: 700 }}>{lead.compatibility_score}%</span>
+                          : <span style={{ color: '#22C55E' }}>Great Match</span>}
+                      </div>
+                    </div>
+                    <div className="lead-modal-field">
+                      <div className="lead-modal-field-label">Matched Teacher</div>
+                      <div className="lead-modal-field-value">{lead.matched_teacher_id ?? '—'}</div>
+                    </div>
+                    <div className="lead-modal-field"><div className="lead-modal-field-label">Has Instrument</div><div className="lead-modal-field-value">{lead.has_instrument ?? '—'}</div></div>
+                    <div className="lead-modal-field"><div className="lead-modal-field-label">Referral Source</div><div className="lead-modal-field-value">{lead.referral_source ?? lead.how_heard ?? '—'}</div></div>
+                  </div>
+                  {lead.family_id && (
+                    <div className="lead-modal-field" style={{ marginTop: 8 }}>
+                      <div className="lead-modal-field-label">Family ID</div>
+                      <div className="lead-modal-field-value" style={{ fontSize: 11, fontFamily: 'monospace' }}>{lead.family_id}</div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               {/* Personality & Goals — synced with Overview tab via personalityDraft */}
               <div className="lead-star-section" style={{ background: 'rgba(255,184,0,0.03)' }}>

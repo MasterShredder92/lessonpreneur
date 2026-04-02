@@ -63,6 +63,7 @@ export default function TeacherDetail() {
   const [showDocsModal, setShowDocsModal] = useState(false)
   const docInputRef = useRef<HTMLInputElement>(null)
   const [pendingConfirm, setPendingConfirm] = useState<{ title: string; message: string; variant?: 'warning' | 'danger' | 'info'; onConfirm: () => void } | null>(null)
+  const [mobileTab, setMobileTab] = useState<'overview' | 'profile' | 'documents'>('overview')
 
   // ─── Availability editor (shared modal) ───
 
@@ -224,18 +225,27 @@ export default function TeacherDetail() {
   const payRate = Number(t.pay_rate_per_half_hour ?? t.rate_per_block ?? 0)
 
   return (
-    <div className="page">
+    <div className="page teacher-detail-page">
       <button className="btn-ghost" onClick={() => navigate('/admin/teachers')} style={{ marginBottom: 16 }}>
         ← Back to Teachers
       </button>
 
+      {/* ── Mobile tab bar ── */}
+      <div className="td-mobile-tabs">
+        <button className={`td-mobile-tab${mobileTab === 'overview' ? ' active' : ''}`} onClick={() => setMobileTab('overview')}>Overview</button>
+        <button className={`td-mobile-tab${mobileTab === 'profile' ? ' active' : ''}`} onClick={() => setMobileTab('profile')}>Profile</button>
+        <button className={`td-mobile-tab${mobileTab === 'documents' ? ' active' : ''}`} onClick={() => setMobileTab('documents')}>Documents</button>
+      </div>
+
       {/* ══════════════════════════════════════════════════ */}
       {/* 1. HERO CARD                                       */}
       {/* ══════════════════════════════════════════════════ */}
-      <div className="location-card" style={{ padding: '24px 28px', marginBottom: 14, cursor: 'default' }}>
+      <div className={`location-card td-section td-tab-overview${mobileTab !== 'overview' ? ' td-tab-hidden' : ''}`} style={{ padding: '24px 28px', marginBottom: 14, cursor: 'default' }}>
         <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #D4226A, #FF5500)', boxShadow: '0 0 14px rgba(212,34,106,0.5)' }} />
         <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(212,34,106,0.08) 0%, transparent 70%)' }} />
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, position: 'relative', zIndex: 1 }}>
+
+        {/* ─── Desktop hero layout (hidden on mobile) ─── */}
+        <div className="td-hero-desktop" style={{ display: 'flex', alignItems: 'stretch', gap: 0, position: 'relative', zIndex: 1 }}>
 
           {/* Edit pencil */}
           {canEdit && (
@@ -337,10 +347,101 @@ export default function TeacherDetail() {
             </div>
           </div>
         </div>
+
+        {/* ─── Mobile hero layout (hidden on desktop) ─── */}
+        <div className="td-hero-mobile" style={{ position: 'relative', zIndex: 1 }}>
+          {/* Edit pencil */}
+          {canEdit && (
+            <button
+              onClick={() => setShowEditForm(true)}
+              title="Edit Teacher"
+              style={{ position: 'absolute', top: 0, right: 0, width: 32, height: 32, borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8080A8', zIndex: 2 }}
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+
+          {/* Name first */}
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 4px', color: '#E0E0F4' }}>{teacherName || 'Unknown Teacher'}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '3px 10px', borderRadius: 8, border: '1px solid', color: statusColor, borderColor: statusBorder, background: statusBg }}>
+                {statusLabel}
+              </span>
+              {(t.sub_available || t.is_sub_available) && (
+                <span style={{ fontSize: 9, padding: '3px 8px', borderRadius: 6, background: 'rgba(168,85,247,0.15)', color: '#A78BFA', border: '1px solid rgba(168,85,247,0.25)', fontWeight: 700 }}>SUB</span>
+              )}
+            </div>
+          </div>
+
+          {/* Photo centered */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <div style={{ position: 'relative', width: 64, height: 64 }}>
+              {t.photo_url ? (
+                <img src={t.photo_url} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(255,255,255,0.1)' }} />
+              ) : (
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #D4226A, #FF5500)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, fontWeight: 800 }}>
+                  {(t.first_name?.[0] ?? '').toUpperCase()}{(t.last_name?.[0] ?? '').toUpperCase()}
+                </div>
+              )}
+              {canEdit && (
+                <label style={{ position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: '50%', background: 'rgba(20,18,36,0.9)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}>
+                  <Camera size={11} />
+                  <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                </label>
+              )}
+              {photoUploading && <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><MusicLoader size={18} /></div>}
+            </div>
+          </div>
+
+          {/* Role + instruments row */}
+          <div style={{ textAlign: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: '#A0A0C8', marginBottom: 8 }}>{t.teacher_role ?? 'Music Teacher'}</div>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {t.instruments?.map((inst: string) => (
+                <span key={inst} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'rgba(212,34,106,0.1)', color: '#E8488A', fontWeight: 600 }}>{inst.charAt(0).toUpperCase() + inst.slice(1)}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Contact info centered */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 10, padding: '10px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={fieldLabelStyle}>Email</div>
+              <span style={{ fontSize: 11, color: '#C0C0E0', fontWeight: 600, wordBreak: 'break-all' as const }}>{teacherEmail ?? '—'}</span>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={fieldLabelStyle}>Phone</div>
+              <span style={{ fontSize: 12, color: '#E0E0F4', fontWeight: 700 }}>{teacherPhone ?? '—'}</span>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={fieldLabelStyle}>Pay Rate</div>
+              <span style={{ fontSize: 14, color: '#22C55E', fontWeight: 800 }}>${payRate.toFixed(2)}<span style={{ fontSize: 10, color: '#8080A8', fontWeight: 500 }}>/30m</span></span>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 20, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4' }}>{students?.filter((s) => s.status === 'active').length ?? 0}</div>
+              <div style={{ fontSize: 8, fontWeight: 700, color: '#606088', textTransform: 'uppercase' }}>Students</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4' }}>{blocks?.length ?? 0}</div>
+              <div style={{ fontSize: 8, fontWeight: 700, color: '#606088', textTransform: 'uppercase' }}>This Week</div>
+            </div>
+            {ai.meet_greet && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: ai.meet_greet === 'Amazing' ? '#22C55E' : ai.meet_greet === 'Yes' ? '#FFB800' : '#8080A8' }}>{ai.meet_greet}</div>
+                <div style={{ fontSize: 8, fontWeight: 700, color: '#606088', textTransform: 'uppercase' }}>M&G Fit</div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Star AI Profile + Quick Actions — side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 14 }}>
+      {/* Star AI Profile + Quick Actions — side by side (desktop) / stacked (mobile overview) */}
+      <div className={`td-section td-star-actions-grid td-tab-overview${mobileTab !== 'overview' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 14 }}>
         <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FFB800, #FF8C00)', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
@@ -398,7 +499,7 @@ export default function TeacherDetail() {
       {/* ══════════════════════════════════════════════════ */}
       {/* 3. TEACHING PROFILE + BEST MATCH (side by side)    */}
       {/* ══════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+      <div className={`td-section td-profile-grid td-tab-profile${mobileTab !== 'profile' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         {/* Teaching Profile */}
         <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 12px rgba(255,85,0,0.4)' }} />
@@ -463,7 +564,7 @@ export default function TeacherDetail() {
       {/* ══════════════════════════════════════════════════ */}
       {/* AVAILABILITY & LOCATIONS (moved before notes)      */}
       {/* ══════════════════════════════════════════════════ */}
-      <div className="location-card" style={{ padding: 18, marginBottom: 14, cursor: 'default' }}>
+      <div className={`location-card td-section td-tab-profile${mobileTab !== 'profile' ? ' td-tab-hidden' : ''}`} style={{ padding: 18, marginBottom: 14, cursor: 'default' }}>
         <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 12px rgba(255,85,0,0.4)' }} />
         <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.06) 0%, transparent 70%)' }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
@@ -514,7 +615,7 @@ export default function TeacherDetail() {
       {/* INTERNAL NOTES                                     */}
       {/* ══════════════════════════════════════════════════ */}
       {canEdit && (
-        <div className="location-card" style={{ padding: 18, marginBottom: 14, cursor: 'default' }}>
+        <div className={`location-card td-section td-tab-profile${mobileTab !== 'profile' ? ' td-tab-hidden' : ''}`} style={{ padding: 18, marginBottom: 14, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #D4226A, #FF5500)', boxShadow: '0 0 12px rgba(212,34,106,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(212,34,106,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
@@ -561,9 +662,9 @@ export default function TeacherDetail() {
 
       {/* (Availability moved above Internal Notes) */}
 
-      {/* Private Documents + Pay Summary — side by side */}
+      {/* Private Documents + Pay Summary — side by side (desktop) / stacked (mobile documents tab) */}
       {canEdit && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div className={`td-section td-docs-grid td-tab-documents${mobileTab !== 'documents' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #606088, #363656)', boxShadow: 'none' }} />
           <div className="loc-card-glow" style={{ background: 'none' }} />

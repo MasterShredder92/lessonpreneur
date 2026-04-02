@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
@@ -17,7 +17,11 @@ import { useFamilyRate, useOverrideFamilyRate, useRemoveFamilyRateOverride, useA
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import { toast } from '../../components/shared/Toast'
 import { useLogActivity } from '../../hooks/useActivityLog'
+import { useStudentCommunications } from '../../hooks/useParentUpdates'
+import { useStudentChurnRisk, RISK_TIERS } from '../../hooks/useChurnRisk'
 import { DEFAULT_RATE_PER_SESSION, DEFAULT_RATE_TIER_CENTS } from '../../lib/constants'
+import { useStudentInstruments, useSaveStudentInstruments } from '../../hooks/useStudentInstruments'
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -67,6 +71,8 @@ export default function StudentDetail() {
   const overrideMutation = useOverrideFamilyRate()
   const removeOverrideMutation = useRemoveFamilyRateOverride()
   const addCreditMutation = useAddSessionCredit()
+  const churnRisk = useStudentChurnRisk(id)
+  const { data: studentInstruments } = useStudentInstruments(id)
 
   // Load student with family + teacher + location
   const { data: student, isLoading, error } = useQuery({
@@ -210,21 +216,50 @@ export default function StudentDetail() {
             <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', padding: '3px 12px', borderRadius: 8, border: '1px solid', color: student.status === 'active' ? '#22C55E' : '#EF4444', borderColor: student.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)', background: student.status === 'active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }}>
               {student.status}
             </span>
-            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', margin: '10px 0 2px' }}>{student.first_name} {student.last_name}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 2px' }}>
+              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>{student.first_name} {student.last_name}</h1>
+              {churnRisk && churnRisk.tier !== 'low' && (() => {
+                const t = RISK_TIERS[churnRisk.tier]
+                return (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: t.bg, color: t.color, border: `1px solid ${t.color}30` }} title={churnRisk.signals.map(s => s.label).join(', ')}>
+                    {t.label} Risk ({churnRisk.score})
+                  </span>
+                )
+              })()}
+            </div>
             <div style={{ fontSize: 13, color: '#A0A0C8' }}>Age {student.age ?? '—'}</div>
             <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><Music size={13} /> {student.instrument ? student.instrument.charAt(0).toUpperCase() + student.instrument.slice(1) : '—'}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><MapPin size={13} /> {student.location_name ?? '—'}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><DollarSign size={13} /> ${monthlyTotal}/mo</span>
             </div>
-            {student.teacher_name && student.teacher_name !== '—' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                <span style={{ fontSize: 12, color: '#A0A0C8' }}>Teacher: <strong style={{ color: '#C0C0E0' }}>{student.teacher_name}</strong></span>
-                {student.first_teacher_display && (
-                  <span style={{ fontSize: 11, color: '#606088' }}>· Started with {student.first_teacher_display}</span>
-                )}
-              </div>
-            )}
+            {/* Instruments & Teachers */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
+              {studentInstruments && studentInstruments.length > 1 ? (
+                studentInstruments.map((si) => {
+                  const teacherName = si.teacher_id ? (() => { const t = allTeachers?.find((t: any) => t.id === si.teacher_id); return t ? `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim() : null })() : null
+                  return (
+                    <div key={si.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#C0C0E0' }}>
+                      <span style={{ fontSize: 15 }}>{getInstrumentEmoji(si.instrument)}</span>
+                      <span style={{ fontWeight: 600 }}>{si.instrument.charAt(0).toUpperCase() + si.instrument.slice(1)}</span>
+                      {teacherName && <span style={{ color: '#8080A8' }}>with <strong style={{ color: '#A0A0C8' }}>{teacherName}</strong></span>}
+                      {si.is_primary && studentInstruments.length > 1 && <span style={{ fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 3, background: 'rgba(212,34,106,0.12)', color: '#D4226A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>primary</span>}
+                    </div>
+                  )
+                })
+              ) : (
+                <>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><Music size={13} /> {student.instrument ? student.instrument.charAt(0).toUpperCase() + student.instrument.slice(1) : '—'}</span>
+                  {student.teacher_name && student.teacher_name !== '—' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: '#A0A0C8' }}>Teacher: <strong style={{ color: '#C0C0E0' }}>{student.teacher_name}</strong></span>
+                      {student.first_teacher_display && (
+                        <span style={{ fontSize: 11, color: '#606088' }}>· Started with {student.first_teacher_display}</span>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
             {canEdit && (
               <button
                 onClick={() => setShowEditModal(true)}
@@ -321,15 +356,15 @@ export default function StudentDetail() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8', marginBottom: 3 }}>
                 <span>Rate/session</span>
-                <span style={{ fontWeight: 700, color: '#C0C0E0' }}>${formatRate(student.family_rate_tier ?? DEFAULT_RATE_TIER_CENTS)}</span>
+                <span style={{ fontWeight: 700, color: '#C0C0E0' }}>${(student.rate_per_session ?? DEFAULT_RATE_PER_SESSION).toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8' }}>
                 <span>Monthly est.</span>
-                <span style={{ fontWeight: 700, color: '#FFB800' }}>${formatRate((student.sessions_per_month ?? student.blocks_per_week * 4) * (student.family_rate_tier ?? DEFAULT_RATE_TIER_CENTS))}</span>
+                <span style={{ fontWeight: 700, color: '#FFB800' }}>${((student.sessions_per_month ?? student.blocks_per_week * 4) * (student.rate_per_session ?? DEFAULT_RATE_PER_SESSION)).toFixed(2)}</span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn-primary" style={{ fontSize: 10, padding: '5px 14px', flex: 1, justifyContent: 'center' }}>Bill Student</button>
+              <button className="btn-primary" style={{ fontSize: 10, padding: '5px 14px', flex: 1, justifyContent: 'center' }} onClick={() => navigate(`/admin/families?family=${student.family_id}`)}>Bill Family</button>
               {canEdit && (
                 <button
                   className="btn-outline"
@@ -684,6 +719,9 @@ export default function StudentDetail() {
         </div>
       </div>
 
+      {/* Row 5: Session History + Parent Communications */}
+      <SessionHistorySection studentId={id!} studentName={`${student.first_name} ${student.last_name}`} />
+
       {/* Bio Modal */}
       {showBioModal && (
         <div className="modal-overlay" onClick={() => setShowBioModal(false)}>
@@ -1028,20 +1066,32 @@ export default function StudentDetail() {
 }
 
 const INSTRUMENTS = ['piano','guitar','vocals','drums','banjo','bass','brass','cello','clarinet','flute','mandolin','oboe','percussion','saxophone','strings','trombone','trumpet','ukulele','viola','violin','voice','woodwinds']
+const CORE_FOUR = new Set(['piano', 'guitar', 'vocals', 'drums'])
+
+interface InstrumentRow {
+  id?: string
+  instrument: string
+  teacher_id: string
+  is_primary: boolean
+  rate_per_session: number
+  sessions_per_month: number
+}
 
 function EditStudentModal({ student, onClose, onSaved }: { student: any; onClose: () => void; onSaved: () => void }) {
   const updateStudent = useUpdateStudent()
   const { data: locations } = useLocations()
   const { data: teachers } = useTeachers()
+  const { tenantId } = useAuthContext()
   const qc = useQueryClient()
   const [showRetention, setShowRetention] = useState<'paused' | 'inactive' | null>(null)
+
+  const { data: existingInstruments } = useStudentInstruments(student.id)
+  const saveInstruments = useSaveStudentInstruments()
 
   const [form, setForm] = useState({
     first_name: student.first_name ?? '',
     last_name: student.last_name ?? '',
-    instrument: student.instrument ?? '',
     location_id: student.location_id ?? '',
-    teacher_id: student.teacher_id ?? '',
     blocks_per_week: student.blocks_per_week ?? 1,
     rate_per_session: student.rate_per_session ?? DEFAULT_RATE_PER_SESSION,
     start_date: student.start_date ?? '',
@@ -1049,28 +1099,74 @@ function EditStudentModal({ student, onClose, onSaved }: { student: any; onClose
     status: student.status ?? 'active',
     notes: student.notes ?? '',
   })
+
+  const [instrumentRows, setInstrumentRows] = useState<InstrumentRow[]>([])
+  const [removedIds, setRemovedIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  // Initialize instrument rows from DB or fallback to student record
+  useEffect(() => {
+    if (existingInstruments && existingInstruments.length > 0) {
+      setInstrumentRows(existingInstruments.map(si => ({
+        id: si.id,
+        instrument: si.instrument,
+        teacher_id: si.teacher_id ?? '',
+        is_primary: si.is_primary,
+        rate_per_session: Number(si.rate_per_session),
+        sessions_per_month: si.sessions_per_month,
+      })))
+    } else if (instrumentRows.length === 0) {
+      setInstrumentRows([{
+        instrument: student.instrument ?? '',
+        teacher_id: student.teacher_id ?? '',
+        is_primary: true,
+        rate_per_session: student.rate_per_session ?? DEFAULT_RATE_PER_SESSION,
+        sessions_per_month: student.sessions_per_month ?? 4,
+      }])
+    }
+  }, [existingInstruments]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateRow = (idx: number, patch: Partial<InstrumentRow>) => {
+    setInstrumentRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  }
+
+  const addRow = () => {
+    setInstrumentRows(prev => [...prev, { instrument: '', teacher_id: '', is_primary: false, rate_per_session: form.rate_per_session, sessions_per_month: 4 }])
+  }
+
+  const removeRow = (idx: number) => {
+    const row = instrumentRows[idx]
+    if (instrumentRows.length <= 1) return
+    if (row.id) setRemovedIds(prev => [...prev, row.id!])
+    const remaining = instrumentRows.filter((_, i) => i !== idx)
+    if (row.is_primary && remaining.length > 0) remaining[0].is_primary = true
+    setInstrumentRows(remaining)
+  }
+
+  const getTeacherName = (tid: string) => {
+    const t = teachers?.find((t: any) => t.id === tid)
+    if (!t) return ''
+    return `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!form.first_name || !form.last_name) {
-      setError('First and last name are required.')
-      return
-    }
-    // Intercept paused/inactive — show retention modal
+    if (!form.first_name || !form.last_name) { setError('First and last name are required.'); return }
+    if (instrumentRows.length === 0 || !instrumentRows[0].instrument) { setError('At least one instrument is required.'); return }
     if ((form.status === 'paused' || form.status === 'inactive') && student.status === 'active') {
       setShowRetention(form.status as 'paused' | 'inactive')
       return
     }
     try {
+      const primary = instrumentRows.find(r => r.is_primary) ?? instrumentRows[0]
       await updateStudent.mutateAsync({
         id: student.id,
         first_name: form.first_name,
         last_name: form.last_name,
-        instrument: form.instrument,
+        instrument: primary.instrument,
         location_id: form.location_id,
-        teacher_id: form.teacher_id || null,
+        teacher_id: primary.teacher_id || null,
         blocks_per_week: form.blocks_per_week,
         rate_per_session: form.rate_per_session,
         start_date: form.start_date || null,
@@ -1078,6 +1174,21 @@ function EditStudentModal({ student, onClose, onSaved }: { student: any; onClose
         status: form.status as any,
         notes: form.notes || null,
       })
+      if (tenantId) {
+        await saveInstruments.mutateAsync({
+          studentId: student.id,
+          tenantId,
+          instruments: instrumentRows.map(r => ({
+            id: r.id,
+            instrument: r.instrument,
+            teacher_id: r.teacher_id || null,
+            is_primary: r.is_primary,
+            rate_per_session: r.rate_per_session,
+            sessions_per_month: r.sessions_per_month,
+          })),
+          removedIds,
+        })
+      }
       qc.invalidateQueries({ queryKey: ['student-detail'] })
       onSaved()
     } catch (err: any) {
@@ -1085,9 +1196,11 @@ function EditStudentModal({ student, onClose, onSaved }: { student: any; onClose
     }
   }
 
+  const saving = updateStudent.isPending || saveInstruments.isPending
+
   return (<>
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
         <div className="modal-header">
           <h2>Edit Student</h2>
           <button className="btn-ghost" onClick={onClose}>✕</button>
@@ -1104,29 +1217,43 @@ function EditStudentModal({ student, onClose, onSaved }: { student: any; onClose
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-field" style={{ flex: 1 }}>
-              <label>Instrument *</label>
-              <select value={form.instrument} onChange={(e) => setForm({ ...form, instrument: e.target.value })} className="filter-select" style={{ width: '100%' }}>
-                <option value="">Select...</option>
-                {INSTRUMENTS.map((i) => <option key={i} value={i}>{i}</option>)}
-              </select>
+          {/* ── Instruments & Teachers ── */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8, display: 'block' }}>Instruments & Teachers</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {instrumentRows.map((row, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '8px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>{row.instrument ? getInstrumentEmoji(row.instrument) : '🎵'}</span>
+                  <select value={row.instrument} onChange={(e) => updateRow(idx, { instrument: e.target.value })} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+                    <option value="">Select...</option>
+                    <optgroup label="Core">
+                      {INSTRUMENTS.filter(i => CORE_FOUR.has(i)).map(i => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
+                    </optgroup>
+                    <optgroup label="Other">
+                      {INSTRUMENTS.filter(i => !CORE_FOUR.has(i)).map(i => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
+                    </optgroup>
+                  </select>
+                  <span style={{ fontSize: 11, color: '#606088', flexShrink: 0 }}>with</span>
+                  <select value={row.teacher_id} onChange={(e) => updateRow(idx, { teacher_id: e.target.value })} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+                    <option value="">Unassigned</option>
+                    {teachers?.map((t: any) => <option key={t.id} value={t.id}>{t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}</option>)}
+                  </select>
+                  {row.is_primary && <span style={{ fontSize: 8, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'rgba(212,34,106,0.15)', color: '#D4226A', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Primary</span>}
+                  {instrumentRows.length > 1 && (
+                    <button type="button" onClick={() => removeRow(idx)} style={{ width: 28, height: 28, minWidth: 28, borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, padding: 0 }}>×</button>
+                  )}
+                </div>
+              ))}
             </div>
+            <button type="button" onClick={addRow} style={{ marginTop: 6, padding: '6px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Add Another Instrument</button>
+          </div>
+
+          <div className="form-row">
             <div className="form-field" style={{ flex: 1 }}>
               <label>Location *</label>
               <select value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })} className="filter-select" style={{ width: '100%' }}>
                 <option value="">Select...</option>
                 {locations?.filter((l: any) => l.is_active).map((l: any) => <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-field" style={{ flex: 1 }}>
-              <label>Teacher</label>
-              <select value={form.teacher_id} onChange={(e) => setForm({ ...form, teacher_id: e.target.value })} className="filter-select" style={{ width: '100%' }}>
-                <option value="">Unassigned</option>
-                {teachers?.map((t: any) => <option key={t.id} value={t.id}>{t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}</option>)}
               </select>
             </div>
             <div className="form-field" style={{ flex: 1 }}>
@@ -1171,8 +1298,8 @@ function EditStudentModal({ student, onClose, onSaved }: { student: any; onClose
 
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={updateStudent.isPending}>
-              {updateStudent.isPending ? 'Saving...' : 'Save Changes'}
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>
@@ -1489,6 +1616,137 @@ function SessionCreditModal({ familyId, studentId, studentName, defaultAmountCen
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// SESSION HISTORY + COMMUNICATIONS
+// ═══════════════════════════════════════
+
+const PROGRESS_COLORS: Record<string, { label: string; color: string }> = {
+  crushing_it: { label: 'Crushing It', color: '#22C55E' },
+  on_track: { label: 'On Track', color: '#FFB800' },
+  struggling: { label: 'Needs Work', color: '#EF4444' },
+}
+const ENGAGE_EMOJI: Record<number, string> = { 1: '😴', 2: '😐', 3: '🙂', 4: '😄', 5: '🔥' }
+
+function SessionHistorySection({ studentId, studentName }: { studentId: string; studentName: string }) {
+  const [tab, setTab] = useState<'sessions' | 'updates'>('sessions')
+
+  // Session logs
+  const { data: sessionLogs } = useQuery({
+    queryKey: ['student-session-logs', studentId],
+    enabled: !!studentId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('session_log')
+        .select('id, block_date, worked_on, engagement_level, progress_indicator, teacher_note, teacher_id, instrument, parent_update_status')
+        .eq('student_id', studentId)
+        .order('block_date', { ascending: false })
+        .limit(20)
+
+      if (!data || data.length === 0) return []
+
+      const teacherIds = [...new Set(data.map(l => l.teacher_id))]
+      const { data: teachers } = await supabase.from('teachers').select('id, first_name, last_name').in('id', teacherIds)
+      const tMap = new Map((teachers ?? []).map((t: any) => [t.id, `${t.first_name} ${t.last_name}`.trim()]))
+
+      return data.map((l: any) => ({ ...l, teacher_name: tMap.get(l.teacher_id) ?? 'Unknown' }))
+    },
+  })
+
+  // Communications (parent updates)
+  const { data: comms } = useStudentCommunications(studentId)
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+        <button onClick={() => setTab('sessions')} style={{
+          padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+          background: tab === 'sessions' ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.03)',
+          color: tab === 'sessions' ? '#E8488A' : '#8080A8',
+          border: tab === 'sessions' ? '1px solid rgba(212,34,106,0.2)' : '1px solid rgba(255,255,255,0.06)',
+        }}>
+          Session History {sessionLogs?.length ? `(${sessionLogs.length})` : ''}
+        </button>
+        <button onClick={() => setTab('updates')} style={{
+          padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+          background: tab === 'updates' ? 'rgba(255,184,0,0.12)' : 'rgba(255,255,255,0.03)',
+          color: tab === 'updates' ? '#FFB800' : '#8080A8',
+          border: tab === 'updates' ? '1px solid rgba(255,184,0,0.2)' : '1px solid rgba(255,255,255,0.06)',
+        }}>
+          Parent Updates {comms?.length ? `(${comms.length})` : ''}
+        </button>
+      </div>
+
+      {/* Session logs */}
+      {tab === 'sessions' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {!sessionLogs || sessionLogs.length === 0 ? (
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#606088', fontSize: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.04)' }}>
+              No session logs yet. Teachers log sessions via the quick-input after each lesson.
+            </div>
+          ) : sessionLogs.map((log: any) => {
+            const prog = PROGRESS_COLORS[log.progress_indicator]
+            return (
+              <div key={log.id} style={{
+                padding: '10px 14px', borderRadius: 10,
+                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#E0E0F4' }}>
+                      {new Date(log.block_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#8080A8' }}>with {log.teacher_name}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {log.engagement_level && <span style={{ fontSize: 13 }}>{ENGAGE_EMOJI[log.engagement_level]}</span>}
+                    {prog && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: prog.color + '18', color: prog.color }}>{prog.label}</span>}
+                  </div>
+                </div>
+                {log.worked_on?.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+                    {log.worked_on.map((tag: string) => (
+                      <span key={tag} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: 'rgba(212,34,106,0.08)', color: '#D4226A', fontWeight: 600 }}>{tag}</span>
+                    ))}
+                  </div>
+                )}
+                {log.teacher_note && <div style={{ fontSize: 11, color: '#A0A0C8', fontStyle: 'italic' }}>"{log.teacher_note}"</div>}
+                {log.parent_update_status === 'sent' && <div style={{ fontSize: 9, color: '#22C55E', marginTop: 3 }}>Parent update sent</div>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Parent updates (communications) */}
+      {tab === 'updates' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {!comms || comms.length === 0 ? (
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#606088', fontSize: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.04)' }}>
+              No parent updates sent yet.
+            </div>
+          ) : comms.map(c => (
+            <div key={c.id} style={{
+              padding: '12px 14px', borderRadius: 10,
+              background: 'rgba(255,184,0,0.02)', border: '1px solid rgba(255,184,0,0.08)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#FFB800' }}>
+                  {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — by {c.teacher_name}
+                </span>
+                <span style={{ fontSize: 9, color: c.status === 'read' ? '#22C55E' : '#8080A8' }}>
+                  {c.status === 'read' ? 'Read' : c.status === 'sent' ? 'Sent' : c.status}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.5 }}>{c.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

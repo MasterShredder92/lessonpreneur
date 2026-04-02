@@ -78,55 +78,58 @@ export default function InvoicesPanel({ locations, initialStatusFilter }: { loca
   return (
     <div>
       {/* Header controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button onClick={() => setShowGenerate(true)} title="Creates pending invoices for all active families based on their current students and rate tiers" style={{
-          padding: '10px 20px', borderRadius: 10, border: 'none',
-          background: '#D4226A', color: '#fff', fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', boxShadow: '0 4px 16px rgba(212,34,106,0.3)',
-        }}>
-          Run Monthly Billing
-        </button>
-        <button onClick={() => setShowCreateFamily(true)} style={{
-          padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', background: 'rgba(34,197,94,0.12)',
-          color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)',
-        }}>
-          Create Family Invoice
-        </button>
-        <button onClick={() => setShowCreateSingle(true)} style={{
-          padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', background: 'rgba(56,189,248,0.1)',
-          color: '#38BDF8', border: '1px solid rgba(56,189,248,0.25)',
-        }}>
-          Create Single Invoice
-        </button>
+      <div className="invoice-controls">
+        <div className="invoice-actions">
+          <button onClick={() => setShowGenerate(true)} title="Creates pending invoices for all active families based on their current students and rate tiers" style={{
+            padding: '10px 20px', borderRadius: 10, border: 'none',
+            background: '#D4226A', color: '#fff', fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', boxShadow: '0 4px 16px rgba(212,34,106,0.3)',
+          }}>
+            Run Monthly Billing
+          </button>
+          <button onClick={() => setShowCreateFamily(true)} style={{
+            padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', background: 'rgba(34,197,94,0.12)',
+            color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)',
+          }}>
+            Create Family Invoice
+          </button>
+          <button onClick={() => setShowCreateSingle(true)} style={{
+            padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', background: 'rgba(56,189,248,0.1)',
+            color: '#38BDF8', border: '1px solid rgba(56,189,248,0.25)',
+          }}>
+            Create Single Invoice
+          </button>
+        </div>
 
-        <select value={periodFilter} onChange={e => setPeriodFilter(e.target.value)}
-          className="filter-select" style={{ fontSize: 11, width: 'auto' }}>
-          <option value="">All Periods</option>
-          {periods.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
+        <div className="invoice-filters">
+          <select value={periodFilter} onChange={e => setPeriodFilter(e.target.value)}
+            className="filter-select" style={{ fontSize: 11 }}>
+            <option value="">All Periods</option>
+            {periods.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
 
-        <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)}
-          className="filter-select" style={{ fontSize: 11, width: 'auto' }}>
-          <option value="">All Locations</option>
-          {locations.filter(l => l.is_active).map(l => (
-            <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>
-          ))}
-        </select>
+          <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)}
+            className="filter-select" style={{ fontSize: 11 }}>
+            <option value="">All Locations</option>
+            {locations.filter(l => l.is_active).map(l => (
+              <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>
+            ))}
+          </select>
 
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="filter-select" style={{ fontSize: 11, width: 'auto' }}>
-          <option value="all">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="sent">Sent</option>
-          <option value="viewed">Viewed</option>
-          <option value="paid">Paid</option>
-          <option value="overdue">Overdue</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="filter-select" style={{ fontSize: 11 }}>
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="sent">Sent</option>
+            <option value="viewed">Viewed</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
 
-        <div style={{ flex: 1 }} />
         <span style={{ fontSize: 12, color: '#8080A8' }}>{invoices?.length ?? 0} invoices</span>
       </div>
 

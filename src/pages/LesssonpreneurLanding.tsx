@@ -202,7 +202,7 @@ export default function LesssonpreneurLanding() {
             </div>
             <div className="lp-trust-div" />
             <div className="lp-trust-stat">
-              <div className="lp-trust-num">2,000+</div>
+              <div className="lp-trust-num">3,800+</div>
               <div className="lp-trust-label">Students Managed</div>
             </div>
           </div>

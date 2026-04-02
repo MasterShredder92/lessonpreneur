@@ -31,11 +31,20 @@ export interface DashboardData {
   teacherPayThisMonth: number
   reactivationDueCount: number
   scheduleSnippet: { locationName: string; teacherName: string; time: string; studentName: string | null; blockType: string }[]
+  // Task 6 additions
+  atRiskStudents: { id: string; name: string; instrument: string | null; locationName: string; daysSinceSession: number }[]
+  recentSessionLogs: { studentName: string; teacherName: string; instrument: string | null; workedOn: string[]; progressIndicator: string | null; blockDate: string }[]
+  sessionLogsToday: number
+  sessionLogsThisWeek: number
 }
 
-export function useDashboard() {
+/**
+ * @param locationIds - if provided, filters all data to these location IDs only.
+ *   null = all locations (owner view). Used for director scoping.
+ */
+export function useDashboard(locationIds?: string[] | null) {
   return useQuery({
-    queryKey: ['dashboard'],
+    queryKey: ['dashboard', locationIds ?? 'all'],
     queryFn: async (): Promise<DashboardData> => {
       const now = new Date()
       const today = now.toISOString().split('T')[0]
@@ -69,16 +78,21 @@ export function useDashboard() {
 
       const locMap = new Map(locations?.map((l: any) => [l.id, l.name?.replace(' Music Lessons', '')]) ?? [])
 
-      // Active students
-      const active = students?.filter((s: any) => s.status === 'active') ?? []
+      // Location filter helper — returns true if item passes the location filter
+      const locFilter = locationIds
+        ? (locId: string) => locationIds.includes(locId)
+        : () => true
+
+      // Active students (filtered by location if scoped)
+      const active = (students?.filter((s: any) => s.status === 'active' && locFilter(s.location_id)) ?? [])
       const studentsByLoc: Record<string, number> = {}
       active.forEach((s: any) => {
         const loc = locMap.get(s.location_id) ?? 'Unknown'
         studentsByLoc[loc] = (studentsByLoc[loc] ?? 0) + 1
       })
 
-      // Open slots this week
-      const openWeek = weekBlocks?.filter((b: any) => b.status === 'available') ?? []
+      // Open slots this week (filtered by location if scoped)
+      const openWeek = weekBlocks?.filter((b: any) => b.status === 'available' && locFilter(b.location_id)) ?? []
       const slotsByLoc: Record<string, number> = {}
       openWeek.forEach((b: any) => {
         const loc = locMap.get(b.location_id) ?? 'Unknown'
@@ -106,9 +120,9 @@ export function useDashboard() {
       const activeTeachers = teachers?.filter((t: any) => t.is_active) ?? []
       const needsReview = activeTeachers.filter((t: any) => t.ai_context?.instruments_need_review).length
 
-      // Teacher location mapping via profile_locations
-      const teacherProfileIds = activeTeachers.map((t: any) => t.profile_id ?? t.id)
-      const { data: profLocs } = await supabase.from('profile_locations').select('profile_id, location_id')
+      // Teacher location mapping via teacher_locations
+      const teacherIds = activeTeachers.map((t: any) => t.id)
+      const { data: profLocs } = await supabase.from('teacher_locations').select('teacher_id, location_id').in('teacher_id', teacherIds)
       const teachersByLoc: Record<string, number> = {}
 
       // Location summary
@@ -209,6 +223,82 @@ export function useDashboard() {
         blockType: b.block_type ?? 'student_session',
       }))
 
+      // === Task 6: At-risk students (no session log in 14+ days) ===
+      const fourteenDaysAgo = new Date(now)
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+      const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0]
+
+      // Get the most recent session_log date per active student
+      const activeStudentIds = active.map((s: any) => s.id)
+      let atRiskStudents: DashboardData['atRiskStudents'] = []
+      if (activeStudentIds.length > 0) {
+        const { data: recentLogs } = await supabase
+          .from('session_log')
+          .select('student_id, block_date')
+          .in('student_id', activeStudentIds)
+          .order('block_date', { ascending: false })
+
+        const lastSessionByStudent = new Map<string, string>()
+        recentLogs?.forEach((l: any) => {
+          if (!lastSessionByStudent.has(l.student_id)) lastSessionByStudent.set(l.student_id, l.block_date)
+        })
+
+        // Find students with no log or last log > 14 days ago
+        const { data: atRiskStudentRows } = await supabase
+          .from('students')
+          .select('id, first_name, last_name, instrument, location_id')
+          .in('id', activeStudentIds.filter((id: string) => {
+            const lastDate = lastSessionByStudent.get(id)
+            return !lastDate || lastDate < fourteenDaysAgoStr
+          }))
+          .limit(20)
+
+        atRiskStudents = (atRiskStudentRows ?? []).map((s: any) => {
+          const lastDate = lastSessionByStudent.get(s.id)
+          const daysSince = lastDate
+            ? Math.floor((nowMs - new Date(lastDate).getTime()) / 86400000)
+            : 999
+          return {
+            id: s.id,
+            name: `${s.first_name} ${s.last_name}`.trim(),
+            instrument: s.instrument,
+            locationName: locMap.get(s.location_id) ?? 'Unknown',
+            daysSinceSession: daysSince,
+          }
+        }).sort((a, b) => b.daysSinceSession - a.daysSinceSession)
+      }
+
+      // === Task 6: Recent session logs (last 10 across all teachers) ===
+      const { data: recentLogRows } = await supabase
+        .from('session_log')
+        .select('student_id, teacher_id, worked_on, progress_indicator, block_date, instrument')
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      const logStudentIds = [...new Set((recentLogRows ?? []).map((l: any) => l.student_id))]
+      const logTeacherIds = [...new Set((recentLogRows ?? []).map((l: any) => l.teacher_id))]
+      const { data: logStudents } = logStudentIds.length > 0
+        ? await supabase.from('students').select('id, first_name, last_name').in('id', logStudentIds)
+        : { data: [] }
+      const { data: logTeachers } = logTeacherIds.length > 0
+        ? await supabase.from('teachers').select('id, first_name, last_name').in('id', logTeacherIds)
+        : { data: [] }
+      const logStudentMap = new Map((logStudents ?? []).map((s: any) => [s.id, `${s.first_name} ${s.last_name}`.trim()]))
+      const logTeacherMap = new Map((logTeachers ?? []).map((t: any) => [t.id, `${t.first_name} ${t.last_name}`.trim()]))
+
+      const recentSessionLogs: DashboardData['recentSessionLogs'] = (recentLogRows ?? []).map((l: any) => ({
+        studentName: logStudentMap.get(l.student_id) ?? 'Unknown',
+        teacherName: logTeacherMap.get(l.teacher_id) ?? 'Unknown',
+        instrument: l.instrument,
+        workedOn: l.worked_on ?? [],
+        progressIndicator: l.progress_indicator,
+        blockDate: l.block_date,
+      }))
+
+      // Session log counts
+      const sessionLogsToday = (recentLogRows ?? []).filter((l: any) => l.block_date === today).length
+      const sessionLogsThisWeek = (recentLogRows ?? []).filter((l: any) => l.block_date >= mondayStr && l.block_date <= sundayStr).length
+
       return {
         activeStudents: active.length,
         studentsByLocation: studentsByLoc,
@@ -228,6 +318,10 @@ export function useDashboard() {
         teacherPayThisMonth,
         reactivationDueCount: reactivationDueCount ?? 0,
         scheduleSnippet,
+        atRiskStudents,
+        recentSessionLogs,
+        sessionLogsToday,
+        sessionLogsThisWeek,
       }
     },
     staleTime: 1000 * 60,

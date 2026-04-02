@@ -17,6 +17,7 @@ export interface LocationConfig {
   email: string
   ga4: string
   metaPixel: string
+  tiktokPixel: string
   locationId: string
   accentColor: string
   accentGlow: string
@@ -37,6 +38,7 @@ export const LOCATIONS: Record<LocKey, LocationConfig> = {
     email: 'musiclessonsomaha@gmail.com',
     ga4: 'G-0KT89GHX52',
     metaPixel: '426901091077909',
+    tiktokPixel: 'D768H23C77UD6SV8PU40',
     locationId: 'd48229c1-b70a-4d29-893e-5079887dab76',
     accentColor: '#D41113',
     accentGlow: 'rgba(212,17,19,0.22)',
@@ -59,6 +61,7 @@ export const LOCATIONS: Record<LocKey, LocationConfig> = {
     email: 'bellevuemusiclessons@gmail.com',
     ga4: 'G-Q5C7W68SC9',
     metaPixel: '216419921006041',
+    tiktokPixel: 'D768ITRC77UD6SV8PU80',
     locationId: 'f7b52dd5-12ee-437f-9c60-f8adf454ac31',
     accentColor: '#A333FF',
     accentGlow: 'rgba(163,51,255,0.22)',
@@ -81,6 +84,7 @@ export const LOCATIONS: Record<LocKey, LocationConfig> = {
     email: 'elkhornmusiclessons@gmail.com',
     ga4: 'G-KNEM7VHEC1',
     metaPixel: '873626412816671',
+    tiktokPixel: 'D768JBRC77U03P65153G',
     locationId: 'cebd97d4-c241-4de2-8ade-49e5cc0070d5',
     accentColor: '#00A5E8',
     accentGlow: 'rgba(0,165,232,0.22)',
@@ -103,6 +107,7 @@ export const LOCATIONS: Record<LocKey, LocationConfig> = {
     email: 'gretnamusiclessons@gmail.com',
     ga4: 'G-FBMP7Y8M2X',
     metaPixel: '696662488386167',
+    tiktokPixel: 'D768IC3C77UD6SV8PU60',
     locationId: '40c67ffc-91b5-46a9-94bd-6ddffdfb7638',
     accentColor: '#00A651',
     accentGlow: 'rgba(0,166,81,0.22)',

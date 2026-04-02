@@ -89,7 +89,29 @@ export function usePauseStudent() {
         if (fuErr) throw fuErr
       }
 
-      // 3. Audit log
+      // 3. Schedule win-back campaigns at 30/60/90 days
+      const pauseDate = new Date()
+      const addDays = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r.toISOString().split('T')[0] }
+      const winBackWaves = [
+        { wave: 1, day: 30, type: 'win_back' as const },
+        { wave: 2, day: 60, type: 'win_back' as const },
+        { wave: 3, day: 90, type: 'win_back' as const },
+      ]
+      for (const wb of winBackWaves) {
+        await supabase.from('retention_campaigns').insert({
+          tenant_id: data.tenantId,
+          student_id: data.studentId,
+          family_id: data.familyId,
+          location_id: null,
+          campaign_type: wb.type,
+          wave_number: wb.wave,
+          status: 'pending',
+          scheduled_date: addDays(pauseDate, wb.day),
+          student_status: data.newStatus,
+        }).then(() => {}) // non-critical
+      }
+
+      // 4. Audit log
       await supabase.from('audit_log').insert({
         tenant_id: data.tenantId,
         action: data.newStatus === 'paused' ? 'STUDENT_PAUSED' : 'STUDENT_DEACTIVATED',

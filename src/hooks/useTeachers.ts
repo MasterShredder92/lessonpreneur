@@ -17,12 +17,6 @@ export function useTeachers() {
 
       if (error) throw error
 
-      // Get location assignments for each teacher's profile
-      const profileIds = teachers.map((t: any) => t.profile_id).filter(Boolean)
-      const { data: profileLocs } = profileIds.length > 0
-        ? await supabase.from('profile_locations').select('profile_id, location_id').in('profile_id', profileIds)
-        : { data: [] }
-
       // Get locations for display names
       const { data: locations } = await supabase
         .from('locations')
@@ -341,18 +335,18 @@ export function useUpdateTeacher() {
         if (error) throw error
       }
 
-      // Update location assignments
+      // Update location assignments via teacher_locations
       if (location_ids !== undefined) {
         await supabase
-          .from('profile_locations')
+          .from('teacher_locations')
           .delete()
-          .eq('profile_id', profile_id)
+          .eq('teacher_id', id)
 
         if (location_ids.length > 0) {
           const { error } = await supabase
-            .from('profile_locations')
+            .from('teacher_locations')
             .insert(location_ids.map((lid) => ({
-              profile_id: profile_id,
+              teacher_id: id,
               location_id: lid,
             })))
 

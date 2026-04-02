@@ -159,9 +159,16 @@ export default function DataGrid({
     }
 
     const update: Record<string, any> = { [key]: updateVal }
-    await supabase.from(table).update(update).eq('id', rowId)
+    const { error: updateErr } = await supabase.from(table).update(update).eq('id', rowId)
 
-    // Audit log
+    if (updateErr) {
+      const { toast } = await import('./Toast')
+      toast(updateErr.message ?? 'Failed to save cell', 'error')
+      setEditCell(null)
+      return
+    }
+
+    // Audit log — only after confirmed success
     const displayName = nameRenderer ? nameRenderer(row) : (row[nameField] ?? 'Unknown')
     const colLabel = col?.label ?? key
     const oldValue = getCellValue(row, key)
@@ -183,6 +190,13 @@ export default function DataGrid({
   const handleDeleteRow = async (id: string, name: string) => {
     const ok = confirm(`Are you sure you want to delete ${name}? This cannot be undone.`)
     if (!ok) return
+    const { error: delErr } = await supabase.from(table).delete().eq('id', id)
+    if (delErr) {
+      const { toast } = await import('./Toast')
+      toast(delErr.message ?? 'Failed to delete row', 'error')
+      return
+    }
+    // Audit log — only after confirmed delete
     await supabase.from('activity_log').insert({
       tenant_id: profile?.tenant_id,
       entity_type: 'master_editor',
@@ -191,7 +205,6 @@ export default function DataGrid({
       description: `${profile?.first_name ?? 'Unknown'} deleted row from ${title}: ${name}`,
       performed_by: profile?.id ?? null,
     }).then(() => {})
-    await supabase.from(table).delete().eq('id', id)
     qc.invalidateQueries({ queryKey: ['datagrid', table] })
   }
 
@@ -227,7 +240,12 @@ export default function DataGrid({
       insert.block_type = 'lesson'
     }
 
-    await supabase.from(table).insert(insert)
+    const { error: insertErr } = await supabase.from(table).insert(insert)
+    if (insertErr) {
+      const { toast } = await import('./Toast')
+      toast(insertErr.message ?? 'Failed to add row', 'error')
+      return
+    }
     qc.invalidateQueries({ queryKey: ['datagrid', table] })
   }
 
@@ -266,18 +284,26 @@ export default function DataGrid({
       position: 'fixed', inset: 0, zIndex: 99999, background: '#0A0918',
       display: 'flex', flexDirection: 'column',
     }}>
+      {/* Close button — always visible, floats top-right */}
+      <button
+        onClick={onClose}
+        className="datagrid-close"
+        aria-label="Close"
+      >
+        <X size={22} />
+      </button>
+
       {/* Header */}
-      <div style={{
-        padding: '16px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="datagrid-header">
+        {/* Row 1: Title centered */}
+        <div className="datagrid-header-row1">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
             <Lock size={14} style={{ color: '#FFB800' }} />
             <span style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4' }}>{title}</span>
           </div>
+        </div>
+        {/* Row 2: Meta + Search + Actions */}
+        <div className="datagrid-header-row2">
           <span style={{
             fontSize: 9, padding: '2px 8px', borderRadius: 5,
             background: 'rgba(255,184,0,0.12)', color: '#FFB800',
@@ -296,11 +322,9 @@ export default function DataGrid({
               padding: '6px 12px', borderRadius: 8,
               border: '1px solid rgba(255,255,255,0.1)',
               background: 'rgba(255,255,255,0.04)',
-              color: '#E0E0F4', fontSize: 12, outline: 'none', width: 180,
+              color: '#E0E0F4', fontSize: 12, outline: 'none', flex: 1, minWidth: 80,
             }}
           />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={() => setShowLog(!showLog)}
             style={{
@@ -325,12 +349,6 @@ export default function DataGrid({
             }}
           >
             <Plus size={13} /> Add Row
-          </button>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer' }}
-          >
-            <X size={20} />
           </button>
         </div>
       </div>

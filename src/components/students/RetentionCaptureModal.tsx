@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePauseStudent } from '../../hooks/useRetention'
 import { useAuthContext } from '../../app/AuthContext'
+import { useLocations } from '../../hooks/useLocations'
+import { supabase } from '../../lib/supabase'
 import { toast } from '../shared/Toast'
 
 const REASONS = [
@@ -14,6 +16,33 @@ const REASONS = [
   'Health / Personal',
   'Other',
 ]
+
+const EXIT_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'summer_break', label: 'Summer Break' },
+  { value: 'holiday_break', label: 'Holiday Break' },
+  { value: 'financial', label: 'Financial' },
+  { value: 'schedule_conflict', label: 'Schedule Conflict' },
+  { value: 'moving', label: 'Moving' },
+  { value: 'lost_interest', label: 'Lost Interest' },
+  { value: 'sports', label: 'Sports' },
+  { value: 'teacher_fit', label: 'Teacher Fit' },
+  { value: 'transferred', label: 'Transferred' },
+  { value: 'other', label: 'Other' },
+]
+
+function calcReactivationDate(category: string, deactivatedAt: Date): string | null {
+  const d = new Date(deactivatedAt)
+  switch (category) {
+    case 'summer_break': return `${d.getFullYear()}-08-01`
+    case 'holiday_break': return `${d.getFullYear() + 1}-01-02`
+    case 'financial': d.setDate(d.getDate() + 60); return d.toISOString().split('T')[0]
+    case 'schedule_conflict': d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]
+    case 'lost_interest': case 'sports': case 'teacher_fit': d.setDate(d.getDate() + 90); return d.toISOString().split('T')[0]
+    case 'other': d.setDate(d.getDate() + 60); return d.toISOString().split('T')[0]
+    case 'moving': case 'transferred': return null
+    default: return null
+  }
+}
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -29,9 +58,12 @@ interface Props {
 export default function RetentionCaptureModal({ studentId, studentFirstName, familyId, newStatus, onComplete, onCancel }: Props) {
   const { tenantId } = useAuthContext()
   const pauseStudent = usePauseStudent()
+  const { data: locations } = useLocations()
 
   const [reason, setReason] = useState('')
   const [reasonDetail, setReasonDetail] = useState('')
+  const [exitCategory, setExitCategory] = useState('')
+  const [transferLocationId, setTransferLocationId] = useState('')
   const [comingBack, setComingBack] = useState<boolean | null>(null)
   const [returnMonth, setReturnMonth] = useState('')
   const [returnYear, setReturnYear] = useState(String(new Date().getFullYear()))
@@ -75,6 +107,20 @@ export default function RetentionCaptureModal({ studentId, studentFirstName, fam
         expectedReturnDate: expectedReturn,
         followupDate: followup,
       })
+
+      // Save exit_category and reactivation_date
+      if (exitCategory) {
+        const reactivationDate = calcReactivationDate(exitCategory, new Date())
+        const updates: Record<string, any> = {
+          exit_category: exitCategory,
+          reactivation_date: reactivationDate,
+        }
+        if (exitCategory === 'transferred' && transferLocationId) {
+          updates.transferred_to_location_id = transferLocationId
+        }
+        await supabase.from('students').update(updates).eq('id', studentId)
+      }
+
       toast(`Student ${newStatus === 'paused' ? 'paused' : 'deactivated'}`, 'success')
       onComplete()
     } catch (err: any) { toast(err.message ?? 'Failed', 'error') }
@@ -109,6 +155,37 @@ export default function RetentionCaptureModal({ studentId, studentFirstName, fam
               width: '100%', marginTop: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: 10, padding: '10px 14px', color: '#E0E0F4', fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
             }} />
+          </div>
+
+          {/* EXIT CATEGORY */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Exit Category</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {EXIT_CATEGORIES.map((c) => (
+                <button key={c.value} onClick={() => setExitCategory(c.value)} style={{
+                  padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  background: exitCategory === c.value ? 'rgba(56,189,248,0.12)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${exitCategory === c.value ? 'rgba(56,189,248,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                  color: exitCategory === c.value ? '#38BDF8' : '#585878',
+                }}>{c.label}</button>
+              ))}
+            </div>
+            {exitCategory === 'transferred' && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 4 }}>Transfer to which location?</div>
+                <select
+                  value={transferLocationId}
+                  onChange={(e) => setTransferLocationId(e.target.value)}
+                  className="filter-select"
+                  style={{ width: '100%' }}
+                >
+                  <option value="">Select location...</option>
+                  {locations?.filter((l: any) => l.is_active).map((l: any) => (
+                    <option key={l.id} value={l.id}>{l.name?.replace(' Music Lessons', '')}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* COMING BACK */}

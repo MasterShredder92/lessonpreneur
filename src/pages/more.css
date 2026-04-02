@@ -1,0 +1,63 @@
+/* ═══ MORE INSTRUMENTS LANDING ═══ */
+
+/* ── Violin pain points: 2-col grid on desktop ── */
+.mr-pain-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:740px;margin:32px auto 0}
+.mr-pain-card{background:#111118;border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:22px 20px;text-align:left}
+.mr-pain-card h4{font-size:14px;font-weight:800;color:#fff;margin-bottom:6px}
+.mr-pain-card p{font-size:13px;color:#9A96B4;line-height:1.6;margin-bottom:10px}
+.mr-pain-card .mr-sol{font-size:12px;color:var(--c);font-weight:700;font-style:italic}
+
+/* Desktop grid version visible by default, mobile carousel hidden */
+.mr-pain-desktop{display:block}
+.mr-pain-mobile{display:none}
+
+/* ── Band instrument cards ── */
+.mr-band-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:780px;margin:32px auto 0}
+.mr-band-card{background:#111118;border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:28px 22px;text-align:center}
+.mr-band-card .mr-band-emoji{font-size:32px;margin-bottom:10px}
+.mr-band-card h4{font-size:15px;font-weight:800;color:#fff;margin-bottom:8px}
+.mr-band-card p{font-size:13px;color:#9A96B4;line-height:1.6}
+
+/* ── Availability callout ── */
+.mr-callout{background:rgba(255,255,255,0.04);border:1px solid var(--c);border-radius:12px;padding:28px 24px;max-width:700px;margin:0 auto;text-align:center}
+.mr-callout p{font-size:14px;color:#bbb;line-height:1.7;margin:8px 0 16px}
+.mr-callout .mr-callout-icon{font-size:24px;margin-bottom:4px}
+
+@media(max-width:640px){
+  /* Pain points: hide desktop grid, show mobile carousel */
+  .mr-pain-desktop{display:none !important}
+  .mr-pain-mobile{display:block !important}
+
+  .mr-pain-carousel{
+    display:flex;
+    flex-direction:row;
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+    gap:12px;
+    padding:0 20px 16px 20px;
+  }
+  .mr-pain-carousel::-webkit-scrollbar{display:none}
+  .mr-pain-carousel .mr-pain-card{
+    min-width:80vw !important;
+    max-width:80vw !important;
+    min-height:200px;
+    scroll-snap-align:start;
+    flex-shrink:0;
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:flex-start !important;
+    padding:24px 20px !important;
+    white-space:normal !important;
+    overflow-wrap:break-word;
+  }
+  .mr-pain-carousel .mr-pain-card h4{font-size:16px !important;font-weight:700 !important;color:#fff !important;margin-bottom:8px !important;white-space:normal !important}
+  .mr-pain-carousel .mr-pain-card p{font-size:14px !important;line-height:1.65 !important;color:#aaa !important;white-space:normal !important;overflow-wrap:break-word !important}
+  .mr-pain-carousel .mr-pain-card .mr-sol{font-size:13px !important}
+
+  .mr-band-grid{grid-template-columns:1fr;gap:10px}
+  .mr-pain-card{padding:18px 16px}
+  .mr-band-card{padding:22px 18px}
+  .mr-callout{padding:22px 18px}
+}

@@ -108,13 +108,14 @@ export default function TeacherFormModal({ teacher, onClose }: Props) {
           )
           if (locErr) throw locErr
         }
+
+        // profile_locations sync removed — teacher_locations is the source of truth
       } else {
         // Create new teacher
-        const { data: tenant } = await supabase.from('tenants').select('id').limit(1).single()
-        if (!tenant) throw new Error('Could not find tenant')
+        if (!tenantId) throw new Error('No tenant context — please log in again')
 
         const { data: newTeacher, error: insertErr } = await supabase.from('teachers').insert({
-          tenant_id: tenant.id,
+          tenant_id: tenantId,
           first_name: form.first_name.trim(),
           last_name: form.last_name.trim(),
           email: form.email.trim() || null,
@@ -147,6 +148,7 @@ export default function TeacherFormModal({ teacher, onClose }: Props) {
       qc.invalidateQueries({ queryKey: ['teachers'] })
       qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] })
       qc.invalidateQueries({ queryKey: ['teacher-locations'] })
+      qc.invalidateQueries({ queryKey: ['profile-locations'] })
       onClose()
     } catch (err: any) {
       setError(err.message ?? 'Failed to save.')

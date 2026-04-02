@@ -39,7 +39,7 @@ function canDismissTasks(role: string | null) { return role === 'owner' || role 
 // LEVEL 1 — DASHBOARD SUMMARY
 // ═══════════════════════════════════════
 
-export default function TaskCenter() {
+export default function TaskCenter({ compact = false, limit }: { compact?: boolean; limit?: number }) {
   const { role, tenantId } = useAuthContext()
   const { data: tasks, isLoading } = useTasks()
   const scanTasks = useScanSystemTasks()
@@ -61,7 +61,8 @@ export default function TaskCenter() {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
 
-  const preview = sorted.slice(0, 2)
+  const previewCount = limit ?? (compact ? 5 : 2)
+  const preview = sorted.slice(0, previewCount)
   const totalPending = sorted.length
 
   return (
@@ -108,7 +109,7 @@ export default function TaskCenter() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {preview.map((t) => <TaskRowCompact key={t.id} task={t} onClick={() => setShowFullList(true)} />)}
               </div>
-              {totalPending > 2 && (
+              {totalPending > previewCount && (
                 <button onClick={() => setShowFullList(true)} style={{
                   width: '100%', padding: '6px 0', marginTop: 4, background: 'none', border: 'none',
                   color: '#E8488A', fontSize: 11, fontWeight: 600, cursor: 'pointer', textAlign: 'center',

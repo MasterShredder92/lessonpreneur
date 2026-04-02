@@ -1,0 +1,257 @@
+/* GuitarLanding — guitar-specific overrides only.
+   All base styles come from adkins.css */
+
+/* ─── INTRO OVERLAY ──────────────────── */
+.gt-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #000; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  transition: opacity 0.5s ease;
+}
+.gt-overlay.done { opacity: 0; pointer-events: none; }
+.gt-overlay-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: clamp(48px, 10vw, 96px);
+  letter-spacing: 3px; color: #fff; text-align: center; line-height: 1;
+}
+.gt-overlay-title span { color: var(--c); }
+.gt-overlay-sub {
+  font-family: 'Barlow', sans-serif; font-size: 14px;
+  color: rgba(255,255,255,0.5); letter-spacing: 0.15em;
+  text-transform: uppercase; margin-top: -4px;
+}
+.gt-eq-intro { display: flex; gap: 3px; align-items: flex-end; height: 40px; }
+.gt-eq-intro-bar {
+  width: 4px; border-radius: 2px; background: var(--c);
+  animation: gt-eqPulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes gt-eqPulse {
+  0% { height: 8px; opacity: 0.4; }
+  100% { height: 36px; opacity: 1; }
+}
+
+/* ─── EQ STRIP (hero background) ─────── */
+.gt-eq-strip {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  display: flex; gap: 2px; justify-content: center;
+  height: 36px; overflow: hidden; pointer-events: none;
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 100%);
+}
+.gt-eq-bar {
+  width: 3px; border-radius: 2px 2px 0 0;
+  background: var(--c);
+  opacity: var(--op);
+  animation: gt-eqBounce var(--spd) ease-in-out infinite alternate;
+}
+@keyframes gt-eqBounce {
+  0% { height: var(--h1); }
+  100% { height: var(--h2); }
+}
+
+/* ─── CHORD BUILDER ──────────────────── */
+.gt-chord-btns {
+  display: flex; justify-content: center; gap: 12px;
+  margin-bottom: 28px; flex-wrap: wrap;
+}
+.gt-chord-btn {
+  padding: 10px 24px; border-radius: 8px;
+  border: 1px solid #2A2A3A; background: #141420;
+  color: #777; font-family: 'Barlow', sans-serif;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; letter-spacing: 0.03em;
+}
+.gt-chord-btn:hover { border-color: var(--c); color: #ccc; }
+.gt-chord-btn.active {
+  background: var(--c); color: #fff;
+  border-color: var(--c); box-shadow: 0 4px 16px var(--cg);
+}
+
+.gt-neck-wrap {
+  max-width: 500px; margin: 0 auto;
+  background: #111118; border: 1px solid #1C1C2A;
+  border-radius: 14px; padding: 20px 16px;
+}
+.gt-neck-svg { width: 100%; height: auto; display: block; }
+
+.gt-strum-btn {
+  display: inline-block; padding: 14px 48px;
+  border: none; border-radius: 12px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px; letter-spacing: 2px;
+  color: #fff; cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 20px var(--cg);
+}
+.gt-strum-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px var(--cg); }
+.gt-strum-btn.strumming { transform: scale(0.95); }
+
+.gt-key-hint {
+  margin-top: 12px; font-size: 11px; color: #444;
+  letter-spacing: 0.04em;
+}
+@media (hover: none) {
+  .gt-key-hint { display: none; }
+}
+
+/* ─── FREE PLAY ──────────────────────── */
+.gt-freeplay-divider {
+  display: flex; align-items: center; gap: 16px;
+  margin: 36px auto 0; max-width: 500px;
+}
+.gt-freeplay-line {
+  flex: 1; height: 1px; background: #1C1C2A;
+}
+.gt-freeplay-toggle {
+  padding: 10px 28px; border-radius: 24px;
+  border: 2px solid #2A2A3A; background: transparent;
+  color: #888; font-family: 'Barlow', sans-serif;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.25s; letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.gt-freeplay-toggle:hover { border-color: var(--c); color: #ccc; }
+
+@keyframes gt-fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.gt-strum-btn-big {
+  font-size: 26px !important; padding: 18px 56px !important;
+  letter-spacing: 3px !important; border-radius: 16px !important;
+  box-shadow: 0 6px 30px var(--cg) !important;
+}
+.gt-strum-btn-big:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 10px 40px var(--cg) !important;
+}
+
+.gt-freeplay-msg {
+  text-align: center; margin: 24px auto 0;
+  max-width: 440px; padding: 14px 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  font-family: 'Barlow', sans-serif;
+  font-size: 14px; color: #ccc; line-height: 1.5;
+  animation: gt-fadeIn 0.25s ease;
+}
+
+/* ─── PAIN POINTS SCROLL ─────────────── */
+.gt-pain-scroll {
+  display: flex; gap: 16px;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 20px 16px 20px;
+  margin-top: 36px;
+}
+.gt-pain-scroll::-webkit-scrollbar { display: none; }
+.gt-pain-card {
+  min-width: 300px; max-width: 300px;
+  scroll-snap-align: start;
+  flex-shrink: 0;
+  text-align: left !important;
+}
+
+/* ─── FAQ ─────────────────────────────── */
+.gt-faq-item {
+  border-bottom: 1px solid #1C1C2A;
+}
+.gt-faq-q {
+  width: 100%; padding: 18px 0;
+  background: none; border: none;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15px; font-weight: 700; color: #fff;
+  cursor: pointer; text-align: left;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: color 0.2s;
+}
+.gt-faq-q:hover { color: var(--c); }
+.gt-faq-q svg { flex-shrink: 0; transition: transform 0.25s; color: #55516E; }
+.gt-faq-q.open svg { transform: rotate(180deg); color: var(--c); }
+.gt-faq-a {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+.gt-faq-a.open { max-height: 200px; padding-bottom: 18px; }
+.gt-faq-a p { font-size: 14px; color: #9A96B4; line-height: 1.7; }
+
+/* ─── CTA GLOW PULSE (shared with drums) */
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
+}
+
+/* ─── MOBILE ─────────────────────────── */
+@media (max-width: 640px) {
+  .gt-teacher-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    grid-template-columns: none !important;
+  }
+  .gt-teacher-grid > * { width: 100%; }
+
+  /* Pain points scroll compact */
+  .gt-pain-card {
+    min-width: 260px !important; max-width: 260px !important;
+  }
+
+  /* Why guitar carousel */
+  .gt-why-desktop { display: none !important; }
+  .gt-why-mobile { display: block !important; }
+  .gt-why-carousel {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 0 20px 16px 20px;
+  }
+  .gt-why-carousel::-webkit-scrollbar { display: none; }
+  .gt-why-card {
+    min-width: 80vw !important;
+    max-width: 80vw !important;
+    min-height: 220px;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 24px 20px !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+  }
+  .gt-why-card .ak-picon { font-size: 28px !important; margin-bottom: 10px !important; display: block !important; }
+  .gt-why-card h3 { font-size: 17px !important; font-weight: 700 !important; color: #fff !important; margin-bottom: 8px !important; white-space: normal !important; }
+  .gt-why-card p { font-size: 14px !important; line-height: 1.65 !important; color: #aaa !important; white-space: normal !important; overflow-wrap: break-word !important; }
+
+  /* Chord builder compact */
+  #gt-chord { padding-top: 43px !important; padding-bottom: 43px !important; }
+  .gt-chord-btns { gap: 8px !important; }
+  .gt-chord-btn { padding: 8px 16px !important; font-size: 12px !important; }
+  .gt-neck-wrap { padding: 12px 8px !important; }
+  .gt-strum-btn { padding: 12px 36px !important; font-size: 18px !important; }
+
+  /* Free play compact */
+  .gt-freeplay-divider { margin-top: 28px !important; }
+  .gt-freeplay-toggle { padding: 8px 20px !important; font-size: 12px !important; }
+  .gt-strum-btn-big { font-size: 20px !important; padding: 14px 36px !important; }
+  .gt-freeplay-msg { font-size: 13px !important; padding: 12px 16px !important; }
+
+  /* 3 Steps compact */
+  .ak-steps-sec { padding-top: 47px !important; padding-bottom: 47px !important; }
+  .ak-sgrid { gap: 12px !important; }
+  .ak-scard { padding: 18px 12px !important; }
+  .ak-scard h3 { font-size: 15px !important; }
+  .ak-scard p { font-size: 13px !important; }
+  .ak-snum2 { width: 32px !important; height: 32px !important; font-size: 16px !important; }
+
+  /* Cross-sell compact */
+  .gt-crosssell-sec { padding-top: 43px !important; padding-bottom: 43px !important; }
+  .gt-crosssell-card { width: 72px !important; padding: 8px 6px !important; }
+  .gt-crosssell-emoji { font-size: 18px !important; }
+  .gt-crosssell-name { font-size: 9px !important; }
+}

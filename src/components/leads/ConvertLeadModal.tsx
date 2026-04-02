@@ -70,13 +70,19 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
   const rateTierLabel = getRateTierLabel(rate * 100, lead.is_military ?? false, numStudents)
   const rateTierColor = getRateTierColor(autoRateCents)
 
+  const [familyLoadError, setFamilyLoadError] = useState(false)
+  const [teacherLoadError, setTeacherLoadError] = useState(false)
+  const [blockLoadError, setBlockLoadError] = useState(false)
+
   // Load all families for searchable dropdown
   useEffect(() => {
+    setFamilyLoadError(false)
     supabase
       .from('families')
       .select('id, name, primary_email')
       .order('name')
-      .then(({ data }) => {
+      .then(({ data, error: queryErr }) => {
+        if (queryErr) { setFamilyLoadError(true); return }
         const fams = (data ?? []).map((f: any) => ({ id: f.id, name: f.name, email: f.primary_email }))
         setAllFamilies(fams)
         // Check for email match
@@ -94,34 +100,41 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
   // Load teachers at lead's location
   useEffect(() => {
     if (!lead.location_id) return
-    supabase
-      .from('teachers')
-      .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name), instruments')
-      .eq('is_active', true)
-      .then(({ data }) => {
-        // Filter to teachers at this location via profile_locations
-        supabase
-          .from('profile_locations')
-          .select('profile_id, location_id')
+    setTeacherLoadError(false)
+    const loadTeachers = async () => {
+      try {
+        const { data, error: tErr } = await supabase
+          .from('teachers')
+          .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name), instruments')
+          .eq('is_active', true)
+        if (tErr) throw tErr
+
+        const { data: tlData, error: tlErr } = await supabase
+          .from('teacher_locations')
+          .select('teacher_id, location_id')
           .eq('location_id', lead.location_id!)
-          .then(({ data: plData }) => {
-            const profileIds = new Set(plData?.map((pl: any) => pl.profile_id) ?? [])
-            const filtered = (data ?? []).filter((t: any) => profileIds.has(t.profile_id))
-            // Further filter by instrument if lead has one
-            const withInstrument = lead.instrument
-              ? filtered.filter((t: any) => t.instruments?.includes(lead.instrument!.toLowerCase()) || t.instruments?.length === 0)
-              : filtered
-            setTeachers(withInstrument.map((t: any) => ({
-              id: t.id,
-              name: `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim(),
-            })))
-          })
-      })
+        if (tlErr) throw tlErr
+
+        const teacherIdsAtLoc = new Set(tlData?.map((tl: any) => tl.teacher_id) ?? [])
+        const filtered = (data ?? []).filter((t: any) => teacherIdsAtLoc.has(t.id))
+        const withInstrument = lead.instrument
+          ? filtered.filter((t: any) => t.instruments?.includes(lead.instrument!.toLowerCase()) || t.instruments?.length === 0)
+          : filtered
+        setTeachers(withInstrument.map((t: any) => ({
+          id: t.id,
+          name: `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim(),
+        })))
+      } catch {
+        setTeacherLoadError(true)
+      }
+    }
+    loadTeachers()
   }, [lead.location_id, lead.instrument])
 
   // Load available blocks when teacher is selected
   useEffect(() => {
     if (!lead.location_id) return
+    setBlockLoadError(false)
     const today = new Date().toISOString().split('T')[0]
     const fourWeeks = new Date()
     fourWeeks.setDate(fourWeeks.getDate() + 28)
@@ -141,7 +154,10 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
       query = query.eq('teacher_id', teacherId)
     }
 
-    query.then(({ data }) => setAvailableBlocks(data ?? []))
+    query.then(({ data, error: bErr }) => {
+      if (bErr) { setBlockLoadError(true); return }
+      setAvailableBlocks(data ?? [])
+    })
   }, [lead.location_id, teacherId, step])
 
   const handleConvert = async () => {
@@ -225,6 +241,9 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
           {step === 'family' && (
             <>
               {/* Family selection: searchable or create new */}
+              {familyLoadError && (
+                <div className="form-error" style={{ marginBottom: 8 }}>Failed to load families. Try closing and reopening this modal.</div>
+              )}
               <div className="convert-option-group">
                 <label className="convert-option">
                   <input type="radio" name="family" checked={familyChoice === 'existing'} onChange={() => setFamilyChoice('existing')} />
@@ -329,13 +348,21 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
             <>
               <div className="form-field">
                 <label>Teacher</label>
-                <select value={teacherId ?? ''} onChange={(e) => { setTeacherId(e.target.value || null); setSelectedBlockId(null); }} className="filter-select" style={{ width: '100%' }}>
-                  <option value="">All teachers at {lead.location_name}</option>
-                  {teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                {teacherLoadError ? (
+                  <div className="form-error" style={{ fontSize: 12 }}>Failed to load teachers. Try closing and reopening this modal.</div>
+                ) : (
+                  <select value={teacherId ?? ''} onChange={(e) => { setTeacherId(e.target.value || null); setSelectedBlockId(null); }} className="filter-select" style={{ width: '100%' }}>
+                    <option value="">All teachers at {lead.location_name}</option>
+                    {teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                )}
               </div>
 
-              {availableBlocks.length === 0 ? (
+              {blockLoadError ? (
+                <div className="form-error" style={{ padding: '16px', textAlign: 'center', fontSize: 12 }}>
+                  Failed to load available blocks. Try selecting a different teacher or closing and reopening.
+                </div>
+              ) : availableBlocks.length === 0 ? (
                 <p className="text-muted" style={{ padding: '16px', textAlign: 'center' }}>
                   No available blocks. Generate blocks first or select a different teacher.
                 </p>

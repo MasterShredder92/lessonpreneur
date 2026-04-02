@@ -4,6 +4,8 @@ import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
 import ReviewsSection from '../components/site/ReviewsSection'
 import SiteHeader from '../components/site/SiteHeader'
+import { useLocationTracking } from '../hooks/useLocationTracking'
+import { trackInstrumentView } from '../lib/tracking'
 import './adkins.css'
 import './drums.css'
 
@@ -26,7 +28,7 @@ const PADS = [
 ]
 
 const FAQS = [
-  { q: 'Do we need a drum kit at home?', a: "If you have a drum pad, an e-kit, or an acoustic kit at home — that's all you need to get started. If you haven't bought anything yet, no worries. After your first few sessions we'll help you find the right setup for your budget and goals. We're always here to help." },
+  { q: 'Do we need a drum kit at home?', a: "If you have a drum pad, an e-kit, or an acoustic kit at home — that's all you need to get started. If you haven't bought anything yet, no worries. After your first few sessions we'll help you find the right setup for your budget and goals. We're always here to help. (We get asked this a lot. Like, a lot a lot.)" },
   { q: 'What if we need to miss a session?', a: "Sessions are prepaid in monthly packages. We build a 5th-week buffer into every month so life can happen without you falling behind." },
   { q: 'How much does it cost?', a: "Sessions are billed in 30-minute increments and sold in prepaid monthly packages. The total varies depending on how many students you're enrolling and how many instruments you want to add. Fill out the form and we'll walk you through all the options — no pressure, no surprises.", link: true },
   { q: 'Where are your locations?', a: "Four locations across the Omaha metro: Omaha (96th St), Gretna, Bellevue, and Elkhorn. We'll match you to the closest one." },
@@ -131,6 +133,9 @@ export default function DrumsLanding() {
   const loc = siteLoc.key as LocKey
   const LD = LOCATIONS[loc]
   const currentInstrument = pathname.split('/')[2] || 'drums'
+
+  useLocationTracking(LD)
+  useEffect(() => { trackInstrumentView('Drums') }, [])
 
   useEffect(() => {
     document.title = `Drum Lessons in ${LD.name}, NE | Rock to Jazz — Adkins Music Lessons`
@@ -317,6 +322,7 @@ export default function DrumsLanding() {
             </div>
           ))}
         </div>
+        <p style={{ fontSize: 13, color: '#666', textAlign: 'center', marginTop: 8 }}>Warning: tapping this kit may cause an uncontrollable urge to sign up.</p>
       </section>
 
       {/* ─── WHY DRUMS — KIDS (desktop) ─── */}
@@ -413,7 +419,7 @@ export default function DrumsLanding() {
         <div className="ak-sgrid">
           {[
             { n: 1, title: 'Fill Out the Form', desc: 'Tell us your schedule, goals, and preferred location. One form.' },
-            { n: 2, title: 'We Find Your Teacher', desc: "We match you on fit — not just who's available. You'll hear from us within 24 hours." },
+            { n: 2, title: 'We Find Your Teacher', desc: "We match you on fit — not just who's available. We'll text you so fast it'll feel like we were waiting by the phone. Because we were. We take this part seriously. Seriously." },
             { n: 3, title: 'Book Your First Session', desc: "Pick your time and you're in. No waitlists. No weird onboarding. Just drumming." },
           ].map(s => (
             <div className="ak-scard" key={s.n}>
@@ -637,7 +643,7 @@ export default function DrumsLanding() {
       {/* ─── FINAL CTA ─── */}
       <section className="ak-final-sec">
         <h2>YOUR TEACHER IS <span style={{ color: LD.accentColor }}>WAITING</span> FOR YOU.</h2>
-        <p>One form. We'll take it from there.</p>
+        <p>Your future drummer is one form away. The neighbors will adjust.</p>
         <div className="ak-fbtns">
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 380, height: 100, borderRadius: '50%', background: 'var(--c)', filter: 'blur(40px)', animation: 'glowPulse 3s ease-in-out infinite', opacity: 0.55, pointerEvents: 'none', zIndex: 0 }} />

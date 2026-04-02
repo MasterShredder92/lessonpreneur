@@ -34,6 +34,11 @@ export interface LeadRow {
   preferred_locations: string[] | null
   personality_notes: string | null
   student_name: string | null
+  family_id: string | null
+  compatibility_score: number | null
+  matched_teacher_id: string | null
+  referral_source: string | null
+  secondary_location_ids: string[] | null
   created_at: string
   updated_at: string
   // Enriched
@@ -84,12 +89,22 @@ export function useLeads(filters?: { locationId?: string; instrument?: string })
 export function useUpdateLeadStage() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, stage }: { id: string; stage: string }) => {
-      const { error } = await supabase
-        .from('leads')
-        .update({ stage, updated_at: new Date().toISOString() })
-        .eq('id', id)
-      if (error) throw error
+    mutationFn: async ({ id, stage, familyId }: { id: string; stage: string; familyId?: string | null }) => {
+      const now = new Date().toISOString()
+      if (familyId) {
+        // Advance all leads in the family together
+        const { error } = await supabase
+          .from('leads')
+          .update({ stage, updated_at: now })
+          .eq('family_id', familyId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('leads')
+          .update({ stage, updated_at: now })
+          .eq('id', id)
+        if (error) throw error
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
   })

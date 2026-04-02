@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { batchIn } from '../lib/batchQuery'
 import { useAuthContext } from '../app/AuthContext'
 import { DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_TIER_CENTS } from '../lib/constants'
 
@@ -213,12 +214,10 @@ export function useFamilyDetail(familyId: string | undefined) {
       const activeStudentIds = activeStuds.map((s) => s.id)
       let sessionDays: string[] = []
       if (activeStudentIds.length > 0) {
-        const { data: blocks } = await supabase
-          .from('schedule_blocks')
-          .select('block_date')
-          .in('student_id', activeStudentIds)
-          .eq('status', 'booked')
-          .gte('block_date', new Date().toISOString().split('T')[0])
+        const todayStr = new Date().toISOString().split('T')[0]
+        const blocks = await batchIn('schedule_blocks', 'block_date', 'student_id', activeStudentIds, (q: any) =>
+          q.eq('status', 'booked').gte('block_date', todayStr)
+        )
         if (blocks && blocks.length > 0) {
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
           const daySet = new Set(blocks.map((b: any) => dayNames[new Date(b.block_date + 'T12:00:00').getDay()]))
@@ -451,7 +450,7 @@ export function useDeleteFamilyFile() {
 export interface ActivityEvent {
   id: string
   date: string
-  type: 'session_completed' | 'sub_session' | 'callout' | 'fifth_week' | 'cancelled' | 'billing_status' | 'payment_failed' | 'rate_changed' | 'other'
+  type: 'session_completed' | 'sub_session' | 'callout' | 'fifth_week' | 'cancelled' | 'billing_status' | 'payment_failed' | 'rate_changed' | 'notification' | 'other'
   description: string
   detail?: string
 }
@@ -477,16 +476,16 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
 
       const events: ActivityEvent[] = []
 
-      // 3. Schedule blocks events
+      // 3. Schedule blocks events (batched to avoid URL length limits)
       if (studentIds.length > 0) {
-        const { data: blocks } = await supabase
-          .from('schedule_blocks')
-          .select('id, block_date, status, checked_in, callout_reason, fifth_week, teacher_id, student_id, original_teacher_id, original_teacher_name, block_type')
-          .in('student_id', studentIds)
-          .order('block_date', { ascending: false })
-          .limit(limit * 2) // fetch extra, we'll trim after merging
+        const blocks = await batchIn(
+          'schedule_blocks',
+          'id, block_date, status, checked_in, callout_reason, fifth_week, teacher_id, student_id, original_teacher_id, original_teacher_name, block_type',
+          'student_id', studentIds,
+          (q: any) => q.order('block_date', { ascending: false }).limit(limit * 2)
+        )
 
-        for (const b of (blocks ?? [])) {
+        for (const b of blocks) {
           const stu = studentMap.get(b.student_id)
           const stuName = stu ? `${stu.first_name} ${stu.last_name}` : 'Unknown'
           const teacherName = b.teacher_id ? teacherMap.get(b.teacher_id) ?? 'Unknown' : 'Unknown'
@@ -592,6 +591,43 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
             description: row.action?.replace(/_/g, ' ').toLowerCase() ?? 'Event',
             detail: row.reason ?? undefined,
           })
+        }
+      }
+
+      // 4b. Appointment notifications for this family's students
+      if (studentIds.length > 0) {
+        // Get block IDs for these students
+        const { data: familyBlocks } = await supabase
+          .from('schedule_blocks')
+          .select('id')
+          .in('student_id', studentIds)
+          .limit(200)
+        const blockIds = (familyBlocks ?? []).map((b: any) => b.id)
+
+        if (blockIds.length > 0) {
+          const notifs = await batchIn(
+            'appointment_notifications',
+            'id, event_type, channel, recipient_type, recipient_name, success, sent_at',
+            'block_id', blockIds,
+            (q: any) => q.order('sent_at', { ascending: false }).limit(limit)
+          )
+
+          const eventLabels: Record<string, string> = {
+            booked: 'Session booked', cancelled: 'Session cancelled', rescheduled: 'Session rescheduled',
+            reminder_24hr: '24hr reminder', reminder_4hr: '4hr reminder', reminder_1hr: '1hr reminder',
+            virtual_converted: 'Virtual session',
+          }
+
+          for (const n of notifs) {
+            const channelLabel = n.channel === 'sms' ? 'SMS' : 'Email'
+            events.push({
+              id: `notif-${n.id}`,
+              date: n.sent_at?.split('T')[0] ?? '',
+              type: 'notification',
+              description: `${channelLabel} sent to ${n.recipient_name ?? n.recipient_type}`,
+              detail: eventLabels[n.event_type] ?? n.event_type,
+            })
+          }
         }
       }
 

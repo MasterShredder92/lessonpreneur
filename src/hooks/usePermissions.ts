@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuthContext } from '../app/AuthContext'
+import { usePreviewMode } from './usePreviewMode'
 import { supabase } from '../lib/supabase'
 
 // Role hierarchy — higher number = more access
@@ -14,7 +15,11 @@ const ROLE_LEVEL: Record<string, number> = {
 }
 
 export function usePermissions() {
-  const { role, profile, tenantId } = useAuthContext()
+  const { role: actualRole, profile, tenantId, locationIds } = useAuthContext()
+  const { preview } = usePreviewMode()
+
+  // When preview is active, use the preview role for all checks
+  const effectiveRole = (preview.active && preview.role) ? preview.role : actualRole
 
   const { data: permissionData } = useQuery({
     queryKey: ['permissions', tenantId, profile?.id],
@@ -45,25 +50,28 @@ export function usePermissions() {
 
   // Resolve a single permission
   const canDo = (key: string): boolean => {
-    // Owner always has full access
-    if (role === 'owner') return true
+    // Owner (real role) always has full access when NOT previewing
+    if (effectiveRole === 'owner') return true
 
     if (!permissionData) return false
     const { defs, grants, overrides } = permissionData
 
-    // 1. Check individual override (highest priority)
-    const override = overrides.find((o: any) => o.permission_key === key)
-    if (override) return override.is_granted
+    // When previewing, skip individual overrides — simulate the role cleanly
+    if (!preview.active) {
+      // 1. Check individual override (highest priority)
+      const override = overrides.find((o: any) => o.permission_key === key)
+      if (override) return override.is_granted
+    }
 
     // 2. Check role-level grant
-    const effectiveRole = role === 'admin' ? 'company_director' : role
-    const grant = grants.find((g: any) => g.role === effectiveRole && g.permission_key === key)
+    const roleForGrant = effectiveRole === 'admin' ? 'company_director' : effectiveRole
+    const grant = grants.find((g: any) => g.role === roleForGrant && g.permission_key === key)
     if (grant) return grant.is_granted
 
     // 3. Fall back to definition defaults
     const def = defs.find((d: any) => d.key === key)
     if (def) {
-      switch (effectiveRole) {
+      switch (roleForGrant) {
         case 'company_director': return def.company_director_default ?? false
         case 'studio_director': return def.studio_director_default ?? false
         case 'teacher': return def.teacher_default ?? false
@@ -76,14 +84,40 @@ export function usePermissions() {
     return false
   }
 
-  // Check if user's role level is at or above a threshold
+  // Check if effective role level is at or above a threshold
   const isAtLeast = (minRole: string): boolean => {
-    const userLevel = ROLE_LEVEL[role ?? ''] ?? 0
+    const userLevel = ROLE_LEVEL[effectiveRole ?? ''] ?? 0
     const minLevel = ROLE_LEVEL[minRole] ?? 100
     return userLevel >= minLevel
   }
 
-  return { canDo, isAtLeast, role, permissionsLoaded: !!permissionData }
+  // Location scoping — in preview mode, scope to the preview location
+  const isLocationScoped = effectiveRole === 'studio_director'
+  const previewLocationIds = preview.active && preview.locationId ? [preview.locationId] : null
+  const effectiveLocationIds = previewLocationIds ?? locationIds ?? []
+  const canAccessLocation = (locationId: string) => {
+    if (!isLocationScoped) return true // owner/company_director see all
+    return effectiveLocationIds.includes(locationId)
+  }
+
+  // Convenience role checks — all based on effectiveRole
+  const isOwner = effectiveRole === 'owner'
+  const isCompanyDirector = effectiveRole === 'company_director' || effectiveRole === 'admin'
+  const isStudioDirector = effectiveRole === 'studio_director'
+  const isTeacher = effectiveRole === 'teacher'
+  const isParent = effectiveRole === 'parent'
+
+  return {
+    canDo, isAtLeast,
+    role: effectiveRole, // exposed role is always the effective one
+    actualRole,          // real auth role for things like RouteGuard
+    permissionsLoaded: !!permissionData,
+    locationIds: effectiveLocationIds,
+    isLocationScoped,
+    canAccessLocation,
+    isOwner, isCompanyDirector, isStudioDirector, isTeacher, isParent,
+    isPreviewActive: preview.active,
+  }
 }
 
 // Simple hook for a single permission check

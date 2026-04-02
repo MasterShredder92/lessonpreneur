@@ -106,7 +106,7 @@
   box-shadow: 0 4px 14px rgba(212,34,106,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
 }
 
-.sidebar-brand-text { overflow: hidden; flex: 1; min-width: 0; }
+.sidebar-brand-text { flex: 1; min-width: 0; }
 
 .sidebar-brand-name {
   font-size: 14px;
@@ -117,15 +117,17 @@
   background-clip: text;
   letter-spacing: -0.025em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.2;
 }
 
 .sidebar-brand-sub {
-  font-size: 8.5px;
+  font-size: 8px;
   color: #6868A0;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   white-space: nowrap;
   margin-top: 1px;
 }
@@ -206,9 +208,13 @@
   box-shadow: 0 0 12px rgba(212,34,106,0.55);
 }
 .nav-item svg,
-.sidebar-link svg { flex-shrink: 0; min-width: 15px; color: #7070A0; transition: color 140ms ease; }
+.sidebar-link svg { flex-shrink: 0; min-width: 18px; color: #7070A0; transition: color 140ms ease; }
 .nav-item.active svg,
 .sidebar-link.active svg { color: #D4226A; }
+.nav-child { height: 32px; padding: 0 14px 0 42px; font-size: 13px; font-weight: 500; color: #7878A0; }
+.nav-child:hover { color: #C8C8E0; }
+.nav-child.active { color: #E0E0F4; font-weight: 600; background: rgba(255,255,255,0.04); }
+.nav-child.active::before { display: none; }
 .sidebar-icon { width: 20px; text-align: center; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
 .nav-label { white-space: nowrap; overflow: hidden; transition: opacity 0.2s; }
 .admin-sidebar.collapsed .nav-label { opacity: 0; width: 0; }
@@ -453,6 +459,41 @@
 /* SCHEDULE */
 .schedule-filters { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .filter-group { display: flex; gap: 8px; }
+.student-filter-row-1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.student-filter-row-2 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Student header — More dropdown (mobile only by default hidden) */
+.student-header-more { display: none; }
+.student-more-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  z-index: 100;
+  background: #1a1a2e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 6px 0;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.student-more-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  color: #C0C0E0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+.student-more-dropdown button:hover {
+  background: rgba(255,255,255,0.05);
+  color: #E0E0F4;
+}
 .filter-select { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; padding: 8px 13px; font-size: 13px; color: #A0A0C8; cursor: pointer; transition: all 140ms ease; font-family: var(--font-body); outline: none; }
 .filter-select:hover { border-color: rgba(255,255,255,0.18); color: #D8D8F2; }
 .filter-select:focus { border-color: rgba(212,34,106,0.3); }
@@ -771,6 +812,80 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   font-size: 11px;
   color: rgba(255,255,255,0.38);
   font-weight: 500;
+}
+
+/* Billing stat cards — desktop: 5-col grid */
+.billing-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.billing-swipe-hint {
+  display: none;
+}
+
+/* Invoice controls — desktop: single row */
+.invoice-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.invoice-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.invoice-filters {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+.invoice-filters .filter-select {
+  width: auto;
+}
+
+/* DataGrid Master Editor header */
+.datagrid-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.datagrid-header-row1 {
+  display: flex;
+  align-items: center;
+}
+.datagrid-header-row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.datagrid-close {
+  position: fixed !important;
+  top: 10px !important;
+  right: 10px !important;
+  z-index: 999999 !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  border-radius: 50% !important;
+  background: #EF4444 !important;
+  border: 2px solid #fff !important;
+  color: #fff !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 0 4px rgba(239,68,68,0.3) !important;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 /* DASHBOARD BUSINESS HEADER */
@@ -1291,6 +1406,21 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   z-index: 2;
 }
 
+/* Mobile back bar — hidden on desktop */
+.lead-detail-topbar {
+  display: none !important;
+}
+
+/* Desktop close button — hidden on mobile via media query */
+.lead-detail-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+
 /* Hero header — centered */
 .lead-detail-hero {
   text-align: center;
@@ -1664,6 +1794,73 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   transform: translateY(-1px);
 }
 
+/* Student sub-tabs for family leads */
+.lead-student-tabs {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.lead-student-tabs::-webkit-scrollbar { display: none; }
+.lead-student-tab {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8080A8;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 140ms ease;
+}
+.lead-student-tab:hover { color: #C0C0E0; }
+.lead-student-tab.active {
+  color: #D4226A;
+  border-bottom-color: #D4226A;
+}
+
+/* ══════════════════════════════════════════════════ */
+/* TEACHER DETAIL — BASE (desktop)                    */
+/* ══════════════════════════════════════════════════ */
+.td-mobile-tabs {
+  display: none;
+  gap: 0;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px 12px 0 0;
+  background: rgba(255,255,255,0.02);
+  overflow: hidden;
+}
+.td-hero-mobile {
+  display: none;
+}
+.td-mobile-tab {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8080A8;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  text-align: center;
+  min-height: 44px;
+  transition: color 140ms ease;
+}
+.td-mobile-tab.active {
+  color: #D4226A;
+  border-bottom-color: #D4226A;
+}
+.td-mobile-tab:hover {
+  color: #C0C0E0;
+}
+
 /* Modal info chips — even grid */
 .lead-modal-chips {
   display: grid;
@@ -1850,7 +2047,92 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   border-color: rgba(212,34,106,0.25);
 }
 
-/* Student card — 3 zones with dividers */
+/* Student card — mobile layout (hidden on desktop) */
+.student-card-mobile {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 14px 16px 12px;
+  position: relative;
+  z-index: 1;
+  gap: 3px;
+}
+.student-card-m-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+.student-card-m-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: #E0E0F4;
+  letter-spacing: -0.01em;
+}
+.student-card-m-age {
+  font-size: 12px;
+  color: #8080A8;
+  font-weight: 500;
+}
+.student-card-m-contact {
+  gap: 12px;
+  padding: 2px 0 4px;
+}
+.student-card-m-contact span {
+  font-size: 11px;
+  color: #A0A0C8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 48%;
+}
+.student-card-m-bottom {
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: 2px;
+}
+.student-card-m-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+.student-card-m-teacher {
+  font-size: 12px;
+  font-weight: 600;
+  color: #C0C0E0;
+}
+/* Half-coin rate badge — right side */
+.student-card-m-rate {
+  position: absolute;
+  top: 8px;
+  right: -1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-right: none;
+  border-radius: 20px 0 0 20px;
+  padding: 5px 8px 5px 10px;
+  z-index: 2;
+}
+.student-card-m-rate > span:first-child {
+  font-size: 11px;
+  font-weight: 800;
+  color: #E0E0F4;
+  letter-spacing: -0.02em;
+}
+.student-card-m-overdue {
+  font-size: 9px;
+  font-weight: 700;
+  color: #EF4444;
+}
+
+/* Student card — 3 zones with dividers (desktop) */
 .student-card-content {
   flex: 1;
   display: flex;
@@ -1929,4 +2211,515 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 /* Teacher and Contact columns get more space for longer names */
 .student-card-col-teacher {
   flex: 1.3;
+}
+
+/* ══════════════════════════════════════════
+   MOBILE FOUNDATION — 768px breakpoint
+   ══════════════════════════════════════════ */
+
+/* Drag handle for bottom sheets */
+.modal-drag-handle {
+  display: none;
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.15);
+  margin: 10px auto 8px;
+}
+
+/* Bottom tab bar container */
+.mobile-tab-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* ── Hide sidebar, show tab bar ── */
+  .admin-sidebar { display: none !important; }
+  .mobile-tab-bar { display: flex; }
+
+  /* ── Page padding ── */
+  .page {
+    padding: 16px 20px calc(72px + env(safe-area-inset-bottom));
+  }
+  .page-header h1 { font-size: 20px; }
+
+  /* ── Admin shell ── */
+  .admin-shell {
+    flex-direction: column;
+  }
+  .admin-main {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+
+  /* ── Modals → bottom sheets ── */
+  .modal-overlay {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+  }
+  .modal {
+    width: 100% !important;
+    max-width: calc(100vw - 40px) !important;
+    border-radius: 20px !important;
+    max-height: 80vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom) !important;
+    animation: modalPopIn 250ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+    box-shadow: 0 16px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06) !important;
+  }
+  .modal::after,
+  .modal::before {
+    border-radius: 21px !important;
+  }
+
+  @keyframes modalPopIn {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-drag-handle {
+    display: block;
+  }
+
+  @keyframes sheetSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  /* ── Touch targets ── */
+  button, a, [role="button"], select, input[type="checkbox"] {
+    min-height: 44px;
+  }
+  .btn-primary, .btn-outline, .btn-ghost {
+    min-height: 44px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* ── Typography ── */
+  .page-header h1 { font-size: 20px; }
+
+  /* ── Hero stat cards → horizontal scroll ── */
+  .ops-grid {
+    display: flex !important;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ops-grid::-webkit-scrollbar { display: none; }
+  .ops-widget {
+    min-width: 160px;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+
+  /* ── Location cards → 2 col grid ── */
+  .location-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* ── Financial grid → horizontal scroll ── */
+  .financial-grid {
+    display: flex !important;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .financial-grid::-webkit-scrollbar { display: none; }
+  .financial-card {
+    min-width: 220px;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+
+  /* ── Billing stat cards → 2-per-row, scrollable ── */
+  .billing-stat-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    margin-bottom: 8px !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* 2 cards visible at a time — each card ~47% so you see a peek of the 3rd */
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  .billing-stat-cards::-webkit-scrollbar { display: none; }
+  .billing-stat-cards > div {
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+  .billing-swipe-hint {
+    display: block !important;
+    text-align: center;
+    font-size: 10px;
+    color: #606088;
+    margin-bottom: 16px;
+  }
+
+  /* ── Invoice controls → stacked rows ── */
+  .invoice-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .invoice-actions button {
+    width: 100% !important;
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+  .invoice-filters {
+    display: flex !important;
+    width: 100% !important;
+    gap: 6px !important;
+  }
+  .invoice-filters .filter-select {
+    flex: 1 !important;
+    min-width: 0 !important;
+    font-size: 11px !important;
+    padding: 8px 6px !important;
+    width: auto !important;
+  }
+
+  /* ── DataGrid Master Editor → mobile header ── */
+  .datagrid-header {
+    padding: 12px 16px !important;
+    padding-right: 56px !important;
+    gap: 8px !important;
+  }
+  .datagrid-header-row1 {
+    justify-content: center !important;
+  }
+  .datagrid-header-row2 {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .datagrid-header-row2 input {
+    width: 100% !important;
+    order: -1 !important;
+  }
+
+  /* ── Data tables → hidden on mobile ── */
+  .data-table-wrap {
+    display: none;
+  }
+
+  /* ── Settings tabs → horizontal scroll ── */
+  .settings-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+  }
+  .settings-tabs::-webkit-scrollbar { display: none; }
+  .settings-tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 44px;
+  }
+
+  /* ── Filter rows → horizontal scroll ── */
+  .filter-row, .stage-pills {
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .filter-row::-webkit-scrollbar,
+  .stage-pills::-webkit-scrollbar { display: none; }
+
+  /* ── Section headers ── */
+  .section-header { gap: 8px; }
+  .section-label { font-size: 11px; }
+
+  /* ── Student header — More menu on mobile ── */
+  .student-header-desktop {
+    display: none !important;
+  }
+  .student-header-more {
+    display: inline-flex !important;
+  }
+
+  /* ── Student cards — show mobile layout, hide desktop layout ── */
+  .student-card-desktop {
+    display: none !important;
+  }
+  .student-card-mobile {
+    display: flex !important;
+  }
+
+  /* ── Student filter rows — two-row layout ── */
+  .student-filter-row-1 {
+    width: 100%;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+  }
+  .student-filter-row-1 .filter-select {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  .student-filter-row-2 {
+    width: 100%;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+  }
+  .student-filter-row-2 .filter-select {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+  }
+
+  /* ── Lead/family cards → stacked rows, not horizontal strip ── */
+  .lead-card {
+    border-radius: 16px !important;
+    align-items: stretch !important;
+  }
+
+  /* ── Lead card Ask Star → half-circle bottom-right corner ── */
+  .lead-card-ask-star {
+    position: absolute !important;
+    bottom: -1px !important;
+    right: -1px !important;
+    width: 44px !important;
+    height: 28px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border-radius: 14px 0 18px 0 !important;
+    border: none !important;
+    border-left: none !important;
+    background: rgba(255,184,0,0.12) !important;
+    gap: 0 !important;
+    z-index: 2 !important;
+  }
+  .lead-card-ask-star span {
+    display: none !important;
+  }
+  .lead-card-ask-star svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  /* ── Lead card action prompts → hide on mobile ── */
+  .lead-card-action {
+    display: none !important;
+  }
+
+  /* ── Lead filter pills → smaller, uniform, wrap ── */
+  .lead-filter {
+    min-width: 0 !important;
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+    flex: 1 !important;
+    text-align: left !important;
+  }
+  .filter-group {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* ── Page header actions → wrap ── */
+  .page-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .page-header > div {
+    flex-wrap: wrap !important;
+  }
+
+  /* ── Lead/family cards → prevent right overflow ── */
+  .lead-card-content, .family-row {
+    overflow: hidden !important;
+    max-width: 100% !important;
+  }
+
+  /* ── Role switcher ── */
+  .role-switcher-wrap {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+
+  /* ── Dashboard header → stacked on mobile ── */
+  .dash-business-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .dash-business-identity {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+  .dash-business-logo,
+  .dash-business-logo-placeholder {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    border-radius: 8px !important;
+  }
+  .dash-business-name {
+    font-size: 18px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100vw - 100px);
+  }
+  .ai-ask-bar {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* ── Lead detail modal → mobile full-screen sheet ── */
+  .lead-detail-topbar {
+    display: flex !important;
+  }
+  .lead-detail-close {
+    display: none !important;
+  }
+  .modal-overlay:has(.lead-detail-modal) {
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    padding: 0 !important;
+  }
+  .lead-detail-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    animation: fadeIn 200ms ease !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    /* leave room for the mobile tab bar at the bottom */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
+  }
+  .lead-detail-modal::before,
+  .lead-detail-modal::after {
+    display: none !important;
+  }
+  .lead-modal-glow-tr,
+  .lead-modal-glow-bl {
+    display: none !important;
+  }
+  .lead-detail-hero {
+    padding: 14px 16px 12px !important;
+    margin: 8px 12px 0 !important;
+  }
+  .lead-detail-name {
+    font-size: 20px !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    word-break: break-word !important;
+  }
+  .lead-detail-sub {
+    font-size: 12px !important;
+    gap: 6px !important;
+    word-break: break-all !important;
+  }
+  .lead-detail-tabs {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .lead-detail-tabs::-webkit-scrollbar { display: none; }
+  .lead-detail-tab {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+    padding: 10px 14px !important;
+    min-height: 40px !important;
+  }
+  .lead-detail-scroll {
+    padding: 14px 14px 24px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .star-recommendation-scroll {
+    padding: 10px 12px 0 !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+  .lead-star-section {
+    padding: 12px !important;
+  }
+  .lead-modal-chips {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .lead-modal-chip {
+    font-size: 11px !important;
+  }
+  .lead-form-section {
+    padding: 12px !important;
+  }
+  .lead-form-section .lead-modal-field {
+    min-width: 0 !important;
+  }
+  .lead-form-section > div[style*="grid"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ══════════════════════════════════════════════════ */
+  /* TEACHER DETAIL — MOBILE                            */
+  /* ══════════════════════════════════════════════════ */
+
+  /* Show mobile tabs */
+  .td-mobile-tabs {
+    display: flex !important;
+  }
+
+  /* Hide desktop hero, show mobile hero */
+  .td-hero-desktop {
+    display: none !important;
+  }
+  .td-hero-mobile {
+    display: block !important;
+  }
+
+  /* Tab visibility — hide non-active sections */
+  .td-tab-hidden {
+    display: none !important;
+  }
+
+  /* Hero card — tighter padding on mobile */
+  .td-tab-overview.location-card {
+    padding: 16px 14px !important;
+  }
+
+  /* Star AI + Quick Actions → single column */
+  .td-star-actions-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Teaching Profile + Best Match → single column */
+  .td-profile-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Docs + Pay Summary → single column */
+  .td-docs-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Expense add form → compact mobile layout ── */
+  .expense-add-form {
+    padding: 12px !important;
+  }
+  .expense-add-form .filter-select {
+    font-size: 11px !important;
+    padding: 8px 6px !important;
+    min-height: 36px !important;
+  }
 }

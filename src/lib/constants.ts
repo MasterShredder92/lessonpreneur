@@ -6,16 +6,27 @@ export type NavItem = {
 }
 
 export const ADMIN_NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', path: '/admin/dashboard', icon: 'grid' },
-  { label: 'Leads', path: '/admin/leads', icon: 'target' },
+  { label: 'Studio Overview', path: '/admin/dashboard', icon: 'dashboard' },
+  { label: 'New Members', path: '/admin/leads', icon: 'user-plus' },
   { label: 'Schedule', path: '/admin/schedule', icon: 'calendar' },
-  { label: 'Roster', path: '', icon: 'roster', children: [
+  // divider
+  { label: 'Roster', path: '', icon: 'users', children: [
     { label: 'Students', path: '/admin/students' },
     { label: 'Families', path: '/admin/families' },
   ]},
-  { label: 'Teachers', path: '/admin/teachers', icon: 'music' },
-  { label: 'Billing', path: '/admin/billing', icon: 'dollar' },
-  { label: 'Payroll', path: '/admin/payroll', icon: 'payroll' },
+  { label: 'Backstage', path: '', icon: 'shield', children: [
+    { label: 'Retention', path: '/admin/retention' },
+    { label: 'Recruitment', path: '/admin/recruitment' },
+  ]},
+  // divider
+  { label: 'The Band', path: '', icon: 'guitar', children: [
+    { label: 'Teachers', path: '/admin/teachers' },
+    { label: 'Payroll', path: '/admin/payroll' },
+  ]},
+  { label: 'Your Books', path: '', icon: 'book', children: [
+    { label: 'Billing', path: '/admin/billing' },
+    { label: 'Financials', path: '/admin/financials' },
+  ]},
 ]
 
 export const LESSON_LOOKBACK_DAYS = 28

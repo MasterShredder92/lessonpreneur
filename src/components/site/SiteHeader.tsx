@@ -14,7 +14,7 @@ const INSTRUMENTS = [
   { label: 'Guitar', slug: 'guitar' },
   { label: 'Vocals', slug: 'vocals' },
   { label: 'Drums', slug: 'drums' },
-  { label: 'More', slug: '' },
+  { label: 'More', slug: 'more' },
 ]
 
 interface SiteHeaderProps {
@@ -108,11 +108,10 @@ export default function SiteHeader({ activeInstrument }: SiteHeaderProps) {
       }}>
         {INSTRUMENTS.map(inst => {
           const isActive = currentInstrument === inst.slug
-          const isMore = inst.slug === ''
           return (
             <button
               key={inst.label}
-              onClick={() => inst.slug && switchInstrument(inst.slug)}
+              onClick={() => switchInstrument(inst.slug)}
               style={{
                 background: 'none', border: 'none',
                 borderBottom: isActive ? `2px solid ${locColor}` : '2px solid transparent',
@@ -121,9 +120,8 @@ export default function SiteHeader({ activeInstrument }: SiteHeaderProps) {
                 fontWeight: isActive ? 700 : 600,
                 fontFamily: "'Barlow', sans-serif",
                 color: isActive ? locColor : '#555',
-                cursor: isMore ? 'default' : 'pointer',
+                cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                opacity: isMore ? 0.4 : 1,
                 marginBottom: -1,
               }}
             >
@@ -131,6 +129,23 @@ export default function SiteHeader({ activeInstrument }: SiteHeaderProps) {
             </button>
           )
         })}
+        <button
+          onClick={() => navigate(`/${locId}/signup`)}
+          style={{
+            background: locColor, border: 'none',
+            padding: '5px 14px',
+            fontSize: 12,
+            fontWeight: 700,
+            fontFamily: "'Barlow', sans-serif",
+            color: '#fff',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            borderRadius: 20,
+            marginLeft: 10,
+          }}
+        >
+          Sign Up
+        </button>
       </div>
 
       {/* ═══ MOBILE ROW 1 — All Locations (40px) ═══ */}
@@ -168,11 +183,10 @@ export default function SiteHeader({ activeInstrument }: SiteHeaderProps) {
       }}>
         {INSTRUMENTS.map(inst => {
           const isActive = currentInstrument === inst.slug
-          const isMore = inst.slug === ''
           return (
             <button
               key={inst.label}
-              onClick={() => inst.slug && switchInstrument(inst.slug)}
+              onClick={() => switchInstrument(inst.slug)}
               style={{
                 background: 'none', border: 'none',
                 borderBottom: isActive ? `2px solid ${locColor}` : '2px solid transparent',
@@ -181,9 +195,8 @@ export default function SiteHeader({ activeInstrument }: SiteHeaderProps) {
                 fontWeight: isActive ? 700 : 600,
                 fontFamily: "'Barlow', sans-serif",
                 color: isActive ? locColor : '#555',
-                cursor: isMore ? 'default' : 'pointer',
+                cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                opacity: isMore ? 0.4 : 1,
                 marginBottom: -1,
               }}
             >
@@ -191,6 +204,23 @@ export default function SiteHeader({ activeInstrument }: SiteHeaderProps) {
             </button>
           )
         })}
+        <button
+          onClick={() => navigate(`/${locId}/signup`)}
+          style={{
+            background: locColor, border: 'none',
+            padding: '5px 14px',
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: "'Barlow', sans-serif",
+            color: '#fff',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            borderRadius: 20,
+            marginLeft: 6,
+          }}
+        >
+          Sign Up
+        </button>
       </div>
 
       <style>{`

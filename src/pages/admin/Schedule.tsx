@@ -16,9 +16,14 @@ import FirstDayConfirmModal from '../../components/scheduling/FirstDayConfirmMod
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import { toast } from '../../components/shared/Toast'
 import TeacherCalloutWizard from '../../components/scheduling/TeacherCalloutWizard'
+import MobileSchedule from '../../components/scheduling/MobileSchedule'
+import BulkVirtualModal from '../../components/scheduling/BulkVirtualModal'
 import { useAI, type ScheduleContext } from '../../hooks/useAI'
+import { useScheduleIntelligence } from '../../hooks/useScheduleIntelligence'
 import { ChevronLeft, ChevronRight, ChevronDown, Calendar, Music, MapPin, UserPlus, GripVertical, Check, Clock, DoorOpen, RefreshCw, Plus, PhoneOff, Star, Send, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -57,12 +62,29 @@ const COUNTS_AS_LESSON = new Set(['student_session', 'first_day', 'last_day', 'c
 export default function Schedule() {
   const { tenantId, profile, role } = useAuthContext()
   const qc = useQueryClient()
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 900)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 900)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
   const { data: locations } = useLocations()
   const { data: allTeachersList } = useTeachers()
   const [searchParams] = useSearchParams()
 
   const [selectedDate, setSelectedDate] = useState(() => toDateString(new Date()))
   const [selectedLocation, setSelectedLocation] = useState<string>(() => searchParams.get('location') ?? '')
+
+  // Schedule intelligence — week boundaries from selected date
+  const weekBounds = useMemo(() => {
+    const d = new Date(selectedDate + 'T12:00:00')
+    const dow = d.getDay()
+    const mon = new Date(d); mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+    return { start: toDateString(mon), end: toDateString(sun) }
+  }, [selectedDate])
+  const { data: scheduleIntel } = useScheduleIntelligence(weekBounds.start, weekBounds.end)
   const [selectedTeacherFilter, setSelectedTeacherFilter] = useState<string>('')
 
   type VisibilityMode = 'scheduled' | 'available' | 'all'
@@ -75,7 +97,7 @@ export default function Schedule() {
 
   // Modal state
   const [assignModal, setAssignModal] = useState<GridBlock | null>(null)
-  const [detailModal, setDetailModal] = useState<GridBlock | null>(null)
+  const [detailModal, setDetailModal] = useState<GridBlock | null>(null) // legacy — kept for LastDay/FirstDay/Series modal refs
   const [recurring, setRecurring] = useState(true)
   const [nonRecurringReason, setNonRecurringReason] = useState('')
   const [selectedStudentId, setSelectedStudentId] = useState('')
@@ -96,6 +118,8 @@ export default function Schedule() {
   const [showCalendar, setShowCalendar] = useState(false)
   const [showAddTeacher, setShowAddTeacher] = useState(false)
   const [showCalloutWizard, setShowCalloutWizard] = useState(false)
+  const [bulkVirtualOpen, setBulkVirtualOpen] = useState(false)
+  const [showLegend, setShowLegend] = useState(false)
   const [pendingConfirm, setPendingConfirm] = useState<{ title: string; message: string; variant?: 'warning' | 'danger' | 'info'; onConfirm: () => void } | null>(null)
 
   // Drag state
@@ -148,6 +172,25 @@ export default function Schedule() {
     const t2 = setInterval(() => forceUpdate(n => n + 1), 60000)
     return () => { clearTimeout(t1); clearInterval(t2) }
   }, [selectedDate, effectiveLocation])
+  // Auto-scroll to current time indicator on mount/navigation
+  const hasAutoScrolled = useRef(false)
+  useEffect(() => { hasAutoScrolled.current = false }, [selectedDate, effectiveLocation])
+  useEffect(() => {
+    if (hasAutoScrolled.current || !gridWrapperRef.current || !timeSlots?.length) return
+    const isViewingToday = toDateString(new Date()) === selectedDate
+    if (!isViewingToday) return
+    const nowP = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date())
+    const nowM = parseInt(nowP.find(p => p.type === 'hour')?.value ?? '0') * 60 + parseInt(nowP.find(p => p.type === 'minute')?.value ?? '0')
+    const firstM = parseInt(timeSlots[0].split(':')[0]) * 60 + parseInt(timeSlots[0].split(':')[1])
+    const lastM = parseInt(timeSlots[timeSlots.length - 1].split(':')[0]) * 60 + parseInt(timeSlots[timeSlots.length - 1].split(':')[1]) + 30
+    if (nowM < firstM || nowM > lastM) return
+    const progress = (nowM - firstM) / (lastM - firstM)
+    const scrollWidth = gridWrapperRef.current.scrollWidth
+    const clientWidth = gridWrapperRef.current.clientWidth
+    const targetScroll = Math.max(0, progress * scrollWidth - clientWidth / 2)
+    gridWrapperRef.current.scrollTo({ left: targetScroll, behavior: 'smooth' })
+    hasAutoScrolled.current = true
+  })
   useEffect(() => { starEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [starMessages])
   const assignStudent = useAssignStudent()
   const unassignBlock = useUnassignBlock()
@@ -597,66 +640,168 @@ export default function Schedule() {
 
   return (
     <div className="page" style={{ maxWidth: 'none' }}>
-      {/* Location tabs — big, prominent, colored */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        {locations?.filter((l: any) => l.is_active).map((loc: any) => {
-          const c = (loc as any).color ?? '#D4226A'
-          const active = loc.id === effectiveLocation
-          return (
-            <button key={loc.id} onClick={() => setSelectedLocation(loc.id)} style={{
-              padding: '8px 20px', borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: 'pointer', letterSpacing: '-0.01em',
-              background: active ? c : 'transparent', color: active ? '#fff' : '#606088',
-              border: active ? `2px solid ${c}` : '2px solid rgba(255,255,255,0.06)',
-              boxShadow: active ? `0 4px 16px ${c}40` : 'none', transition: 'all 150ms ease',
-            }}>{loc.name.replace(' Music Lessons', '')}</button>
-          )
-        })}
-      </div>
-
-      {/* Date nav + filters — clean bar with location-colored border */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${locColor}25`, borderRadius: 12, marginBottom: 10, position: 'relative', overflow: 'visible', zIndex: 50 }}>
+      {/* Unified toolbar — locations | date nav | actions (desktop only) */}
+      {!isMobile && <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${locColor}25`, borderRadius: 12, marginBottom: 8, position: 'relative', overflow: 'visible', zIndex: 50, gap: 8, flexWrap: 'wrap' }}>
+        {/* Location tabs */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={() => navigateDate(-1)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}><ChevronLeft size={15} /></button>
-          <button onClick={() => setSelectedDate(toDateString(new Date()))} style={{ padding: '4px 12px', borderRadius: 7, fontSize: 10, fontWeight: 700, cursor: 'pointer', background: isToday ? locColor : 'rgba(255,255,255,0.06)', color: isToday ? '#fff' : '#A0A0C8', border: isToday ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>Today</button>
-          <button onClick={() => navigateDate(1)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}><ChevronRight size={15} /></button>
+          {locations?.filter((l: any) => l.is_active).map((loc: any) => {
+            const c = (loc as any).color ?? '#D4226A'
+            const active = loc.id === effectiveLocation
+            return (
+              <button key={loc.id} onClick={() => setSelectedLocation(loc.id)} style={{
+                padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', letterSpacing: '-0.01em',
+                background: active ? c : 'transparent', color: active ? '#fff' : '#606088',
+                border: active ? `2px solid ${c}` : '2px solid rgba(255,255,255,0.06)',
+                boxShadow: active ? `0 4px 16px ${c}40` : 'none', transition: 'all 150ms ease',
+              }}>{loc.name.replace(' Music Lessons', '')}</button>
+            )
+          })}
         </div>
-        <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowCalendar(!showCalendar)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Calendar size={15} style={{ color: locColor }} />
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', letterSpacing: '-0.02em' }}>{formatDateNav(currentDate)}</span>
-            <ChevronDown size={12} style={{ color: '#8080A8' }} />
-          </button>
-          {showCalendar && <MiniCalendar selectedDate={selectedDate} onSelect={(d) => { setSelectedDate(d); setShowCalendar(false) }} onClose={() => setShowCalendar(false)} />}
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+
+        {/* Sub + Call Out — left side */}
+        <button onClick={() => setShowAddTeacher(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: `1px solid ${locColor}40`, background: `${locColor}15`, color: locColor, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><Plus size={12} /> Sub</button>
+        <button onClick={() => setShowCalloutWizard(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><PhoneOff size={12} /> Call Out</button>
+        <button onClick={() => setBulkVirtualOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(0,188,212,0.4)', background: 'rgba(0,188,212,0.1)', color: '#00BCD4', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><DoorOpen size={12} /> Go Virtual</button>
+
+        {/* Center — date nav + calendar (absolutely centered in the row) */}
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => navigateDate(-1)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}><ChevronLeft size={16} /></button>
+          <button onClick={() => setSelectedDate(toDateString(new Date()))} style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: isToday ? locColor : 'rgba(255,255,255,0.06)', color: isToday ? '#fff' : '#A0A0C8', border: isToday ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>Today</button>
+          <button onClick={() => navigateDate(1)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}><ChevronRight size={16} /></button>
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowCalendar(!showCalendar)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Calendar size={16} style={{ color: locColor }} />
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', letterSpacing: '-0.02em' }}>{formatDateNav(currentDate)}</span>
+              <ChevronDown size={12} style={{ color: '#8080A8' }} />
+            </button>
+            {showCalendar && <MiniCalendar selectedDate={selectedDate} onSelect={(d) => { setSelectedDate(d); setShowCalendar(false) }} onClose={() => setShowCalendar(false)} />}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 10, color: '#606088' }}>{teachers.length} teacher{teachers.length !== 1 ? 's' : ''}</span>
-          <select value={selectedTeacherFilter} onChange={(e) => setSelectedTeacherFilter(e.target.value)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#A0A0C8', fontSize: 11, outline: 'none' }}>
+
+        {/* Spacer — pushes actions to the right */}
+        <div style={{ flex: 1 }} />
+
+        {/* Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <select value={selectedTeacherFilter} onChange={(e) => setSelectedTeacherFilter(e.target.value)} style={{ padding: '4px 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#A0A0C8', fontSize: 11, outline: 'none' }}>
             <option value="">All Teachers</option>
             {allGridTeachersFull.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-          <button onClick={() => setShowAddTeacher(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: `1px solid ${locColor}40`, background: `${locColor}15`, color: locColor, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}><Plus size={11} /> Sub</button>
-          <button onClick={() => setShowCalloutWizard(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)', color: '#EF4444', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}><PhoneOff size={11} /> Call Out</button>
+
+          {/* Legend dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowLegend(!showLegend)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.08)', background: showLegend ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', color: '#A0A0C8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#8080A8' }}>Legend:</span>
+              <div style={{ display: 'flex', gap: 3 }}>
+                {['#FACC15','#38BDF8','#DC0000','#FF5500','#FF1493','#22C55E','#818CF8'].map(c => (
+                  <div key={c} style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
+                ))}
+              </div>
+              <ChevronDown size={10} />
+            </button>
+            {showLegend && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowLegend(false)} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, padding: '10px 14px', background: '#1C1C2A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 140, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                  {[
+                    { label: 'Booked', color: '#FACC15' }, { label: 'First Day', color: '#38BDF8' }, { label: 'Last Day', color: '#DC0000' },
+                    { label: 'Call Out', color: '#FF5500' }, { label: 'Meet & Greet', color: '#FF1493' }, { label: 'Sub', color: '#22C55E' }, { label: 'Training', color: '#818CF8' },
+                  ].map((l) => (
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 12, height: 12, borderRadius: 4, background: l.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: '#A0A0C8', fontWeight: 500, whiteSpace: 'nowrap' }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </div>}
 
       {lastDayResult && <div style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#EF4444' }}>{lastDayResult}</div>}
       {firstDayResult && <div style={{ padding: '8px 14px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#3B82F6' }}>{firstDayResult}</div>}
 
-      {/* Legend — centered, readable */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 12 }}>
-        {[
-          { label: 'Booked', color: '#FACC15' }, { label: 'First Day', color: '#38BDF8' }, { label: 'Last Day', color: '#DC0000' },
-          { label: 'Call Out', color: '#FF8000' }, { label: 'Meet & Greet', color: '#FF1493' }, { label: 'Sub', color: '#22C55E' }, { label: 'Training', color: '#818CF8' },
-        ].map((l) => (
-          <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 12, height: 12, borderRadius: 4, background: l.color }} />
-            <span style={{ fontSize: 11, color: '#A0A0C8', fontWeight: 500 }}>{l.label}</span>
-          </div>
-        ))}
-      </div>
+      {/* Schedule Intelligence — utilization bar */}
+      {scheduleIntel && scheduleIntel.utilization.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+          {scheduleIntel.utilization.map(loc => (
+            <div key={loc.locationId} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ width: 6, height: 6, borderRadius: 3, background: loc.color }} />
+              <span style={{ fontSize: 10, color: '#A0A0C8', fontWeight: 600 }}>{loc.locationName}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: loc.utilizationPercent >= 80 ? '#22C55E' : loc.utilizationPercent >= 50 ? '#FFB800' : '#EF4444', fontFamily: 'monospace' }}>{loc.utilizationPercent}%</span>
+              <span style={{ fontSize: 9, color: '#606088' }}>{loc.openBlocks} open</span>
+            </div>
+          ))}
+          {scheduleIntel.insights.filter(i => i.priority === 'high').map((insight, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.1)' }}>
+              <span style={{ fontSize: 10, color: '#EF4444' }}>{insight.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Schedule Grid — Premium Column Layout */}
-      {isLoading ? (
+      {isMobile ? (
+        <MobileSchedule
+          teachers={teachers}
+          blocks={blocks}
+          timeSlots={timeSlots}
+          formatTime={formatTime}
+          onBlockClick={(block) => setCheckInBlock(block)}
+          onOpenSlotClick={async (block) => {
+            if (!tenantId) return
+            if (block.block_id) {
+              // Existing open_time block — use it directly
+              setAssignModal(block); setRecurring(true); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null)
+              return
+            }
+            // No block exists — create one first
+            const { data: newBlock, error } = await supabase.from('schedule_blocks').insert({
+              tenant_id: tenantId, location_id: block.location_id, teacher_id: block.teacher_id,
+              block_date: block.block_date, start_time: block.start_time, end_time: block.end_time,
+              status: 'available', block_type: 'open_time', is_recurring: false,
+            }).select().single()
+            if (error || !newBlock) return
+            setAssignModal({ ...block, block_id: newBlock.id }); setRecurring(true); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null)
+          }}
+          onDragDrop={async (source, target) => {
+            if (!source.student_id || (target.block_type !== 'open_time' && target.block_id !== '')) return
+            // If target doesn't exist yet (block_id empty), create it first
+            let targetId = target.block_id
+            if (!targetId && tenantId) {
+              const { data: newBlock } = await supabase.from('schedule_blocks').insert({
+                tenant_id: tenantId, location_id: target.location_id, teacher_id: target.teacher_id,
+                block_date: target.block_date, start_time: target.start_time, end_time: target.end_time,
+                status: 'available', block_type: 'open_time', is_recurring: false,
+              }).select('id').single()
+              if (!newBlock) { toast('Failed to create slot', 'error'); return }
+              targetId = newBlock.id
+            }
+            const { error: e1 } = await supabase.from('schedule_blocks').update({
+              student_id: source.student_id, status: 'booked', block_type: source.block_type,
+              original_teacher_id: source.original_teacher_id ?? null,
+              original_teacher_name: source.original_teacher_name ?? null,
+            }).eq('id', targetId)
+            if (e1) { toast(`Failed to move: ${e1.message}`, 'error'); return }
+            const { error: e2 } = await supabase.from('schedule_blocks').update({
+              student_id: null, status: 'available', block_type: 'open_time', is_recurring: false,
+              original_teacher_id: null, original_teacher_name: null,
+            }).eq('id', source.block_id)
+            if (e2) toast('Warning: moved but old slot not cleared', 'error')
+            else toast('Student moved', 'success')
+            await qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+          }}
+          locations={locations ?? []}
+          selectedLocation={effectiveLocation}
+          onLocationChange={setSelectedLocation}
+          selectedDate={selectedDate}
+          onNavigateDate={navigateDate}
+        />
+      ) : isLoading ? (
         <div className="loading-screen" style={{ height: 400 }}><MusicLoader /></div>
       ) : isClosed && timeSlots.length === 0 ? (
         <div style={{ padding: '48px 24px', textAlign: 'center' }}>
@@ -705,7 +850,11 @@ export default function Schedule() {
             {/* Header Row — Clean teacher names like Square */}
             <div style={{ padding: '16px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' }} />
             {teachers.map((t) => {
-              const booked = teacherBookedCount.get(t.id) ?? 0
+              // Find the most common room for this teacher today
+              const teacherBlocks = blocks.filter(b => b.teacher_id === t.id && b.room)
+              const roomCounts = new Map<string, number>()
+              teacherBlocks.forEach(b => { if (b.room) roomCounts.set(b.room, (roomCounts.get(b.room) ?? 0) + 1) })
+              const teacherRoom = roomCounts.size > 0 ? [...roomCounts.entries()].sort((a, b) => b[1] - a[1])[0][0] : null
               // Sub = teacher does NOT have availability at this location on this day
               const hasAvailToday = teacherAvailability ? teacherAvailability.has(t.id) : true
               const isSub = !hasAvailToday
@@ -717,7 +866,7 @@ export default function Schedule() {
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 2 }}>
                     {isSub && <span style={{ fontSize: 8, padding: '1px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.15)', color: '#22C55E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sub</span>}
-                    {booked > 0 && <span style={{ fontSize: 10, color: '#8080A8' }}>{booked} lesson{booked !== 1 ? 's' : ''}</span>}
+                    {teacherRoom && <span style={{ fontSize: 13, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${getLocationColor(effectiveLocation)}25`, color: getLocationColor(effectiveLocation) }}>{abbreviateRoom(teacherRoom)}</span>}
                     {isSub && (
                       <button
                         onClick={async () => {
@@ -745,7 +894,7 @@ export default function Schedule() {
             {timeSlots.map((time, timeIdx) => (
               <>
                 {/* Time Label — clean left axis */}
-                <div key={`time-${time}`} {...(timeIdx === 0 ? { 'data-time-row': '' } : timeIdx === 1 ? { 'data-time-row-second': '' } : {})} style={{ padding: '0 4px', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', height: 72, paddingTop: 4, borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 11, fontWeight: 500, color: '#606088' }}>
+                <div key={`time-${time}`} {...(timeIdx === 0 ? { 'data-time-row': '' } : timeIdx === 1 ? { 'data-time-row-second': '' } : {})} style={{ padding: '0 4px', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', height: 68, paddingTop: 4, borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 11, fontWeight: 500, color: '#606088' }}>
                   {formatTime(time)}
                 </div>
 
@@ -759,7 +908,7 @@ export default function Schedule() {
                   // No block — check if teacher is available at this time
                   if (!block && unavailMsg) {
                     return (
-                      <div key={`${time}-${t.id}`} style={{ height: 72, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(72,72,112,0.03)' }}>
+                      <div key={`${time}-${t.id}`} style={{ height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(72,72,112,0.03)' }}>
                         <span style={{ fontSize: 9, color: '#363656', fontWeight: 500, textAlign: 'center', padding: '0 6px' }}>{unavailMsg}</span>
                       </div>
                     )
@@ -831,7 +980,7 @@ export default function Schedule() {
                           doEmptyDrop(dragBlock, t.id)
                         }}
                         style={{
-                          height: 72, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)',
+                          height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)',
                           padding: '3px 4px', cursor: 'pointer', transition: 'all 120ms ease',
                           background: isDropping ? 'rgba(74,222,128,0.18)' : 'rgba(74,222,128,0.06)',
                           ...(isDropping ? { outline: '2px dashed rgba(74,222,128,0.5)', outlineOffset: -2 } : {}),
@@ -852,7 +1001,7 @@ export default function Schedule() {
                   // Open slot — check if teacher is available at this time
                   if (bt === 'open_time' && unavailMsg) {
                     return (
-                      <div key={`${time}-${t.id}`} style={{ height: 72, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(72,72,112,0.03)' }}>
+                      <div key={`${time}-${t.id}`} style={{ height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(72,72,112,0.03)' }}>
                         <span style={{ fontSize: 9, color: '#363656', fontWeight: 500, textAlign: 'center', padding: '0 6px' }}>{unavailMsg}</span>
                       </div>
                     )
@@ -868,7 +1017,7 @@ export default function Schedule() {
                         onDragLeave={() => setDragOverTarget(null)}
                         onDrop={(e) => { e.preventDefault(); handleDrop(block) }}
                         style={{
-                          height: 72, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)',
+                          height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)',
                           padding: '3px 4px', cursor: 'pointer', transition: 'all 120ms ease',
                           background: isDropTarget ? 'rgba(74,222,128,0.18)' : 'rgba(74,222,128,0.06)',
                           ...(isDropTarget ? { outline: '2px dashed rgba(74,222,128,0.5)', outlineOffset: -2 } : {}),
@@ -886,7 +1035,7 @@ export default function Schedule() {
                   // Locked — minimal
                   if (bt === 'not_bookable') {
                     return (
-                      <div key={`${time}-${t.id}`} onClick={() => setCheckInBlock(block)} style={{ height: 72, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div key={`${time}-${t.id}`} onClick={() => setCheckInBlock(block)} style={{ height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <span style={{ fontSize: 10, color: '#363656', fontWeight: 600 }}>Locked</span>
                       </div>
                     )
@@ -895,7 +1044,7 @@ export default function Schedule() {
                   // Teacher training — indigo chip
                   if (bt === 'teacher_training') {
                     return (
-                      <div key={`${time}-${t.id}`} onClick={() => setCheckInBlock(block)} style={{ height: 72, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', padding: '3px 4px', cursor: 'pointer' }}>
+                      <div key={`${time}-${t.id}`} onClick={() => setCheckInBlock(block)} style={{ height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', padding: '3px 4px', cursor: 'pointer' }}>
                         <div style={{ height: '100%', borderRadius: 8, background: '#818CF8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <span style={{ fontSize: 11, color: '#fff', fontWeight: 700 }}>Training</span>
                         </div>
@@ -908,15 +1057,19 @@ export default function Schedule() {
                     student_session: '#FACC15',
                     first_day: '#38BDF8',
                     last_day: '#DC0000',
-                    call_out: '#FF8000',
+                    call_out: '#FF5500',
                     meet_greet: '#FF1493',
                     sub: '#22C55E',
                   }
-                  const bgColor = solidColors[bt] ?? '#FACC15'
-                  // Dark text for light backgrounds (yellow, blue, teal, orange), white for dark (red, purple)
-                  const darkBgTypes = new Set(['last_day', 'sub'])
-                  const textColor = darkBgTypes.has(bt) ? '#fff' : '#111'
-                  const textColorMuted = darkBgTypes.has(bt) ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)'
+                  // Virtual override — teal #00BCD4
+                  const isVirtual = block.is_virtual
+                  const bgColor = isVirtual ? '#00BCD4' : (solidColors[bt] ?? '#FACC15')
+                  // White text for dark backgrounds, dark text for light backgrounds
+                  const whiteBgTypes = new Set(['last_day', 'sub', 'call_out', 'meet_greet'])
+                  const useWhiteText = isVirtual || whiteBgTypes.has(bt)
+                  const textColor = useWhiteText ? '#ffffff' : bt === 'first_day' ? '#072030' : '#111111'
+                  const textColorMuted = useWhiteText ? 'rgba(255,255,255,0.65)' : bt === 'first_day' ? 'rgba(7,32,48,0.65)' : 'rgba(0,0,0,0.6)'
+                  const textColorFaint = useWhiteText ? 'rgba(255,255,255,0.5)' : bt === 'first_day' ? 'rgba(7,32,48,0.5)' : 'rgba(0,0,0,0.5)'
 
                   // Booked block — solid color fill, faded if checked in
                   const isCheckedIn = block.checked_in
@@ -928,38 +1081,27 @@ export default function Schedule() {
                       onDragStart={(e) => { setDragBlock(block); e.dataTransfer.effectAllowed = 'move' }}
                       onDragEnd={() => { setDragBlock(null); setDragOverTarget(null) }}
                       onClick={() => setCheckInBlock(block)}
-                      style={{ height: 72, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', padding: '3px 4px', cursor: 'grab' }}
+                      style={{ height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', padding: '3px 4px', cursor: 'grab' }}
                     >
-                      <div
-                        style={{
-                          height: '100%', borderRadius: 8, padding: '6px 8px',
-                          display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' as const, gap: 1,
-                          transition: 'transform 120ms ease, box-shadow 120ms ease',
-                          border: isPendingTally ? `2px dashed ${bgColor}` : '2px solid transparent',
-                          background: (isCheckedIn && !isPendingTally)
-                            ? `${bgColor}50`   /* ~30% — done/tallied, no outline */
-                            : isPendingTally
-                            ? `${bgColor}50`   /* ~30% — pending, dashed outline */
-                            : bgColor,          /* 100% — upcoming, no outline */
-                          boxShadow: isCheckedIn ? 'none' : `0 2px 8px ${bgColor}40`,
-                        }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)' }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: textColor }}>{formatTime(block.start_time)}</span>
-                          {isCheckedIn && <Check size={9} style={{ color: textColor }} />}
-                          {block.fifth_week && <span style={{ fontSize: 7, color: textColorMuted, fontWeight: 800 }}>5th</span>}
+                      <div style={{
+                        height: '100%',
+                        borderRadius: 8,
+                        background: (isCheckedIn && !isPendingTally) ? `${bgColor}50` : isPendingTally ? `${bgColor}50` : bgColor,
+                        boxShadow: isCheckedIn ? 'none' : `0 2px 8px ${bgColor}40`,
+                        border: isPendingTally ? `2px dashed ${bgColor}` : '2px solid transparent',
+                        transition: 'transform 120ms, box-shadow 120ms',
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '4px 6px', height: '100%', textAlign: 'center' }}>
+                          <div style={{ fontWeight: 700, fontSize: '16px', color: textColor, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                            {block.student_name || 'Student'}
+                          </div>
+                          <div style={{ fontSize: '14px', color: textColorMuted, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                            {isVirtual && <span title="Virtual — Google Meet" style={{ fontSize: 12 }}>📹</span>}
+                            {block.instrument && <span title={block.instrument} style={{ fontSize: 14 }}>{getInstrumentEmoji(block.instrument)}</span>}
+                            {formatTime(block.start_time)}
+                            {block.has_session_log && <span title="Session logged" style={{ fontSize: 10, opacity: 0.8 }}>&#9998;</span>}
+                          </div>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: textColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{block.student_name}</span>
-                        {block.original_teacher_name && (
-                          <span style={{ fontSize: 8, fontWeight: 700, color: '#FF8C00', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>↩ {block.original_teacher_name} called out</span>
-                        )}
-                        <span style={{ fontSize: 9, color: textColorMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
-                          {block.instrument ? block.instrument.charAt(0).toUpperCase() + block.instrument.slice(1) : ''}
-                          {bt !== 'student_session' ? ` — ${bt === 'first_day' ? 'First Day' : bt === 'last_day' ? 'Last Day' : bt === 'call_out' ? 'Call Out' : bt === 'meet_greet' ? 'Meet & Greet' : bt === 'sub' ? 'Sub' : ''}` : ''}
-                          {isPendingTally ? ' — Pending' : ''}
-                        </span>
                       </div>
                     </div>
                   )
@@ -1090,8 +1232,14 @@ export default function Schedule() {
 
       {/* Assign Student Modal — search → select → configure → book */}
       {assignModal && (
-        <div className="modal-overlay" onClick={() => setAssignModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <div className={isMobile ? undefined : 'modal-overlay'} style={isMobile ? { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(2px)' } : {}} onClick={() => setAssignModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={isMobile ? { maxWidth: '100vw', width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '92vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any } : { maxWidth: 400 }}>
+            {/* Drag handle on mobile */}
+            {isMobile && (
+              <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+              </div>
+            )}
             {/* Header */}
             <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>Book Lesson</span>
@@ -1165,7 +1313,7 @@ export default function Schedule() {
                     onChange={(e) => setStudentSearch(e.target.value)}
                     placeholder="Search student name..."
                     autoFocus
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: isMobile ? '14px 14px' : '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: isMobile ? 16 : 13, outline: 'none', boxSizing: 'border-box', minHeight: isMobile ? 48 : undefined }}
                   />
                   <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
                     {studentSearch.length === 0 ? (
@@ -1193,9 +1341,9 @@ export default function Schedule() {
                               setAssignError(null)
                             }}
                             style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '14px 12px' : '10px 12px',
                               borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.03)', cursor: 'pointer',
-                              transition: 'background 100ms ease', textAlign: 'left', width: '100%',
+                              transition: 'background 100ms ease', textAlign: 'left', width: '100%', minHeight: isMobile ? 48 : undefined,
                             }}
                             onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,184,0,0.08)')}
                             onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
@@ -1342,7 +1490,7 @@ export default function Schedule() {
                           }
                         }}
                         disabled={assignStudent.isPending}
-                        style={{ width: '100%', padding: '12px 16px', borderRadius: 10, background: '#FACC15', border: 'none', cursor: 'pointer', color: '#1A1A2E', fontWeight: 700, fontSize: 14 }}
+                        style={{ width: '100%', padding: isMobile ? '16px 16px' : '12px 16px', borderRadius: 10, background: '#FACC15', border: 'none', cursor: 'pointer', color: '#1A1A2E', fontWeight: 700, fontSize: 14, minHeight: isMobile ? 52 : undefined }}
                       >
                         {assignStudent.isPending ? 'Booking...' : 'Book Appointment'}
                       </button>
@@ -1356,87 +1504,7 @@ export default function Schedule() {
         </div>
       )}
 
-      {/* Detail Modal */}
-      {detailModal && (
-        <div className="modal-overlay" onClick={() => setDetailModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
-            <div className="modal-header">
-              <span className="modal-title">Block Details</span>
-              <button className="btn-ghost" onClick={() => setDetailModal(null)} style={{ padding: '4px 8px' }}>X</button>
-            </div>
-            <div className="modal-form">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[
-                  { label: 'Teacher', value: detailModal.teacher_name },
-                  { label: 'Time', value: `${formatTime(detailModal.start_time)} – ${formatTime(detailModal.end_time)}` },
-                  { label: 'Student', value: detailModal.student_name },
-                  { label: 'Instrument', value: detailModal.instrument },
-                  { label: 'Recurring', value: detailModal.is_recurring ? 'Yes' : 'No' },
-                  ...(detailModal.room ? [{ label: 'Room', value: detailModal.room }] : []),
-                  { label: 'Status', value: detailModal.checked_in ? 'Checked In' : 'Pending' },
-                ].map((row) => (
-                  <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: 11, color: '#8080A8', fontWeight: 600 }}>{row.label}</span>
-                    <span style={{ fontSize: 12, color: '#E0E0F4', fontWeight: 600 }}>{row.value}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Locked block context — explain why it's locked */}
-              {detailModal.block_type === 'not_bookable' && !detailModal.student_id && (
-                <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(72,72,112,0.08)', border: '1px solid rgba(72,72,112,0.15)', borderRadius: 10, fontSize: 12, color: '#A0A0C8', lineHeight: 1.6 }}>
-                  {detailModal.notes ? (
-                    <span>{detailModal.notes}</span>
-                  ) : (
-                    <span>This slot is locked. It may be held for an upcoming First Day student. You can still book a <strong>one-off</strong> session here, but not a recurring one.</span>
-                  )}
-                </div>
-              )}
-
-              {detailModal.student_id && (
-                <div className="form-field" style={{ marginTop: 12 }}>
-                  <label>Block Type</label>
-                  <select
-                    value={detailModal.block_type}
-                    onChange={async (e) => {
-                      const newType = e.target.value as BlockType
-                      if (newType === 'last_day') { setLastDayBlock(detailModal); return }
-                      if (newType === 'first_day') { setFirstDayBlock(detailModal); return }
-                      await changeBlockType.mutateAsync({ blockId: detailModal.block_id, blockType: newType })
-                      setDetailModal({ ...detailModal, block_type: newType })
-                    }}
-                    className="filter-select"
-                    style={{ width: '100%' }}
-                    disabled={changeBlockType.isPending}
-                  >
-                    <option value="student_session">Music Session</option>
-                    <option value="first_day">First Day</option>
-                    <option value="last_day">Last Day</option>
-                    <option value="call_out">Call Out</option>
-                    <option value="meet_greet">Meet & Greet</option>
-                    <option value="sub">Sub</option>
-                    <option value="not_bookable">Locked</option>
-                    <option value="teacher_training">Teacher Training</option>
-                  </select>
-                </div>
-              )}
-
-              <div className="modal-actions">
-                {detailModal.student_id ? (
-                  <button className="btn-ghost" onClick={handleUnassign} disabled={unassignBlock.isPending} style={{ color: '#EF4444' }}>
-                    {unassignBlock.isPending ? 'Removing...' : 'Remove Student'}
-                  </button>
-                ) : (
-                  <button className="btn-ghost" onClick={handleDeleteBlock} style={{ color: '#EF4444' }}>
-                    Delete Block
-                  </button>
-                )}
-                <button className="btn-ghost" onClick={() => setDetailModal(null)}>Close</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Legacy detailModal removed — all block clicks now use CheckInModal which is fully responsive */}
 
       {lastDayBlock && (
         <LastDayConfirmModal block={lastDayBlock} onClose={() => setLastDayBlock(null)}
@@ -1469,6 +1537,15 @@ export default function Schedule() {
           locationId={effectiveLocation}
           teachers={allGridTeachersFull}
           onClose={() => setShowCalloutWizard(false)}
+        />
+      )}
+
+      {bulkVirtualOpen && (
+        <BulkVirtualModal
+          blocks={blocks}
+          date={selectedDate}
+          tenantId={tenantId ?? ''}
+          onClose={() => { setBulkVirtualOpen(false); qc.invalidateQueries({ queryKey: ['schedule-grid'] }) }}
         />
       )}
 
