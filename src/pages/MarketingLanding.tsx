@@ -101,7 +101,7 @@ export default function MarketingLanding() {
         <blockquote className="lp-quote">
           "I didn't build Lessonpreneur because I'm a tech guy. I built it because I was drowning. Four locations. 600 students. Parents asking questions nobody was answering. Students leaving and I didn't know until the room was empty. I was doing over a million a year and still felt like I was losing. So I built the system I wished existed."
         </blockquote>
-        <p style={{ color: '#f59e0b', fontWeight: 700, fontSize: 14 }}>— Zach Adkins, Founder</p>
+        <p style={{ color: '#D4226A', fontWeight: 700, fontSize: 14 }}>— Zach Adkins, Founder</p>
       </div></Reveal>
 
       {/* ── INTEGRATIONS ────────────────────── */}
@@ -160,12 +160,12 @@ export default function MarketingLanding() {
       {/* ── FOOTER ──────────────────────────── */}
       <footer className="lp-footer">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', marginBottom: 14 }}>
-          <Star size={14} style={{ color: '#f59e0b' }} /><span style={{ fontWeight: 700, color: '#6b6b80' }}>Lessonpreneur</span>
+          <Star size={14} style={{ color: '#D4226A' }} /><span style={{ fontWeight: 700, color: '#6b6b80' }}>Lessonpreneur</span>
         </div>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
           {[['Features','features'],['Pricing','pricing'],['FAQ','faq']].map(([l,id]) => <button key={id} onClick={() => go(id)} className="lp-foot-link">{l}</button>)}
           <button onClick={() => nav('/login')} className="lp-foot-link">Log In</button>
-          <button onClick={() => nav('/signup')} className="lp-foot-link" style={{ color: '#f59e0b' }}>Sign Up</button>
+          <button onClick={() => nav('/signup')} className="lp-foot-link" style={{ color: '#D4226A' }}>Sign Up</button>
         </div>
         <p className="lp-fine">Built by Adkins Enterprises LLC · © 2026</p>
       </footer>
@@ -183,7 +183,7 @@ function Nav({ onCta }: { onCta: () => void }) {
   return (
     <nav className={`lp-nav ${solid ? 'lp-nav-solid' : ''}`}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Star size={18} style={{ color: '#f59e0b' }} />
+        <Star size={18} style={{ color: '#D4226A' }} />
         <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em' }}>Lessonpreneur</span>
       </div>
       <button className="lp-cta-sm" onClick={onCta}>Start Free</button>
@@ -208,7 +208,7 @@ function FlipCard({ pain, fix }: { pain: string; fix: string }) {
     <div className={`lp-flip ${flipped ? 'lp-flipped' : ''}`} onClick={() => setFlipped(!flipped)}>
       {!flipped
         ? <p style={{ fontSize: 15, color: '#c0c0d0', lineHeight: 1.65 }}>{pain} <span className="lp-fine">(tap)</span></p>
-        : <p style={{ fontSize: 16, fontWeight: 700, color: '#f59e0b', lineHeight: 1.5 }}>{fix}</p>
+        : <p style={{ fontSize: 16, fontWeight: 700, color: '#D4226A', lineHeight: 1.5 }}>{fix}</p>
       }
     </div>
   )
@@ -255,7 +255,7 @@ function Calculator({ onCta }: { onCta: () => void }) {
   const tierCost = tier === 'teacher' ? 197 * 12 : tier === 'school' ? 497 * 12 : 997 * 12
   const net = totalValue - tierCost
   const tierLabel = tier === 'teacher' ? 'Solo teacher' : tier === 'school' ? 'Music school' : 'Multi-location'
-  const tierColor = tier === 'teacher' ? '#f59e0b' : tier === 'school' ? '#22c55e' : '#a333ff'
+  const tierColor = tier === 'teacher' ? '#D4226A' : tier === 'school' ? '#22c55e' : '#a333ff'
 
   return (
     <div className="lp-calc">
@@ -277,7 +277,7 @@ function Calculator({ onCta }: { onCta: () => void }) {
 
       {/* AMBER — Value */}
       <div className="lp-calc-card lp-calc-amber">
-        <p className="lp-calc-label" style={{ color: '#f59e0b' }}>LESSONPRENEUR PUTS MONEY BACK IN YOUR POCKET</p>
+        <p className="lp-calc-label" style={{ color: '#D4226A' }}>LESSONPRENEUR PUTS MONEY BACK IN YOUR POCKET</p>
         <div className="lp-calc-grid">
           <div className="lp-calc-box"><span className="lp-calc-box-num">${savedRev.toLocaleString()}</span><span className="lp-calc-box-desc">from students who stay instead of leave</span></div>
           <div className="lp-calc-box"><span className="lp-calc-box-num">${timeSaved.toLocaleString()}</span><span className="lp-calc-box-desc">worth of your time back on admin</span></div>
@@ -341,10 +341,10 @@ function MockParent() {
   return <div className="lp-mock"><div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Emma's Piano Session</div><span className="lp-mini-badge" style={{ color: '#22c55e', background: '#22c55e15' }}>Crushing It</span><p style={{ fontSize: 13, color: '#c0c0d0', lineHeight: 1.6, marginTop: 8 }}>"Emma worked on chord progressions today. Her energy was amazing — she's clearly been practicing."</p><div style={{ marginTop: 10 }}><span style={{ padding: '5px 12px', borderRadius: 6, background: '#D4226A18', color: '#D4226A', fontSize: 11, fontWeight: 700 }}>Share ↗</span></div></div>
 }
 function MockPL() {
-  return <div className="lp-mock"><div className="lp-pl-grid">{[{ l: 'Revenue', v: '$96,310', c: '#22c55e' }, { l: 'Payroll', v: '-$48,155', c: '#fb923c' }, { l: 'Expenses', v: '-$20,700', c: '#ef4444' }, { l: 'Take-Home', v: '$27,455', c: '#f59e0b' }].map(m => <div key={m.l} className="lp-pl-item" style={{ borderTopColor: m.c }}><span style={{ fontSize: 18, fontWeight: 800, color: m.c, fontFamily: 'monospace' }}>{m.v}</span><span className="lp-fine">{m.l}</span></div>)}</div></div>
+  return <div className="lp-mock"><div className="lp-pl-grid">{[{ l: 'Revenue', v: '$96,310', c: '#22c55e' }, { l: 'Payroll', v: '-$48,155', c: '#fb923c' }, { l: 'Expenses', v: '-$20,700', c: '#ef4444' }, { l: 'Take-Home', v: '$27,455', c: '#D4226A' }].map(m => <div key={m.l} className="lp-pl-item" style={{ borderTopColor: m.c }}><span style={{ fontSize: 18, fontWeight: 800, color: m.c, fontFamily: 'monospace' }}>{m.v}</span><span className="lp-fine">{m.l}</span></div>)}</div></div>
 }
 function MockStar() {
-  return <div className="lp-mock"><div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}><Star size={12} style={{ color: '#f59e0b' }} /><span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>Star</span></div><div style={{ padding: '6px 10px', borderRadius: 8, background: '#1a1a28', fontSize: 13, color: '#c0c0d0', marginBottom: 6 }}>How are we doing?</div><div style={{ padding: '6px 10px', borderRadius: 8, background: '#f59e0b08', border: '1px solid #f59e0b15', fontSize: 13, color: '#c0c0d0', lineHeight: 1.5 }}>487 active students. Gretna at 87% capacity. 3 leads need follow-up. Revenue tracking $96K.</div></div>
+  return <div className="lp-mock"><div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}><Star size={12} style={{ color: '#D4226A' }} /><span style={{ fontSize: 12, fontWeight: 700, color: '#D4226A' }}>Star</span></div><div style={{ padding: '6px 10px', borderRadius: 8, background: '#1a1a28', fontSize: 13, color: '#c0c0d0', marginBottom: 6 }}>How are we doing?</div><div style={{ padding: '6px 10px', borderRadius: 8, background: '#D4226A08', border: '1px solid #D4226A15', fontSize: 13, color: '#c0c0d0', lineHeight: 1.5 }}>487 active students. Gretna at 87% capacity. 3 leads need follow-up. Revenue tracking $96K.</div></div>
 }
 
 function FeatureCard({ icon, title, desc }: { icon: string; title: string; desc: string }) {
@@ -375,23 +375,23 @@ function Styles() {
     .lp-nav-solid { background: #06060af0; backdrop-filter: blur(16px); border-bottom: 1px solid #1a1a2840; }
 
     /* ── Buttons ── */
-    .lp-cta { display: inline-flex; align-items: center; gap: 8px; padding: 16px 32px; border-radius: 12px; background: #f59e0b; color: #000; font-size: 16px; font-weight: 700; border: none; cursor: pointer; font-family: inherit; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 0 0 0 #f59e0b40; animation: lp-pulse 2.5s infinite; }
-    .lp-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px #f59e0b40; }
+    .lp-cta { display: inline-flex; align-items: center; gap: 8px; padding: 16px 32px; border-radius: 12px; background: #D4226A; color: #fff; font-size: 16px; font-weight: 700; border: none; cursor: pointer; font-family: inherit; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 0 0 0 #D4226A40; animation: lp-pulse 2.5s infinite; }
+    .lp-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px #D4226A40; }
     .lp-cta-full { width: 100%; justify-content: center; }
-    .lp-cta-sm { padding: 8px 18px; border-radius: 8px; background: #f59e0b; color: #000; font-size: 13px; font-weight: 700; border: none; cursor: pointer; font-family: inherit; }
+    .lp-cta-sm { padding: 8px 18px; border-radius: 8px; background: #D4226A; color: #fff; font-size: 13px; font-weight: 700; border: none; cursor: pointer; font-family: inherit; }
     .lp-cta-outline { display: inline-flex; align-items: center; justify-content: center; padding: 14px 24px; border-radius: 12px; background: transparent; color: #8b8ba0; font-size: 15px; font-weight: 700; border: 1px solid #1a1a28; cursor: pointer; font-family: inherit; width: 100%; transition: border-color 0.2s; }
-    .lp-cta-outline:hover { border-color: #f59e0b40; }
+    .lp-cta-outline:hover { border-color: #D4226A40; }
     .lp-ghost { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: #6b6b80; font-size: 14px; cursor: pointer; margin-top: 12px; font-family: inherit; }
-    @keyframes lp-pulse { 0%,100% { box-shadow: 0 0 0 0 #f59e0b40; } 50% { box-shadow: 0 0 0 10px #f59e0b00; } }
+    @keyframes lp-pulse { 0%,100% { box-shadow: 0 0 0 0 #D4226A40; } 50% { box-shadow: 0 0 0 10px #D4226A00; } }
 
     /* ── Hero ── */
     .lp-hero { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 100px 20px 60px; position: relative; overflow: hidden; }
     .lp-hero-inner { position: relative; z-index: 1; max-width: 640px; }
     .lp-gradient-bg { position: absolute; inset: 0; background: linear-gradient(135deg, #D4111306, #00A65106, #A333FF06, #00A5E806); background-size: 400% 400%; animation: lp-grad 60s ease infinite; }
     @keyframes lp-grad { 0%,100% { background-position: 0% 50%; } 25% { background-position: 100% 0%; } 50% { background-position: 100% 100%; } 75% { background-position: 0% 100%; } }
-    .lp-eyebrow { font-size: 11px; font-weight: 700; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 16px; }
+    .lp-eyebrow { font-size: 11px; font-weight: 700; color: #D4226A; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 16px; }
     .lp-h1 { font-size: clamp(36px, 8vw, 64px); font-weight: 900; line-height: 1.05; margin: 0 0 16px; letter-spacing: -0.04em; }
-    .lp-gold { color: #f59e0b; }
+    .lp-gold { color: #D4226A; }
     .lp-sub { font-size: clamp(15px, 2.5vw, 18px); color: #8b8ba0; line-height: 1.55; margin-bottom: 28px; }
     .lp-br-desktop { display: none; }
     @media (min-width: 640px) { .lp-br-desktop { display: inline; } }
@@ -405,7 +405,7 @@ function Styles() {
     .lp-stack { display: flex; flex-direction: column; gap: 10px; }
     .lp-nudge { text-align: center; color: #6b6b80; font-size: 13px; margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 6px; }
     .lp-fine { color: #6b6b80; font-size: 12px; }
-    .lp-quote { font-size: 15px; color: #c0c0d0; line-height: 1.7; font-style: italic; border-left: 3px solid #f59e0b40; padding-left: 16px; margin: 20px 0; text-align: left; }
+    .lp-quote { font-size: 15px; color: #c0c0d0; line-height: 1.7; font-style: italic; border-left: 3px solid #D4226A40; padding-left: 16px; margin: 20px 0; text-align: left; }
 
     /* ── Reveal ── */
     .lp-reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.5s ease, transform 0.5s ease; }
@@ -413,15 +413,15 @@ function Styles() {
 
     /* ── Particles ── */
     .lp-particles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-    .lp-particle { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #f59e0b; animation: lp-drift linear infinite; }
+    .lp-particle { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #D4226A; animation: lp-drift linear infinite; }
     @keyframes lp-drift { 0% { transform: translateY(0) translateX(0); } 50% { transform: translateY(-40vh) translateX(20px); } 100% { transform: translateY(-80vh) translateX(-10px); } }
 
     /* ── FlipCard ── */
     .lp-flip { padding: 20px; border-radius: 14px; background: #101018; border: 1px solid #1a1a28; cursor: pointer; transition: border-color 0.3s; -webkit-tap-highlight-color: transparent; }
-    .lp-flipped { border-color: #f59e0b30; }
+    .lp-flipped { border-color: #D4226A30; }
 
     /* ── Mini Card (hero mockup) ── */
-    .lp-mini-card { padding: 16px 20px; border-radius: 12px; background: #101018; border: 1px solid #1a1a28; border-top: 3px solid #ef4444; max-width: 340px; margin: 0 auto; text-align: left; transform: perspective(600px) rotateY(-3deg) rotateX(2deg); box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 40px #f59e0b08; }
+    .lp-mini-card { padding: 16px 20px; border-radius: 12px; background: #101018; border: 1px solid #1a1a28; border-top: 3px solid #ef4444; max-width: 340px; margin: 0 auto; text-align: left; transform: perspective(600px) rotateY(-3deg) rotateX(2deg); box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 40px #D4226A08; }
     .lp-mini-badge { font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 5px; letter-spacing: 0.06em; }
 
     /* ── Calculator ── */
@@ -429,24 +429,24 @@ function Styles() {
     .lp-slider-wrap { margin-bottom: 20px; }
     .lp-slider-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .lp-tier-badge { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 6px; margin-left: 6px; }
-    .lp-range { width: 100%; accent-color: #f59e0b; height: 8px; border-radius: 4px; appearance: none; background: #1a1a28; outline: none; }
-    .lp-range::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #f59e0b; cursor: grab; box-shadow: 0 2px 8px #f59e0b40; }
+    .lp-range { width: 100%; accent-color: #D4226A; height: 8px; border-radius: 4px; appearance: none; background: #1a1a28; outline: none; }
+    .lp-range::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #D4226A; cursor: grab; box-shadow: 0 2px 8px #D4226A40; }
     .lp-calc-card { padding: 20px; border-radius: 14px; margin-bottom: 12px; }
     .lp-calc-red { background: #ef444408; border: 1px solid #ef444418; }
-    .lp-calc-amber { background: #f59e0b06; border: 1px solid #f59e0b15; }
+    .lp-calc-amber { background: #D4226A06; border: 1px solid #D4226A15; }
     .lp-calc-green { background: #22c55e06; border: 1px solid #22c55e18; text-align: center; }
     .lp-calc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
     .lp-calc-big { font-size: clamp(28px, 6vw, 40px); font-weight: 900; font-family: monospace; margin: 4px 0; }
     .lp-calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
     @media (max-width: 480px) { .lp-calc-grid { grid-template-columns: 1fr; } }
-    .lp-calc-box { padding: 12px; border-radius: 10px; background: #f59e0b08; border: 1px solid #f59e0b10; }
-    .lp-calc-box-num { display: block; font-size: 18px; font-weight: 800; color: #f59e0b; font-family: monospace; margin-bottom: 2px; }
+    .lp-calc-box { padding: 12px; border-radius: 10px; background: #D4226A08; border: 1px solid #D4226A10; }
+    .lp-calc-box-num { display: block; font-size: 18px; font-weight: 800; color: #D4226A; font-family: monospace; margin-bottom: 2px; }
     .lp-calc-box-desc { font-size: 12px; color: #8b8ba0; line-height: 1.4; }
 
     /* ── Showcase ── */
     .lp-tabs { display: flex; gap: 6px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
     .lp-tab { padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #6b6b80; border: 1px solid transparent; font-family: inherit; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
-    .lp-tab-on { background: #f59e0b15; color: #f59e0b; border-color: #f59e0b25; }
+    .lp-tab-on { background: #D4226A15; color: #D4226A; border-color: #D4226A25; }
     .lp-tab-label { display: none; }
     @media (min-width: 520px) { .lp-tab-label { display: inline; } }
     .lp-showcase-frame { animation: fadeInUp 0.3s ease; }
@@ -460,12 +460,12 @@ function Styles() {
     @media (min-width: 520px) { .lp-features { grid-template-columns: 1fr 1fr; } }
     @media (min-width: 768px) { .lp-features { grid-template-columns: 1fr 1fr 1fr; } }
     .lp-feat-card { padding: 18px; border-radius: 14px; background: #101018; border: 1px solid #1a1a28; transition: border-color 0.2s, transform 0.2s; }
-    .lp-feat-card:hover { border-color: #f59e0b20; transform: translateY(-2px); }
+    .lp-feat-card:hover { border-color: #D4226A20; transform: translateY(-2px); }
 
     /* ── Stats ── */
     .lp-stat-strip { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
-    .lp-stat { padding: 10px 20px; border-radius: 10px; background: #f59e0b06; border: 1px solid #f59e0b12; text-align: center; }
-    .lp-stat-num { display: block; font-size: 22px; font-weight: 800; color: #f59e0b; }
+    .lp-stat { padding: 10px 20px; border-radius: 10px; background: #D4226A06; border: 1px solid #D4226A12; text-align: center; }
+    .lp-stat-num { display: block; font-size: 22px; font-weight: 800; color: #D4226A; }
 
     /* ── Integration pills ── */
     .lp-int-pill { padding: 8px 16px; border-radius: 8px; background: #101018; border: 1px solid #1a1a28; font-size: 13px; color: #8b8ba0; font-weight: 600; }
@@ -474,8 +474,8 @@ function Styles() {
     .lp-pricing-grid { display: grid; grid-template-columns: 1fr; gap: 14px; max-width: 900px; margin: 24px auto 0; }
     @media (min-width: 640px) { .lp-pricing-grid { grid-template-columns: repeat(3, 1fr); } }
     .lp-price-card { padding: 24px; border-radius: 18px; background: #101018; border: 1px solid #1a1a28; display: flex; flex-direction: column; position: relative; }
-    .lp-popular { border-color: #f59e0b30; background: #f59e0b04; border-top: 3px solid #f59e0b; }
-    .lp-pop-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; padding: 3px 12px; border-radius: 6px; background: #f59e0b; color: #000; white-space: nowrap; }
+    .lp-popular { border-color: #D4226A30; background: #D4226A04; border-top: 3px solid #D4226A; }
+    .lp-pop-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; padding: 3px 12px; border-radius: 6px; background: #D4226A; color: #fff; white-space: nowrap; }
     .lp-price-name { font-size: 17px; font-weight: 800; margin-bottom: 2px; }
     .lp-price-tag { font-size: 12px; color: #8b8ba0; margin-bottom: 14px; }
     .lp-price-amt { font-size: 36px; font-weight: 900; margin-bottom: 4px; }
