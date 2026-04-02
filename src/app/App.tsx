@@ -34,7 +34,7 @@ const DrumsLanding = lazy(() => import('../pages/DrumsLanding'))
 const GuitarLanding = lazy(() => import('../pages/GuitarLanding'))
 const VocalsLanding = lazy(() => import('../pages/VocalsLanding'))
 const PianoLanding = lazy(() => import('../pages/PianoLanding'))
-const LesssonpreneurLanding = lazy(() => import('../pages/LesssonpreneurLanding'))
+const LessonpreneurLanding = lazy(() => import('../pages/LessonpreneurLanding'))
 const MoreLanding = lazy(() => import('../pages/MoreLanding'))
 const SignupLanding = lazy(() => import('../pages/SignupLanding'))
 const ThankYou = lazy(() => import('../pages/ThankYou'))
@@ -133,7 +133,7 @@ export default function App() {
             <Route path="/guitar" element={<Navigate to="/omaha/guitar" replace />} />
             <Route path="/piano" element={<Navigate to="/omaha/piano" replace />} />
             <Route path="/vocals" element={<Navigate to="/omaha/vocals" replace />} />
-            <Route path="/lessonpreneur" element={<LesssonpreneurLanding />} />
+            <Route path="/lessonpreneur" element={<LessonpreneurLanding />} />
             <Route path="/thank-you" element={<ThankYou />} />
 
             {/* Admin routes — owner + admin */}

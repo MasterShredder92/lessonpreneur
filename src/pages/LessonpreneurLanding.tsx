@@ -145,7 +145,7 @@ const FAQS = [
 
 const SHOWCASE_TABS = ['Studio', 'Schedule', 'Roster', 'The Band', 'Your Books'] as const
 
-export default function LesssonpreneurLanding() {
+export default function LessonpreneurLanding() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [showcaseTab, setShowcaseTab] = useState(0)
   const pageRef = useRef<HTMLDivElement>(null)
