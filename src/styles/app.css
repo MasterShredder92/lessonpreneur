@@ -1870,6 +1870,9 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   align-items: center;
   gap: 10px;
 }
+.ret-card-loc-inline {
+  display: inline;
+}
 .ret-card-actions {
   display: flex;
   gap: 8px;
@@ -2740,8 +2743,12 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 
   /* ── Retention cards → stacked mobile layout ── */
   .ret-card-top {
+    display: block !important;
     text-align: center !important;
-    margin-bottom: 8px !important;
+    margin-bottom: 6px !important;
+  }
+  .ret-card-loc-inline {
+    display: none !important;
   }
   .ret-card-row {
     flex-direction: column !important;
@@ -2750,5 +2757,6 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   }
   .ret-card-actions {
     justify-content: flex-start !important;
+    margin-top: 8px !important;
   }
 }

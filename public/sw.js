@@ -1,8 +1,8 @@
-// Lessonpreneur Service Worker v3
+// Lessonpreneur Service Worker v4
 // Network-first. Only cache static assets (JS/CSS/images) as offline fallback.
-// NEVER cache index.html or API calls.
+// NEVER cache index.html, API calls, or landing page assets.
 
-const CACHE_NAME = 'lessonpreneur-v3'
+const CACHE_NAME = 'lessonpreneur-v4'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -12,7 +12,7 @@ self.addEventListener('install', (event) => {
 })
 
 self.addEventListener('activate', (event) => {
-  // Clean ALL old caches (including v2)
+  // Nuke ALL previous caches — v1, v2, v3, everything
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
@@ -51,6 +51,12 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request).catch(() => caches.match('/offline.html').then((r) => r || new Response('Offline', { status: 503 })))
     )
+    return
+  }
+
+  // NEVER cache landing page assets — always network, no fallback
+  if (url.pathname.includes('LessonpreneurLanding') || url.pathname.includes('lessonpreneur-landing')) {
+    event.respondWith(fetch(request))
     return
   }
 

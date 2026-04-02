@@ -125,6 +125,7 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
                   <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{s.instrument}</span>
                 </div>
+                <span className="ret-card-loc-inline"><LocBadge name={s.locationName} /></span>
                 <span style={{ fontSize: 11, color: '#606088', whiteSpace: 'nowrap' }}>
                   {s.lastCardDate ? `Last: ${new Date(s.lastCardDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Never sent'}
                 </span>

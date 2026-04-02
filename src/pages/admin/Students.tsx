@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
@@ -73,14 +73,15 @@ export default function Students() {
   const [showAddStudent, setShowAddStudent] = useState(false)
 
   // Fetch all students for counts, then filter client-side for tab
-  const { data: allStudents, isLoading } = useStudents({
-    status: activeTab === 'former' ? 'former' : 'active',
-    locationId: locationFilter || undefined,
-    teacherId: teacherFilter || undefined,
-  })
+  const statusFilter = activeTab === 'former' ? 'former' : 'active'
+  const locId = locationFilter || undefined
+  const teachId = teacherFilter || undefined
+  const filters = useMemo(() => ({ status: statusFilter, locationId: locId, teacherId: teachId }), [statusFilter, locId, teachId])
+  const { data: allStudents, isLoading, isFetching } = useStudents(filters)
 
   // Also get all for counts
-  const { data: allForCounts } = useStudents({})
+  const countsFilters = useMemo(() => ({}), [])
+  const { data: allForCounts } = useStudents(countsFilters)
 
   const createStudent = useCreateStudent()
   const updateStudent = useUpdateStudent()
@@ -308,7 +309,7 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
         </div>
       )}
 
-      {isLoading ? (
+      {(isLoading || (!allStudents && isFetching)) ? (
         <div className="loading-screen" style={{ height: 200 }}><MusicLoader /></div>
       ) : (
         <div className="lead-cards">

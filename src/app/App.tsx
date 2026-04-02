@@ -20,7 +20,7 @@ function ScrollToTop() {
 
 // Suspense fallback
 function PageLoader() {
-  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}><MusicLoader /></div>
+  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', background: '#020209' }}><MusicLoader /></div>
 }
 
 // ── Lazy-loaded pages (code-split per route) ──

@@ -24,7 +24,7 @@ export default function PageTransition({ children }: { children: ReactNode }) {
   return (
     <div
       className={phase === 'out' ? 'page-transition-out' : 'page-transition-in'}
-      style={{ minHeight: '100%' }}
+      style={{ minHeight: '100%', background: '#020209' }}
     >
       {displayChildren}
     </div>

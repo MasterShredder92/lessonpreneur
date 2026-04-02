@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { LESSON_LOOKBACK_DAYS } from '../lib/constants'
+import { useAuthContext } from '../app/AuthContext'
 
 export interface StudentRow {
   id: string
@@ -51,8 +52,10 @@ export interface FamilyRow {
 }
 
 export function useStudents(filters?: { status?: string; locationId?: string; teacherId?: string }) {
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['students', filters],
+    queryKey: ['students', tenantId, filters?.status, filters?.locationId, filters?.teacherId],
+    enabled: !!tenantId,
     queryFn: async () => {
       let query = supabase
         .from('students')
