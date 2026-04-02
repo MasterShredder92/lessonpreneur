@@ -499,11 +499,11 @@ function ShowcaseStudio() {
 function ShowcaseSchedule() {
   const slots = [
     { teacher: 'Sarah M.', time: '3:00', student: 'Jamie K.', inst: 'Piano', color: '#D4226A' },
-    { teacher: 'Sarah M.', time: '3:30', student: 'Open Slot', inst: '', color: '#363656' },
+    { teacher: 'Sarah M.', time: '3:30', student: 'Open Slot', inst: '', color: '#55516E' },
     { teacher: 'Sarah M.', time: '4:00', student: 'Tyler R.', inst: 'Piano', color: '#D4226A' },
-    { teacher: 'Marcus T.', time: '3:00', student: 'Jesse W.', inst: 'Guitar', color: '#FF5500' },
-    { teacher: 'Marcus T.', time: '3:30', student: 'Ava C.', inst: 'Guitar', color: '#FF5500' },
-    { teacher: 'Marcus T.', time: '4:00', student: 'Noah P.', inst: 'Guitar', color: '#FF5500' },
+    { teacher: 'Marcus T.', time: '3:00', student: 'Jesse W.', inst: 'Guitar', color: '#D4226A' },
+    { teacher: 'Marcus T.', time: '3:30', student: 'Ava C.', inst: 'Guitar', color: '#D4226A' },
+    { teacher: 'Marcus T.', time: '4:00', student: 'Noah P.', inst: 'Guitar', color: '#D4226A' },
   ]
   return (
     <div className="sc-panel">

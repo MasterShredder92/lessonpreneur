@@ -116,29 +116,35 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {(valueQueue ?? []).slice(0, 15).map(s => (
-            <div key={s.id} style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 140 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
-                <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{s.instrument}</span>
+            <div key={s.id} className="ret-card" style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="ret-card-top">
+                <LocBadge name={s.locationName} />
               </div>
-              <LocBadge name={s.locationName} />
-              <span style={{ fontSize: 11, color: '#606088', minWidth: 100 }}>
-                {s.lastCardDate ? `Last: ${new Date(s.lastCardDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Never sent'}
-              </span>
-              <button
-                disabled={generatingFor === s.id || generateCard.isPending}
-                onClick={async () => {
-                  setGeneratingFor(s.id)
-                  try {
-                    const card = await generateCard.mutateAsync(s.id)
-                    setPreviewCard(card)
-                  } catch { toast('Failed to generate card', 'error') }
-                  setGeneratingFor(null)
-                }}
-                style={{ padding: '6px 14px', borderRadius: 8, background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', color: '#38BDF8', fontSize: 11, fontWeight: 700, cursor: 'pointer', minHeight: 36, whiteSpace: 'nowrap' }}
-              >
-                {generatingFor === s.id ? <><Sparkles size={12} /> Generating...</> : 'Generate Card'}
-              </button>
+              <div className="ret-card-row">
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
+                  <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{s.instrument}</span>
+                </div>
+                <span style={{ fontSize: 11, color: '#606088', whiteSpace: 'nowrap' }}>
+                  {s.lastCardDate ? `Last: ${new Date(s.lastCardDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Never sent'}
+                </span>
+              </div>
+              <div className="ret-card-actions">
+                <button
+                  disabled={generatingFor === s.id || generateCard.isPending}
+                  onClick={async () => {
+                    setGeneratingFor(s.id)
+                    try {
+                      const card = await generateCard.mutateAsync(s.id)
+                      setPreviewCard(card)
+                    } catch { toast('Failed to generate card', 'error') }
+                    setGeneratingFor(null)
+                  }}
+                  style={{ padding: '6px 14px', borderRadius: 8, background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', color: '#38BDF8', fontSize: 11, fontWeight: 700, cursor: 'pointer', minHeight: 36, whiteSpace: 'nowrap' }}
+                >
+                  {generatingFor === s.id ? <><Sparkles size={12} /> Generating...</> : 'Generate Card'}
+                </button>
+              </div>
             </div>
           ))}
           {(valueQueue ?? []).length === 0 && (

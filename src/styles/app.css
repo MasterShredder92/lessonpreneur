@@ -1861,6 +1861,21 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   color: #C0C0E0;
 }
 
+/* ── Retention card layout (desktop: horizontal, mobile: stacked) ── */
+.ret-card-top {
+  display: none;
+}
+.ret-card-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ret-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 /* Modal info chips — even grid */
 .lead-modal-chips {
   display: grid;
@@ -2721,5 +2736,19 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
     font-size: 11px !important;
     padding: 8px 6px !important;
     min-height: 36px !important;
+  }
+
+  /* ── Retention cards → stacked mobile layout ── */
+  .ret-card-top {
+    text-align: center !important;
+    margin-bottom: 8px !important;
+  }
+  .ret-card-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+  .ret-card-actions {
+    justify-content: flex-start !important;
   }
 }
