@@ -75,7 +75,7 @@ export function useChurnRiskScores() {
       // 3. Get missed sessions (booked blocks not checked in, in the past) — batched
       const thirtyDaysAgo = new Date(now - 30 * 86400000).toISOString().split('T')[0]
       const missedBlocks = await batchIn('schedule_blocks', 'student_id', 'student_id', studentIds, (q: any) =>
-        q.eq('status', 'booked').eq('checked_in', false).lt('block_date', today).gte('block_date', thirtyDaysAgo)
+        q.eq('status', 'booked').neq('block_type', 'call_out').eq('checked_in', false).lt('block_date', today).gte('block_date', thirtyDaysAgo)
       )
 
       const missedCountMap = new Map<string, number>()

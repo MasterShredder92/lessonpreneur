@@ -93,11 +93,7 @@ export default function TeacherShell() {
         style={!sidebarOpen ? { cursor: 'pointer' } : undefined}
       >
         <div className="sidebar-brand" onClick={sidebarOpen ? () => { setSidebarCollapsed(true); setHoverExpanded(false) } : undefined} style={{ cursor: 'pointer' }}>
-          {theme.logoUrl ? (
-            <img src={theme.logoUrl} alt="" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover' }} />
-          ) : (
-            <div className="sidebar-logomark">{theme.studioName[0] ?? 'L'}</div>
-          )}
+          <img src={theme.logoUrl || '/lp-logo.png?v=2'} alt="" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover' }} />
           {sidebarOpen && (
             <div className="sidebar-brand-text">
               <div className="sidebar-brand-name">{theme.studioName}</div>

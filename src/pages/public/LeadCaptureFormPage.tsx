@@ -1,16 +1,17 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 /* ═══════════════════════════════════════════════════════
    /get-started — LEAD CAPTURE FORM
    5 questions. Tight. Fast. Saves per-field on blur.
+   Smart plan recommendation after all questions answered.
    ═══════════════════════════════════════════════════════ */
 
 const STUDENT_OPTIONS = ['Under 20', '20-50', '51-100', '101-200', '200+']
 const TEACHER_OPTIONS = ['Just me', '2-3', '4-6', '7-10', '10+']
 const LOCATION_OPTIONS = ['1', '2-3', '4+']
-const SOFTWARE_OPTIONS = ['Square', 'Spreadsheets', 'Nothing', 'Other software']
+const SOFTWARE_OPTIONS = ['My Music Staff', 'Jackrabbit', 'Opus One', 'Square', 'Spreadsheets', 'Pen & Paper', 'Combination of several', 'Nothing yet']
 const PAIN_OPTIONS = [
   'Scheduling chaos',
   'Missing payments',
@@ -19,16 +20,32 @@ const PAIN_OPTIONS = [
   'No visibility into numbers',
   'All of it',
 ]
-const PLAN_OPTIONS = [
-  { key: 'teacher', label: 'Teacher $197' },
-  { key: 'school', label: 'School $497' },
-  { key: 'multi', label: 'Multi $997' },
-]
 
-function teacherCountToPlan(tc: string): string {
-  if (tc === 'Just me') return 'teacher'
-  if (tc === '2-3' || tc === '4-6') return 'school'
-  return 'multi'
+const PLANS: Record<string, { name: string; price: string; tagline: string }> = {
+  teacher: { name: 'Teacher', price: '$197/mo', tagline: 'Perfect for solo instructors building a professional studio.' },
+  school: { name: 'School', price: '$497/mo', tagline: 'Built for studios with a teaching roster and real operations.' },
+  multi: { name: 'Multi-Location', price: '$997/mo', tagline: 'For schools running multiple locations under one roof.' },
+}
+
+function recommendPlan(tc: string, lc: string): string {
+  // Multi-Location: 10+ teachers OR 4+ locations
+  if (tc === '10+' || lc === '4+') return 'multi'
+  // School: 4-6 or 7-10 teachers OR 2-3 locations
+  if (tc === '4-6' || tc === '7-10' || lc === '2-3') return 'school'
+  // Teacher: Just me, OR 1 location with 2-3 teachers
+  return 'teacher'
+}
+
+function recommendReason(tc: string, lc: string, plan: string): string {
+  if (plan === 'multi') {
+    if (tc === '10+') return `With 10+ teachers, you need cross-location scheduling and recruitment tools — Multi-Location is built for exactly this.`
+    return `Multiple locations means you need unified dashboards and cross-location visibility — Multi-Location handles all of it.`
+  }
+  if (plan === 'school') {
+    if (lc === '2-3') return `You've got ${tc} teachers across multiple locations — School plan gives you the multi-teacher management and financial dashboards you need.`
+    return `With ${tc} teachers on your roster, you need payroll, lead pipeline, and retention tools — School plan is built for exactly this.`
+  }
+  return `As a solo instructor, the Teacher plan gives you everything you need to run a professional studio without the complexity.`
 }
 
 function studentCountToNumber(s: string): number | undefined {
@@ -51,6 +68,7 @@ export default function LeadCaptureFormPage() {
   const prospectId = useRef<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showAllPlans, setShowAllPlans] = useState(false)
 
   // Form state
   const [firstName, setFirstName] = useState('')
@@ -63,19 +81,23 @@ export default function LeadCaptureFormPage() {
   const [locationCount, setLocationCount] = useState('')
   const [currentSoftware, setCurrentSoftware] = useState('')
   const [painPoints, setPainPoints] = useState<string[]>([])
-  const [planSelected, setPlanSelected] = useState('')
+  const [planOverride, setPlanOverride] = useState('')
 
-  // Auto-select plan when teacher count changes
-  const handleTeacherCount = (val: string) => {
-    setTeacherCount(val)
-    if (!planSelected) setPlanSelected(teacherCountToPlan(val))
-    silentSave({ teacher_count: teacherCountToNumber(val), plan_selected: planSelected || teacherCountToPlan(val) })
-  }
+  // All 5 questions answered?
+  const allAnswered = !!(studentCount && teacherCount && locationCount && currentSoftware && painPoints.length)
+
+  // Smart recommendation
+  const recommended = useMemo(() => {
+    if (!teacherCount || !locationCount) return null
+    return recommendPlan(teacherCount, locationCount)
+  }, [teacherCount, locationCount])
+
+  const planSelected = planOverride || recommended || ''
 
   // Silent upsert to lp_prospects on blur / pill select
   const silentSave = useCallback(async (fields: Record<string, any>) => {
     const currentEmail = fields.email ?? email
-    if (!currentEmail) return // need email as key
+    if (!currentEmail) return
 
     try {
       const payload: Record<string, any> = {
@@ -83,7 +105,6 @@ export default function LeadCaptureFormPage() {
         ...fields,
         updated_at: new Date().toISOString(),
       }
-      // Remove undefined values
       Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k])
 
       if (prospectId.current) {
@@ -93,7 +114,7 @@ export default function LeadCaptureFormPage() {
         if (data?.id) prospectId.current = data.id
       }
     } catch {
-      // Silent — don't interrupt user flow for per-field saves
+      // Silent
     }
   }, [email])
 
@@ -129,7 +150,6 @@ export default function LeadCaptureFormPage() {
         if (data?.id) prospectId.current = data.id
       }
 
-      // Store in session for /trial page
       sessionStorage.setItem('lp_prospect', JSON.stringify({
         id: prospectId.current,
         first_name: firstName.trim(),
@@ -244,7 +264,7 @@ export default function LeadCaptureFormPage() {
           label="How many teachers are on your roster?"
           options={TEACHER_OPTIONS}
           value={teacherCount}
-          onSelect={handleTeacherCount}
+          onSelect={v => { setTeacherCount(v); silentSave({ teacher_count: teacherCountToNumber(v) }) }}
         />
 
         <PillQuestion
@@ -278,23 +298,46 @@ export default function LeadCaptureFormPage() {
           </div>
         </div>
 
-        {/* Plan selection */}
-        <div className="lcf-divider" />
-        <div className="lcf-field">
-          <label className="form-label">Which plan fits your studio?</label>
-          <div className="lcf-pills">
-            {PLAN_OPTIONS.map(p => (
-              <button
-                key={p.key}
-                type="button"
-                className={`lcf-pill lcf-pill-plan${planSelected === p.key ? ' lcf-pill-active' : ''}`}
-                onClick={() => { setPlanSelected(p.key); silentSave({ plan_selected: p.key }) }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Smart plan recommendation — appears after all 5 questions answered */}
+        {allAnswered && recommended && (
+          <>
+            <div className="lcf-divider" />
+            <div className="lcf-rec">
+              <p className="lcf-rec-label">Based on your answers, here's the right plan for your studio:</p>
+              <div className={`lcf-rec-card${planSelected === recommended && !planOverride ? ' lcf-rec-card-active' : ''}`} onClick={() => { setPlanOverride(''); silentSave({ plan_selected: recommended }) }}>
+                <div className="lcf-rec-header">
+                  <span className="lcf-rec-name">{PLANS[recommended].name}</span>
+                  <span className="lcf-rec-price">{PLANS[recommended].price}</span>
+                </div>
+                <p className="lcf-rec-reason">{recommendReason(teacherCount, locationCount, recommended)}</p>
+                <span className="lcf-rec-badge">Recommended for you</span>
+              </div>
+
+              {!showAllPlans ? (
+                <button className="lcf-see-all" type="button" onClick={() => setShowAllPlans(true)}>
+                  See all plans
+                </button>
+              ) : (
+                <div className="lcf-all-plans">
+                  {Object.entries(PLANS).filter(([k]) => k !== recommended).map(([key, plan]) => (
+                    <div
+                      key={key}
+                      className={`lcf-alt-card${planOverride === key ? ' lcf-alt-card-active' : ''}`}
+                      onClick={() => { setPlanOverride(key); silentSave({ plan_selected: key }) }}
+                    >
+                      <span className="lcf-alt-name">{plan.name}</span>
+                      <span className="lcf-alt-price">{plan.price}</span>
+                      <span className="lcf-alt-tag">{plan.tagline}</span>
+                    </div>
+                  ))}
+                  <button className="lcf-see-all" type="button" onClick={() => { setShowAllPlans(false); setPlanOverride('') }}>
+                    Use recommended plan
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {error && <div className="lcf-error">{error}</div>}
 
@@ -448,9 +491,126 @@ const styles = `
   color: #E8488A !important;
   box-shadow: 0 0 12px rgba(212,34,106,0.15);
 }
-.lcf-pill-plan {
-  padding: 10px 20px;
+
+/* Recommendation */
+.lcf-rec {
+  animation: lcfFadeIn 350ms ease;
+}
+@keyframes lcfFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.lcf-rec-label {
   font-size: 14px;
+  font-weight: 600;
+  color: #A0A0C8;
+  margin: 0 0 12px;
+}
+.lcf-rec-card {
+  background: rgba(212,34,106,0.06);
+  border: 1px solid rgba(212,34,106,0.3);
+  border-radius: 16px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 180ms ease;
+  position: relative;
+}
+.lcf-rec-card:hover {
+  border-color: rgba(212,34,106,0.5);
+}
+.lcf-rec-card-active {
+  border-color: rgba(212,34,106,0.5);
+  box-shadow: 0 0 24px rgba(212,34,106,0.12);
+}
+.lcf-rec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.lcf-rec-name {
+  font-size: 20px;
+  font-weight: 800;
+}
+.lcf-rec-price {
+  font-size: 20px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #D4226A 0%, #FF5500 55%, #FFB800 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.lcf-rec-reason {
+  font-size: 13px;
+  color: #A0A0C8;
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+.lcf-rec-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.25);
+  color: #22C55E;
+  font-size: 11px;
+  font-weight: 700;
+}
+.lcf-see-all {
+  display: block;
+  margin: 12px auto 0;
+  background: none;
+  border: none;
+  color: #6868A0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+.lcf-see-all:hover { color: #E8488A; }
+
+/* Alternate plan cards */
+.lcf-all-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  animation: lcfFadeIn 250ms ease;
+}
+.lcf-alt-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.lcf-alt-card:hover {
+  border-color: rgba(212,34,106,0.25);
+}
+.lcf-alt-card-active {
+  border-color: rgba(212,34,106,0.4) !important;
+  background: rgba(212,34,106,0.06) !important;
+}
+.lcf-alt-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #E8E8FC;
+}
+.lcf-alt-price {
+  font-size: 14px;
+  font-weight: 800;
+  color: #D4226A;
+}
+.lcf-alt-tag {
+  width: 100%;
+  font-size: 11px;
+  color: #6868A0;
 }
 
 /* Error */

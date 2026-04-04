@@ -11,6 +11,7 @@ interface SessionNoteModalProps {
   instrument: string | null
   scheduleBlockId?: string
   noteDate?: string
+  blockType?: string
   existingNote?: {
     id: string
     raw_note: string
@@ -29,7 +30,6 @@ const MOOD_OPTIONS = [
   { value: 'good', emoji: '\uD83D\uDE42', label: 'Good' },
   { value: 'okay', emoji: '\uD83D\uDE10', label: 'Okay' },
   { value: 'struggling', emoji: '\uD83D\uDE1F', label: 'Struggling' },
-  { value: 'absent', emoji: '\u274C', label: 'Absent' },
 ]
 
 const SKILLS_OPTIONS = [
@@ -47,10 +47,53 @@ export default function SessionNoteModal({
   instrument,
   scheduleBlockId,
   noteDate,
+  blockType,
   existingNote,
   onClose,
   onSaved,
 }: SessionNoteModalProps) {
+  // Call-out blocks are read-only — no session note allowed
+  if (blockType === 'call_out') {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          background: 'rgba(2,2,9,0.98)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div style={{ maxWidth: 400, padding: 32, textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>{'\uD83D\uDEAB'}</div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4', margin: '0 0 8px' }}>
+            Call-Out Session
+          </h2>
+          <p style={{ fontSize: 14, color: '#A0A0C8', lineHeight: 1.6, margin: '0 0 24px' }}>
+            This session was marked as a call-out. No note required.
+          </p>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 32px',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: '#A0A0C8',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const { tenantId } = useAuthContext()
   const saveNote = useSaveSessionNote()
   const updateNote = useUpdateSessionNote()
@@ -103,7 +146,7 @@ export default function SessionNoteModal({
       setAiEnhancedNote(result)
       setShowAiPreview(true)
     } catch (err: any) {
-      toast(err.message ?? 'Star could not polish the note', 'error')
+      toast(err.message ?? 'Star could not polish the recap', 'error')
     } finally {
       setIsPolishing(false)
     }
@@ -160,7 +203,7 @@ export default function SessionNoteModal({
       }
       onSaved()
     } catch (err: any) {
-      toast(err.message ?? 'Failed to save session note', 'error')
+      toast(err.message ?? 'Failed to save session recap', 'error')
     }
   }
 
@@ -188,7 +231,7 @@ export default function SessionNoteModal({
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: '#E0E0F4', margin: 0 }}>
-              Session Note
+              Session Recap
             </h2>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#D4226A', marginTop: 4 }}>
               {studentName}
@@ -336,19 +379,21 @@ export default function SessionNoteModal({
         {/* Divider */}
         <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 24 }} />
 
-        {/* Session Notes Textarea */}
+        {/* Session Recap Textarea */}
         <div style={{ marginBottom: 20 }}>
           <div style={{
             fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase',
             letterSpacing: '0.06em', marginBottom: 10,
           }}>
-            Session Notes *
+            Session Recap *
           </div>
           <textarea
             value={rawNote}
-            onChange={e => setRawNote(e.target.value)}
+            onChange={e => setRawNote(e.target.value.slice(0, 1000))}
             placeholder="What happened in today's lesson? What went well? What should they practice?"
             rows={4}
+            spellCheck={true}
+            lang="en"
             style={{
               background: 'rgba(255,255,255,0.03)',
               border: '1px solid rgba(255,255,255,0.08)',
@@ -365,6 +410,7 @@ export default function SessionNoteModal({
               lineHeight: 1.5,
             }}
           />
+          <div style={{ fontSize: 10, color: '#606088', textAlign: 'right', marginTop: 4 }}>{rawNote.length}/1000</div>
         </div>
 
         {/* Star Polish Button */}
@@ -542,7 +588,7 @@ export default function SessionNoteModal({
             marginBottom: 20,
           }}
         >
-          {isSaving ? 'Saving...' : isEditing ? 'Update Note' : 'Save Note'}
+          {isSaving ? 'Saving...' : isEditing ? 'Update Recap' : 'Save Recap'}
         </button>
       </div>
 

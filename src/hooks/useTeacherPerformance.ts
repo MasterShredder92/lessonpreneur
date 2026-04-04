@@ -67,8 +67,8 @@ export function useTeacherPerformance(teacherId: string | undefined) {
       const avgSessions = active > 0 ? [...sessionsPerStudent.values()].reduce((a, b) => a + b, 0) / active : 0
 
       // Missed sessions
-      const { count: totalScheduled } = await supabase.from('schedule_blocks').select('id', { count: 'exact', head: true }).eq('teacher_id', teacherId).eq('status', 'booked').gte('block_date', thirtyDaysAgo).lte('block_date', today)
-      const { count: unchecked } = await supabase.from('schedule_blocks').select('id', { count: 'exact', head: true }).eq('teacher_id', teacherId).eq('status', 'booked').eq('checked_in', false).gte('block_date', thirtyDaysAgo).lt('block_date', today)
+      const { count: totalScheduled } = await supabase.from('schedule_blocks').select('id', { count: 'exact', head: true }).eq('teacher_id', teacherId).eq('status', 'booked').neq('block_type', 'call_out').gte('block_date', thirtyDaysAgo).lte('block_date', today)
+      const { count: unchecked } = await supabase.from('schedule_blocks').select('id', { count: 'exact', head: true }).eq('teacher_id', teacherId).eq('status', 'booked').neq('block_type', 'call_out').eq('checked_in', false).gte('block_date', thirtyDaysAgo).lt('block_date', today)
       const missedRate = (totalScheduled ?? 0) > 0 ? Math.round(((unchecked ?? 0) / (totalScheduled ?? 1)) * 100) : 0
 
       // Parent engagement

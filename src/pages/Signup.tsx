@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Star } from 'lucide-react'
+
 import { PRICING_TIERS, TRIAL_DAYS, type PricingTier } from '../lib/pricing'
 
 type Step = 1 | 2 | 3 | 4
@@ -134,8 +134,8 @@ export default function Signup() {
       <div style={{ maxWidth: 480, width: '100%' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-            <Star size={20} style={{ color: '#f59e0b' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 12 }}>
+            <img src="/lp-logo.png?v=2" alt="Lessonpreneur" style={{ width: 40, height: 40, borderRadius: 10 }} />
             <span style={{ fontSize: 22, fontWeight: 800, color: '#E0E0F4' }}>Lessonpreneur</span>
           </div>
           <div style={{ fontSize: 14, color: '#8080A8' }}>Set up your music school in 2 minutes</div>

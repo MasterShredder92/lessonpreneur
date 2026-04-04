@@ -6,7 +6,7 @@ import {
 } from '../../hooks/useTeacherDashboard'
 import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
-import { CheckCircle, AlertTriangle, Upload, FileText, ExternalLink } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Upload, FileText, ExternalLink, Lock } from 'lucide-react'
 
 const CATEGORY_OPTIONS = [
   { value: 'general', label: 'General' },
@@ -68,14 +68,14 @@ export default function TeacherDocuments() {
                 )}
               </div>
               {w9Status?.has_w9 && w9Status.pdf_url ? (
-                <a href={w9Status.pdf_url} target="_blank" rel="noopener noreferrer" style={{
+                <div style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                  background: 'rgba(255,255,255,0.04)', color: '#A0A0C8',
-                  border: '1px solid rgba(255,255,255,0.08)', textDecoration: 'none',
-                }}>
-                  View PDF <ExternalLink size={11} />
-                </a>
+                  background: 'rgba(255,255,255,0.04)', color: '#606088',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                }} title="Downloads are available to students and families only.">
+                  <Lock size={11} /> On file
+                </div>
               ) : !w9Status?.has_w9 ? (
                 <UploadButton label="Complete W-9" onUpload={(file) => handleUpload(file, 'w9')} isPending={uploadDoc.isPending} />
               ) : null}
@@ -112,14 +112,14 @@ export default function TeacherDocuments() {
                 )}
               </div>
               {contracts.length > 0 && contracts[0].file_url ? (
-                <a href={contracts[0].file_url} target="_blank" rel="noopener noreferrer" style={{
+                <div style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                  background: 'rgba(255,255,255,0.04)', color: '#A0A0C8',
-                  border: '1px solid rgba(255,255,255,0.08)', textDecoration: 'none',
-                }}>
-                  View <ExternalLink size={11} />
-                </a>
+                  background: 'rgba(255,255,255,0.04)', color: '#606088',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                }} title="Downloads are available to students and families only.">
+                  <Lock size={11} /> On file
+                </div>
               ) : (
                 <UploadButton label="Upload Contract" onUpload={(file) => handleUpload(file, 'contract')} isPending={uploadDoc.isPending}
                   accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" />
@@ -149,9 +149,9 @@ export default function TeacherDocuments() {
                       </div>
                     </div>
                     {doc.file_url && (
-                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#8080A8', flexShrink: 0 }}>
-                        <ExternalLink size={13} />
-                      </a>
+                      <div style={{ color: '#606088', flexShrink: 0 }} title="Downloads are available to students and families only.">
+                        <Lock size={13} />
+                      </div>
                     )}
                   </div>
                 ))}

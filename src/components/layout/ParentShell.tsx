@@ -14,7 +14,7 @@ export default function ParentShell() {
     <div className="portal-shell" style={preview.active ? { paddingTop: 40 } : undefined}>
       <header className="portal-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {theme.logoUrl && <img src={theme.logoUrl} alt="" style={{ width: 24, height: 24, borderRadius: 6 }} />}
+          <img src={theme.logoUrl || '/lp-logo.png?v=2'} alt="" style={{ width: 24, height: 24, borderRadius: 6 }} />
           <h1 className="text-gradient" style={{ fontSize: 'var(--text-lg)', margin: 0 }}>{theme.studioName}</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

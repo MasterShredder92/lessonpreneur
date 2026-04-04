@@ -190,6 +190,7 @@ export function usePortalSessionCount(studentIds: string[]) {
         .select('student_id')
         .in('student_id', studentIds)
         .gte('block_date', monthStart)
+        .neq('block_type', 'call_out')
         .eq('checked_in', true)
 
       const counts = new Map<string, number>()

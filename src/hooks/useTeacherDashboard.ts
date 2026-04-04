@@ -450,6 +450,7 @@ export function useTeacherW9Status() {
 export interface TeacherStudentItem {
   student_id: string
   first_name: string
+  last_name: string | null
   instrument: string | null
   location_id: string
   location_name: string
@@ -512,7 +513,7 @@ async function buildStudentList(blocks: any[], teacherId: string): Promise<Teach
   // Get student safe fields
   const { data: students } = await supabase
     .from('students')
-    .select('id, first_name, instrument, experience')
+    .select('id, first_name, last_name, instrument, experience')
     .in('id', studentIds)
   const studentMap = new Map<string, any>()
   students?.forEach((s: any) => studentMap.set(s.id, s))
@@ -548,6 +549,7 @@ async function buildStudentList(blocks: any[], teacherId: string): Promise<Teach
     results.push({
       student_id: sid,
       first_name: student.first_name,
+      last_name: student.last_name ?? null,
       instrument: student.instrument,
       location_id: block.location_id,
       location_name: locMap.get(block.location_id) ?? '',
@@ -675,6 +677,7 @@ export function useMissingNotesItems() {
         .select('id, student_id, block_date, start_time')
         .eq('teacher_id', teacherId)
         .eq('status', 'booked')
+        .neq('block_type', 'call_out')
         .not('student_id', 'is', null)
         .gte('block_date', cutoff)
         .lt('block_date', today) // Only past sessions, not today

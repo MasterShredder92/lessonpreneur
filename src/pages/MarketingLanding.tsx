@@ -208,7 +208,7 @@ function Nav() {
   }, [])
   return (
     <nav className={`lp2-nav ${solid ? 'lp2-nav-solid' : ''}`}>
-      <div className="lp2-nav-brand">Lessonpreneur</div>
+      <div className="lp2-nav-brand"><img src="/lp-logo.png?v=2" alt="" style={{ width: 28, height: 28, borderRadius: 7, verticalAlign: 'middle', marginRight: 8 }} />Lessonpreneur</div>
       <div className="lp2-nav-links">
         <button onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Features</button>
         <button onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}>Pricing</button>
@@ -565,11 +565,81 @@ function StatusQuoKill() {
           <h3 className="lp2-gfx-header">This Is What You're Running Right Now</h3>
           <div className="lp2-chaos-stack">
             <div className="lp2-chaos-mess">
-              {['My Music Staff', 'Jackrabbit', 'Opus1.io', 'Google Sheets', 'Text messages', 'Email threads', 'Staff memory', 'Paper notes'].map((tool, i) => (
-                <div key={i} className="lp2-chaos-card" style={{
-                  transform: `rotate(${[-4, 3, -2, 5, -3, 2, -5, 4][i]}deg) translate(${[0, 6, -4, 8, -6, 3, -8, 5][i]}px, ${[0, -3, 4, -2, 5, -4, 2, -5][i]}px)`,
-                }}>{tool}</div>
-              ))}
+              <div className="lp2-chaos-card" style={{ transform: 'rotate(-4deg) translate(0px, 0px)' }}>
+                {/* My Music Staff — music note icon */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ marginBottom: '5px' }}>
+                  <path d="M9 18V5l12-2v13" stroke="#D4226A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="6" cy="18" r="3" stroke="#D4226A" strokeWidth="2"/>
+                  <circle cx="18" cy="16" r="3" stroke="#D4226A" strokeWidth="2"/>
+                </svg>
+                My Music Staff
+              </div>
+              <div className="lp2-chaos-card" style={{ transform: 'rotate(3deg) translate(6px, -3px)' }}>
+                {/* Jackrabbit — rabbit/jump icon */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ marginBottom: '5px' }}>
+                  <path d="M12 2C8 2 5 5 5 9c0 2.5 1.5 4.5 3 6l-2 5h8l-2-5c1.5-1.5 3-3.5 3-6 0-4-3-7-3-7z" stroke="#FF5500" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M9 9h6" stroke="#FF5500" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                Jackrabbit
+              </div>
+              <div className="lp2-chaos-card" style={{ transform: 'rotate(-2deg) translate(-4px, 4px)' }}>
+                {/* Opus One — musical staff lines */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ marginBottom: '5px' }}>
+                  <line x1="3" y1="6" x2="21" y2="6" stroke="#FFB800" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="3" y1="10" x2="21" y2="10" stroke="#FFB800" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="3" y1="14" x2="21" y2="14" stroke="#FFB800" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="3" y1="18" x2="21" y2="18" stroke="#FFB800" strokeWidth="2" strokeLinecap="round"/>
+                  <circle cx="8" cy="18" r="2" fill="#FFB800"/>
+                </svg>
+                Opus One
+              </div>
+              <div className="lp2-chaos-card" style={{ transform: 'rotate(5deg) translate(8px, -2px)' }}>
+                {/* Google Sheets — grid icon */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ marginBottom: '5px' }}>
+                  <rect x="3" y="3" width="18" height="18" rx="2" stroke="#00A651" strokeWidth="2"/>
+                  <line x1="3" y1="9" x2="21" y2="9" stroke="#00A651" strokeWidth="2"/>
+                  <line x1="3" y1="15" x2="21" y2="15" stroke="#00A651" strokeWidth="2"/>
+                  <line x1="9" y1="3" x2="9" y2="21" stroke="#00A651" strokeWidth="2"/>
+                  <line x1="15" y1="3" x2="15" y2="21" stroke="#00A651" strokeWidth="2"/>
+                </svg>
+                Google Sheets
+              </div>
+              <div className="lp2-chaos-card" style={{ transform: 'rotate(-3deg) translate(-6px, 5px)' }}>
+                {/* Text messages — SMS bubble */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ marginBottom: '5px' }}>
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <line x1="8" y1="10" x2="16" y2="10" stroke="#888" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="8" y1="13" x2="13" y2="13" stroke="#888" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                Text messages
+              </div>
+              <div className="lp2-chaos-card" style={{ transform: 'rotate(2deg) translate(3px, -4px)' }}>
+                {/* Email threads — envelope */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ marginBottom: '5px' }}>
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <polyline points="22,6 12,13 2,6" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Email threads
+              </div>
+              <div className="lp2-chaos-card" style={{ transform: 'rotate(-5deg) translate(-8px, 2px)' }}>
+                {/* Staff memory — head with brain */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ marginBottom: '5px' }}>
+                  <circle cx="12" cy="7" r="4" stroke="#888" strokeWidth="2"/>
+                  <path d="M6 21v-2a6 6 0 0 1 12 0v2" stroke="#888" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M15 7c0-1.5-1-2.5-2-2.5" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                Staff memory
+              </div>
+              <div className="lp2-chaos-card" style={{ transform: 'rotate(4deg) translate(5px, -5px)' }}>
+                {/* Paper notes — notepad */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ marginBottom: '5px' }}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <polyline points="14,2 14,8 20,8" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <line x1="8" y1="13" x2="16" y2="13" stroke="#888" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="8" y1="17" x2="13" y2="17" stroke="#888" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                Paper notes
+              </div>
             </div>
             <p className="lp2-chaos-label-bad">Scattered tools. Scattered results.</p>
             <div className="lp2-chaos-divider">
@@ -1412,7 +1482,7 @@ function Footer() {
   const nav = useNavigate()
   return (
     <footer className="lp2-footer">
-      <div className="lp2-footer-brand">Lessonpreneur</div>
+      <div className="lp2-footer-brand"><img src="/lp-logo.png?v=2" alt="" style={{ width: 24, height: 24, borderRadius: 6, verticalAlign: 'middle', marginRight: 8 }} />Lessonpreneur</div>
       <div className="lp2-footer-links">
         <button onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Features</button>
         <button onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}>Pricing</button>
@@ -2218,6 +2288,7 @@ function Styles() {
       padding: 8px 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 600;
       background: rgba(239,68,68,0.04); border: 1px solid rgba(239,68,68,0.25);
       color: #EF4444; white-space: nowrap;
+      display: flex; flex-direction: column; align-items: center;
     }
     .lp2-chaos-label-bad { font-size: 0.82rem; color: #6868A0; margin: 12px 0 0; font-style: italic; }
     .lp2-chaos-divider { margin: 16px 0; color: #D4226A; }

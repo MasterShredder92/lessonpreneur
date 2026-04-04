@@ -28,7 +28,6 @@ const MOOD_EMOJI: Record<string, string> = {
   good: '\u{1F642}',
   okay: '\u{1F610}',
   struggling: '\u{1F61F}',
-  absent: '\u{274C}',
 }
 
 // ── Helpers ──

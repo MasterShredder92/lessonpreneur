@@ -126,10 +126,10 @@ export default function StudentQuickCard({ studentId, onClose }: Props) {
                 </div>
               )}
 
-              {/* Session Notes */}
+              {/* Student Notes */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <SectionLabel style={{ marginBottom: 0 }}>Your Session Notes</SectionLabel>
+                  <SectionLabel style={{ marginBottom: 0 }}>Your Student Notes</SectionLabel>
                   {!showNoteInput && (
                     <button onClick={() => setShowNoteInput(true)} style={{
                       padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700,
@@ -146,8 +146,10 @@ export default function StudentQuickCard({ studentId, onClose }: Props) {
                     <textarea
                       value={draft}
                       onChange={(e) => setDraft(e.target.value.slice(0, 500))}
-                      placeholder="Add a session note..."
+                      placeholder="Add a student note..."
                       autoFocus
+                      spellCheck={true}
+                      lang="en"
                       style={{
                         width: '100%', padding: '10px 12px', borderRadius: 10,
                         background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
@@ -175,7 +177,7 @@ export default function StudentQuickCard({ studentId, onClose }: Props) {
                 )}
 
                 {(!notes || notes.length === 0) && !showNoteInput ? (
-                  <p style={{ fontSize: 12, color: '#606088', fontStyle: 'italic', margin: 0 }}>No session notes yet.</p>
+                  <p style={{ fontSize: 12, color: '#606088', fontStyle: 'italic', margin: 0 }}>No student notes yet.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {(notes ?? []).map(n => (

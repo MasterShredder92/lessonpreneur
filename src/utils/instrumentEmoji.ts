@@ -16,7 +16,7 @@ const INSTRUMENT_MAP: Record<string, string> = {
   'band percussion': '\u{1F941}',
   'band instruments': '\u{1F3B5}',
   woodwinds: '\u{1F3B5}',
-  flute: '\u{1F3B5}',
+  flute: '\u{1FA88}',
 }
 
 export function getInstrumentEmoji(instrument: string | null | undefined): string {

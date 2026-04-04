@@ -132,7 +132,7 @@ export default function VSLPage() {
         ))}
       </section>
 
-      {/* Pricing */}
+      {/* Pricing — informational reference, single CTA */}
       <section className="vsl-pricing">
         <h2 className="vsl-section-title">Launch Pricing</h2>
         <div className="vsl-pricing-grid">
@@ -145,6 +145,7 @@ export default function VSLPage() {
                 <span className="vsl-plan-original">${p.originalPrice}/mo</span>
                 <span className="vsl-plan-launch">${p.launchPrice}<span className="vsl-plan-mo">/mo</span></span>
               </div>
+              <div className="vsl-legacy-badge">Legacy Price — Locked For Life</div>
               <ul className="vsl-plan-features">
                 {p.features.map(f => (
                   <li key={f}>
@@ -155,12 +156,12 @@ export default function VSLPage() {
                   </li>
                 ))}
               </ul>
-              <button className="vsl-plan-cta" onClick={() => navigate('/get-started')}>
-                Get 60 Days Free →
-              </button>
             </div>
           ))}
         </div>
+        <button className="vsl-pricing-cta" onClick={() => navigate('/get-started')}>
+          Get 60 Days Free — Find My Plan →
+        </button>
       </section>
 
       {/* Urgency Banner */}
@@ -449,23 +450,39 @@ const styles = `
   color: #E8E8FC;
   padding: 6px 0;
 }
-.vsl-plan-cta {
+.vsl-legacy-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: rgba(255,184,0,0.08);
+  border: 1px solid rgba(255,184,0,0.2);
+  color: #FFB800;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+.vsl-pricing-cta {
+  display: block;
   width: 100%;
-  padding: 13px;
+  max-width: 420px;
+  margin: 32px auto 0;
+  padding: 18px;
   border: none;
-  border-radius: 11px;
+  border-radius: 14px;
   background: #D4226A;
   color: white;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 800;
   cursor: pointer;
   transition: all 140ms ease;
+  animation: pulseGlow 2.5s ease-in-out infinite;
 }
-.vsl-plan-cta:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 22px rgba(212,34,106,0.4);
+.vsl-pricing-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 50px rgba(212,34,106,0.5), 0 8px 30px rgba(212,34,106,0.35);
 }
 
 /* Urgency Banner */

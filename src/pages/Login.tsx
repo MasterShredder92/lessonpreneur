@@ -26,7 +26,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1 className="login-title">Lessonpreneur</h1>
+        <img src="/lp-logo.png?v=2" alt="Lessonpreneur" style={{ width: 72, height: 72, borderRadius: 16, display: 'block', margin: '0 auto 8px' }} />
         <p className="login-subtitle">Sign in to your account</p>
 
         <form onSubmit={handleSubmit} className="login-form">

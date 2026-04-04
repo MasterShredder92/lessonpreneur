@@ -5,7 +5,7 @@ import { useTeacherStudentCard, useTeacherStudentFiles, useUploadStudentFile, us
 import { useTeacherStudentNotes } from '../../hooks/useTeacherFiles'
 import { toast } from '../shared/Toast'
 import { getLocationColor } from '../../utils/locationColor'
-import { X, Upload, FileText, ExternalLink, ChevronDown, ChevronUp, ArrowRightLeft } from 'lucide-react'
+import { X, Upload, FileText, ExternalLink, ChevronDown, ChevronUp, ArrowRightLeft, Lock } from 'lucide-react'
 import MusicLoader from '../shared/MusicLoader'
 
 interface Props {
@@ -75,7 +75,7 @@ export default function StudentProfileCard({ studentId, scheduleLabel, onClose }
     if (draft.length > 1000) { toast('Note must be under 1000 characters', 'error'); return }
     try {
       await saveNote.mutateAsync({ studentId, studentFirstName: student.first_name, noteText: draft.trim() })
-      toast('Session note saved', 'success')
+      toast('Student note saved', 'success')
       setDraft('')
       setShowNoteInput(false)
     } catch (err: any) {
@@ -249,15 +249,15 @@ export default function StudentProfileCard({ studentId, scheduleLabel, onClose }
                       </>
                     ) : (
                       <p style={{ fontSize: 11, color: '#606088', fontStyle: 'italic', margin: 0 }}>
-                        No session notes from previous teacher.
+                        No student notes from previous teacher.
                       </p>
                     )}
                   </div>
                 </Section>
               )}
 
-              {/* SESSION NOTES */}
-              <Section title="Session Notes" subtitle={`${(notes ?? []).length} note${(notes ?? []).length !== 1 ? 's' : ''}`}
+              {/* STUDENT NOTES */}
+              <Section title="Student Notes" subtitle={`${(notes ?? []).length} note${(notes ?? []).length !== 1 ? 's' : ''}`}
                 action={!showNoteInput ? (
                   <button onClick={() => setShowNoteInput(true)} style={{
                     padding: '5px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700,
@@ -265,7 +265,7 @@ export default function StudentProfileCard({ studentId, scheduleLabel, onClose }
                     border: 'none', cursor: 'pointer',
                     boxShadow: '0 2px 8px rgba(212,34,106,0.3)',
                   }}>
-                    Add Session Note
+                    Add Student Note
                   </button>
                 ) : undefined}
               >
@@ -276,6 +276,8 @@ export default function StudentProfileCard({ studentId, scheduleLabel, onClose }
                       onChange={(e) => setDraft(e.target.value.slice(0, 1000))}
                       placeholder="What did you work on? How did the session go? Any focus areas for next time?"
                       autoFocus
+                      spellCheck={true}
+                      lang="en"
                       style={{
                         width: '100%', padding: '10px 12px', borderRadius: 10,
                         background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
@@ -304,7 +306,7 @@ export default function StudentProfileCard({ studentId, scheduleLabel, onClose }
 
                 {(!notes || notes.length === 0) && !showNoteInput ? (
                   <p style={{ fontSize: 12, color: '#606088', fontStyle: 'italic', margin: 0 }}>
-                    No session notes yet. Add your first note after your next session.
+                    No student notes yet. Add your first note after your next session.
                   </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -366,13 +368,13 @@ export default function StudentProfileCard({ studentId, scheduleLabel, onClose }
                           </div>
                         </div>
                         {f.file_url && (
-                          <a href={f.file_url} target="_blank" rel="noopener noreferrer" style={{
+                          <div style={{
                             display: 'flex', alignItems: 'center', gap: 3, padding: '4px 8px', borderRadius: 4,
-                            fontSize: 10, fontWeight: 600, color: '#A0A0C8',
-                            background: 'rgba(255,255,255,0.04)', textDecoration: 'none',
-                          }}>
-                            View <ExternalLink size={10} />
-                          </a>
+                            fontSize: 10, fontWeight: 600, color: '#606088',
+                            background: 'rgba(255,255,255,0.04)',
+                          }} title="Downloads are available to students and families only.">
+                            <Lock size={10} />
+                          </div>
                         )}
                       </div>
                     ))}
