@@ -47,6 +47,31 @@ export default function ReviewsSection({ instrumentTag }: ReviewsSectionProps) {
     startAutoRotate()
   }, [startAutoRotate])
 
+  const goToPage = useCallback((p: number) => {
+    setFading(true)
+    setTimeout(() => { setPage(((p % totalPages) + totalPages) % totalPages); setFading(false) }, 250)
+    startAutoRotate()
+  }, [totalPages, startAutoRotate])
+
+  const touchStartX = useRef<number | null>(null)
+  const touchCurrentX = useRef<number | null>(null)
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    touchCurrentX.current = e.touches[0].clientX
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    touchCurrentX.current = e.touches[0].clientX
+  }
+  const onTouchEnd = () => {
+    if (touchStartX.current === null || touchCurrentX.current === null) return
+    const delta = touchStartX.current - touchCurrentX.current
+    if (delta > 50) goToPage(page + 1)
+    else if (delta < -50) goToPage(page - 1)
+    touchStartX.current = null
+    touchCurrentX.current = null
+  }
+
   if (loading || reviews.length === 0) return null
 
   const visible = reviews.slice(page * perPage, page * perPage + perPage)
@@ -58,7 +83,13 @@ export default function ReviewsSection({ instrumentTag }: ReviewsSectionProps) {
         <h2 className="rv-title">WHAT FAMILIES ARE SAYING</h2>
       </div>
 
-      <div className={`rv-cards${fading ? ' rv-fade' : ''}`}>
+      <div
+        className={`rv-cards${fading ? ' rv-fade' : ''}`}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{ touchAction: 'pan-y', userSelect: 'none' }}
+      >
         {visible.map(r => (
           <div className="rv-card" key={r.id}>
             <p className="rv-text">&ldquo;{r.text_cleaned}&rdquo;</p>

@@ -98,8 +98,8 @@ export default function VSLSection({ videoId, headline, subheadline }: VSLSectio
               <div
                 style={{
                   position: 'absolute',
-                  bottom: 'calc(30% + 72px)',
-                  left: '33%',
+                  bottom: '72px',
+                  left: '8%',
                   fontSize: 'clamp(14px, 2vw, 18px)',
                   fontWeight: 800,
                   color: '#FFFFFF',
@@ -113,8 +113,9 @@ export default function VSLSection({ videoId, headline, subheadline }: VSLSectio
               <div
                 style={{
                   position: 'absolute',
-                  bottom: '30%',
-                  left: '33%',
+                  bottom: 0,
+                  left: '8%',
+                  transform: 'translateY(0)',
                   width: 64,
                   height: 64,
                   borderRadius: '50%',
