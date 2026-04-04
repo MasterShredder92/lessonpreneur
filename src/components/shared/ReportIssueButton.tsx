@@ -26,19 +26,18 @@ function ReportButton({ role }: { role: string }) {
           background: 'none',
           border: 'none',
           cursor: 'pointer',
-          color: '#55516E',
-          opacity: 0.6,
           padding: 4,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          transition: 'opacity 150ms, color 150ms',
+          opacity: 0.6,
+          transition: 'opacity 150ms',
           flexShrink: 0,
         }}
-        onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#D4226A' }}
-        onMouseLeave={e => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.color = '#55516E' }}
+        onMouseEnter={e => { e.currentTarget.style.opacity = '1' }}
+        onMouseLeave={e => { e.currentTarget.style.opacity = '0.6' }}
       >
-        <Bug size={14} />
+        <Bug size={14} style={{ color: '#D4226A' }} />
       </button>
       {open && <ReportModal role={role} onClose={() => setOpen(false)} />}
     </>

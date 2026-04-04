@@ -101,7 +101,6 @@ export default function FloatingIssueReporter() {
           borderRadius: '50%',
           border: '1px solid rgba(212, 34, 106, 0.4)',
           background: 'rgba(212, 34, 106, 0.15)',
-          color: '#E8488A',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -113,7 +112,7 @@ export default function FloatingIssueReporter() {
         onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(212, 34, 106, 0.4)' }}
         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(212, 34, 106, 0.25)' }}
       >
-        <Bug size={20} />
+        <Bug size={20} style={{ color: '#D4226A' }} />
       </button>
 
       {/* Modal */}
@@ -149,9 +148,8 @@ export default function FloatingIssueReporter() {
                   width: 32, height: 32, borderRadius: '50%',
                   background: 'rgba(212, 34, 106, 0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#E8488A',
                 }}>
-                  <Bug size={16} />
+                  <Bug size={16} style={{ color: '#D4226A' }} />
                 </div>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#E8E8FC' }}>Report an Issue</div>
