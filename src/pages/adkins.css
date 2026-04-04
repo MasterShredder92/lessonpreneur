@@ -117,13 +117,17 @@
 .ak-cbval{font-size:11px;color:var(--c);font-weight:700;width:34px}
 
 /* Pain points */
-.ak-pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:20px}
-.ak-pcard{background:#141420;border:1px solid #1C1C2A;border-radius:14px;padding:22px;transition:all 0.28s;cursor:default}
-.ak-pcard:hover{border-color:var(--c);transform:translateY(-4px);box-shadow:0 14px 36px rgba(0,0,0,0.4)}
-.ak-pcard:hover .ak-picon{transform:scale(1.18) rotate(-5deg)}
-.ak-picon{font-size:24px;margin-bottom:11px;display:block;transition:transform 0.28s}
-.ak-pcard h3{font-size:15px;font-weight:800;color:#fff;margin-bottom:7px}
-.ak-pcard p{font-size:13px;color:#9A96B4;line-height:1.62}
+/* Concerns — bigger headline + horizontal swipeable cards */
+.ak-concerns-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,8vw,80px);line-height:0.95;color:#fff;margin:0 0 18px;letter-spacing:0.5px}
+.ak-concerns-scroll{margin:30px -24px 0;position:relative}
+.ak-concerns-track{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:8px 24px 18px;scrollbar-width:none}
+.ak-concerns-track::-webkit-scrollbar{display:none}
+.ak-concern-card{flex:0 0 300px;scroll-snap-align:center;background:#141420;border:1px solid #1C1C2A;border-radius:16px;padding:24px 22px;transition:all 0.28s}
+.ak-concern-card:hover{border-color:var(--c);transform:translateY(-4px);box-shadow:0 14px 36px rgba(0,0,0,0.4)}
+.ak-concern-icon{font-size:28px;margin-bottom:12px;display:block}
+.ak-concern-card h3{font-size:16px;font-weight:800;color:#fff;margin-bottom:8px}
+.ak-concern-card p{font-size:13px;color:#9A96B4;line-height:1.62}
+.ak-concerns-hint{text-align:center;font-size:11px;color:#55516E;letter-spacing:1px;text-transform:uppercase;margin-top:6px}
 .ak-pcta-box{margin-top:40px;text-align:center;padding:36px 22px;background:var(--cl);border-radius:18px;border:1px solid var(--c)}
 .ak-pcta-box h3{font-family:'Bebas Neue',sans-serif;font-size:34px;color:#fff;margin-bottom:7px;letter-spacing:0.5px}
 .ak-pcta-box p{font-size:15px;color:#9A96B4;margin-bottom:22px}

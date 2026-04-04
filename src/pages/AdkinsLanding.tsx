@@ -77,7 +77,10 @@ export default function AdkinsLanding() {
   const [enrollOpen, setEnrollOpen] = useState(false)
   const [expandedInst, setExpandedInst] = useState<number | null>(null)
   const [randomReviews, setRandomReviews] = useState<{ id: string; reviewer_name: string; text_cleaned: string }[]>([])
+  const [matchScore, setMatchScore] = useState(0)
+  const [barsAnimated, setBarsAnimated] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
+  const compatRef = useRef<HTMLDivElement>(null)
 
   const [chatOpen, setChatOpen] = useState(false)
 
@@ -140,6 +143,33 @@ export default function AdkinsLanding() {
     fetchReviews()
     return () => { cancelled = true }
   }, [loc])
+
+  // Animate 95% match counter + bars when the compat card scrolls into view
+  useEffect(() => {
+    if (!compatRef.current) return
+    const el = compatRef.current
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          // Count up 0 → 95 over ~1.2s
+          const target = 95
+          const duration = 1200
+          const start = performance.now()
+          const tick = (now: number) => {
+            const t = Math.min((now - start) / duration, 1)
+            const eased = 1 - Math.pow(1 - t, 3) // ease-out cubic
+            setMatchScore(Math.round(eased * target))
+            if (t < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+          setBarsAnimated(true)
+          obs.unobserve(el)
+        }
+      })
+    }, { threshold: 0.35 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   // Set CSS vars on location change
   useEffect(() => {
@@ -205,19 +235,19 @@ export default function AdkinsLanding() {
           <div className="ak-slbl">Our Matching System</div>
           <h2 className="ak-stitle">We Find You <em>The Right Teacher.</em></h2>
           <p className="ak-csub">Over a decade of music education experience and a deep profile of every teacher we have — combined into a compatibility system that matches you or your child to the teacher most likely to make them fall in love with music.</p>
-          <div className="ak-ccard">
+          <div className="ak-ccard" ref={compatRef}>
             <div className="ak-cscore-row">
-              <div className="ak-sring"><div className="ak-snum">95</div><div className="ak-spct">% MATCH</div></div>
+              <div className="ak-sring"><div className="ak-snum">{matchScore}</div><div className="ak-spct">% MATCH</div></div>
               <div className="ak-sdetails">
                 <h3>We Found Your Match {'\u{1F3B5}'}</h3>
                 <p>Based on answers to our enrollment questions, we identify a teacher with a high compatibility score. We only show the number when we are confident.</p>
               </div>
             </div>
             <div className="ak-cbars">
-              {[{ l: 'Personality', v: 96 }, { l: 'Schedule', v: 100 }, { l: 'Age Experience', v: 92 }, { l: 'Teaching Style', v: 94 }].map(b => (
+              {[{ l: 'Personality', v: 96 }, { l: 'Schedule', v: 100 }, { l: 'Age Experience', v: 92 }, { l: 'Teaching Style', v: 94 }].map((b, i) => (
                 <div className="ak-cbrow" key={b.l}>
                   <span className="ak-cblbl">{b.l}</span>
-                  <div className="ak-cbtrack"><div className="ak-cbfill" style={{ width: `${b.v}%` }} /></div>
+                  <div className="ak-cbtrack"><div className="ak-cbfill" style={{ width: barsAnimated ? `${b.v}%` : '0%', transition: `width 1.1s cubic-bezier(0.22,1,0.36,1) ${i * 120}ms` }} /></div>
                   <span className="ak-cbval">{b.v}%</span>
                 </div>
               ))}
@@ -227,23 +257,29 @@ export default function AdkinsLanding() {
       </section>
 
       {/* PAIN POINTS */}
-      <section className="ak-sec">
-        <div className="ak-slbl">We Know What You Are Thinking</div>
-        <h2 className="ak-stitle">We Have Heard Every<br />Concern Before.</h2>
-        <p className="ak-secdesc">Most parents have been through music lessons that did not stick. Teachers who cancelled, studios that locked you into contracts, kids who gave up after a month. We built everything around making sure that does not happen here.</p>
-        <div className="ak-pgrid">
-          {[
-            { icon: '\u{1F61F}', title: '"What if they want to quit?"', desc: 'Month to month. Cancel anytime, no questions asked. We are so confident you or your child will love it that we do not need a contract to keep you here.' },
-            { icon: '\u{1F4F5}', title: '"Teachers always cancel on us"', desc: 'Every teacher is background-checked and held to strict attendance standards. When a teacher is out, we find a substitute. You never lose a session.' },
-            { icon: '\u{1F382}', title: '"I am too old to start"', desc: 'Adults actually progress faster than kids when they have the right teacher — because you have discipline, focus, and real motivation. You just never had the right guide.' },
-            { icon: '\u{1F4C5}', title: '"Our schedule is packed"', desc: 'After school, evenings, weekends — we build around your life, not ours. Flexible scheduling that works for real families.' },
-          ].map((p, i) => (
-            <div className="ak-pcard" key={i}>
-              <span className="ak-picon">{p.icon}</span>
-              <h3>{p.title}</h3>
-              <p>{p.desc}</p>
-            </div>
-          ))}
+      <section className="ak-sec ak-concerns-sec">
+        <div style={{ textAlign: 'center' }}>
+          <div className="ak-slbl">Real Talk</div>
+          <h2 className="ak-concerns-title">We Know What<br />You Are Thinking.</h2>
+          <p className="ak-secdesc">Most families have been through music lessons that did not stick. Teachers who cancelled, studios that locked you into contracts, students who gave up after a month. We built everything around making sure that does not happen here.</p>
+        </div>
+        <div className="ak-concerns-scroll">
+          <div className="ak-concerns-track">
+            {[
+              { icon: '\u{1F61F}', title: '"What if they want to quit?"', desc: 'Month to month. Cancel anytime, no questions asked. We are so confident you or your child will love it that we do not need a contract to keep you here.' },
+              { icon: '\u{1F4F5}', title: '"Teachers always cancel on us"', desc: 'Every teacher is background-checked and held to strict attendance standards. When a teacher is out, we find a substitute. You never lose a session.' },
+              { icon: '\u{1F382}', title: '"I am too old to start"', desc: 'Adults actually progress faster than kids when they have the right teacher — because you have discipline, focus, and real motivation. You just never had the right guide.' },
+              { icon: '\u{1F4C5}', title: '"Our schedule is packed"', desc: 'After school, evenings, weekends — we build around your life, not ours. Flexible scheduling that works for real families.' },
+              { icon: '\u{1F3B5}', title: '"What if I have no musical background?"', desc: 'Most of our families have zero musical experience. Our teachers specialize in starting from zero — no shame, no jargon, just progress.' },
+            ].map((p, i) => (
+              <div className="ak-concern-card" key={i}>
+                <span className="ak-concern-icon">{p.icon}</span>
+                <h3>{p.title}</h3>
+                <p>{p.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="ak-concerns-hint">{'\u{2190}'} swipe {'\u{2192}'}</div>
         </div>
         <div className="ak-pcta-box">
           <h3>Stop Wondering. Start Playing.</h3>
