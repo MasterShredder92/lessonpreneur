@@ -11,6 +11,17 @@ export interface PracticeStats {
   recentSuggestions: string[]
 }
 
+export interface PracticeHistoryRow {
+  id: string
+  practice_date: string
+  duration_minutes: number
+  instrument: string | null
+  tool_used: string | null
+  notes: string | null
+  is_manual_entry: boolean
+  created_at: string
+}
+
 export function usePracticeStats(studentId: string | undefined) {
   return useQuery<PracticeStats>({
     queryKey: ['practice-stats', studentId],
@@ -18,23 +29,29 @@ export function usePracticeStats(studentId: string | undefined) {
     queryFn: async () => {
       const { data: sessions } = await supabase
         .from('practice_sessions')
-        .select('created_at, duration_seconds')
+        .select('practice_date, duration_minutes, duration_seconds, created_at')
         .eq('student_id', studentId!)
-        .order('created_at', { ascending: false })
+        .order('practice_date', { ascending: false })
 
-      const total = (sessions ?? []).length
-      const totalSeconds = (sessions ?? []).reduce((s, r: any) => s + (r.duration_seconds ?? 0), 0)
+      const rows = sessions ?? []
+      const total = rows.length
+      const totalMinutes = rows.reduce((s, r: any) => {
+        const mins = r.duration_minutes ?? Math.floor((r.duration_seconds ?? 0) / 60)
+        return s + (mins ?? 0)
+      }, 0)
 
       // Calculate streak (consecutive days with at least one session)
       const daySet = new Set<string>()
-      sessions?.forEach(s => daySet.add(new Date(s.created_at).toISOString().split('T')[0]))
+      rows.forEach((r: any) => {
+        const d = r.practice_date ?? new Date(r.created_at).toISOString().split('T')[0]
+        daySet.add(d)
+      })
       const sortedDays = [...daySet].sort().reverse()
 
       let currentStreak = 0
       const today = new Date().toISOString().split('T')[0]
       const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
 
-      // Check if today or yesterday is in the set to start counting
       if (sortedDays[0] === today || sortedDays[0] === yesterday) {
         let checkDate = new Date(sortedDays[0] + 'T12:00:00')
         for (const day of sortedDays) {
@@ -45,7 +62,6 @@ export function usePracticeStats(studentId: string | undefined) {
         }
       }
 
-      // Longest streak ever
       let longestStreak = 0, tempStreak = 0
       const allDays = [...daySet].sort()
       for (let i = 0; i < allDays.length; i++) {
@@ -59,7 +75,6 @@ export function usePracticeStats(studentId: string | undefined) {
         longestStreak = Math.max(longestStreak, tempStreak)
       }
 
-      // Get recent teacher suggestions (from session_log worked_on tags)
       const { data: recentLogs } = await supabase
         .from('session_log')
         .select('worked_on')
@@ -71,7 +86,7 @@ export function usePracticeStats(studentId: string | undefined) {
 
       return {
         totalSessions: total,
-        totalMinutes: Math.floor(totalSeconds / 60),
+        totalMinutes,
         currentStreak,
         longestStreak,
         lastPracticeDate: sortedDays[0] ?? null,
@@ -81,22 +96,97 @@ export function usePracticeStats(studentId: string | undefined) {
   })
 }
 
+export function usePracticeHistory(studentId: string | undefined) {
+  return useQuery<PracticeHistoryRow[]>({
+    queryKey: ['practice-history', studentId],
+    enabled: !!studentId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('practice_sessions')
+        .select('id, practice_date, duration_minutes, duration_seconds, instrument, tool_used, notes, is_manual_entry, created_at')
+        .eq('student_id', studentId!)
+        .order('practice_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(20)
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        practice_date: r.practice_date ?? new Date(r.created_at).toISOString().split('T')[0],
+        duration_minutes: r.duration_minutes ?? Math.floor((r.duration_seconds ?? 0) / 60),
+        instrument: r.instrument,
+        tool_used: r.tool_used,
+        notes: r.notes,
+        is_manual_entry: !!r.is_manual_entry,
+        created_at: r.created_at,
+      }))
+    },
+  })
+}
+
 export function useLogPractice() {
-  const { tenantId } = useAuthContext()
+  const { tenantId, user } = useAuthContext()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (params: { studentId: string; instrument: string; toolUsed: string; durationSeconds: number }) => {
+    mutationFn: async (params: {
+      studentId: string
+      familyId?: string | null
+      instrument: string
+      toolUsed: string
+      durationSeconds: number
+    }) => {
       if (!tenantId) throw new Error('No tenant')
-      await supabase.from('practice_sessions').insert({
+      const minutes = Math.max(1, Math.round(params.durationSeconds / 60))
+      const { error } = await supabase.from('practice_sessions').insert({
         tenant_id: tenantId,
         student_id: params.studentId,
+        family_id: params.familyId ?? null,
+        logged_by: user?.id ?? null,
         instrument: params.instrument,
         tool_used: params.toolUsed,
         duration_seconds: params.durationSeconds,
+        duration_minutes: minutes,
+        practice_date: new Date().toISOString().split('T')[0],
+        is_manual_entry: false,
       })
+      if (error) throw error
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['practice-stats'] })
+      qc.invalidateQueries({ queryKey: ['practice-history'] })
+    },
+  })
+}
+
+export function useLogPracticeManual() {
+  const { tenantId, user } = useAuthContext()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (params: {
+      studentId: string
+      familyId?: string | null
+      instrument: string | null
+      practiceDate: string
+      durationMinutes: number
+      notes?: string | null
+    }) => {
+      if (!tenantId) throw new Error('No tenant')
+      const { error } = await supabase.from('practice_sessions').insert({
+        tenant_id: tenantId,
+        student_id: params.studentId,
+        family_id: params.familyId ?? null,
+        logged_by: user?.id ?? null,
+        instrument: params.instrument,
+        tool_used: 'manual',
+        duration_seconds: params.durationMinutes * 60,
+        duration_minutes: params.durationMinutes,
+        practice_date: params.practiceDate,
+        notes: params.notes ?? null,
+        is_manual_entry: true,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['practice-stats'] })
+      qc.invalidateQueries({ queryKey: ['practice-history'] })
     },
   })
 }

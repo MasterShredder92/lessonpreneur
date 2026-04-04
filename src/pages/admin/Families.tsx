@@ -10,10 +10,11 @@ import { formatRate, getRateTierColor } from '../../hooks/useFamilyRate'
 import { useAI } from '../../hooks/useAI'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
-import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell } from 'lucide-react'
+import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send } from 'lucide-react'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { useReactivateStudent } from '../../hooks/useRetention'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useUrlFilters } from '../../hooks/useUrlFilters'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { DEFAULT_SESSIONS_PER_MONTH } from '../../lib/constants'
 import { supabase, getCurrentBillingCycleId } from '../../lib/supabase'
 import { calculatePreviewRate } from '../../hooks/useFamilyRate'
@@ -86,13 +87,20 @@ export default function Families() {
   const { data: families, isLoading, error } = useFamiliesPage()
   const { data: locations } = useLocations()
 
-  const [search, setSearch] = useState('')
-  const [familyTab, setFamilyTab] = useState<'active' | 'inactive' | 'all'>('active')
-  const [locationFilter, setLocationFilter] = useState('')
-  const [rateFilter, setRateFilter] = useState<number>(0)
-  const [sortBy, setSortBy] = useState<'az' | 'za' | 'newest' | 'oldest'>('az')
-  const [showNeedsAttention, setShowNeedsAttention] = useState(false)
-  const [searchParams] = useSearchParams()
+  // URL-persisted filters
+  const { getParam, setParam, searchParams } = useUrlFilters()
+  const search = getParam('q')
+  const familyTab = (getParam('tab') || 'active') as 'active' | 'inactive' | 'all'
+  const locationFilter = getParam('location')
+  const rateFilter = Number(getParam('rate') || '0')
+  const sortBy = (getParam('sort') || 'az') as 'az' | 'za' | 'newest' | 'oldest'
+  const showNeedsAttention = getParam('needs_attention') === '1'
+  const setSearch = (v: string) => setParam('q', v)
+  const setFamilyTab = (v: 'active' | 'inactive' | 'all') => setParam('tab', v === 'active' ? '' : v)
+  const setLocationFilter = (v: string) => setParam('location', v)
+  const setRateFilter = (v: number) => setParam('rate', v === 0 ? '' : String(v))
+  const setSortBy = (v: 'az' | 'za' | 'newest' | 'oldest') => setParam('sort', v === 'az' ? '' : v)
+  const setShowNeedsAttention = (v: boolean) => setParam('needs_attention', v ? '1' : '')
   const initialFamily = searchParams.get('family')
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(initialFamily)
 
@@ -433,7 +441,7 @@ function PaymentBadge({ status, overdueAmount }: { status: string; overdueAmount
 // FAMILY DETAIL MODAL — 2-TAB (Account / Director)
 // ═══════════════════════════════════════
 
-type ModalTab = 'account' | 'director'
+type ModalTab = 'account' | 'director' | 'messages'
 type MobileTab = 'account' | 'contact' | 'billing' | 'notifications'
 
 function useIsMobile(breakpoint = 900) {
@@ -1009,14 +1017,14 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
           {/* ── TABS + EDIT BUTTON ── */}
           <div style={{ display: 'flex', alignItems: 'center', padding: '16px 28px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', gap: 4, flex: 1 }}>
-              {(['account', 'director'] as ModalTab[]).map((t) => (
+              {(['account', 'director', 'messages'] as ModalTab[]).map((t) => (
                 <button key={t} onClick={() => { setTab(t); if (editing) cancelEditing() }} style={{
                   padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: 'pointer', borderRadius: '8px 8px 0 0',
                   background: tab === t ? 'rgba(212,34,106,0.08)' : 'transparent',
                   color: tab === t ? '#E8488A' : '#8080A8',
                   border: tab === t ? '1px solid rgba(212,34,106,0.15)' : '1px solid transparent',
                   borderBottom: tab === t ? '1px solid #141224' : '1px solid transparent', marginBottom: -1,
-                }}>{t === 'account' ? 'Account' : 'Director'}</button>
+                }}>{t === 'account' ? 'Account' : t === 'director' ? 'Director' : 'Messages'}</button>
               ))}
             </div>
           </div>
@@ -1297,6 +1305,13 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   {status !== 'cancelled' && <button className="btn-outline" onClick={() => handleStatusChange('cancelled')} style={{ fontSize: 12, color: '#EF4444', borderColor: 'rgba(239,68,68,0.3)' }}>Cancel</button>}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── TAB 3: MESSAGES ── */}
+          {tab === 'messages' && (
+            <div style={{ padding: '20px 28px 24px' }}>
+              <FamilyMessagesTab familyId={family.id} locationId={family.primary_location_id ?? null} familyPhone={family.primary_phone ?? null} />
             </div>
           )}
           </div>{/* end scroll wrapper */}
@@ -1758,6 +1773,167 @@ function NotificationPrefs({ family }: { family: any }) {
           {saving ? 'Saving...' : 'Save Notification Preferences'}
         </button>
       )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// FAMILY MESSAGES TAB (studio_messages)
+// ═══════════════════════════════════════
+
+interface StudioMessageRow {
+  id: string
+  message_text: string
+  direction: string
+  created_at: string
+  sent_by_profile_id: string | null
+  read: boolean | null
+}
+
+function FamilyMessagesTab({ familyId, locationId, familyPhone }: {
+  familyId: string; locationId: string | null; familyPhone: string | null
+}) {
+  const { user, tenantId } = useAuthContext()
+  const qc = useQueryClient()
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [text, setText] = useState('')
+
+  const { data: location } = useQuery({
+    queryKey: ['admin-family-msg-location', locationId],
+    enabled: !!locationId,
+    queryFn: async () => {
+      const { data } = await supabase.from('locations').select('id, phone, name').eq('id', locationId!).single()
+      return data
+    },
+  })
+
+  const { data: messages, isLoading } = useQuery<StudioMessageRow[]>({
+    queryKey: ['admin-family-messages', familyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('studio_messages')
+        .select('id, message_text, direction, created_at, sent_by_profile_id, read')
+        .eq('family_id', familyId)
+        .order('created_at', { ascending: true })
+        .limit(500)
+      return (data ?? []) as StudioMessageRow[]
+    },
+    refetchInterval: 15000,
+  })
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [messages])
+
+  // Mark unread inbound messages as read when tab opens
+  useEffect(() => {
+    if (!messages || !user) return
+    const unread = messages.filter(m => m.direction === 'inbound' && !m.read)
+    if (unread.length === 0) return
+    supabase.from('studio_messages').update({
+      read: true, read_at: new Date().toISOString(), read_by: user.id,
+    }).in('id', unread.map(m => m.id)).then(() => {
+      qc.invalidateQueries({ queryKey: ['admin-family-messages', familyId] })
+    })
+  }, [messages, user, familyId, qc])
+
+  const sendMessage = useMutation({
+    mutationFn: async (body: string) => {
+      if (!tenantId) throw new Error('No tenant')
+      const { error } = await supabase.from('studio_messages').insert({
+        tenant_id: tenantId,
+        family_id: familyId,
+        location_id: locationId,
+        message_text: body,
+        direction: 'outbound',
+        sent_via: 'quo',
+        quo_queued: true,
+        to_phone: familyPhone,
+        from_phone: location?.phone ?? null,
+        sent_by_profile_id: user?.id ?? null,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      setText('')
+      qc.invalidateQueries({ queryKey: ['admin-family-messages', familyId] })
+      toast('Message queued for delivery', 'success')
+    },
+    onError: (err: any) => toast(err.message ?? 'Failed to send', 'error'),
+  })
+
+  const handleSend = () => {
+    const body = text.trim()
+    if (!body || sendMessage.isPending) return
+    sendMessage.mutate(body)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '60vh', minHeight: 400 }}>
+      <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 10 }}>
+        Two-way SMS with the family{location?.name ? ` via ${location.name}` : ''}. Delivered by QUO.
+      </div>
+
+      <div ref={scrollRef} style={{
+        flex: 1, overflowY: 'auto', padding: 12, borderRadius: 10,
+        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        {isLoading ? (
+          <div style={{ margin: 'auto', color: '#606088', fontSize: 12 }}>Loading...</div>
+        ) : !messages || messages.length === 0 ? (
+          <div style={{ margin: 'auto', textAlign: 'center', color: '#606088', fontSize: 12, maxWidth: 280 }}>
+            <MessageCircle size={24} style={{ color: '#606088', marginBottom: 8 }} />
+            <div>No messages yet.</div>
+          </div>
+        ) : (
+          messages.map(m => {
+            const isOutbound = m.direction === 'outbound'
+            return (
+              <div key={m.id} style={{
+                alignSelf: isOutbound ? 'flex-end' : 'flex-start',
+                maxWidth: '78%', padding: '8px 12px', borderRadius: 12,
+                background: isOutbound ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${isOutbound ? 'rgba(212,34,106,0.25)' : 'rgba(255,255,255,0.06)'}`,
+              }}>
+                <div style={{ fontSize: 13, color: '#E0E0F4', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{m.message_text}</div>
+                <div style={{ fontSize: 9, color: '#606088', marginTop: 4, textAlign: isOutbound ? 'right' : 'left' }}>
+                  {new Date(m.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend() } }}
+          placeholder="Type a message to the family..."
+          rows={2}
+          style={{
+            flex: 1, padding: '10px 12px', borderRadius: 10, resize: 'none',
+            border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)',
+            color: '#E8E8FC', fontSize: 13, fontFamily: 'inherit', outline: 'none',
+          }}
+        />
+        <button
+          onClick={handleSend}
+          disabled={!text.trim() || sendMessage.isPending}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 44, height: 44, borderRadius: 10, border: 'none',
+            cursor: (!text.trim() || sendMessage.isPending) ? 'not-allowed' : 'pointer',
+            background: text.trim() ? '#D4226A' : 'rgba(255,255,255,0.06)',
+            color: text.trim() ? '#fff' : '#606088', flexShrink: 0,
+            opacity: sendMessage.isPending ? 0.5 : 1,
+          }}
+        >
+          <Send size={16} />
+        </button>
+      </div>
     </div>
   )
 }
