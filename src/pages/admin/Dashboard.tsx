@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase'
 import { Star, Video } from 'lucide-react'
 import TaskCenter from '../../components/tasks/TaskCenter'
 import WhatsImportantNow from '../../components/admin/WhatsImportantNow'
+import HappeningTodayFeed from '../../components/admin/HappeningTodayFeed'
 import { getLocationColor } from '../../utils/locationColor'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
@@ -153,6 +154,9 @@ export default function Dashboard() {
         </div>
         <ReportIssueButton />
       </div>
+
+      {/* Things Happening Today — live feed of today's call-outs */}
+      <HappeningTodayFeed userLocations={userLocations} />
 
       {/* 1. What's Important Now — AI Insight Cards (FIRST after header) */}
       <WhatsImportantNow data={data} heroStats={heroStats} />
