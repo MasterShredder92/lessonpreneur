@@ -183,6 +183,9 @@ export default function ParentAccount() {
             <input type="tel" value={phone} onChange={e => { setPhone(e.target.value); setJustSubmitted(false) }} placeholder="(555) 555-5555" style={inputStyle} />
           </div>
           <div style={{ fontSize: 11, color: '#8080A8', lineHeight: 1.5 }}>
+            The email and phone number on file will be used for invoice delivery. Please keep these current.
+          </div>
+          <div style={{ fontSize: 11, color: '#8080A8', lineHeight: 1.5 }}>
             Contact changes are reviewed by your studio admin before taking effect.
           </div>
           <button
