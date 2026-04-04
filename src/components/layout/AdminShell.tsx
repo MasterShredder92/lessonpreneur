@@ -15,6 +15,7 @@ import { supabase } from '../../lib/supabase'
 import { LayoutDashboard, Users, CalendarDays, UserPlus, Music2, CreditCard, BookOpen, Settings2, LogOut, Send, Star, ChevronDown, ShieldCheck, Guitar, Plug } from 'lucide-react'
 import NotificationBell from '../shared/NotificationBell'
 import RoleSwitcher from '../shared/RoleSwitcher'
+import FloatingIssueReporter from '../shared/FloatingIssueReporter'
 
 const NAV_ICONS: Record<string, ReactNode> = {
   'dashboard': <LayoutDashboard size={18} />,
@@ -322,6 +323,7 @@ export default function AdminShell() {
       </main>
 
       <MobileTabBar />
+      <FloatingIssueReporter />
 
       {aiPanelOpen && (
         <aside className="ai-panel">
