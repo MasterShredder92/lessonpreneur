@@ -7,6 +7,7 @@ export default function InstallPrompt() {
 
   useEffect(() => {
     const handler = (e: Event) => {
+      if (window.location.pathname === '/' || window.location.pathname === '/start') return
       e.preventDefault()
       setDeferredPrompt(e)
     }

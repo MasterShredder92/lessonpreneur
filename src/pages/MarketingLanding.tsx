@@ -252,6 +252,98 @@ function CtaButton({ href = SCHOOL_STRIPE, className = '' }: { href?: string; cl
    SECTION 1: HERO — Large dashboard mockup
    ═══════════════════════════════════════════════════════ */
 
+function HeroDeviceMockups() {
+  const LW = 340, LH = 220, BEZ = 8
+  const BW = 390, BH = 32
+  const PW = 120, PH = 240
+  const laptopX = 0, laptopY = 0
+  const baseX = laptopX - (BW - LW) / 2, baseY = laptopY + LH
+  const phoneX = LW - PW * 0.35, phoneY = 10
+  const vbW = phoneX + PW + 10, vbH = baseY + BH + 8
+
+  const lessonRows = [
+    { label: 'Sarah M. \u2014 Guitar', color: '#D4226A' },
+    { label: 'Jake T. \u2014 Piano', color: '#00A651' },
+    { label: 'Emma R. \u2014 Vocals', color: '#A333FF' },
+    { label: 'Chris L. \u2014 Drums', color: '#00A5E8' },
+  ]
+  const students = [
+    { i: 'ER', n: 'Emma Rodriguez', m: 'Piano \u00B7 Tue 4PM', c: '#D4226A', s: 'Active', sc: '#00A651' },
+    { i: 'NP', n: 'Noah Park', m: 'Guitar \u00B7 Wed 3:30', c: '#FF5500', s: 'Active', sc: '#00A651' },
+    { i: 'LT', n: 'Lily Thompson', m: 'Vocals \u00B7 Thu 5PM', c: '#FFB800', s: 'At Risk', sc: '#FF5500' },
+    { i: 'JM', n: 'Jake Martinez', m: 'Drums \u00B7 Fri 4:30', c: '#D4226A', s: 'Active', sc: '#00A651' },
+  ]
+
+  const sP = 10, sX = laptopX + BEZ, sY = laptopY + BEZ, sW = LW - BEZ * 2, sH = LH - BEZ * 2
+  const rH = 22, rG = 4, rSY = sY + sP + 18
+  const pSX = phoneX + 4, pSY = phoneY + 28, pSW = PW - 8
+  const pRH = 28, pRG = 3, pLSY = pSY + 22
+
+  return (
+    <div className="lp2-devmock">
+      <style>{`
+        .lp2-devmock { width:100%; max-width:420px; margin:0 auto; padding:0 12px; position:relative; z-index:1; }
+        @media(min-width:768px){ .lp2-devmock { max-width:520px; flex:1; } }
+        .lp2-devmock svg { width:100%; height:auto; display:block; filter:drop-shadow(0 20px 40px rgba(0,0,0,0.5)); }
+        .lp2-devmock-tag { text-align:center; margin-top:16px; font-family:'Plus Jakarta Sans',system-ui,sans-serif; font-size:13px; color:rgba(255,255,255,0.6); font-weight:500; }
+        @media(min-width:768px){ .lp2-devmock-tag { font-size:15px; } }
+        .lp2-devmock-badge { display:flex; align-items:center; justify-content:center; gap:6px; margin:12px auto 0; width:fit-content; padding:6px 16px; border-radius:20px; background:rgba(0,0,0,0.6); border:1px solid rgba(212,34,106,0.4); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+        .lp2-devmock-dot { width:7px; height:7px; border-radius:50%; background:#00A651; box-shadow:0 0 6px #00A651; animation:lp2dp 2s ease-in-out infinite; }
+        @keyframes lp2dp { 0%,100%{ opacity:1; box-shadow:0 0 6px #00A651; } 50%{ opacity:.5; box-shadow:0 0 12px #00A651; } }
+      `}</style>
+
+      <svg viewBox={`0 0 ${vbW} ${vbH}`} fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* LAPTOP SHELL */}
+        <rect x={laptopX} y={laptopY} width={LW} height={LH} rx={6} fill="#1c1c1e" />
+        <rect x={sX} y={sY} width={sW} height={sH} rx={3} fill="#020209" />
+        <text x={sX + sP} y={sY + sP + 10} fill="#fff" fontSize="9" fontWeight="800" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif">Adkins Music Lessons</text>
+        <text x={sX + sW - sP} y={sY + sP + 10} fill="#555" fontSize="7" fontWeight="600" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif" textAnchor="end">Tue, Apr 8</text>
+        {lessonRows.map((r, i) => {
+          const ry = rSY + i * (rH + rG)
+          return (<g key={r.label}>
+            <rect x={sX + sP} y={ry} width={sW - sP * 2} height={rH} rx={4} fill={`${r.color}22`} stroke={`${r.color}55`} strokeWidth={1} />
+            <text x={sX + sP + 8} y={ry + 14} fill="#fff" fontSize="8" fontWeight="700" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif">{r.label}</text>
+          </g>)
+        })}
+        {(() => { const ry = rSY + lessonRows.length * (rH + rG); return (<g>
+          <rect x={sX + sP} y={ry} width={sW - sP * 2} height={rH} rx={4} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={1} strokeDasharray="4 3" />
+          <text x={sX + sW / 2} y={ry + 14} fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="600" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif" textAnchor="middle">Open Slot</text>
+        </g>) })()}
+        {/* KEYBOARD BASE */}
+        <rect x={baseX} y={baseY} width={BW} height={BH} rx={4} fill="#1c1c1e" />
+        <line x1={baseX + 20} y1={baseY + 1} x2={baseX + BW - 20} y2={baseY + 1} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+        <rect x={baseX + BW / 2 - 30} y={baseY + 10} width={60} height={14} rx={3} fill="#252528" />
+
+        {/* PHONE */}
+        <rect x={phoneX} y={phoneY} width={PW} height={PH} rx={14} fill="#1c1c1e" />
+        <rect x={pSX} y={pSY} width={pSW} height={PH - 44} rx={3} fill="#020209" />
+        <rect x={phoneX + PW / 2 - 18} y={phoneY + 6} width={36} height={6} rx={3} fill="#020209" />
+        <rect x={phoneX + PW / 2 - 16} y={phoneY + PH - 10} width={32} height={4} rx={2} fill="rgba(255,255,255,0.15)" />
+        <text x={pSX + 8} y={pSY + 14} fill="#fff" fontSize="9" fontWeight="800" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif">Students</text>
+        <text x={pSX + pSW - 6} y={pSY + 14} fill="#555" fontSize="7" fontWeight="500" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif" textAnchor="end">5 active</text>
+        {students.map((st, i) => {
+          const ry = pLSY + i * (pRH + pRG)
+          return (<g key={st.i}>
+            <rect x={pSX + 4} y={ry} width={pSW - 8} height={pRH} rx={6} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)" strokeWidth={0.5} />
+            <circle cx={pSX + 16} cy={ry + pRH / 2} r={9} fill={st.c} />
+            <text x={pSX + 16} y={ry + pRH / 2 + 3} fill="#fff" fontSize="6" fontWeight="700" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif" textAnchor="middle">{st.i}</text>
+            <text x={pSX + 30} y={ry + 11} fill="#fff" fontSize="7" fontWeight="700" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif">{st.n}</text>
+            <text x={pSX + 30} y={ry + 21} fill="#555" fontSize="6" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif">{st.m}</text>
+            <rect x={pSX + pSW - 34} y={ry + 6} width={26} height={12} rx={3} fill={`${st.sc}18`} />
+            <text x={pSX + pSW - 21} y={ry + 15} fill={st.sc} fontSize="5" fontWeight="700" fontFamily="'Plus Jakarta Sans',system-ui,sans-serif" textAnchor="middle">{st.s}</text>
+          </g>)
+        })}
+      </svg>
+
+      <p className="lp2-devmock-tag">Run your studio from anywhere, on any device.</p>
+      <div className="lp2-devmock-badge">
+        <span className="lp2-devmock-dot" />
+        <span style={{ fontSize: 11, color: '#fff', fontWeight: 600, fontFamily: "'Plus Jakarta Sans',system-ui,sans-serif" }}>{'\uD83C\uDFA5'} Virtual Ready</span>
+      </div>
+    </div>
+  )
+}
+
 function Hero() {
   return (
     <section className="lp2-hero">
@@ -278,22 +370,7 @@ function Hero() {
             <p className="lp2-hero-quote-attr">{"\u2014"} Zach Adkins, Founder</p>
           </div>
         </div>
-        <div className="lp2-hero-devices">
-          <div className="lp2-hero-laptop">
-            <HeroLaptopMock />
-          </div>
-          <div className="lp2-hero-phone">
-            <HeroPhoneMock />
-          </div>
-          <div className="lp2-hero-badge">
-            <span className="lp2-hero-badge-dot" />
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <rect x="1" y="3" width="8.5" height="8" rx="1.5" fill="#D4226A"/>
-              <path d="M9.5 5.5L13 3.5v7l-3.5-2v-3Z" fill="#D4226A"/>
-            </svg>
-            Virtual Ready
-          </div>
-        </div>
+        <HeroDeviceMockups />
       </div>
     </section>
   )
@@ -310,120 +387,6 @@ function AndreaTestimonial() {
         <p className="lp2-andrea-attr">{"\u2014"} Andrea, Studio Director</p>
       </div>
     </Reveal>
-  )
-}
-
-function HeroLaptopMock() {
-  const teachers = [
-    { name: 'Sarah M.', slots: [
-      { time: '3:00', student: 'Jamie K.', color: '#D4226A' },
-      { time: '3:30', student: 'Open', color: '' },
-      { time: '4:00', student: 'Tyler R.', color: '#D4226A' },
-      { time: '4:30', student: 'Ava C.', color: '#D4226A' },
-      { time: '5:00', student: 'Open', color: '' },
-    ]},
-    { name: 'James K.', slots: [
-      { time: '3:00', student: 'Noah P.', color: '#FF5500' },
-      { time: '3:30', student: 'Lily T.', color: '#FF5500' },
-      { time: '4:00', student: 'Open', color: '' },
-      { time: '4:30', student: 'Mia S.', color: '#FF5500' },
-      { time: '5:00', student: 'Jesse W.', color: '#FF5500' },
-    ]},
-    { name: 'Lisa R.', slots: [
-      { time: '3:00', student: 'Open', color: '' },
-      { time: '3:30', student: 'Emma R.', color: '#FFB800' },
-      { time: '4:00', student: 'Carlos M.', color: '#FFB800' },
-      { time: '4:30', student: 'Open', color: '' },
-      { time: '5:00', student: 'Zoe B.', color: '#FFB800' },
-    ]},
-    { name: 'Mike T.', slots: [
-      { time: '3:00', student: 'Dan F.', color: '#D4226A' },
-      { time: '3:30', student: 'Open', color: '' },
-      { time: '4:00', student: 'Sam W.', color: '#D4226A' },
-      { time: '4:30', student: 'Ava L.', color: '#D4226A' },
-      { time: '5:00', student: 'Open', color: '' },
-    ]},
-  ]
-  return (
-    <div className="lp2-hlaptop">
-      <div className="lp2-hlaptop-chrome">
-        <div className="lp2-hlaptop-dots">
-          <span style={{ background: 'rgba(239,68,68,0.6)' }} />
-          <span style={{ background: 'rgba(255,184,0,0.6)' }} />
-          <span style={{ background: 'rgba(34,197,94,0.6)' }} />
-        </div>
-        <div className="lp2-hlaptop-url">lessonpreneur.app/admin/schedule</div>
-      </div>
-      <div className="lp2-hlaptop-body">
-        {/* Mini stats bar */}
-        <div className="lp2-hlaptop-stats">
-          <div className="lp2-hlaptop-stat"><span style={{ color: '#D4226A', fontWeight: 800 }}>247</span> Students</div>
-          <div className="lp2-hlaptop-stat"><span style={{ color: '#22C55E', fontWeight: 800 }}>$38,420</span> Revenue</div>
-          <div className="lp2-hlaptop-stat"><span style={{ color: '#FF5500', fontWeight: 800 }}>5</span> Open Slots</div>
-          <div className="lp2-hlaptop-stat"><span style={{ color: '#FFB800', fontWeight: 800 }}>8</span> Leads</div>
-        </div>
-        {/* Schedule title */}
-        <div className="lp2-hlaptop-sched-title">
-          <span>Schedule — Tuesday, Apr 8</span>
-          <span className="lp2-hlaptop-badge">4 teachers on</span>
-        </div>
-        {/* Schedule grid */}
-        <div className="lp2-hlaptop-sched">
-          <div className="lp2-hlaptop-sched-header">
-            <div className="lp2-hlaptop-sched-tcol" />
-            {['3:00', '3:30', '4:00', '4:30', '5:00'].map(t => (
-              <div key={t} className="lp2-hlaptop-sched-time">{t}</div>
-            ))}
-          </div>
-          {teachers.map(t => (
-            <div key={t.name} className="lp2-hlaptop-sched-row">
-              <div className="lp2-hlaptop-sched-teacher">{t.name}</div>
-              {t.slots.map((s, i) => (
-                <div key={i} className={s.color ? 'lp2-hlaptop-sched-filled' : 'lp2-hlaptop-sched-open'}
-                  style={s.color ? { background: `${s.color}18`, borderColor: `${s.color}40` } : undefined}>
-                  {s.student}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-      {/* Laptop base */}
-      <div className="lp2-hlaptop-base" />
-    </div>
-  )
-}
-
-function HeroPhoneMock() {
-  const students = [
-    { name: 'Emma Rodriguez', instrument: 'Piano', status: 'Active', next: 'Tue 4:00 PM', avatar: 'ER', color: '#D4226A' },
-    { name: 'Noah Park', instrument: 'Guitar', status: 'Active', next: 'Wed 3:30 PM', avatar: 'NP', color: '#FF5500' },
-    { name: 'Lily Thompson', instrument: 'Vocals', status: 'At Risk', next: 'Thu 5:00 PM', avatar: 'LT', color: '#FFB800' },
-    { name: 'Jake Martinez', instrument: 'Drums', status: 'Active', next: 'Fri 4:30 PM', avatar: 'JM', color: '#D4226A' },
-    { name: 'Ava Chen', instrument: 'Piano', status: 'Trial', next: 'Mon 3:00 PM', avatar: 'AC', color: '#22C55E' },
-  ]
-  return (
-    <div className="lp2-hphone">
-      <div className="lp2-hphone-notch" />
-      <div className="lp2-hphone-header">
-        <span className="lp2-hphone-title">Students</span>
-        <span className="lp2-hphone-count">{students.length} active</span>
-      </div>
-      <div className="lp2-hphone-list">
-        {students.map((s, i) => (
-          <div key={i} className="lp2-hphone-row">
-            <div className="lp2-hphone-avatar" style={{ background: s.color }}>{s.avatar}</div>
-            <div className="lp2-hphone-info">
-              <div className="lp2-hphone-name">{s.name}</div>
-              <div className="lp2-hphone-meta">{s.instrument} · {s.next}</div>
-            </div>
-            <span className={`lp2-hphone-status lp2-hphone-status-${s.status === 'At Risk' ? 'risk' : s.status === 'Trial' ? 'trial' : 'active'}`}>
-              {s.status}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
   )
 }
 
@@ -1319,6 +1282,9 @@ function RetentionRoles() {
    ═══════════════════════════════════════════════════════ */
 
 function PricingSection() {
+  const LAUNCH_PRICING_ENDS = '2026-07-03'
+  const daysLeft = Math.max(0, Math.ceil((new Date(LAUNCH_PRICING_ENDS + 'T23:59:59').getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const faqs = [
     { q: 'I already have a system that works.', a: "Does it? Or does it just exist? If you're still chasing leads manually, losing students you didn't see leaving, and spending hours on admin — that's not a system. That's survival mode." },
@@ -1333,35 +1299,21 @@ function PricingSection() {
         <h2 className="lp2-section-h2" style={{ textAlign: 'center' }}>Pick Your Plan. Start in 60&nbsp;Seconds.</h2>
         <p className="lp2-pricing-sub">Every plan includes a 60-day free trial. No credit card required.</p>
 
-        <div className="lp2-tier-overview">
-          {[
-            { name: 'Solo', icons: ['Leads', 'Schedule', 'Billing', 'Comms', 'Mobile'], color: '#A0A0B0' },
-            { name: 'School', icons: ['Leads', 'Schedule', 'Billing', 'Comms', 'Mobile', 'Teachers', 'Roles', 'Retention', 'Reports'], color: '#D4226A' },
-            { name: 'Pro', icons: ['Leads', 'Schedule', 'Billing', 'Comms', 'Mobile', 'Teachers', 'Roles', 'Retention', 'Reports', 'Multi-Loc', 'Analytics', 'Playbooks'], color: '#FF5500' },
-          ].map((tier, ti) => (
-            <div key={ti} className="lp2-tier-col">
-              <div className="lp2-tier-col-name" style={{ color: tier.color }}>{tier.name}</div>
-              <div className="lp2-tier-icons">
-                {tier.icons.map((icon, i) => (
-                  <span key={i} className="lp2-tier-icon" style={{ borderColor: `${tier.color}33`, color: tier.color }}>{icon}</span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
         <div className="lp2-pricing-grid">
-          {/* Solo */}
+          {/* Teacher */}
           <div className="lp2-price-card">
-            <div className="lp2-price-name">Solo</div>
-            <div className="lp2-price-tagline">You're serious about this. Now your systems can be too.</div>
-            <div className="lp2-price-amount">$97<span className="lp2-price-mo">/mo</span></div>
+            <span className="lp2-discount-badge">34% off</span>
+            <div className="lp2-price-name">Teacher</div>
+            <div className="lp2-price-tagline">For solo instructors ready to go pro.</div>
+            <div className="lp2-price-slashed">$297/mo</div>
+            <div className="lp2-price-amount">$197<span className="lp2-price-mo">/mo</span></div>
+            <div className="lp2-legacy-badge-card">Legacy Price — Locked For Life</div>
             <ul className="lp2-price-features">
-              <li>AI lead follow-up</li>
-              <li>Scheduling + billing</li>
-              <li>Communication tracking</li>
-              <li>Student tracking</li>
-              <li>Mobile-first dashboard</li>
+              <li>Up to 80 active students</li>
+              <li>AI-powered scheduling</li>
+              <li>Automated payment collection</li>
+              <li>Student &amp; family portal</li>
+              <li>Star AI studio advisor</li>
             </ul>
             <a href={SOLO_STRIPE} target="_blank" rel="noopener noreferrer" className="lp2-price-btn">Start Your 60-Day Free Trial</a>
           </div>
@@ -1369,34 +1321,48 @@ function PricingSection() {
           {/* School — highlighted */}
           <div className="lp2-price-card lp2-price-popular">
             <span className="lp2-popular-badge">Most Popular</span>
+            <span className="lp2-discount-badge">29% off</span>
             <div className="lp2-price-name">School</div>
-            <div className="lp2-price-tagline">Stop managing chaos. Start running a school.</div>
-            <div className="lp2-price-amount">$297<span className="lp2-price-mo">/mo</span></div>
+            <div className="lp2-price-tagline">For studios with a teaching roster.</div>
+            <div className="lp2-price-slashed">$697/mo</div>
+            <div className="lp2-price-amount">$497<span className="lp2-price-mo">/mo</span></div>
+            <div className="lp2-legacy-badge-card">Legacy Price — Locked For Life</div>
             <ul className="lp2-price-features">
-              <li>Everything in Solo</li>
+              <li>Unlimited students</li>
               <li>Multi-teacher management</li>
-              <li>Role-based access</li>
+              <li>Payroll &amp; financial dashboards</li>
+              <li>Lead pipeline &amp; follow-up</li>
               <li>Retention system</li>
-              <li>Family engagement layer</li>
-              <li>AI progress reports</li>
+              <li>Star AI studio advisor</li>
             </ul>
             <a href={SCHOOL_STRIPE} target="_blank" rel="noopener noreferrer" className="lp2-cta lp2-price-btn-pop">Start Your 60-Day Free Trial</a>
           </div>
 
-          {/* Pro */}
+          {/* Multi-Location */}
           <div className="lp2-price-card">
-            <div className="lp2-price-name">Pro</div>
-            <div className="lp2-price-tagline">Multi-location. Full control. Zero ceiling.</div>
+            <span className="lp2-discount-badge">23% off</span>
+            <div className="lp2-price-name">Multi-Location</div>
+            <div className="lp2-price-tagline">For schools running 2+ locations.</div>
+            <div className="lp2-price-slashed">$1,297/mo</div>
             <div className="lp2-price-amount">$997<span className="lp2-price-mo">/mo</span></div>
+            <div className="lp2-legacy-badge-card">Legacy Price — Locked For Life</div>
             <ul className="lp2-price-features">
               <li>Everything in School</li>
-              <li>Multi-location management</li>
-              <li>Advanced analytics</li>
-              <li>Priority support</li>
-              <li>White-label options</li>
-              <li>Founder-built growth playbooks</li>
+              <li>Multi-location dashboards</li>
+              <li>Cross-location scheduling</li>
+              <li>Recruitment pipeline</li>
+              <li>Priority support &amp; onboarding</li>
             </ul>
             <a href={PRO_STRIPE} target="_blank" rel="noopener noreferrer" className="lp2-price-btn">Start Your 60-Day Free Trial</a>
+          </div>
+        </div>
+
+        {/* Legacy pricing urgency block */}
+        <div className="lp2-legacy-block">
+          <p className="lp2-legacy-text">Lock in your legacy price forever. These are launch prices — once you're in at this rate, you keep it for life no matter what. In 90 days this price goes up for everyone new. Get in now, pay this forever.</p>
+          <div className="lp2-legacy-countdown">
+            <span className="lp2-legacy-countdown-num">{daysLeft}</span>
+            <span className="lp2-legacy-countdown-label">days until price increases</span>
           </div>
         </div>
 
@@ -1563,62 +1529,15 @@ function Styles() {
     }
     .lp2-hero-quote-attr { font-size: 0.78rem; color: #8888B0; margin: 0; font-weight: 600; }
 
-    /* ── Hero device mockups ── */
-    .lp2-hero-devices {
-      position: relative; display: flex; align-items: flex-end; justify-content: center;
-      gap: 0; max-width: 900px; margin: 0 auto;
-    }
-    /* Mobile: laptop hidden, phone with fade crop, badge visible */
-    .lp2-hero-laptop { display: none; }
-    .lp2-hero-phone { max-height: 320px; overflow: hidden; mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); }
-    /* Desktop: copy left, devices right — laptop behind phone */
+    /* ── Desktop hero layout ── */
     @media (min-width: 768px) {
       .lp2-hero { padding: 90px 32px 40px; }
       .lp2-hero-content { display: flex; align-items: center; gap: 40px; }
       .lp2-hero-copy { text-align: left; flex: 0 0 48%; margin-bottom: 0; }
       .lp2-hero-copy .lp2-hero-sub { margin-left: 0; margin-right: 0; }
-      .lp2-hero-devices { flex: 1; margin: 0; min-width: 0; }
-      .lp2-hero-laptop {
-        display: block; flex: 1 1 0%; min-width: 240px; max-width: 640px; z-index: 1;
-        transform: perspective(1400px) rotateY(3deg) rotateX(2deg);
-        transition: transform 0.4s;
-      }
-      .lp2-hero-laptop:hover { transform: perspective(1400px) rotateY(0deg) rotateX(0deg); }
-      .lp2-hero-phone {
-        flex: 0 0 160px; margin-left: -30px; margin-bottom: 10px; z-index: 2;
-        max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none;
-        transform: perspective(1000px) rotateY(-5deg); transition: transform 0.4s;
-      }
-      .lp2-hero-phone:hover { transform: perspective(1000px) rotateY(0deg); }
     }
     @media (min-width: 1025px) {
       .lp2-hero-content { gap: 56px; }
-      .lp2-hero-phone { flex: 0 0 200px; margin-left: -40px; }
-    }
-
-    /* ── Virtual Ready badge ── */
-    .lp2-hero-badge {
-      position: absolute; top: -8px; right: 8px; z-index: 10;
-      display: flex; align-items: center; gap: 6px;
-      padding: 5px 12px 5px 8px; border-radius: 999px;
-      background: rgba(16,14,30,0.92); border: 1px solid rgba(212,34,106,0.3);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 12px rgba(212,34,106,0.1);
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-      font-size: 11px; font-weight: 700; color: #E8E8FC;
-      letter-spacing: 0.02em; white-space: nowrap;
-    }
-    .lp2-hero-badge-dot {
-      width: 7px; height: 7px; border-radius: 50%; background: #22C55E;
-      box-shadow: 0 0 6px rgba(34,197,94,0.6);
-      animation: lp2BadgePulse 2s ease-in-out infinite;
-    }
-    @keyframes lp2BadgePulse {
-      0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
-      50% { opacity: 0.5; box-shadow: 0 0 12px rgba(34,197,94,0.9); }
-    }
-    @media (min-width: 768px) {
-      .lp2-hero-badge { top: -12px; right: 30px; font-size: 12px; padding: 6px 14px 6px 10px; }
     }
 
     /* ── Andrea testimonial (above pricing) ── */
@@ -1633,86 +1552,6 @@ function Styles() {
       line-height: 1.6; margin: 0 0 12px; padding: 0;
     }
     .lp2-andrea-attr { font-size: 0.88rem; color: #8888B0; margin: 0; font-weight: 600; }
-
-    /* ── Hero Laptop Mock ── */
-    .lp2-hlaptop {
-      width: 100%; border-radius: 12px 12px 0 0; overflow: hidden; background: #0A0A14;
-      border: 1px solid rgba(255,255,255,0.1); border-bottom: none;
-      box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 60px rgba(212,34,106,0.1);
-    }
-    .lp2-hlaptop-chrome { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .lp2-hlaptop-dots { display: flex; gap: 5px; }
-    .lp2-hlaptop-dots span { width: 8px; height: 8px; border-radius: 50%; }
-    .lp2-hlaptop-url { font-size: 9px; color: #6868A0; padding: 2px 10px; background: rgba(255,255,255,0.04); border-radius: 4px; flex: 1; text-align: center; }
-    .lp2-hlaptop-body { padding: 10px 12px 14px; }
-    .lp2-hlaptop-stats {
-      display: flex; gap: 6px; margin-bottom: 10px;
-    }
-    .lp2-hlaptop-stat {
-      flex: 1; padding: 5px 6px; border-radius: 6px; font-size: 8px; color: #A0A0B0;
-      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); text-align: center;
-      white-space: nowrap;
-    }
-    .lp2-hlaptop-sched-title {
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
-    }
-    .lp2-hlaptop-sched-title span:first-child { font-size: 10px; font-weight: 800; color: #fff; }
-    .lp2-hlaptop-badge {
-      font-size: 7px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
-      background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); color: #22C55E;
-    }
-    .lp2-hlaptop-sched { }
-    .lp2-hlaptop-sched-header { display: flex; gap: 2px; margin-bottom: 3px; }
-    .lp2-hlaptop-sched-tcol { width: 48px; flex-shrink: 0; }
-    .lp2-hlaptop-sched-time { flex: 1; font-size: 7px; color: #6868A0; text-align: center; font-weight: 700; }
-    .lp2-hlaptop-sched-row { display: flex; gap: 2px; margin-bottom: 2px; }
-    .lp2-hlaptop-sched-teacher { width: 48px; flex-shrink: 0; font-size: 7px; font-weight: 700; color: #A0A0B0; display: flex; align-items: center; }
-    .lp2-hlaptop-sched-filled {
-      flex: 1; padding: 3px 2px; border-radius: 3px;
-      border: 1px solid; font-size: 6px; color: #e0e0f0; text-align: center;
-      font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .lp2-hlaptop-sched-open {
-      flex: 1; padding: 3px 2px; border-radius: 3px;
-      border: 1px dashed rgba(34,197,94,0.25); font-size: 6px; color: rgba(34,197,94,0.5);
-      text-align: center; font-weight: 600;
-    }
-    .lp2-hlaptop-base {
-      height: 10px; background: linear-gradient(to bottom, #0e0e1a, #080812);
-      border-radius: 0 0 8px 8px; border: 1px solid rgba(255,255,255,0.06); border-top: none;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-
-    /* ── Hero Phone Mock ── */
-    .lp2-hphone {
-      width: 100%; max-width: 260px; margin: 0 auto;
-      border-radius: 24px; overflow: hidden; background: #0A0A14;
-      border: 2px solid rgba(255,255,255,0.1);
-      box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 40px rgba(212,34,106,0.08);
-    }
-    .lp2-hphone-notch { width: 80px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 0 0 8px 8px; margin: 0 auto; }
-    .lp2-hphone-header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 14px 6px;
-    }
-    .lp2-hphone-title { font-size: 14px; font-weight: 800; color: #fff; }
-    .lp2-hphone-count { font-size: 10px; color: #6868A0; }
-    .lp2-hphone-list { padding: 0 10px 14px; display: flex; flex-direction: column; gap: 6px; }
-    .lp2-hphone-row {
-      display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px;
-      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
-    }
-    .lp2-hphone-avatar {
-      width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-      font-size: 10px; font-weight: 800; color: #fff; flex-shrink: 0;
-    }
-    .lp2-hphone-info { flex: 1; min-width: 0; }
-    .lp2-hphone-name { font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .lp2-hphone-meta { font-size: 9px; color: #6868A0; }
-    .lp2-hphone-status { font-size: 8px; font-weight: 700; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; }
-    .lp2-hphone-status-active { background: rgba(34,197,94,0.1); color: #22C55E; }
-    .lp2-hphone-status-risk { background: rgba(255,184,0,0.1); color: #FFB800; }
-    .lp2-hphone-status-trial { background: rgba(212,34,106,0.1); color: #D4226A; }
 
     /* ── Dashboard Mockup (used in gallery) ── */
     .lp2-dash-frame {
@@ -2033,6 +1872,14 @@ function Styles() {
     .lp2-price-btn:hover { border-color: rgba(212,34,106,0.4); color: #fff; }
     .lp2-price-btn-pop { display: block; width: 100%; text-align: center; padding: 14px 24px; border-radius: 10px; font-size: 0.95rem; }
 
+    .lp2-price-slashed { font-size: 0.95rem; color: #6868A0; text-decoration: line-through; margin-bottom: 2px; }
+    .lp2-discount-badge { position: absolute; top: 12px; right: 12px; padding: 3px 10px; border-radius: 6px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); color: #22C55E; font-size: 11px; font-weight: 700; }
+    .lp2-legacy-badge-card { display: inline-block; padding: 4px 12px; border-radius: 6px; background: rgba(255,184,0,0.08); border: 1px solid rgba(255,184,0,0.2); color: #FFB800; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
+    .lp2-legacy-block { max-width: 700px; margin: 32px auto 0; padding: 24px 28px; border-radius: 16px; background: rgba(212,34,106,0.05); border: 1px solid rgba(212,34,106,0.2); display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+    .lp2-legacy-text { flex: 1; min-width: 200px; font-size: 0.95rem; color: #E8E8FC; line-height: 1.65; margin: 0; font-weight: 500; }
+    .lp2-legacy-countdown { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    .lp2-legacy-countdown-num { font-size: 2.5rem; font-weight: 900; letter-spacing: -0.03em; background: linear-gradient(135deg, #D4226A, #FF5500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1; }
+    .lp2-legacy-countdown-label { font-size: 10px; color: #A0A0B0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
     .lp2-risk-reversal { text-align: center; color: #A0A0B0; font-size: 1rem; margin: 36px auto 52px; max-width: 600px; line-height: 1.6; }
 
     /* FAQ */

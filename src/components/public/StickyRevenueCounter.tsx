@@ -21,11 +21,11 @@ const SESSION_KEY = 'lp_session_start'
 
 function getStartTime(): number {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
+    const raw = localStorage.getItem(SESSION_KEY)
     if (raw) return parseInt(raw, 10)
   } catch { /* ignore */ }
   const now = Date.now()
-  sessionStorage.setItem(SESSION_KEY, String(now))
+  localStorage.setItem(SESSION_KEY, String(now))
   return now
 }
 
@@ -106,7 +106,7 @@ export default function StickyRevenueCounter() {
             <div className="slc-left">
               <span className="slc-amount">{'\uD83D\uDCB8'} {formatted}</span>
               <span className="slc-sub">
-                {isVSL ? 'lost while you\u2019ve been watching.' : 'lost while you\u2019ve been reading this.'}
+                lost while you{'\u2019'}ve been thinking about it...
               </span>
             </div>
             <button className="slc-cta" onClick={handleCTA}>
