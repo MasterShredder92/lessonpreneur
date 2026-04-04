@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { useParentFamily } from '../../hooks/useParentFamily'
 import { useFamilyCommunications, type ParentUpdate } from '../../hooks/useParentUpdates'
@@ -7,7 +8,7 @@ import { supabase } from '../../lib/supabase'
 import MusicLoader from '../../components/shared/MusicLoader'
 import ShareableProgressCard from '../../components/shared/ShareableProgressCard'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
-import { Music, Star, Share2 } from 'lucide-react'
+import { Music, Star, Share2, Calendar, Timer } from 'lucide-react'
 import MessageStudioButton from '../../components/parent/MessageStudioButton'
 
 const PROGRESS_DISPLAY: Record<string, { label: string; color: string }> = {
@@ -33,6 +34,7 @@ export default function ParentDashboard() {
   const { profile } = useAuthContext()
   const { familyId, students, isLoading } = useParentFamily()
   const [shareCard, setShareCard] = useState<ParentUpdate | null>(null)
+  const navigate = useNavigate()
 
   const { data: milestones } = useQuery({
     queryKey: ['parent-milestones', familyId],
@@ -84,21 +86,51 @@ export default function ParentDashboard() {
         <MessageStudioButton />
       </div>
 
-      {/* Student cards */}
+      {/* Student cards — stacked */}
       {students.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24, overflowX: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
           {students.map(s => (
             <div key={s.id} style={{
-              padding: '14px 16px', borderRadius: 12, minWidth: 140, flex: '0 0 auto',
+              padding: 14, borderRadius: 12,
               background: 'rgba(212,34,106,0.04)', border: '1px solid rgba(212,34,106,0.12)',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Music size={14} style={{ color: '#D4226A' }} />
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>{s.first_name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {s.instrument ? <span style={{ fontSize: 18 }}>{getInstrumentEmoji(s.instrument)}</span> : <Music size={15} style={{ color: '#D4226A' }} />}
+                    {s.first_name}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#A0A0C8', marginTop: 2 }}>
+                    {s.instrument ? `${s.instrument.charAt(0).toUpperCase()}${s.instrument.slice(1)}` : 'No instrument set'}
+                    {s.teacher_name ? ` · with ${s.teacher_name}` : ''}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: '#A0A0C8' }}>
-                {s.instrument && <div>{getInstrumentEmoji(s.instrument)} {s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1)}</div>}
-                {s.teacher_name && <div style={{ marginTop: 2 }}>with {s.teacher_name}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => navigate(`/parent/schedule?student=${s.id}`)}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    minHeight: 40, padding: '0 10px', borderRadius: 8, cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#E0E0F4', fontSize: 12, fontWeight: 700,
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  <Calendar size={13} /> View Schedule
+                </button>
+                <button
+                  onClick={() => navigate(`/parent/practice?student=${s.id}`)}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    minHeight: 40, padding: '0 10px', borderRadius: 8, cursor: 'pointer',
+                    background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
+                    color: '#D4226A', fontSize: 12, fontWeight: 700,
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  <Timer size={13} /> Practice Log
+                </button>
               </div>
             </div>
           ))}

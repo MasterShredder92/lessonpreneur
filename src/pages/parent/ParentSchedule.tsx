@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { useParentFamily } from '../../hooks/useParentFamily'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
@@ -15,12 +16,15 @@ function formatTime(t: string) {
 
 export default function ParentSchedule() {
   const { familyId, students, isLoading } = useParentFamily()
+  const [searchParams] = useSearchParams()
+  const studentFilter = searchParams.get('student')
 
   const { data: sessions } = useQuery({
-    queryKey: ['parent-upcoming', familyId],
+    queryKey: ['parent-upcoming', familyId, studentFilter],
     enabled: !!familyId && students.length > 0,
     queryFn: async () => {
-      const studentIds = students.map(s => s.id)
+      const studentIds = (studentFilter ? students.filter(s => s.id === studentFilter) : students).map(s => s.id)
+      if (studentIds.length === 0) return []
       const today = new Date().toISOString().split('T')[0]
       const fourWeeks = new Date()
       fourWeeks.setDate(fourWeeks.getDate() + 28)

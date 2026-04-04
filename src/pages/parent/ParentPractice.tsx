@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useParentFamily } from '../../hooks/useParentFamily'
 import { usePracticeStats, useLogPractice } from '../../hooks/usePractice'
 import MusicLoader from '../../components/shared/MusicLoader'
@@ -14,12 +15,19 @@ function playSound(src: string) {
 
 export default function ParentPractice() {
   const { students, isLoading } = useParentFamily()
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
+  const [searchParams] = useSearchParams()
+  const initialStudent = searchParams.get('student')
+  const [selectedStudent, setSelectedStudent] = useState<string | null>(initialStudent)
 
-  // Auto-select first student
+  // Auto-select first student (or the query-param one if it exists in the family)
   useEffect(() => {
-    if (!selectedStudent && students.length > 0) setSelectedStudent(students[0].id)
-  }, [students, selectedStudent])
+    if (students.length === 0) return
+    if (initialStudent && students.some(s => s.id === initialStudent)) {
+      setSelectedStudent(initialStudent)
+      return
+    }
+    if (!selectedStudent) setSelectedStudent(students[0].id)
+  }, [students, selectedStudent, initialStudent])
 
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center' }}><MusicLoader /></div>
 
