@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import PageTransition from '../shared/PageTransition'
 import { useAuthContext } from '../../app/AuthContext'
+import ChangePasswordModal from '../shared/ChangePasswordModal'
 
 export default function StudentShell() {
   const { profile, signOut } = useAuthContext()
+  const [showChangePassword, setShowChangePassword] = useState(false)
 
   return (
     <div className="portal-shell">
@@ -13,9 +16,13 @@ export default function StudentShell() {
           <span className="text-muted" style={{ fontSize: '13px' }}>
             {profile?.first_name}
           </span>
+          <button className="btn-ghost" onClick={() => setShowChangePassword(true)} style={{ fontSize: '11px' }}>
+            Password
+          </button>
           <button className="btn-ghost" onClick={signOut} style={{ fontSize: '11px' }}>
             Sign Out
           </button>
+          <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
         </div>
       </header>
       <main className="portal-main">

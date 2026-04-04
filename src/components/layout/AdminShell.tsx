@@ -7,7 +7,8 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
 import { ADMIN_NAV_ITEMS } from '../../lib/constants'
 import { useTheme } from '../../hooks/useTheme'
-import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Star, ChevronDown, ShieldCheck, Guitar, Plug } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Star, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound } from 'lucide-react'
+import ChangePasswordModal from '../shared/ChangePasswordModal'
 import RoleSwitcher from '../shared/RoleSwitcher'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
 import StarModal from '../ai/StarModal'
@@ -28,6 +29,7 @@ export default function AdminShell() {
   const { preview } = usePreviewMode()
   const location = useLocation()
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [hoverExpanded, setHoverExpanded] = useState(false)
   const hoverEnterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -250,10 +252,14 @@ export default function AdminShell() {
             <span className="sidebar-username">
               {profile?.first_name} {profile?.last_name}
             </span>
+            <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); setShowChangePassword(true) }} title="Change Password" style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
+              {sidebarOpen ? <KeyRound size={13} /> : <KeyRound size={13} />}
+            </button>
             <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); signOut() }} style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
               {sidebarOpen ? 'Sign Out' : <LogOut size={13} />}
             </button>
           </div>
+          <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
         </div>
       </aside>
 

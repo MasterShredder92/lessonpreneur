@@ -5,7 +5,8 @@ import { useAuthContext } from '../../app/AuthContext'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
 import RoleSwitcher from '../shared/RoleSwitcher'
 import { useTheme } from '../../hooks/useTheme'
-import { LayoutDashboard, Calendar, Users, FileText, LogOut } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, FileText, LogOut, KeyRound } from 'lucide-react'
+import ChangePasswordModal from '../shared/ChangePasswordModal'
 import TeacherMobileTabBar from './TeacherMobileTabBar'
 
 const NAV_ITEMS = [
@@ -19,6 +20,7 @@ export default function TeacherShell() {
   const { profile, locationIds, signOut } = useAuthContext()
   const { preview } = usePreviewMode()
   const theme = useTheme()
+  const [showChangePassword, setShowChangePassword] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [hoverExpanded, setHoverExpanded] = useState(false)
   const hoverEnterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -133,10 +135,14 @@ export default function TeacherShell() {
                 )}
               </div>
             )}
+            <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); setShowChangePassword(true) }} title="Change Password" style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
+              <KeyRound size={13} />
+            </button>
             <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); signOut() }} style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
               {sidebarOpen ? 'Sign Out' : <LogOut size={13} />}
             </button>
           </div>
+          <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
         </div>
       </aside>
 
