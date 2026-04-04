@@ -46,14 +46,21 @@ const FLOWS: ChatStep[] = [
   { id: 'source', type: 'single', q: () => 'One last quick question — how did you hear about us?', opts: ['Facebook', 'Instagram', 'Google', 'Signage', 'Driving by', 'Referral', 'Other'] },
 ]
 
-const INSTRUMENTS = [
-  { emoji: '\u{1F3B9}', name: 'Piano', sub: 'Most Popular', core: true },
-  { emoji: '\u{1F3B8}', name: 'Guitar', sub: 'Electric & Acoustic', core: true },
-  { emoji: '\u{1F3A4}', name: 'Vocals', sub: 'All Styles', core: true },
-  { emoji: '\u{1F941}', name: 'Drums', sub: 'Rock to Jazz', core: true },
-  { emoji: '\u{1F3BB}', name: 'Violin', sub: 'Select Locations' },
-  { emoji: '\u{1F3B7}', name: 'Flute', sub: 'Select Locations' },
-  { emoji: '\u{1F3B8}', name: 'Bass', sub: 'Electric Bass' },
+const HERO_REVIEWS: Record<LocKey, { text: string; name: string }> = {
+  omaha: { text: 'We started with one child in guitar and loved the quality of teaching so much we have 3 kids in 4 different instruments!', name: 'Charles Burkett' },
+  gretna: { text: 'I have been taking guitar lessons here since they opened. I started at 49. What started as a short goal turned into a lifelong passion.', name: 'Josh W' },
+  bellevue: { text: 'Our 10 year old wanted to try the drums and now we have a music-obsessed kid who practices daily and is already talking about joining a band.', name: 'Chris Corley' },
+  elkhorn: { text: 'My son has been taking guitar lessons here a couple of months and is progressing from beginner to intermediate quickly.', name: 'Speed Junkie 707' },
+}
+
+const INSTRUMENTS: { emoji: string; name: string; sub: string; core?: boolean; dashed?: boolean; desc?: string; why?: string }[] = [
+  { emoji: '\u{1F3B9}', name: 'Piano', sub: 'Most Popular', core: true, desc: 'Piano is the foundation of music theory. Students learn to read music, develop both hands independently, and build a skill set that transfers to every other instrument. Great for all ages and all goals.', why: 'Our piano teachers are matched to your learning style — whether you want classical technique, pop songs, or just to finally understand how music works.' },
+  { emoji: '\u{1F3B8}', name: 'Guitar', sub: 'Electric & Acoustic', core: true, desc: 'From acoustic to electric, beginner strumming to advanced lead playing — our guitar lessons meet you exactly where you are. Students learn chords, scales, songs they actually want to play, and real technique that sticks.', why: 'Adkins was built on guitar. Our founder is a national guitar competition winner. This is what we do.' },
+  { emoji: '\u{1F3A4}', name: 'Vocals', sub: 'All Styles', core: true, desc: 'Singing lessons are about more than hitting notes. Students develop breath control, tone, range, confidence, and stage presence. We work with complete beginners and experienced performers alike.', why: 'Our vocal teachers specialize in finding your natural voice — not teaching you to sound like someone else.' },
+  { emoji: '\u{1F941}', name: 'Drums', sub: 'Rock to Jazz', core: true, desc: 'Drumming builds coordination, timing, and musicality from the very first lesson. Students work on rhythm, technique, and playing along to real music — not just exercises.', why: 'Our drum rooms are fully equipped and soundproofed. Real kits, real lessons, real progress.' },
+  { emoji: '\u{1F3BB}', name: 'Violin', sub: 'Select Locations', desc: 'Violin takes patience and the right teacher. Our violin students develop proper posture, tone production, and musicality in a structured but encouraging environment.', why: 'We match violin students with teachers who specialize in their age group and goals — classical training or contemporary styles.' },
+  { emoji: '\u{1FA88}', name: 'Flute', sub: 'Select Locations', desc: 'Flute is one of the most expressive instruments in any genre. Students develop breath support, finger technique, and tone from day one in a fun, structured environment.', why: 'Our flute teachers make the first lesson the best one — no frustration, just progress.' },
+  { emoji: '\u{1F3B8}', name: 'Bass', sub: 'Electric Bass', dashed: true },
   { emoji: '\u{2795}', name: 'More', sub: 'Just Ask', dashed: true },
 ]
 
@@ -92,6 +99,7 @@ export default function AdkinsLanding() {
   const [logos, setLogos] = useState<Record<string, string>>({})
   const [tipOpen, setTipOpen] = useState(false)
   const [enrollOpen, setEnrollOpen] = useState(false)
+  const [expandedInst, setExpandedInst] = useState<number | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const enrollRef = useRef<HTMLElement>(null)
 
@@ -266,40 +274,29 @@ export default function AdkinsLanding() {
     <div className="ak-page">
       <SiteHeader />
 
-      {/* HERO */}
+      {/* HERO — single column, everything above the fold */}
       <section className="ak-hero">
         <div className="ak-hbg-glow" />
         <div className="ak-hgrid" />
         <div className="ak-hcontent">
-          <div className="ak-hbadge"><div className="ak-bdot" /><span>{LD.badge}</span></div>
           <h1 className="ak-htitle">
-            <span className="ak-htitle-line1">Your Kid Was</span>
-            <span className="ak-htitle-born">BORN</span>
-            <span className="ak-htitle-line3">to Play Music.</span>
+            <span className="ak-htitle-line1">You Were Born</span>
+            <span className="ak-htitle-line2">to Play Music.</span>
           </h1>
-          <p className="ak-hsub">Private one-on-one lessons in <strong>{LD.name}</strong>. No long-term commitments. Month to month. Expert teachers who show up — every single time. <strong>Most families book their first lesson within 24 hours.</strong></p>
-          <div className="ak-hctas">
-            <button className="ak-btnp" onClick={goEnroll}>Find My Teacher in 60 Seconds {'\u{2192}'}</button>
-            <button className="ak-btng">Watch Our Story {'\u{25B6}'}</button>
-          </div>
-          <div className="ak-htrust">
-            <div className="ak-tstat"><div className="ak-tnum">3,800+</div><div className="ak-tlbl">Students Taught</div></div>
-            <div className="ak-tdiv" />
-            <div className="ak-tstat"><div className="ak-tnum">4</div><div className="ak-tlbl">Locations</div></div>
-            <div className="ak-tdiv" />
-            <div className="ak-tstat"><div className="ak-tnum">#1</div><div className="ak-tlbl">in Nebraska 2025</div></div>
-            <div className="ak-tdiv" />
-            <div className="ak-tstat"><div className="ak-tnum">0</div><div className="ak-tlbl">Contracts. Ever.</div></div>
-          </div>
-        </div>
-        <div className="ak-hvis">
-          <div className="ak-scene" onMouseMove={handleTilt} onMouseLeave={resetTilt}>
+          <div className="ak-hlogo" onMouseMove={handleTilt} onMouseLeave={resetTilt}>
             <div className="ak-lcard" ref={cardRef}>
               <div className="ak-lring">
                 {logoUrl && <img src={logoUrl} alt={LD.name} />}
               </div>
             </div>
           </div>
+          <div className="ak-henroll-badge">Now Enrolling in {LD.name}</div>
+          <p className="ak-hsub">Private one-on-one lessons for kids, teens, and adults. No contracts. Month to month. Expert teachers who show up — every single time.</p>
+          <div className="ak-hreview">
+            <p className="ak-hreview-text">"{HERO_REVIEWS[loc].text}"</p>
+            <span className="ak-hreview-name">— {HERO_REVIEWS[loc].name}</span>
+          </div>
+          <button className="ak-btnp ak-hero-cta" onClick={goEnroll}>Enroll Now {'\u{2192}'}</button>
         </div>
       </section>
 
@@ -308,7 +305,7 @@ export default function AdkinsLanding() {
         <div className="ak-compat-inner">
           <div className="ak-slbl">Our Matching System</div>
           <h2 className="ak-stitle">We Find You <em>The Right Teacher.</em></h2>
-          <p className="ak-csub">Over a decade of music education experience and a deep profile of every teacher we have — combined into a compatibility system that matches your child to the teacher most likely to make them fall in love with music.</p>
+          <p className="ak-csub">Over a decade of music education experience and a deep profile of every teacher we have — combined into a compatibility system that matches you or your child to the teacher most likely to make them fall in love with music.</p>
           <div className="ak-ccard">
             <div className="ak-cscore-row">
               <div className="ak-sring"><div className="ak-snum">95</div><div className="ak-spct">% MATCH</div></div>
@@ -337,7 +334,7 @@ export default function AdkinsLanding() {
         <p className="ak-secdesc">Most parents have been through music lessons that did not stick. Teachers who cancelled, studios that locked you into contracts, kids who gave up after a month. We built everything around making sure that does not happen here.</p>
         <div className="ak-pgrid">
           {[
-            { icon: '\u{1F61F}', title: '"What if my kid wants to quit?"', desc: 'Month to month. Cancel anytime, no questions asked. We are so confident your child will love it that we do not need a contract to keep you here.' },
+            { icon: '\u{1F61F}', title: '"What if they want to quit?"', desc: 'Month to month. Cancel anytime, no questions asked. We are so confident you or your child will love it that we do not need a contract to keep you here.' },
             { icon: '\u{1F4F5}', title: '"Teachers always cancel on us"', desc: 'Every teacher is background-checked and held to strict attendance standards. When a teacher is out, we find a substitute. You never lose a session.' },
             { icon: '\u{1F382}', title: '"I am too old to start"', desc: 'Adults actually progress faster than kids when they have the right teacher — because you have discipline, focus, and real motivation. You just never had the right guide.' },
             { icon: '\u{1F4C5}', title: '"Our schedule is packed"', desc: 'After school, evenings, weekends — we build around your life, not ours. Flexible scheduling that works for real families.' },
@@ -365,7 +362,7 @@ export default function AdkinsLanding() {
         <div className="ak-sgrid">
           {[
             { n: 1, title: 'Tell us about your family', desc: '30 seconds. Instrument, age, and availability. That is it for now.' },
-            { n: 2, title: 'We find your match', desc: 'Our system picks the teacher most likely to connect with your child — not just whoever is available.' },
+            { n: 2, title: 'We find your match', desc: 'Our system picks the teacher most likely to connect with you or your child — not just whoever is available.' },
             { n: 3, title: 'Book your first lesson within 24 hours', desc: 'Most families have their first lesson locked in same day.' },
           ].map(s => (
             <div className="ak-scard" key={s.n}>
@@ -387,14 +384,40 @@ export default function AdkinsLanding() {
           <h2 className="ak-stitle">Pick Your Instrument</h2>
         </div>
         <div className="ak-igrid">
-          {INSTRUMENTS.map((inst, i) => (
-            <div className={`ak-icard${inst.dashed ? ' dashed' : ''}`} key={i}>
-              {inst.core && <span className="ak-cbadge">Core</span>}
-              <span className="ak-iem">{inst.emoji}</span>
-              <h3>{inst.name}</h3>
-              <p>{inst.sub}</p>
-            </div>
-          ))}
+          {INSTRUMENTS.map((inst, i) => {
+            const isOpen = expandedInst === i
+            const hasPanel = !!inst.desc
+            return (
+              <div key={i} className="ak-icard-wrap" style={{ gridColumn: isOpen ? '1 / -1' : undefined }}>
+                <div
+                  className={`ak-icard${inst.dashed ? ' dashed' : ''}${isOpen ? ' open' : ''}`}
+                  onClick={() => hasPanel && setExpandedInst(isOpen ? null : i)}
+                  style={{ cursor: hasPanel ? 'pointer' : 'default' }}
+                >
+                  {inst.core && <span className="ak-cbadge">Core</span>}
+                  <span className="ak-iem">{inst.emoji}</span>
+                  <h3>{inst.name}</h3>
+                  <p>{inst.sub}</p>
+                  {hasPanel && (
+                    <span className={`ak-ichev${isOpen ? ' rot' : ''}`}>
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                  )}
+                </div>
+                {isOpen && inst.desc && (
+                  <div className="ak-ipanel" style={{ borderLeftColor: LD.c }}>
+                    <div className="ak-ipanel-desc">
+                      <p>{inst.desc}</p>
+                    </div>
+                    <div className="ak-ipanel-why">
+                      <div className="ak-ipanel-wlbl" style={{ color: LD.c }}>Why We Are Great at This</div>
+                      <p>{inst.why}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </section>
 
@@ -417,7 +440,7 @@ export default function AdkinsLanding() {
           ))}
         </div>
         <div style={{ textAlign: 'center', marginTop: 36 }}>
-          <button className="ak-btnp" onClick={goEnroll}>Join These Families {'\u{2192}'}</button>
+          <button className="ak-btnp" onClick={goEnroll}>Join These Students {'\u{2192}'}</button>
         </div>
       </section>
 
@@ -507,6 +530,35 @@ export default function AdkinsLanding() {
         </div>
       </section>
 
+      {/* ADULTS WELCOME */}
+      <section className="ak-sec">
+        <div className="ak-adult-card" style={{ borderColor: `${LD.c}30` }}>
+          <h2 className="ak-adult-title" style={{ color: LD.c }}>Adults Welcome. Always.</h2>
+          <p className="ak-adult-body">Most of our students are kids — but some of our best students are adults. Whether you picked up an instrument as a kid and walked away, or you have always wanted to start and never did, there is no wrong time. Our teachers work with students from age 5 to 95. No judgment. No pressure. Just real progress at your pace.</p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="ak-sec">
+        <div style={{ textAlign: 'center' }}>
+          <div className="ak-slbl">Questions</div>
+          <h2 className="ak-stitle">Frequently Asked</h2>
+        </div>
+        <div className="ak-faq-grid">
+          {[
+            { q: 'Do you teach adults?', a: 'Absolutely. We have students of all ages and our teachers are experienced working with adult learners. Adults often progress faster than kids because of their focus and life experience. You are not too old. Book a first session and see for yourself.' },
+            { q: 'Do I need my own instrument?', a: 'Not necessarily. Some students start without one. During enrollment we will ask and can help you figure out the best path — renting, buying, or borrowing.' },
+            { q: 'What if I need to cancel?', a: 'Month to month. Cancel anytime, no questions asked. No contracts, no fees, no drama.' },
+            { q: 'How long are lessons?', a: 'Standard lessons are 30 minutes. Some students do 45 or 60 minute sessions depending on age and level.' },
+          ].map((f, i) => (
+            <div className="ak-faq-card" key={i}>
+              <h3 className="ak-faq-q">{f.q}</h3>
+              <p className="ak-faq-a">{f.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* DYNAMIC REVIEWS */}
       <ReviewsSection />
 
@@ -574,8 +626,8 @@ export default function AdkinsLanding() {
 
       {/* FINAL CTA */}
       <section className="ak-final-sec">
-        <h2>Your Kid's <span>First Lesson</span><br />Is Waiting.</h2>
-        <p>Join 3,800+ students across the Omaha metro. Book in the next 60 seconds.</p>
+        <h2>Your <span>First Lesson</span><br />Is Waiting.</h2>
+        <p>Join 3,800+ students across the Omaha metro — kids, teens, and adults. Book in the next 60 seconds.</p>
         <div className="ak-fbtns">
           <button className="ak-btnp" style={{ fontSize: 16, padding: '16px 34px' }} onClick={goEnroll}>Sign Up For Lessons Now {'\u{2192}'}</button>
           <button className="ak-btng" onClick={goEnroll}>Or Text Us First</button>

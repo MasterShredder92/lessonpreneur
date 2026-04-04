@@ -7,7 +7,10 @@ export default function InstallPrompt() {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      if (window.location.pathname === '/' || window.location.pathname === '/start') return
+      // Only show install prompt on authenticated app routes (admin, teacher, parent, family)
+      const path = window.location.pathname
+      const isAppRoute = path.startsWith('/admin') || path.startsWith('/teacher') || path.startsWith('/parent') || path.startsWith('/family')
+      if (!isAppRoute) return
       e.preventDefault()
       setDeferredPrompt(e)
     }

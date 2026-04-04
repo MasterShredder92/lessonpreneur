@@ -940,7 +940,7 @@ export default function EnrollmentForm({ isOpen, onClose, defaultLocation }: Enr
   if (!isOpen) return null
 
   return createPortal(
-    <div className="ef-overlay">
+    <div className="ef-overlay" style={{ '--c': preferredLocation ? LOC_CONFIG[preferredLocation].accentColor : '#D4226A' } as React.CSSProperties}>
       {/* Progress bar */}
       <div className="ef-progress-bar">
         <div className="ef-progress-fill" style={{ width: `${progress}%` }} />
@@ -1005,7 +1005,7 @@ function ScoreCircle({ value }: { value: number }) {
         />
         <circle
           cx="80" cy="80" r={radius}
-          fill="none" stroke="#D4226A" strokeWidth="10"
+          fill="none" stroke="var(--c, #D4226A)" strokeWidth="10"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}

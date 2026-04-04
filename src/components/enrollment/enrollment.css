@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════════════════
    ENROLLMENT FORM — Full-screen conversational overlay
+   Uses --c CSS variable for location-aware accent color.
    ═══════════════════════════════════════════════════════ */
 
 .ef-overlay {
@@ -25,7 +26,7 @@
 
 .ef-progress-fill {
   height: 100%;
-  background: #D4226A;
+  background: var(--c, #D4226A);
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 0 2px 2px 0;
 }
@@ -153,8 +154,8 @@
 }
 
 .ef-option-block:hover {
-  background: rgba(212, 34, 106, 0.08);
-  border-color: rgba(212, 34, 106, 0.3);
+  background: color-mix(in srgb, var(--c, #D4226A) 8%, transparent);
+  border-color: color-mix(in srgb, var(--c, #D4226A) 30%, transparent);
 }
 
 .ef-option-block:active {
@@ -193,13 +194,13 @@
 }
 
 .ef-instrument-tile:hover {
-  background: rgba(212, 34, 106, 0.08);
-  border-color: rgba(212, 34, 106, 0.3);
+  background: color-mix(in srgb, var(--c, #D4226A) 8%, transparent);
+  border-color: color-mix(in srgb, var(--c, #D4226A) 30%, transparent);
 }
 
 .ef-instrument-tile--on {
-  background: rgba(212, 34, 106, 0.15);
-  border-color: #D4226A;
+  background: color-mix(in srgb, var(--c, #D4226A) 15%, transparent);
+  border-color: var(--c, #D4226A);
 }
 
 .ef-tile-icon {
@@ -233,20 +234,20 @@
 }
 
 .ef-pill:hover {
-  background: rgba(212, 34, 106, 0.08);
-  border-color: rgba(212, 34, 106, 0.3);
+  background: color-mix(in srgb, var(--c, #D4226A) 8%, transparent);
+  border-color: color-mix(in srgb, var(--c, #D4226A) 30%, transparent);
 }
 
 .ef-pill--on {
-  background: rgba(212, 34, 106, 0.18);
-  border-color: #D4226A;
+  background: color-mix(in srgb, var(--c, #D4226A) 18%, transparent);
+  border-color: var(--c, #D4226A);
   color: #fff;
 }
 
 .ef-pill--locked {
-  background: rgba(212, 34, 106, 0.25);
-  border-color: #D4226A;
-  color: #D4226A;
+  background: color-mix(in srgb, var(--c, #D4226A) 25%, transparent);
+  border-color: var(--c, #D4226A);
+  color: var(--c, #D4226A);
   cursor: default;
   opacity: 0.7;
 }
@@ -273,13 +274,13 @@
 }
 
 .ef-location-block:hover {
-  background: rgba(212, 34, 106, 0.08);
-  border-color: rgba(212, 34, 106, 0.3);
+  background: color-mix(in srgb, var(--c, #D4226A) 8%, transparent);
+  border-color: color-mix(in srgb, var(--c, #D4226A) 30%, transparent);
 }
 
 .ef-location-block--on {
-  background: rgba(212, 34, 106, 0.15);
-  border-color: #D4226A;
+  background: color-mix(in srgb, var(--c, #D4226A) 15%, transparent);
+  border-color: var(--c, #D4226A);
 }
 
 .ef-loc-name {
@@ -313,7 +314,7 @@
 .ef-cta {
   width: 100%;
   padding: 16px 24px;
-  background: #D4226A;
+  background: var(--c, #D4226A);
   border: none;
   border-radius: 14px;
   color: #fff;
@@ -325,7 +326,7 @@
 }
 
 .ef-cta:hover:not(:disabled) {
-  background: #E8488A;
+  filter: brightness(1.15);
   transform: translateY(-1px);
 }
 
@@ -369,7 +370,7 @@
 }
 
 .ef-label--important {
-  color: #D4226A;
+  color: var(--c, #D4226A);
   font-size: 15px;
 }
 
@@ -399,7 +400,7 @@
 }
 
 .ef-input:focus {
-  border-color: #D4226A;
+  border-color: var(--c, #D4226A);
 }
 
 .ef-input::placeholder {
@@ -421,7 +422,7 @@
 }
 
 .ef-textarea:focus {
-  border-color: #D4226A;
+  border-color: var(--c, #D4226A);
 }
 
 .ef-textarea::placeholder {
@@ -430,7 +431,7 @@
 
 .ef-validation {
   font-size: 12px;
-  color: #D4226A;
+  color: var(--c, #D4226A);
   text-align: center;
   margin-top: -12px;
 }
@@ -463,7 +464,7 @@
 }
 
 .ef-toggle--on {
-  background: #D4226A;
+  background: var(--c, #D4226A);
 }
 
 .ef-toggle-knob {
@@ -514,7 +515,7 @@
 }
 
 .ef-child-inst {
-  color: #D4226A;
+  color: var(--c, #D4226A);
   font-weight: 500;
   font-size: 14px;
 }
@@ -529,8 +530,8 @@
 .ef-loader-ring {
   width: 80px;
   height: 80px;
-  border: 4px solid rgba(212, 34, 106, 0.15);
-  border-top-color: #D4226A;
+  border: 4px solid color-mix(in srgb, var(--c, #D4226A) 15%, transparent);
+  border-top-color: var(--c, #D4226A);
   border-radius: 50%;
   animation: ef-spin 1s linear infinite;
 }
@@ -587,7 +588,7 @@
 
 .ef-result-confirm {
   font-size: 15px;
-  color: #D4226A;
+  color: var(--c, #D4226A);
   font-weight: 600;
   margin-top: 8px;
 }

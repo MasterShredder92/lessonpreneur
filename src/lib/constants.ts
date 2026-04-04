@@ -64,5 +64,5 @@ export const ROLE_DEFAULT_ROUTES: Record<string, string> = {
   admin: '/admin/dashboard',
   teacher: '/teacher/schedule',
   parent: '/parent/dashboard',
-  student: '/student/practice',
+  student: '/parent/dashboard',
 }

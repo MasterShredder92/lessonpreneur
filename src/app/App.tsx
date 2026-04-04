@@ -37,7 +37,7 @@ const PianoLanding = lazy(() => import('../pages/PianoLanding'))
 const MoreLanding = lazy(() => import('../pages/MoreLanding'))
 const SignupLanding = lazy(() => import('../pages/SignupLanding'))
 const ThankYou = lazy(() => import('../pages/ThankYou'))
-const FamilyPortal = lazy(() => import('../pages/family/FamilyPortal'))
+// FamilyPortal removed — parents use authenticated login
 
 // Public funnel pages
 const VSLPage = lazy(() => import('../pages/public/VSLPage'))
@@ -49,7 +49,7 @@ const OnboardingWizardPage = lazy(() => import('../pages/public/OnboardingWizard
 import AdminShell from '../components/layout/AdminShell'
 import TeacherShell from '../components/layout/TeacherShell'
 import ParentShell from '../components/layout/ParentShell'
-import StudentShell from '../components/layout/StudentShell'
+// StudentShell removed — students access practice through parent portal
 import PreviewBanner from '../components/shared/PreviewBanner'
 import InstallPrompt from '../components/shared/InstallPrompt'
 
@@ -80,7 +80,10 @@ const TeacherSchedule = lazy(() => import('../pages/teacher/TeacherSchedule'))
 const TeacherStudents = lazy(() => import('../pages/teacher/TeacherStudents'))
 const TeacherDocuments = lazy(() => import('../pages/teacher/TeacherDocuments'))
 const ParentDashboard = lazy(() => import('../pages/parent/ParentDashboard'))
-const StudentPractice = lazy(() => import('../pages/student/StudentPractice'))
+const ParentSchedule = lazy(() => import('../pages/parent/ParentSchedule'))
+const ParentPractice = lazy(() => import('../pages/parent/ParentPractice'))
+const ParentBilling = lazy(() => import('../pages/parent/ParentBilling'))
+const ParentAccount = lazy(() => import('../pages/parent/ParentAccount'))
 
 /** Wraps AdkinsLanding with a specific location context */
 function LocationLanding({ loc }: { loc: LocKey }) {
@@ -200,30 +203,24 @@ export default function App() {
             <Route
               path="/parent"
               element={
-                <RouteGuard allowedRoles={['parent']}>
+                <RouteGuard allowedRoles={['parent', 'student']}>
                   <ParentShell />
                 </RouteGuard>
               }
             >
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<ParentDashboard />} />
+              <Route path="schedule" element={<ParentSchedule />} />
+              <Route path="practice" element={<ParentPractice />} />
+              <Route path="billing" element={<ParentBilling />} />
+              <Route path="account" element={<ParentAccount />} />
             </Route>
 
-            {/* Student routes */}
-            <Route
-              path="/student"
-              element={
-                <RouteGuard allowedRoles={['student']}>
-                  <StudentShell />
-                </RouteGuard>
-              }
-            >
-              <Route index element={<Navigate to="practice" replace />} />
-              <Route path="practice" element={<StudentPractice />} />
-            </Route>
+            {/* Legacy student route → redirect to parent */}
+            <Route path="/student/*" element={<Navigate to="/parent/dashboard" replace />} />
 
-            {/* Family portal — standalone, no shell */}
-            <Route path="/family/:familyId" element={<FamilyPortal />} />
+            {/* Legacy family portal → redirect to login */}
+            <Route path="/family/:familyId" element={<Navigate to="/login" replace />} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/login" replace />} />

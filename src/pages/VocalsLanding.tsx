@@ -403,7 +403,7 @@ export default function VocalsLanding() {
             )}
             {recState === 'denied' && (
               <p
-                style={{ color: '#D41113', fontSize: 13, cursor: 'pointer' }}
+                style={{ color: 'var(--c, #D41113)', fontSize: 13, cursor: 'pointer' }}
                 onClick={() => { setRecState('idle'); startRecording() }}
               >
                 Microphone access needed — tap here to try again
