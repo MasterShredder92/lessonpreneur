@@ -4,6 +4,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { useSaveSessionNote, useUpdateSessionNote, polishNoteWithStar } from '../../hooks/useSessionNotes'
 import { WORKED_ON_OPTIONS } from '../../hooks/useTeacherSchedule'
 import { toast } from '../shared/Toast'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 interface SessionNoteModalProps {
   studentId: string
@@ -238,7 +239,7 @@ export default function SessionNoteModal({
             </div>
             <div style={{ fontSize: 12, color: '#A0A0C8', marginTop: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
               <span>{formattedDate}</span>
-              {instrument && <span style={{ color: '#8080A8' }}>{instrument}</span>}
+              {instrument && <span style={{ color: '#8080A8' }}>{instrumentWithEmojiTitle(instrument)}</span>}
             </div>
           </div>
           <button

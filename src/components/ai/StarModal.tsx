@@ -6,6 +6,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { useStarContext, type StarContext } from '../../hooks/useStarContext'
 import { useAI } from '../../hooks/useAI'
 import { useTheme } from '../../hooks/useTheme'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 // ─── Constants ──────────────────────────────────
 
@@ -403,7 +404,7 @@ function DashboardPanel({ raw, isMobile, isTablet, onChipClick }: {
   ]
 
   const instruments = (raw.students?.by_instrument ?? []).slice(0, 6).map(i => ({
-    name: i.instrument ? i.instrument.charAt(0).toUpperCase() + i.instrument.slice(1) : '?',
+    name: i.instrument ? instrumentWithEmojiTitle(i.instrument) : '?',
     count: i.count,
   }))
 

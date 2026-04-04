@@ -1,3 +1,6 @@
+// Canonical instrument → emoji map. Keys are stored lowercase; lookup is
+// case-insensitive so callers can pass the raw DB value (e.g. "Piano", "piano",
+// "PIANO") without any normalization.
 const INSTRUMENT_MAP: Record<string, string> = {
   piano: '\u{1F3B9}',
   guitar: '\u{1F3B8}',
@@ -19,7 +22,22 @@ const INSTRUMENT_MAP: Record<string, string> = {
   flute: '\u{1FA88}',
 }
 
-export function getInstrumentEmoji(instrument: string | null | undefined): string {
-  if (!instrument || typeof instrument !== 'string') return '\u{1F3B5}'
-  return INSTRUMENT_MAP[instrument.trim().toLowerCase()] ?? '\u{1F3B5}'
+const DEFAULT_EMOJI = '\u{1F3B5}' // 🎵
+
+export function getInstrumentEmoji(instrument?: string | null): string {
+  if (!instrument || typeof instrument !== 'string') return DEFAULT_EMOJI
+  return INSTRUMENT_MAP[instrument.trim().toLowerCase()] ?? DEFAULT_EMOJI
+}
+
+/** "🎹 Piano" — emoji always first, never truncated; falls back to 🎵 Unknown. */
+export function instrumentWithEmoji(instrument?: string | null): string {
+  return `${getInstrumentEmoji(instrument)} ${instrument ?? 'Unknown'}`
+}
+
+/** Title-case variant: "🎹 Piano" when DB stores "piano". */
+export function instrumentWithEmojiTitle(instrument?: string | null): string {
+  const name = instrument
+    ? instrument.charAt(0).toUpperCase() + instrument.slice(1).toLowerCase()
+    : 'Unknown'
+  return `${getInstrumentEmoji(instrument)} ${name}`
 }

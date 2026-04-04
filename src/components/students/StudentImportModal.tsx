@@ -3,6 +3,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Location } from '../../lib/types'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -725,7 +726,7 @@ export default function StudentImportModal({ locations, teachers, families, onCl
                           {getVal(r, 'first_name')} {getVal(r, 'last_name')}
                         </td>
                         <td style={{ padding: '6px 10px', color: '#C0C0E0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                          {getVal(r, 'instrument') || '—'}
+                          {getVal(r, 'instrument') ? instrumentWithEmojiTitle(getVal(r, 'instrument')) : '—'}
                         </td>
                         <td style={{ padding: '6px 10px', color: '#C0C0E0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                           {getVal(r, 'primary_contact_name') || '—'}

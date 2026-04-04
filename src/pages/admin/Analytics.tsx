@@ -8,6 +8,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { Download, TrendingUp } from 'lucide-react'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 export default function Analytics() {
   const { tenantId } = useAuthContext()
@@ -103,7 +104,7 @@ export default function Analytics() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {data.churnByInstrument.filter(c => c.total >= 5).map(c => (
                   <div key={c.instrument} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                    <span style={{ width: 80, fontSize: 12, color: '#E0E0F4', fontWeight: 600 }}>{c.instrument.charAt(0).toUpperCase() + c.instrument.slice(1)}</span>
+                    <span style={{ width: 80, fontSize: 12, color: '#E0E0F4', fontWeight: 600 }}>{instrumentWithEmojiTitle(c.instrument)}</span>
                     <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }}>
                       <div style={{ height: '100%', borderRadius: 4, width: `${c.rate}%`, background: c.rate > 40 ? '#EF4444' : c.rate > 25 ? '#FFB800' : '#22C55E' }} />
                     </div>

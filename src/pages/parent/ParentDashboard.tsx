@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import MusicLoader from '../../components/shared/MusicLoader'
 import ShareableProgressCard from '../../components/shared/ShareableProgressCard'
-import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { Music, Star, Share2, Calendar, Timer } from 'lucide-react'
 import MessageStudioButton from '../../components/parent/MessageStudioButton'
 
@@ -101,7 +101,7 @@ export default function ParentDashboard() {
                     {s.first_name}
                   </div>
                   <div style={{ fontSize: 11, color: '#A0A0C8', marginTop: 2 }}>
-                    {s.instrument ? `${s.instrument.charAt(0).toUpperCase()}${s.instrument.slice(1)}` : 'No instrument set'}
+                    {s.instrument ? instrumentWithEmojiTitle(s.instrument) : 'No instrument set'}
                     {s.teacher_name ? ` · with ${s.teacher_name}` : ''}
                   </div>
                 </div>

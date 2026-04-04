@@ -5,6 +5,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../shared/Toast'
 import { X, Copy, Send, Star } from 'lucide-react'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 interface Props {
   followup: StudentFollowup
@@ -109,7 +110,7 @@ export default function ReachOutModal({ followup, onClose }: Props) {
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4' }}>Reach Out — {followup.student_name}</div>
               <div style={{ fontSize: 12, color: '#A0A0C8', marginTop: 2 }}>
-                {followup.student_instrument ? followup.student_instrument.charAt(0).toUpperCase() + followup.student_instrument.slice(1) : ''} · {followup.location_name}
+                {followup.student_instrument ? instrumentWithEmojiTitle(followup.student_instrument) : ''} · {followup.location_name}
               </div>
             </div>
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#8080A8' }}><X size={16} /></button>

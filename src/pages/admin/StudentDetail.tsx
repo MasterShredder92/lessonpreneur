@@ -21,7 +21,7 @@ import { useStudentCommunications } from '../../hooks/useParentUpdates'
 import { useStudentChurnRisk, RISK_TIERS } from '../../hooks/useChurnRisk'
 import { DEFAULT_RATE_PER_SESSION, DEFAULT_RATE_TIER_CENTS } from '../../lib/constants'
 import { useStudentInstruments, useSaveStudentInstruments } from '../../hooks/useStudentInstruments'
-import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
@@ -270,7 +270,7 @@ export default function StudentDetail() {
               })
             ) : (
               <>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><Music size={13} /> {student.instrument ? student.instrument.charAt(0).toUpperCase() + student.instrument.slice(1) : '—'}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}>{instrumentWithEmojiTitle(student.instrument)}</span>
                 {student.teacher_name && student.teacher_name !== '—' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 12, color: '#A0A0C8' }}>Teacher: <strong style={{ color: '#C0C0E0' }}>{student.teacher_name}</strong></span>
@@ -347,7 +347,7 @@ export default function StudentDetail() {
                 {student.siblings.map((sib: any) => (
                   <div key={sib.id} onClick={() => navigate(`/admin/students/${sib.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#A0A0C8', cursor: 'pointer', padding: '3px 0' }}>
                     <span style={{ fontWeight: 600, color: '#C0C0E0' }}>{sib.first_name}</span>
-                    <span style={{ color: '#8080A8' }}>{sib.instrument}</span>
+                    <span style={{ color: '#8080A8' }}>{instrumentWithEmojiTitle(sib.instrument)}</span>
                   </div>
                 ))}
               </div>
@@ -1029,7 +1029,7 @@ export default function StudentDetail() {
               <div className="assign-context">
                 <span className="badge-secondary">{student.location_name}</span>
                 {student.teacher_name !== '—' && <span className="badge-primary">{student.teacher_name}</span>}
-                <span className="badge-primary">{student.instrument}</span>
+                <span className="badge-primary">{instrumentWithEmojiTitle(student.instrument)}</span>
               </div>
 
               {(!availableBlocks || availableBlocks.length === 0) ? (

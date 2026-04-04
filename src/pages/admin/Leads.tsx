@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useState, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { useLeads, useUpdateLeadStage, useUpdateLead, useCreateLead, type LeadRow } from '../../hooks/useLeads'
@@ -12,6 +12,8 @@ import { CORE_INSTRUMENTS, OTHER_INSTRUMENTS } from '../../lib/constants'
 import { toast } from '../../components/shared/Toast'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import { useUrlFilters } from '../../hooks/useUrlFilters'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 const STAGES = ['inquiry', 'contacted', 'scheduled', 'enrolled', 'lost'] as const
 
@@ -124,14 +126,19 @@ function getActionPrompt(lead: LeadRow): { text: string; color: string; urgent: 
 export default function Leads() {
   const { role, tenantId } = useAuthContext()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const { data: locations } = useLocations()
   const canEdit = role === 'owner' || role === 'admin'
 
-  const [locationFilter, setLocationFilter] = useState(() => searchParams.get('location') ?? '')
-  const [instrumentFilter, setInstrumentFilter] = useState(() => searchParams.get('instrument') ?? '')
-  const [stageFilter, setStageFilter] = useState(() => searchParams.get('stage') ?? '')
-  const [leadView, setLeadView] = useState<'active' | 'enrolled' | 'lost'>(() => (searchParams.get('view') as any) ?? 'active')
+  // URL-persisted filters
+  const { getParam, setParam } = useUrlFilters()
+  const locationFilter = getParam('location')
+  const instrumentFilter = getParam('instrument')
+  const stageFilter = getParam('stage')
+  const leadView = (getParam('view') || 'active') as 'active' | 'enrolled' | 'lost'
+  const setLocationFilter = (v: string) => setParam('location', v)
+  const setInstrumentFilter = (v: string) => setParam('instrument', v)
+  const setStageFilter = (v: string) => setParam('stage', v)
+  const setLeadView = (v: 'active' | 'enrolled' | 'lost') => setParam('view', v === 'active' ? '' : v)
   const [detailLead, setDetailLead] = useState<LeadRow | null>(null)
   const [convertLead, setConvertLead] = useState<LeadRow | null>(null)
   const [editingNextAction, setEditingNextAction] = useState(false)
@@ -143,15 +150,6 @@ export default function Leads() {
   const [lostCategory, setLostCategory] = useState('')
   const [lostReason, setLostReason] = useState('')
 
-  // Sync filters to URL params for persistence
-  useEffect(() => {
-    const params = new URLSearchParams()
-    if (locationFilter) params.set('location', locationFilter)
-    if (instrumentFilter) params.set('instrument', instrumentFilter)
-    if (stageFilter) params.set('stage', stageFilter)
-    if (leadView !== 'active') params.set('view', leadView)
-    setSearchParams(params, { replace: true })
-  }, [locationFilter, instrumentFilter, stageFilter, leadView])
 
   const { data: leads, isLoading } = useLeads({
     locationId: locationFilter || undefined,
@@ -378,7 +376,7 @@ export default function Leads() {
           <select value={instrumentFilter} onChange={(e) => setInstrumentFilter(e.target.value)} className="filter-select lead-filter">
             <option value="">Instruments ({activeCount})</option>
             {instruments.map((i) => (
-              <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)} ({instrumentCounts[i] ?? 0})</option>
+              <option key={i} value={i}>{instrumentWithEmojiTitle(i)} ({instrumentCounts[i] ?? 0})</option>
             ))}
           </select>
         </div>
@@ -434,7 +432,7 @@ export default function Leads() {
                           <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(212,34,106,0.12)', color: '#D4226A', letterSpacing: '0.03em' }}>{fg.students.length} students</span>
                         </span>
                         <span className="lead-card-parent" style={{ fontSize: 12 }}>
-                          {fg.students.map(s => `${s.name}${s.instrument ? ` (${s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1)})` : ''}`).join(' · ')}
+                          {fg.students.map(s => `${s.name}${s.instrument ? ` (${instrumentWithEmojiTitle(s.instrument)})` : ''}`).join(' · ')}
                         </span>
                       </div>
                     </div>
@@ -518,7 +516,7 @@ export default function Leads() {
                     </div>
                   </div>
                   <div className="lead-card-meta">
-                    {lead.instrument && <span className="lead-card-chip"><Music size={12} />{lead.instrument.charAt(0).toUpperCase() + lead.instrument.slice(1)}</span>}
+                    {lead.instrument && <span className="lead-card-chip">{instrumentWithEmojiTitle(lead.instrument)}</span>}
                     {lead.location_name && <span className="lead-card-chip"><MapPin size={12} />{lead.location_name}</span>}
                     {lead.compatibility_score != null && lead.compatibility_score >= 91 ? (
                       <span className="lead-card-chip" style={{ color: '#22C55E', borderColor: 'rgba(34,197,94,0.25)', background: 'rgba(34,197,94,0.08)' }}>{lead.compatibility_score}% Match</span>
@@ -690,7 +688,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
   const studentName = `${lead.first_name} ${lead.last_name ?? ''}`.trim()
   const parentName = lead.parent_name && lead.parent_name !== studentName ? lead.parent_name : null
   const stageColor = stageColors[lead.stage] ?? '#A0A0C8'
-  const instrumentDisplay = lead.instrument ? lead.instrument.charAt(0).toUpperCase() + lead.instrument.slice(1) : null
+  const instrumentDisplay = lead.instrument ? instrumentWithEmojiTitle(lead.instrument) : null
 
   const { profile } = useAuthContext()
   const [showAllNotes, setShowAllNotes] = useState(false)
@@ -901,7 +899,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderLeft: '3px solid rgba(212,34,106,0.4)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <span style={{ fontSize: 15, fontWeight: 800, color: '#E0E0F4' }}>{sl.first_name}</span>
-                        {sl.instrument && <span style={{ fontSize: 12, fontWeight: 600, color: '#A0A0C8' }}>· {sl.instrument.charAt(0).toUpperCase() + sl.instrument.slice(1)}</span>}
+                        {sl.instrument && <span style={{ fontSize: 12, fontWeight: 600, color: '#A0A0C8' }}>· {instrumentWithEmojiTitle(sl.instrument)}</span>}
                         {sl.age_range && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.06)', color: '#8080A8' }}>{sl.age_range}</span>}
                       </div>
                       {(sl.personality_notes || sl.goals) && (
@@ -1217,7 +1215,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       {idx === 0 && <div className="lead-modal-field"><div className="lead-modal-field-label">Parent / Guardian</div><div className="lead-modal-field-value">{parentName ?? '—'}</div></div>}
                       {idx === 0 && <div className="lead-modal-field"><div className="lead-modal-field-label">Email</div><div className="lead-modal-field-value">{sl.email ?? '—'}</div></div>}
                       {idx === 0 && <div className="lead-modal-field"><div className="lead-modal-field-label">Phone</div><div className="lead-modal-field-value">{sl.phone ?? '—'}</div></div>}
-                      <div className="lead-modal-field"><div className="lead-modal-field-label">Instrument</div><div className="lead-modal-field-value">{sl.instrument ? sl.instrument.charAt(0).toUpperCase() + sl.instrument.slice(1) : '—'}</div></div>
+                      <div className="lead-modal-field"><div className="lead-modal-field-label">Instrument</div><div className="lead-modal-field-value">{sl.instrument ? instrumentWithEmojiTitle(sl.instrument) : '—'}</div></div>
                       <div className="lead-modal-field"><div className="lead-modal-field-label">Age Range</div><div className="lead-modal-field-value">{sl.age_range ?? sl.age ?? '—'}</div></div>
                       <div className="lead-modal-field"><div className="lead-modal-field-label">Experience</div><div className="lead-modal-field-value">{sl.experience ?? '—'}</div></div>
                     </div>

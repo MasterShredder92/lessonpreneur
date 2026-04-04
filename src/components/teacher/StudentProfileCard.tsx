@@ -7,6 +7,7 @@ import { toast } from '../shared/Toast'
 import { getLocationColor } from '../../utils/locationColor'
 import { X, Upload, FileText, ExternalLink, ChevronDown, ChevronUp, ArrowRightLeft, Lock } from 'lucide-react'
 import MusicLoader from '../shared/MusicLoader'
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 
 interface Props {
   studentId: string
@@ -124,7 +125,7 @@ export default function StudentProfileCard({ studentId, scheduleLabel, onClose }
             }}>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: '#E0E0F4' }}>
-                  {student.first_name} {student.instrument ? `— ${capitalize(student.instrument)}` : ''}
+                  {student.first_name} {student.instrument ? `— ${getInstrumentEmoji(student.instrument)} ${capitalize(student.instrument)}` : ''}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   {student.location_name && (

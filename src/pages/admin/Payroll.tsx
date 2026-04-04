@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useAuthContext } from '../../app/AuthContext'
 import { useTeachers } from '../../hooks/useTeachers'
+import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { usePermissions } from '../../hooks/usePermissions'
 import {
   usePayrollPeriods,
@@ -240,20 +241,29 @@ export default function Payroll() {
   const createTip = useCreateTip()
   const queryClient = useQueryClient()
 
-  // ─── Month Selector State ──────────────────────────────────
+  // ─── Month Selector State (URL-persisted as period=YYYY-MM) ──
   const now = new Date()
-  const [selYear, setSelYear] = useState(now.getFullYear())
-  const [selMonth, setSelMonth] = useState(now.getMonth()) // 0-indexed
+  const { getParam, setParam } = useUrlFilters()
+  const defaultPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const periodParam = getParam('period') || defaultPeriod
+  const [periodY, periodM] = periodParam.split('-')
+  const selYear = parseInt(periodY, 10)
+  const selMonth = parseInt(periodM, 10) - 1 // 0-indexed
+
+  const setPeriod = (y: number, m: number) => {
+    const v = `${y}-${String(m + 1).padStart(2, '0')}`
+    setParam('period', v === defaultPeriod ? '' : v)
+  }
 
   const monthLabel = `${MONTHS[selMonth]} ${selYear}`
 
   const goNext = () => {
-    if (selMonth === 11) { setSelMonth(0); setSelYear((y) => y + 1) }
-    else setSelMonth((m) => m + 1)
+    if (selMonth === 11) setPeriod(selYear + 1, 0)
+    else setPeriod(selYear, selMonth + 1)
   }
   const goPrev = () => {
-    if (selMonth === 0) { setSelMonth(11); setSelYear((y) => y - 1) }
-    else setSelMonth((m) => m - 1)
+    if (selMonth === 0) setPeriod(selYear - 1, 11)
+    else setPeriod(selYear, selMonth - 1)
   }
 
   // Match period to selected month

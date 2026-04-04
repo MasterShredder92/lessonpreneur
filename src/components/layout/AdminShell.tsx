@@ -255,7 +255,13 @@ export default function AdminShell() {
             <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); setShowChangePassword(true) }} title="Change Password" style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
               {sidebarOpen ? <KeyRound size={13} /> : <KeyRound size={13} />}
             </button>
-            <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); signOut() }} style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={(e) => { e.stopPropagation(); signOut() }}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); signOut() }}
+              style={{ minWidth: 44, minHeight: 44, padding: '10px 12px', fontSize: '11px', color: 'var(--text-ghost)', cursor: 'pointer', touchAction: 'manipulation' }}
+            >
               {sidebarOpen ? 'Sign Out' : <LogOut size={13} />}
             </button>
           </div>

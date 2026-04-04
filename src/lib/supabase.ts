@@ -7,16 +7,39 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
+// Global fetch wrapper with a 30s timeout — prevents hung requests from
+// leaving mutations in a permanent "isPending" state (stuck Save buttons).
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  const controller = new AbortController()
+  const existingSignal = init?.signal
+  if (existingSignal) {
+    if (existingSignal.aborted) controller.abort()
+    else existingSignal.addEventListener('abort', () => controller.abort(), { once: true })
+  }
+  const timeoutId = setTimeout(() => controller.abort(new DOMException('Request timed out after 30s', 'TimeoutError')), 30000)
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeoutId))
+}
+
 // Window-level singleton guard — prevents duplicate GoTrueClient instances
 // even if Vite HMR re-evaluates this module or React Strict Mode double-mounts
 const GLOBAL_KEY = '__supabase_singleton__'
 if (!(window as any)[GLOBAL_KEY]) {
   (window as any)[GLOBAL_KEY] = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
       // Disable navigator locks — prevents NavigatorLockAcquireTimeoutError
       // caused by React Strict Mode double-mounting auth subscriptions.
       // Safe for single-tab usage; token refresh is still handled by the client.
       lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => fn(),
+    },
+    global: {
+      fetch: fetchWithTimeout,
+    },
+    realtime: {
+      timeout: 30000,
     },
   })
 }

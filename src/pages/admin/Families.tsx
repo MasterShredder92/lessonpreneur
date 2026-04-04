@@ -11,7 +11,7 @@ import { useAI } from '../../hooks/useAI'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send } from 'lucide-react'
-import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { useReactivateStudent } from '../../hooks/useRetention'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -1124,7 +1124,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                           display: 'flex', alignItems: 'center', gap: 12, opacity: isActive ? 1 : 0.5,
                         }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', flex: 1 }}>{s.first_name} {s.last_name}</span>
-                          <span style={{ fontSize: 11, color: '#A0A0C8', padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }}>{s.instrument?.charAt(0).toUpperCase()}{s.instrument?.slice(1)}</span>
+                          <span style={{ fontSize: 11, color: '#A0A0C8', padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                           <span style={{ fontSize: 11, color: '#A0A0C8' }}>{s.teacher_name}</span>
                           <span style={{ fontSize: 10, color: '#A0A0C8' }}>{s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH} sessions</span>
                           <ChevronRight size={12} style={{ color: '#363656' }} />
@@ -1159,7 +1159,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                                 border: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 12, opacity: 0.7,
                               }}>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8', flex: 1 }}>{s.first_name} {s.last_name}</span>
-                                <span style={{ fontSize: 11, color: '#8080A8' }}>{s.instrument?.charAt(0).toUpperCase()}{s.instrument?.slice(1)}</span>
+                                <span style={{ fontSize: 11, color: '#8080A8' }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                                 {pausedAgo != null && <span style={{ fontSize: 10, color: '#606088' }}>{pausedAgo}mo ago</span>}
                                 {(s as any).pause_reason && <span style={{ fontSize: 10, color: '#606088' }}>{(s as any).pause_reason}</span>}
                                 {canEdit && (
@@ -1269,7 +1269,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   {(family.overdue_balance_cents ?? 0) > 0 && fld('Overdue', <span style={{ fontWeight: 700, color: '#EF4444' }}>{formatDollars(family.overdue_balance_cents)}</span>)}
 
                   <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Sessions</div>
-                  {fld('Instruments', (family.instrumentList?.length ?? 0) > 0 ? family.instrumentList?.map((i: string) => i.charAt(0).toUpperCase() + i.slice(1)).join(', ') : '—')}
+                  {fld('Instruments', (family.instrumentList?.length ?? 0) > 0 ? family.instrumentList?.map((i: string) => instrumentWithEmojiTitle(i)).join(', ') : '—')}
                   {fld('Session Days', family.sessionDays?.length ? family.sessionDays?.join(', ') : '—')}
                   {fld('Sessions / Month', String(family.totalSessionsPerMonth ?? 0))}
                 </div>
@@ -1617,7 +1617,7 @@ function CreateInvoiceFromFamily({ family, onClose }: { family: any; onClose: ()
               {students.map((s: any) => (
                 <div key={s.student_id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.7fr 0.8fr 1fr', gap: 8, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 12, color: '#C0C0D8' }}>
                   <span style={{ fontWeight: 600, color: '#E0E0F4' }}>{s.first_name} {s.last_name}</span>
-                  <span>{s.instrument?.charAt(0).toUpperCase()}{s.instrument?.slice(1)}</span>
+                  <span>{instrumentWithEmojiTitle(s.instrument)}</span>
                   <span>{s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH}</span>
                   <span>${(s.computed_rate / 100).toFixed(2)}</span>
                   <span style={{ textAlign: 'right', fontWeight: 700 }}>${(s.computed_monthly / 100).toFixed(2)}</span>

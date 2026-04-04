@@ -26,8 +26,8 @@ export function RouteGuard({ allowedRoles, children }: RouteGuardProps) {
     return <Navigate to="/login" replace />
   }
 
-  // When preview mode is active, allow owner/admin to access any shell
-  if (preview.active && (role === 'owner' || role === 'admin')) {
+  // When preview mode is active, allow elevated roles to access any shell
+  if (preview.active && (role === 'owner' || role === 'admin' || role === 'company_director')) {
     return <>{children}</>
   }
 

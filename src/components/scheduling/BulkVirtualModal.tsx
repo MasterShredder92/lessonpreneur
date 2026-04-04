@@ -5,6 +5,7 @@ import { sendAppointmentNotification, buildBlockContext } from '../../lib/appoin
 import { toast } from '../shared/Toast'
 import { Video, Check, X, AlertTriangle } from 'lucide-react'
 import type { GridBlock } from '../../hooks/useScheduleGrid'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -138,7 +139,7 @@ export default function BulkVirtualModal({ blocks, date, tenantId, onClose }: Pr
                     <input type="checkbox" checked={selected.has(b.block_id)} onChange={() => toggle(b.block_id)} style={{ accentColor: '#00BCD4', width: 18, height: 18 }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>
-                        {formatTime(b.start_time)} — {b.student_name} ({b.instrument})
+                        {formatTime(b.start_time)} — {b.student_name} ({instrumentWithEmojiTitle(b.instrument)})
                       </div>
                       <div style={{ fontSize: 11, color: '#8080A8' }}>Teacher: {b.teacher_name}</div>
                     </div>

@@ -7,6 +7,7 @@ import { toast } from '../shared/Toast'
 import SearchableCombobox from '../shared/SearchableCombobox'
 import { Send, ExternalLink, Copy, ChevronDown, X, Check, Ban } from 'lucide-react'
 import { DEFAULT_SESSIONS_PER_MONTH } from '../../lib/constants'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 // TENANT_ID removed — use tenantId from useAuthContext() instead
 
@@ -869,7 +870,7 @@ function CreateFamilyInvoiceModal({ locations, onClose }: { locations: any[]; on
               {students.map(s => (
                 <div key={s.student_id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.7fr 0.8fr 1fr', gap: 8, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 12, color: '#C0C0D8' }}>
                   <span style={{ fontWeight: 600, color: '#E0E0F4' }}>{s.first_name} {s.last_name}</span>
-                  <span>{s.instrument?.charAt(0).toUpperCase()}{s.instrument?.slice(1)}</span>
+                  <span>{instrumentWithEmojiTitle(s.instrument)}</span>
                   <span>{s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH}</span>
                   <span>{dollars(s.computed_rate)}</span>
                   <span style={{ textAlign: 'right', fontWeight: 700 }}>{dollars(s.computed_monthly)}</span>

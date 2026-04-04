@@ -10,7 +10,7 @@ import AvailabilityEditModal from '../../components/teachers/AvailabilityEditMod
 import { supabase } from '../../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Camera, ChevronDown, ChevronRight, Upload, Trash2, FileText, Users } from 'lucide-react'
-import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import TeacherDocumentsModal from '../../components/teachers/TeacherDocumentsModal'
 import { toast } from '../../components/shared/Toast'

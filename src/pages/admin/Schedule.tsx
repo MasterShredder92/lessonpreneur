@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { useSearchParams } from 'react-router-dom'
+import { useUrlFilters } from '../../hooks/useUrlFilters'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { useLocations } from '../../hooks/useLocations'
@@ -22,7 +22,7 @@ import { useAI, type ScheduleContext } from '../../hooks/useAI'
 import { useScheduleIntelligence } from '../../hooks/useScheduleIntelligence'
 import { ChevronLeft, ChevronRight, ChevronDown, Calendar, Music, MapPin, UserPlus, GripVertical, Check, Clock, DoorOpen, RefreshCw, Plus, PhoneOff, Star, Send, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
@@ -73,10 +73,15 @@ export default function Schedule() {
   }, [])
   const { data: locations } = useLocations()
   const { data: allTeachersList } = useTeachers()
-  const [searchParams] = useSearchParams()
+  const { getParam, setParam } = useUrlFilters()
 
-  const [selectedDate, setSelectedDate] = useState(() => toDateString(new Date()))
-  const [selectedLocation, setSelectedLocation] = useState<string>(() => searchParams.get('location') ?? '')
+  const selectedDate = getParam('date') || toDateString(new Date())
+  const setSelectedDate = (v: string) => {
+    const today = toDateString(new Date())
+    setParam('date', v === today ? '' : v)
+  }
+  const selectedLocation = getParam('location')
+  const setSelectedLocation = (v: string) => setParam('location', v)
 
   // Schedule intelligence — week boundaries from selected date
   const weekBounds = useMemo(() => {
@@ -87,15 +92,12 @@ export default function Schedule() {
     return { start: toDateString(mon), end: toDateString(sun) }
   }, [selectedDate])
   const { data: scheduleIntel } = useScheduleIntelligence(weekBounds.start, weekBounds.end)
-  const [selectedTeacherFilter, setSelectedTeacherFilter] = useState<string>('')
+  const selectedTeacherFilter = getParam('teacher')
+  const setSelectedTeacherFilter = (v: string) => setParam('teacher', v)
 
   type VisibilityMode = 'scheduled' | 'available' | 'all'
-  const [teacherVisibility, setTeacherVisibility] = useState<VisibilityMode>(() => {
-    return (localStorage.getItem('schedule-teacher-visibility') as VisibilityMode) || 'available'
-  })
-  useEffect(() => {
-    localStorage.setItem('schedule-teacher-visibility', teacherVisibility)
-  }, [teacherVisibility])
+  const teacherVisibility = (getParam('view') || 'available') as VisibilityMode
+  const setTeacherVisibility = (v: VisibilityMode) => setParam('view', v === 'available' ? '' : v)
 
   // Modal state
   const [assignModal, setAssignModal] = useState<GridBlock | null>(null)
@@ -1377,7 +1379,7 @@ export default function Schedule() {
                           >
                             <div>
                               <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.first_name} {s.last_name}</span>
-                              <span style={{ fontSize: 11, color: '#A0A0C8', marginLeft: 8 }}>{s.instrument}</span>
+                              <span style={{ fontSize: 11, color: '#A0A0C8', marginLeft: 8 }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                             </div>
                             <span style={{ fontSize: 10, color: s.location_id !== assignModal.location_id ? '#F97316' : '#606088' }}>{s.location_name}{s.location_id !== assignModal.location_id ? ' ⚠' : ''}</span>
                           </button>
@@ -1400,7 +1402,7 @@ export default function Schedule() {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.15)', borderRadius: 10, marginBottom: 14 }}>
                         <div>
                           <span style={{ fontSize: 14, fontWeight: 800, color: '#E0E0F4' }}>{picked?.first_name} {picked?.last_name}</span>
-                          <span style={{ fontSize: 11, color: '#A0A0C8', marginLeft: 8 }}>{picked?.instrument}</span>
+                          <span style={{ fontSize: 11, color: '#A0A0C8', marginLeft: 8 }}>{instrumentWithEmojiTitle(picked?.instrument)}</span>
                         </div>
                         <button onClick={() => setSelectedStudentId('')} style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', fontSize: 11, textDecoration: 'underline' }}>Change</button>
                       </div>

@@ -4,6 +4,7 @@ import MusicLoader from '../components/shared/MusicLoader'
 import { supabase as anonClient } from '../lib/supabase'
 import { usePublicTenantId } from '../hooks/usePublicTenantId'
 import { DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_PER_SESSION } from '../lib/constants'
+import { instrumentWithEmojiTitle } from '../utils/instrumentEmoji'
 
 // ═══════════════════════════════════════
 // TYPES
@@ -474,8 +475,8 @@ export default function PayInvoice() {
           {invoice.students.map(st => {
             const lineCents = st.sessions_per_month * Math.round(st.rate_per_session * 100)
             const instrumentLabel = st.instrument
-              ? st.instrument.charAt(0).toUpperCase() + st.instrument.slice(1)
-              : 'Music'
+              ? instrumentWithEmojiTitle(st.instrument)
+              : '🎵 Music'
             return (
               <div key={st.id} style={S.tableRow}>
                 <div style={{ flex: 2 }}>

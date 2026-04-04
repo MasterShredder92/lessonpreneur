@@ -15,7 +15,7 @@ import CsvImportFlow from '../../components/shared/CsvImportFlow'
 import { useImportStudents, STUDENT_TEMPLATE } from '../../hooks/useImport'
 import { DEFAULT_RATE_PER_SESSION } from '../../lib/constants'
 import { useStudentInstruments, useSaveStudentInstruments } from '../../hooks/useStudentInstruments'
-import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import AddStudentModal from '../../components/students/AddStudentModal'
 import DataGrid from '../../components/shared/DataGrid'
 import { useChurnRiskScores, RISK_TIERS } from '../../hooks/useChurnRisk'
@@ -50,7 +50,7 @@ function isIncomplete(s: StudentRow): boolean {
 export default function Students() {
   const { role, tenantId } = useAuthContext()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: locations } = useLocations()
   const { data: teacherList } = useTeachers()
   const { data: familyList } = useFamilies()
@@ -61,13 +61,30 @@ export default function Students() {
   const canViewBilling = canDo('students.view_billing')
   const { saveScroll } = useScrollRestore('students')
 
-  const [activeTab, setActiveTab] = useState<StatusTab>('active')
-  const [locationFilter, setLocationFilter] = useState(searchParams.get('location') ?? '')
-  const [teacherFilter, setTeacherFilter] = useState(searchParams.get('teacher') ?? '')
-  const [instrumentFilter, setInstrumentFilter] = useState('')
-  const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState<SortOption>('az_first')
-  const [showIncomplete, setShowIncomplete] = useState(false)
+  // ── Filter state — persisted in URL so browser back restores exact view ──
+  const activeTab = (searchParams.get('tab') as StatusTab) || 'active'
+  const locationFilter = searchParams.get('location') ?? ''
+  const teacherFilter = searchParams.get('teacher') ?? ''
+  const instrumentFilter = searchParams.get('instrument') ?? ''
+  const search = searchParams.get('q') ?? ''
+  const sortBy = (searchParams.get('sort') as SortOption) || 'az_first'
+  const showIncomplete = searchParams.get('incomplete') === '1'
+
+  const updateParam = (key: string, value: string) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value === '' || value === undefined || value === null) next.delete(key)
+      else next.set(key, value)
+      return next
+    }, { replace: true })
+  }
+  const setActiveTab = (v: StatusTab) => updateParam('tab', v === 'active' ? '' : v)
+  const setLocationFilter = (v: string) => updateParam('location', v)
+  const setTeacherFilter = (v: string) => updateParam('teacher', v)
+  const setInstrumentFilter = (v: string) => updateParam('instrument', v)
+  const setSearch = (v: string) => updateParam('q', v)
+  const setSortBy = (v: SortOption) => updateParam('sort', v === 'az_first' ? '' : v)
+  const setShowIncomplete = (v: boolean) => updateParam('incomplete', v ? '1' : '')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editStudent, setEditStudent] = useState<StudentRow | null>(null)
   const [exitStudent, setExitStudent] = useState<StudentRow | null>(null)
@@ -499,17 +516,17 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>
                         {(s.scheduled_teachers ?? []).length > 1
                           ? 'Multiple'
-                          : s.instrument ? s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1) : '—'}
+                          : instrumentWithEmojiTitle(s.instrument)}
                       </span>
                     ) : (
                       (s.scheduled_teachers ?? []).length > 0 ? (
                         (s.scheduled_teachers ?? []).map((st, i) => (
                           <span key={i} style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>
-                            {(st.instrument ?? s.instrument ?? '—').charAt(0).toUpperCase() + (st.instrument ?? s.instrument ?? '—').slice(1)}
+                            {instrumentWithEmojiTitle(st.instrument ?? s.instrument)}
                           </span>
                         ))
                       ) : (
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.instrument ? s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1) : '—'}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                       )
                     )}
                   </div>

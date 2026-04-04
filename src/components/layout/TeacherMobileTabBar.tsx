@@ -203,13 +203,15 @@ export default function TeacherMobileTabBar() {
                   <div style={{ fontSize: 11, color: '#606088', marginTop: 2 }}>Teacher</div>
                 </div>
                 <button
-                  onClick={() => { signOut(); setMoreOpen(false) }}
+                  type="button"
+                  onClick={() => { setMoreOpen(false); signOut() }}
+                  onTouchEnd={(e) => { e.preventDefault(); setMoreOpen(false); signOut() }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    minHeight: 44, padding: '0 16px', borderRadius: 10,
+                    minWidth: 44, minHeight: 44, padding: '0 16px', borderRadius: 10,
                     background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
                     color: '#D4226A', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    WebkitTapHighlightColor: 'transparent', flexShrink: 0,
+                    WebkitTapHighlightColor: 'transparent', flexShrink: 0, touchAction: 'manipulation',
                   }}
                 >
                   <LogOut size={15} />

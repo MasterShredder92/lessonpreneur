@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuthContext } from '../../app/AuthContext'
 import { useFindCoverage, useTransferBlock, type CoverageResult } from '../../hooks/useCallout'
 import { supabase } from '../../lib/supabase'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -127,7 +128,7 @@ export default function CalloutWizard({ locationId, locationName, onClose }: Pro
               <div className="callout-student-card">
                 <div className="callout-student-name">{currentBlock.student_name}</div>
                 <div className="callout-student-meta">
-                  <span className="badge-primary">{currentBlock.instrument}</span>
+                  <span className="badge-primary">{instrumentWithEmojiTitle(currentBlock.instrument)}</span>
                   <span>{formatTime(currentBlock.start_time)} – {formatTime(currentBlock.end_time)}</span>
                 </div>
               </div>
@@ -140,7 +141,7 @@ export default function CalloutWizard({ locationId, locationName, onClose }: Pro
                       <div className="callout-sug-info">
                         <strong>{sug.teacher_name}</strong>
                         <div className="pill-group" style={{ marginTop: 2 }}>
-                          {sug.instruments?.map((inst: string) => <span key={inst} className="badge-primary" style={{ fontSize: '10px' }}>{inst}</span>)}
+                          {sug.instruments?.map((inst: string) => <span key={inst} className="badge-primary" style={{ fontSize: '10px' }}>{instrumentWithEmojiTitle(inst)}</span>)}
                           <span className={`badge-${sug.priority === 1 ? 'success' : 'gold'}`} style={{ fontSize: '10px' }}>
                             {sug.priority === 1 ? 'Scheduled today' : 'Available sub'}
                           </span>
@@ -159,7 +160,7 @@ export default function CalloutWizard({ locationId, locationName, onClose }: Pro
                 </div>
               ) : (
                 <div className="callout-no-coverage">
-                  <span className="text-muted">No automatic coverage found for {currentBlock.instrument} at this time.</span>
+                  <span className="text-muted">No automatic coverage found for {instrumentWithEmojiTitle(currentBlock.instrument)} at this time.</span>
                 </div>
               )}
 

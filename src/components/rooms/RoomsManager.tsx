@@ -3,6 +3,7 @@ import MusicLoader from '../shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { useLocations } from '../../hooks/useLocations'
 import { useRooms, useCreateRoom, useUpdateRoom, useAddInventoryItem, useFlagInventoryItem, useResolveInventoryFlag, useDeleteInventoryItem, type Room, type InventoryItem } from '../../hooks/useRooms'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 const INSTRUMENTS = ['guitar','piano','drums','voice','violin','bass','ukulele','other']
 const STANDARD_ITEMS = ['Piano','Guitar Amp','Electric Drum Kit','Acoustic Drum Kit','TV','Camera','Music Stand','Chair','Guitar Cable','Guitar']
@@ -82,7 +83,7 @@ function RoomCard({ room, canEdit, userId, tenantId, onEdit }: { room: Room; can
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {room.flagged_count! > 0 && <span className="room-flag-badge">{room.flagged_count}</span>}
           <div className="pill-group">
-            {room.primary_instruments?.map((i) => <span key={i} className="badge-primary" style={{ fontSize: '10px' }}>{i}</span>)}
+            {room.primary_instruments?.map((i) => <span key={i} className="badge-primary" style={{ fontSize: '10px' }}>{instrumentWithEmojiTitle(i)}</span>)}
           </div>
           <span className="text-dim" style={{ fontSize: '11px' }}>{room.inventory?.length ?? 0} items</span>
           <span className="expand-icon">{expanded ? '▼' : '▶'}</span>
@@ -217,7 +218,7 @@ function RoomFormModal({ room, locationId, tenantId, onClose }: { room: Room | n
             <label>Primary Instruments</label>
             <div className="pill-select">
               {INSTRUMENTS.map((inst) => (
-                <button type="button" key={inst} className={`pill-option ${form.primary_instruments.includes(inst) ? 'selected' : ''}`} onClick={() => toggleInstrument(inst)}>{inst}</button>
+                <button type="button" key={inst} className={`pill-option ${form.primary_instruments.includes(inst) ? 'selected' : ''}`} onClick={() => toggleInstrument(inst)}>{instrumentWithEmojiTitle(inst)}</button>
               ))}
             </div>
           </div>

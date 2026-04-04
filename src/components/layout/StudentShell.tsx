@@ -19,7 +19,13 @@ export default function StudentShell() {
           <button className="btn-ghost" onClick={() => setShowChangePassword(true)} style={{ fontSize: '11px' }}>
             Password
           </button>
-          <button className="btn-ghost" onClick={signOut} style={{ fontSize: '11px' }}>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => signOut()}
+            onTouchEnd={(e) => { e.preventDefault(); signOut() }}
+            style={{ minWidth: 44, minHeight: 44, padding: '10px 14px', fontSize: '11px', cursor: 'pointer', touchAction: 'manipulation' }}
+          >
             Sign Out
           </button>
           <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />

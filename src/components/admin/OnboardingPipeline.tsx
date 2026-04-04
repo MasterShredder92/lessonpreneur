@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useOnboardingPipeline, useCompleteTouchpoint, TOUCHPOINTS, type OnboardingSequence } from '../../hooks/useOnboarding'
 import { toast } from '../shared/Toast'
 import { ChevronDown, ChevronRight, Check, AlertTriangle } from 'lucide-react'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 export default function OnboardingPipeline() {
   const { data: sequences } = useOnboardingPipeline()
@@ -90,7 +91,7 @@ export default function OnboardingPipeline() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{seq.student_name}</span>
                       {seq.instrument && (
-                        <span style={{ fontSize: 10, color: '#A0A0C8' }}>{seq.instrument.charAt(0).toUpperCase() + seq.instrument.slice(1)}</span>
+                        <span style={{ fontSize: 10, color: '#A0A0C8' }}>{instrumentWithEmojiTitle(seq.instrument)}</span>
                       )}
                       {seq.location_name && (
                         <span style={{ fontSize: 10, color: '#606088' }}>{seq.location_name}</span>

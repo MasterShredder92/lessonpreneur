@@ -6,6 +6,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { calculatePreviewRate, getRateTierLabel, getRateTierColor } from '../../hooks/useFamilyRate'
 import SearchableCombobox from '../shared/SearchableCombobox'
 import type { LeadRow } from '../../hooks/useLeads'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -234,7 +235,7 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
           {/* Lead context */}
           <div className="assign-context">
             <span className="pipeline-card-name">{lead.parent_name ?? lead.first_name}</span>
-            {lead.instrument && <span className="badge-primary">{lead.instrument}</span>}
+            {lead.instrument && <span className="badge-primary">{instrumentWithEmojiTitle(lead.instrument)}</span>}
             <span className="badge-secondary">{lead.location_name}</span>
           </div>
 
@@ -410,7 +411,7 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
             <>
               <div className="convert-summary">
                 <div className="detail-row"><span className="detail-label">Student</span><span>{lead.first_name} {lead.last_name ?? ''}</span></div>
-                <div className="detail-row"><span className="detail-label">Instrument</span><span className="badge-primary">{lead.instrument}</span></div>
+                <div className="detail-row"><span className="detail-label">Instrument</span><span className="badge-primary">{instrumentWithEmojiTitle(lead.instrument)}</span></div>
                 <div className="detail-row"><span className="detail-label">Location</span><span className="badge-secondary">{lead.location_name}</span></div>
                 <div className="detail-row"><span className="detail-label">Family</span><span>{familyChoice === 'existing' ? existingFamilies.find((f) => f.id === selectedFamilyId)?.name : newFamilyName}</span></div>
                 <div className="detail-row"><span className="detail-label">Rate</span><span>${rate}/session</span></div>

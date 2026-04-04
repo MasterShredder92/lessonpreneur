@@ -97,10 +97,16 @@ function LocationLanding({ loc }: { loc: LocKey }) {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 3,  // 3 minutes — prevents re-fetches when navigating between pages
-      gcTime: 1000 * 60 * 10,    // keep unused data for 10 minutes
+      staleTime: 5 * 60 * 1000,       // 5 minutes — data stays fresh
+      gcTime: 10 * 60 * 1000,         // 10 minutes — cache kept alive
+      retry: 2,
+      refetchOnWindowFocus: false,    // never refetch on tab switch (preserves form state)
+      refetchOnReconnect: true,
+      networkMode: 'offlineFirst',
+    },
+    mutations: {
       retry: 1,
-      refetchOnWindowFocus: false, // don't refetch every time user tabs back
+      networkMode: 'offlineFirst',
     },
   },
 })

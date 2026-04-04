@@ -12,6 +12,7 @@ import { useImportTeachers, TEACHER_TEMPLATE } from '../../hooks/useImport'
 import TeacherSpreadsheet from '../../components/teachers/TeacherSpreadsheet'
 import W9ExportModal from '../../components/teachers/W9ExportModal'
 import { useScrollRestore } from '../../hooks/useScrollRestore'
+import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
@@ -46,11 +47,18 @@ export default function Teachers() {
   const [showSpreadsheet, setShowSpreadsheet] = useState(false)
   const [showCsvImport, setShowCsvImport] = useState(false)
   const teacherImport = useImportTeachers()
-  const [filterNeedsReview, setFilterNeedsReview] = useState(false)
-  const [teacherTab, setTeacherTab] = useState<'active' | 'inactive'>('active')
-  const [locationFilter, setLocationFilter] = useState('')
-  const [instrumentFilter, setInstrumentFilter] = useState('')
-  const [search, setSearch] = useState('')
+  // URL-persisted filters
+  const { getParam, setParam } = useUrlFilters()
+  const filterNeedsReview = getParam('needs_review') === '1'
+  const teacherTab = (getParam('status') || 'active') as 'active' | 'inactive'
+  const locationFilter = getParam('location')
+  const instrumentFilter = getParam('instrument')
+  const search = getParam('q')
+  const setFilterNeedsReview = (v: boolean) => setParam('needs_review', v ? '1' : '')
+  const setTeacherTab = (v: 'active' | 'inactive') => setParam('status', v === 'active' ? '' : v)
+  const setLocationFilter = (v: string) => setParam('location', v)
+  const setInstrumentFilter = (v: string) => setParam('instrument', v)
+  const setSearch = (v: string) => setParam('q', v)
   const [showW9Export, setShowW9Export] = useState(false)
 
   if (isLoading) {

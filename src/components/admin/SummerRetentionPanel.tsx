@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCampaignStats, useCampaignList, useGenerateWave1, type CampaignRow } from '../../hooks/useRetentionCampaigns'
 import { toast } from '../shared/Toast'
 import { ChevronDown, ChevronRight, Send, Eye, Clock } from 'lucide-react'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 const WAVE_CONFIG = [
   { wave: 1, type: 'value_reinforcement', label: 'Value Reinforcement', dateRange: 'Apr 7-30', color: '#22C55E', description: 'Semester progress summaries — remind families how far their kids have come' },
@@ -165,7 +166,7 @@ function WaveDetail({ wave, color }: { wave: number; color: string }) {
             >
               {c.student_name}
             </span>
-            <span style={{ fontSize: 10, color: '#606088' }}>{c.instrument ?? ''}</span>
+            <span style={{ fontSize: 10, color: '#606088' }}>{c.instrument ? instrumentWithEmojiTitle(c.instrument) : ''}</span>
             <span style={{ fontSize: 10, color: '#606088' }}>{c.location_name ?? ''}</span>
             <span style={{ fontSize: 9, color: c.status === 'read' ? '#22C55E' : c.status === 'sent' ? '#3b82f6' : '#606088' }}>
               {c.status}

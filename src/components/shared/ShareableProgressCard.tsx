@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
 import { Download, Share2, X } from 'lucide-react'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 const LOCATION_BRAND_COLORS: Record<string, string> = {
   'd48229c1-b70a-4d29-893e-5079887dab76': '#D41113',  // Omaha
@@ -55,9 +56,7 @@ export default function ShareableProgressCard({
 
   const hypeEmoji = progressIndicator === 'crushing_it' ? '🔥' : '🎶'
 
-  const instrumentDisplay = instrument
-    ? instrument.charAt(0).toUpperCase() + instrument.slice(1)
-    : 'Music'
+  const instrumentDisplay = instrument ? instrumentWithEmojiTitle(instrument) : '🎵 Music'
 
   const tags = workedOn.slice(0, 4)
 

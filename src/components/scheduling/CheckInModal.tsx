@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '../shared/Toast'
 import { Check, Phone, UserX, X, Bell, BellOff, RefreshCw, ExternalLink, Video } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -427,7 +428,7 @@ export default function CheckInModal({ block, onClose }: Props) {
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4' }}>{block.student_name}</div>
             <div style={{ fontSize: 12, color: '#A0A0C8', marginTop: 4 }}>
-              {block.instrument} · {block.teacher_name} · {formatTime(block.start_time)} · {dateStr}
+              {instrumentWithEmojiTitle(block.instrument)} · {block.teacher_name} · {formatTime(block.start_time)} · {dateStr}
             </div>
             {block.original_teacher_name && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>

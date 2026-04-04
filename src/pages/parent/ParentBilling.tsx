@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { CreditCard } from 'lucide-react'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 const fmtUSD = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
@@ -123,7 +124,7 @@ export default function ParentBilling() {
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#E0E0F4' }}>{s.firstName}</div>
                   <div style={{ fontSize: 10, color: '#8080A8' }}>
                     {fmtUSD(s.rate)} × {s.sessions} session{s.sessions === 1 ? '' : 's'}/mo
-                    {s.instrument ? ` · ${s.instrument}` : ''}
+                    {s.instrument ? ` · ${instrumentWithEmojiTitle(s.instrument)}` : ''}
                   </div>
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#D4226A' }}>{fmtUSD(s.monthly)}</div>

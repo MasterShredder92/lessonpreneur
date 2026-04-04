@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { useAuthContext } from '../../app/AuthContext'
 import { useUserLocations } from '../../hooks/useUserLocations'
 import {
@@ -11,7 +12,7 @@ import {
 } from '../../hooks/useRetentionData'
 import { toast } from '../../components/shared/Toast'
 import { Shield, Star, AlertTriangle, Send, X, UserX, Clock, ExternalLink, Heart, Sparkles, ArrowRight, RefreshCw, Trophy, TrendingUp, Check, Loader2 } from 'lucide-react'
-import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
@@ -109,8 +110,9 @@ function PortalModal({ open, onClose, children, maxWidth = 520 }: { open: boolea
 //  MAIN PAGE
 // ══════════════════════════════
 export default function Retention() {
-  const [params, setParams] = useSearchParams()
-  const activeTab = (params.get('tab') as TabKey) || 'active'
+  const { getParam, setParam } = useUrlFilters()
+  const activeTab = (getParam('tab') || 'active') as TabKey
+  const setActiveTab = (v: TabKey) => setParam('tab', v === 'active' ? '' : v)
   const { data: userLocations } = useUserLocations()
 
   return (
@@ -128,7 +130,7 @@ export default function Retention() {
         {TABS.map(tab => {
           const isActive = activeTab === tab.key
           return (
-            <button key={tab.key} onClick={() => setParams({ tab: tab.key })} style={{ flex: 1, minWidth: 120, padding: '10px 16px', borderRadius: 10, border: 'none', background: isActive ? 'rgba(212,34,106,0.12)' : 'transparent', color: isActive ? '#E0E0F4' : '#8080A8', fontWeight: isActive ? 700 : 500, fontSize: 13, cursor: 'pointer', transition: 'all 150ms', position: 'relative', whiteSpace: 'nowrap' }}>
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ flex: 1, minWidth: 120, padding: '10px 16px', borderRadius: 10, border: 'none', background: isActive ? 'rgba(212,34,106,0.12)' : 'transparent', color: isActive ? '#E0E0F4' : '#8080A8', fontWeight: isActive ? 700 : 500, fontSize: 13, cursor: 'pointer', transition: 'all 150ms', position: 'relative', whiteSpace: 'nowrap' }}>
               {tab.label}
               {isActive && <div style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: 2, borderRadius: 1, background: '#D4226A' }} />}
             </button>
@@ -295,7 +297,7 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
                 />
                 <div style={{ flex: 1, minWidth: 120 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
-                  <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{s.instrument}</span>
+                  <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                 </div>
                 <span className="ret-card-loc-inline"><LocBadge name={s.locationName} /></span>
                 <span style={{ fontSize: 11, color: '#606088', whiteSpace: 'nowrap' }}>
@@ -465,7 +467,7 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <Check size={12} style={{ color: '#22C55E', flexShrink: 0 }} />
                 <span style={{ fontSize: 13, color: '#E0E0F4', fontWeight: 600 }}>{s.name}</span>
-                <span style={{ fontSize: 11, color: '#8080A8' }}>{s.instrument}</span>
+                <span style={{ fontSize: 11, color: '#8080A8' }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                 <div style={{ flex: 1 }} />
                 <LocBadge name={s.locationName} />
               </div>
@@ -628,7 +630,7 @@ function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
             <AlertTriangle size={14} style={{ color: '#EF4444', flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 160, cursor: 'pointer' }} onClick={() => navigate(`/admin/students/${s.id}`)}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
-              <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{s.instrument}</span>
+              <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{instrumentWithEmojiTitle(s.instrument)}</span>
               {s.familyName && <div style={{ fontSize: 10, color: '#606088' }}>{s.familyName}</div>}
             </div>
             <LocBadge name={s.locationName} />
@@ -705,7 +707,7 @@ function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
               <div key={s.id} style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: `1px solid ${isDue ? 'rgba(255,184,0,0.15)' : 'rgba(255,255,255,0.05)'}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 160, cursor: 'pointer' }} onClick={() => navigate(`/admin/students/${s.id}`)}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
-                  <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{s.instrument}</span>
+                  <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                   {s.familyName && <div style={{ fontSize: 10, color: '#606088' }}>{s.familyName}</div>}
                 </div>
                 <LocBadge name={s.locationName} />
@@ -747,7 +749,7 @@ function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{l.name}</span>
                 {l.parentName && l.parentName !== l.name && <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>({l.parentName})</span>}
               </div>
-              <span style={{ fontSize: 11, color: '#8080A8' }}>{l.instrument}</span>
+              <span style={{ fontSize: 11, color: '#8080A8' }}>{instrumentWithEmojiTitle(l.instrument)}</span>
               <LocBadge name={l.locationName} />
               {l.lostCategory && (
                 <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10, lineHeight: '16px', background: 'rgba(255,255,255,0.06)', color: '#A0A0C8', border: '1px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap' as const }}>

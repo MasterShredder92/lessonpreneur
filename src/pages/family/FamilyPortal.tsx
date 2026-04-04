@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { Home, Calendar, CreditCard, Trophy, FolderOpen, Lock, Music, Upload, Sparkles, ChevronDown, ChevronUp, MapPin, Clock } from 'lucide-react'
 import MusicLoader from '../../components/shared/MusicLoader'
-import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import {
   usePortalFamily,
   usePortalSchedule,
@@ -253,7 +253,7 @@ export default function FamilyPortal() {
                 <div>
                   <p style={{ ...primaryText, fontSize: 16, fontWeight: 700 }}>{s.first_name} {s.last_name}</p>
                   <p style={{ ...secondaryText, fontSize: 12 }}>
-                    {s.instrument ?? 'Music'}{s.teacherName ? ` with ${s.teacherName}` : ''}{s.locationName ? ` \u00B7 ${s.locationName}` : ''}
+                    {instrumentWithEmojiTitle(s.instrument)}{s.teacherName ? ` with ${s.teacherName}` : ''}{s.locationName ? ` \u00B7 ${s.locationName}` : ''}
                   </p>
                 </div>
               </div>
@@ -438,7 +438,7 @@ export default function FamilyPortal() {
                 return (
                   <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <div>
-                      <p style={{ ...primaryText, fontSize: 13, fontWeight: 600 }}>{s.first_name} \u2014 {s.instrument ?? 'Music'}</p>
+                      <p style={{ ...primaryText, fontSize: 13, fontWeight: 600 }}>{s.first_name} \u2014 {instrumentWithEmojiTitle(s.instrument)}</p>
                       <p style={{ ...mutedText, fontSize: 11 }}>${rate}/lesson \u00D7 {weekly}/wk \u00D7 4 wks</p>
                     </div>
                     <p style={{ ...primaryText, fontSize: 14, fontWeight: 700 }}>${monthly}</p>

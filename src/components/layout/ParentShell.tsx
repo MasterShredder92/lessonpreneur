@@ -85,7 +85,12 @@ export default function ParentShell() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <RoleSwitcher />
           <span style={{ fontSize: 12, color: '#8080A8' }}>{profile?.first_name}</span>
-          <button onClick={signOut} style={{ background: 'none', border: 'none', color: '#606088', fontSize: 11, cursor: 'pointer' }}>
+          <button
+            type="button"
+            onClick={() => signOut()}
+            onTouchEnd={(e) => { e.preventDefault(); signOut() }}
+            style={{ background: 'none', border: 'none', color: '#606088', fontSize: 11, cursor: 'pointer', minWidth: 44, minHeight: 44, padding: '10px 12px', touchAction: 'manipulation' }}
+          >
             Sign Out
           </button>
         </div>
@@ -207,13 +212,15 @@ export default function ParentShell() {
                   <div style={{ fontSize: 11, color: '#606088', marginTop: 2 }}>Parent</div>
                 </div>
                 <button
-                  onClick={() => { signOut(); setMoreOpen(false) }}
+                  type="button"
+                  onClick={() => { setMoreOpen(false); signOut() }}
+                  onTouchEnd={(e) => { e.preventDefault(); setMoreOpen(false); signOut() }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    minHeight: 44, padding: '0 16px', borderRadius: 10,
+                    minWidth: 44, minHeight: 44, padding: '0 16px', borderRadius: 10,
                     background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
                     color: '#D4226A', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    WebkitTapHighlightColor: 'transparent', flexShrink: 0,
+                    WebkitTapHighlightColor: 'transparent', flexShrink: 0, touchAction: 'manipulation',
                   }}
                 >
                   <LogOut size={15} />

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useLocations } from '../../hooks/useLocations'
+import { useUrlFilters } from '../../hooks/useUrlFilters'
 import {
   useBillingHeroStats,
   useBillingFamilies,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 // ══════════════════════════════════════════
 // HELPERS
@@ -163,10 +165,15 @@ const utilBtn: React.CSSProperties = {
 function BillingInner() {
   const { data: locations } = useLocations()
 
-  const [locationFilter, setLocationFilter] = useState('')
-  const [activeSection, setActiveSection] = useState<SectionKey>('invoices')
-  const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState('name')
+  const { getParam, setParam } = useUrlFilters()
+  const locationFilter = getParam('location')
+  const setLocationFilter = (v: string) => setParam('location', v)
+  const activeSection = (getParam('tab') || 'invoices') as SectionKey
+  const setActiveSection = (v: SectionKey) => setParam('tab', v === 'invoices' ? '' : v)
+  const search = getParam('q')
+  const setSearch = (v: string) => setParam('q', v)
+  const sortBy = getParam('sort') || 'name'
+  const setSortBy = (v: string) => setParam('sort', v === 'name' ? '' : v)
   const [showCreditsLedger, setShowCreditsLedger] = useState(false)
   const [showOneOff, setShowOneOff] = useState(false)
   const [showSquareSync, setShowSquareSync] = useState(false)
@@ -645,7 +652,7 @@ function SectionInvoices({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         {locColor && <span style={{ width: 6, height: 6, borderRadius: 3, background: locColor, flexShrink: 0 }} />}
                         <span style={{ fontSize: 13, color: '#E0E0F4', fontWeight: 500 }}>{s.first_name} {s.last_name}</span>
-                        {s.instrument && <span style={{ fontSize: 11, color: '#606088' }}>{s.instrument}</span>}
+                        {s.instrument && <span style={{ fontSize: 11, color: '#606088' }}>{instrumentWithEmojiTitle(s.instrument)}</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
                         <span style={{ color: '#A0A0C8' }}>{s.sessions_per_month} sessions</span>
@@ -734,7 +741,7 @@ function SectionNextCycle({
               <div style={{ marginBottom: 8 }}>
                 {f.students.map((s: any) => (
                   <div key={s.id} style={{ fontSize: 12, color: '#A0A0C8', padding: '2px 0' }}>
-                    {s.first_name}{s.instrument ? ` (${s.instrument})` : ''} — {s.sessions_per_month} sessions — {dollars(s.monthly_cents)}
+                    {s.first_name}{s.instrument ? ` (${instrumentWithEmojiTitle(s.instrument)})` : ''} — {s.sessions_per_month} sessions — {dollars(s.monthly_cents)}
                   </div>
                 ))}
               </div>
