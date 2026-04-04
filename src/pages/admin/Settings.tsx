@@ -8,6 +8,7 @@ import { useTeachers } from '../../hooks/useTeachers'
 import { useTeacherLocations, useToggleTeacherLocation, useToggleSubAvailable } from '../../hooks/useTeacherLocations'
 import { supabase } from '../../lib/supabase'
 import RoomsManager from '../../components/rooms/RoomsManager'
+import StudioClosuresManager from '../../components/admin/StudioClosuresManager'
 import DataGrid from '../../components/shared/DataGrid'
 import { Upload, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
@@ -554,8 +555,11 @@ function LocationsTab({ isOwner, tenantId }: { isOwner: boolean; tenantId: strin
 
   return (
     <div style={{ marginTop: '16px' }}>
+      {/* Company-Wide Closures — apply to all locations */}
+      <StudioClosuresManager locationId={null} />
+
       {isOwner && (
-        <div style={{ marginBottom: '16px' }}>
+        <div style={{ margin: '16px 0' }}>
           <button className="btn-primary" onClick={openCreate}>+ Add Location</button>
         </div>
       )}
@@ -694,6 +698,9 @@ function LocationCard({ loc, isOwner, tenantId, onEdit, onToggle, hoursExpanded,
 
       {/* Operating Hours */}
       <OperatingHoursEditor locationId={loc.id} isOwner={isOwner} expanded={hoursExpanded} onToggle={onHoursToggle} />
+
+      {/* Location-Specific Closures */}
+      <StudioClosuresManager locationId={loc.id} locationName={loc.name?.replace(' Music Lessons', '')} />
       </div>
     </div>
   )
