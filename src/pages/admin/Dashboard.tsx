@@ -11,6 +11,7 @@ import { Star, Video } from 'lucide-react'
 import TaskCenter from '../../components/tasks/TaskCenter'
 import WhatsImportantNow from '../../components/admin/WhatsImportantNow'
 import HappeningTodayFeed from '../../components/admin/HappeningTodayFeed'
+import DirectorCloseoutSection from '../../components/admin/DirectorCloseoutSection'
 import { getLocationColor } from '../../utils/locationColor'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
@@ -368,6 +369,9 @@ export default function Dashboard() {
 
       {/* 5. Tasks — 2 tasks max on dashboard */}
       <TaskCenter compact limit={2} />
+
+      {/* Director End of Day — only studio_director sees this */}
+      <DirectorCloseoutSection />
       </IssueContextProvider>
 
       {/* Star Onboarding Insight Modal */}
