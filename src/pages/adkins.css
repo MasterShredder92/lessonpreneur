@@ -40,12 +40,12 @@
 @keyframes ak-blink{0%,100%{opacity:1}50%{opacity:0.35}}
 
 /* Headline — biggest element */
-.ak-htitle{font-family:'Bebas Neue',sans-serif;line-height:0.92;color:#fff;margin:0 0 20px;letter-spacing:1px;text-align:center}
-.ak-htitle-line1{font-size:clamp(48px,8vw,80px);display:block}
-.ak-htitle-line2{font-size:clamp(48px,8vw,80px);display:block;color:var(--c)}
-/* Instrument page hero variants (BORN/DRUMMERS/GUITARISTS etc) */
-.ak-htitle-born{font-size:clamp(80px,16vw,180px);display:block;line-height:0.85;letter-spacing:-2px;color:var(--c)}
-.ak-htitle-line3{font-size:clamp(44px,7vw,72px);display:block}
+.ak-htitle{font-family:'Bebas Neue',sans-serif;line-height:0.88;color:#fff;margin:0 0 20px;letter-spacing:1px;text-align:center}
+.ak-htitle-line1{font-size:clamp(60px,10vw,104px);display:block}
+.ak-htitle-line2{font-size:clamp(60px,10vw,104px);display:block;color:var(--c)}
+/* Instrument page hero variants (PLAYERS/DRUMMERS/SINGERS etc) */
+.ak-htitle-born{font-size:clamp(72px,13vw,148px);display:block;line-height:0.86;letter-spacing:-1px;color:var(--c)}
+.ak-htitle-line3{font-size:clamp(60px,10vw,104px);display:block}
 
 /* Stat cards — glassmorphism row */
 .ak-stat-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px;width:100%;max-width:520px}
@@ -78,6 +78,10 @@
 .ak-hreview{max-width:480px;margin-bottom:20px;padding:14px 20px;border-radius:14px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-left:3px solid var(--c)}
 .ak-hreview-text{font-size:14px;line-height:1.6;color:#C0C0E0;font-style:italic;margin:0 0 6px}
 .ak-hreview-name{font-size:12px;font-weight:700;color:var(--c)}
+/* Hero variant — compact card rendered directly under the CTA */
+.ak-hreview--hero{max-width:520px;width:100%;margin:22px auto 0;padding:13px 18px;text-align:left}
+.ak-hreview--hero .ak-hreview-text{font-size:13px;line-height:1.55;margin:0 0 4px}
+.ak-hreview--hero .ak-hreview-name{font-size:11px}
 
 /* Hero CTA */
 .ak-hero-cta{font-size:16px;padding:16px 36px}
@@ -286,9 +290,9 @@
   /* Hero mobile — tighter spacing to fit viewport */
   .ak-hero{padding:64px 14px 20px;min-height:100svh}
   .ak-htitle{margin-bottom:14px}
-  .ak-htitle-line1,.ak-htitle-line2{font-size:clamp(40px,11vw,64px)}
-  .ak-htitle-born{font-size:clamp(64px,18vw,120px)}
-  .ak-htitle-line3{font-size:clamp(36px,9vw,56px)}
+  .ak-htitle-line1,.ak-htitle-line2{font-size:clamp(52px,14vw,80px)}
+  .ak-htitle-born{font-size:clamp(56px,15vw,96px)}
+  .ak-htitle-line3{font-size:clamp(52px,14vw,80px)}
   .ak-lring{width:120px;height:120px}
   .ak-lring img{width:104px;height:104px}
   .ak-stat-row{gap:6px;max-width:100%}

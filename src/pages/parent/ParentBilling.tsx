@@ -25,11 +25,12 @@ export default function ParentBilling() {
     queryKey: ['parent-family-billing', familyId],
     enabled: !!familyId,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('families')
-        .select('rate_tier, payment_method')
+        .select('rate_tier, card_brand, card_last_four')
         .eq('id', familyId!)
         .single()
+      if (error) throw error
       return data
     },
   })
@@ -39,6 +40,10 @@ export default function ParentBilling() {
   const totalDue = (invoices ?? [])
     .filter((i: any) => i.status !== 'paid')
     .reduce((sum: number, i: any) => sum + ((i.requested_amount ?? 0) - (i.amount_paid ?? 0)), 0)
+
+  const paymentMethodDisplay = family?.card_brand && family?.card_last_four
+    ? `${family.card_brand} ending in ${family.card_last_four}`
+    : null
 
   return (
     <div style={{ maxWidth: 540, margin: '0 auto', padding: 16 }}>
@@ -62,9 +67,9 @@ export default function ParentBilling() {
         )}
       </div>
 
-      {family?.payment_method && (
+      {paymentMethodDisplay && (
         <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 16 }}>
-          Payment method: <span style={{ color: '#E0E0F4', fontWeight: 600 }}>{family.payment_method}</span>
+          Payment method: <span style={{ color: '#E0E0F4', fontWeight: 600 }}>{paymentMethodDisplay}</span>
         </div>
       )}
 

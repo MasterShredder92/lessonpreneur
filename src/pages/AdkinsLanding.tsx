@@ -283,7 +283,7 @@ export default function AdkinsLanding() {
         </div>
         <div className="ak-pcta-box">
           <h3>Stop Wondering. Start Playing.</h3>
-          <p>We will match your family with the perfect teacher and have your first lesson on the calendar within 24 hours.</p>
+          <p>We will match you with the perfect teacher and have your first lesson on the calendar within 24 hours.</p>
           <button className="ak-btnp" onClick={goEnroll}>Check Availability Now {'\u{2192}'}</button>
         </div>
       </section>
@@ -297,9 +297,9 @@ export default function AdkinsLanding() {
         <div className="ak-roadmap">
           <div className="ak-roadline" />
           {[
-            { n: 1, title: 'Tell us about your family', desc: '30 seconds. Instrument, age, and availability. That is it for now.' },
+            { n: 1, title: 'Tell us about you', desc: '30 seconds. Instrument, age, and availability. That is it for now.' },
             { n: 2, title: 'We find your match', desc: 'Our system picks the teacher most likely to connect with you or your child — not just whoever is available.' },
-            { n: 3, title: 'Book your first lesson within 24 hours', desc: 'Most families have their first lesson locked in same day.' },
+            { n: 3, title: 'Book your first lesson within 24 hours', desc: 'Most students have their first lesson locked in same day.' },
           ].map(s => (
             <div className="ak-rstep" key={s.n}>
               <div className="ak-rdot">{s.n}</div>
@@ -390,7 +390,7 @@ export default function AdkinsLanding() {
       <section className="ak-norisk-sec">
         <div className="ak-nrinner">
           <div className="ak-nri">{'\u{1F6E1}\u{FE0F}'}</div>
-          <h2>We Do Not Believe in<br />Trapping Families.</h2>
+          <h2>We Do Not Believe in<br />Trapping Students.</h2>
           <p>Month to month. Always. If it is not working after the first month, we will make it right — no awkward conversations, no fees, no drama. That is a promise.</p>
           <div className="ak-rpoints">
             {['No long-term contracts', 'Cancel anytime', 'No enrollment fees', 'Month to month billing'].map(r => (
