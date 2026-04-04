@@ -5,6 +5,7 @@ import { useSiteLocation } from '../hooks/useSiteLocation'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
 import SiteHeader from '../components/site/SiteHeader'
+import VSLSection from '../components/site/VSLSection'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { useLocationStats } from '../hooks/useLocationStats'
 import { trackInstrumentView } from '../lib/tracking'
@@ -289,6 +290,13 @@ export default function DrumsLanding() {
           ))}
         </div>
       </section>
+
+      {/* ─── VSL ─── */}
+      <VSLSection
+        videoId="hbZxU3gJmCE"
+        headline="The Real Reason Drummers Don't Progress"
+        subheadline="We've seen every roadblock. Here's how we get students moving fast."
+      />
 
       {/* ─── DRUM KIT ─── */}
       <section className="ak-sec" id="dr-kit" style={{ background: '#0A0A10', borderTop: '1px solid #1C1C2A', borderBottom: '1px solid #1C1C2A' }}>

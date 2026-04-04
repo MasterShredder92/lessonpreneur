@@ -5,6 +5,7 @@ import { useSiteLocation } from '../hooks/useSiteLocation'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
 import SiteHeader from '../components/site/SiteHeader'
+import VSLSection from '../components/site/VSLSection'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { useLocationStats } from '../hooks/useLocationStats'
 import { trackInstrumentView } from '../lib/tracking'
@@ -356,6 +357,13 @@ export default function VocalsLanding() {
           ))}
         </div>
       </section>
+
+      {/* ─── VSL ─── */}
+      <VSLSection
+        videoId="ohaozmCLJYk"
+        headline="What Nobody Tells You About Vocal Lessons"
+        subheadline="The real reasons singers plateau — and how our teachers break through them."
+      />
 
       {/* ─── VOCAL RECORDER ─── */}
       <section className="ak-sec" id="vc-recorder" style={{ background: '#0A0A10', borderTop: '1px solid #1C1C2A', borderBottom: '1px solid #1C1C2A' }}>

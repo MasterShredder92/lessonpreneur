@@ -5,6 +5,7 @@ import { useSiteLocation } from '../hooks/useSiteLocation'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
 import SiteHeader from '../components/site/SiteHeader'
+import VSLSection from '../components/site/VSLSection'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { useLocationStats } from '../hooks/useLocationStats'
 import { trackInstrumentView } from '../lib/tracking'
@@ -383,6 +384,13 @@ export default function GuitarLanding() {
           ))}
         </div>
       </section>
+
+      {/* ─── VSL ─── */}
+      <VSLSection
+        videoId="oRkXviX8Pas"
+        headline="Why Most Guitar Students Quit"
+        subheadline="We've been teaching guitar for over a decade. Here's what actually works."
+      />
 
       {/* ─── CHORD BUILDER ─── */}
       <section className="ak-sec" id="gt-chord" style={{ background: '#0A0A10', borderTop: '1px solid #1C1C2A', borderBottom: '1px solid #1C1C2A' }}>

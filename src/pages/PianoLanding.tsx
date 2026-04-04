@@ -5,6 +5,7 @@ import { useSiteLocation } from '../hooks/useSiteLocation'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
 import SiteHeader from '../components/site/SiteHeader'
+import VSLSection from '../components/site/VSLSection'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { useLocationStats } from '../hooks/useLocationStats'
 import { trackInstrumentView } from '../lib/tracking'
@@ -304,6 +305,13 @@ export default function PianoLanding() {
           ))}
         </div>
       </section>
+
+      {/* ─── VSL ─── */}
+      <VSLSection
+        videoId="-WLbkzZzvA0"
+        headline="The Truth About Piano Lessons"
+        subheadline="Here's why most students struggle — and exactly how we fix it."
+      />
 
       {/* ─── PIANO KEYBOARD ─── */}
       <section className="ak-sec" id="pn-keyboard" style={{ background: '#0A0A10', borderTop: '1px solid #1C1C2A', borderBottom: '1px solid #1C1C2A' }}>
