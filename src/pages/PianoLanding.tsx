@@ -196,6 +196,10 @@ export default function PianoLanding() {
     ALL_KEYS.forEach(k => loadBuffer(`/audio/piano/${k.id}.wav?v=${CACHE_V}`))
   }, [])
 
+  // Pre-initialize AudioContext + fetch/decode all note buffers on mount
+  // so the first tap plays instantly with no fetch/decode lag.
+  useEffect(() => { ensurePreloaded() }, [ensurePreloaded])
+
   // Play a piano key (audio only — visual highlight handled by caller)
   const keyPlaying = useRef<Record<string, number>>({})
   const playNote = useCallback((noteId: string) => {
