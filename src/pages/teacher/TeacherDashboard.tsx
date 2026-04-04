@@ -14,6 +14,7 @@ import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
 import StudentProfileCard from '../../components/teacher/StudentProfileCard'
 import SessionNoteModal from '../../components/teacher/SessionNoteModal'
+import CloseoutSection from '../../components/teacher/CloseoutSection'
 import { ChevronRight, FileText } from 'lucide-react'
 
 function formatTime(t: string) {
@@ -86,6 +87,9 @@ export default function TeacherDashboard() {
 
   return (
     <div className="page" style={{ maxWidth: 640, margin: '0 auto' }}>
+      {/* ═══ CLOSEOUT + 24H RECAP REMINDERS ═══ */}
+      <CloseoutSection onOpenNoteModal={setNoteModal} />
+
       {/* ═══ MODULE 1: TODAY'S SCHEDULE ═══ */}
       <div style={{
         marginBottom: 20, borderRadius: 14,
