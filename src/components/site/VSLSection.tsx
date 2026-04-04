@@ -21,8 +21,8 @@ export default function VSLSection({ videoId, headline, subheadline }: VSLSectio
     >
       <style>{`
         @keyframes vslPulse {
-          0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.5); }
-          50% { transform: translate(-50%, -50%) scale(1.08); box-shadow: 0 0 0 20px rgba(255,255,255,0); }
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.5); }
+          50% { transform: scale(1.08); box-shadow: 0 0 0 14px rgba(255,255,255,0); }
         }
       `}</style>
       <div style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
@@ -98,10 +98,9 @@ export default function VSLSection({ videoId, headline, subheadline }: VSLSectio
               <div
                 style={{
                   position: 'absolute',
-                  top: '38%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  fontSize: 'clamp(16px, 2.4vw, 22px)',
+                  bottom: 'calc(30% + 72px)',
+                  left: '33%',
+                  fontSize: 'clamp(14px, 2vw, 18px)',
                   fontWeight: 800,
                   color: '#FFFFFF',
                   textShadow: '0 2px 12px rgba(0,0,0,0.8)',
@@ -114,11 +113,10 @@ export default function VSLSection({ videoId, headline, subheadline }: VSLSectio
               <div
                 style={{
                   position: 'absolute',
-                  top: '58%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: 84,
-                  height: 84,
+                  bottom: '30%',
+                  left: '33%',
+                  width: 64,
+                  height: 64,
                   borderRadius: '50%',
                   background: '#FFFFFF',
                   display: 'flex',
@@ -131,10 +129,10 @@ export default function VSLSection({ videoId, headline, subheadline }: VSLSectio
                   style={{
                     width: 0,
                     height: 0,
-                    borderTop: '16px solid transparent',
-                    borderBottom: '16px solid transparent',
-                    borderLeft: '26px solid #E50914',
-                    marginLeft: 6,
+                    borderTop: '12px solid transparent',
+                    borderBottom: '12px solid transparent',
+                    borderLeft: '20px solid #E50914',
+                    marginLeft: 5,
                   }}
                 />
               </div>
