@@ -367,6 +367,7 @@ export function useUpdateTeacher() {
 function invalidateAvailabilityKeys(qc: ReturnType<typeof useQueryClient>, teacherId: string) {
   qc.invalidateQueries({ queryKey: ['teacher-availability', teacherId] })
   qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+  qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
   qc.invalidateQueries({ queryKey: ['teacher-avail-schedule'] })
   qc.invalidateQueries({ queryKey: ['teachers'] })
   qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] })

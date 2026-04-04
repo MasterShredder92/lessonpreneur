@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { getTierPrice } from '../../lib/pricing'
 import { Star, Users, MapPin, DollarSign } from 'lucide-react'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 interface TenantRow {
   id: string
@@ -68,12 +70,14 @@ export default function Platform() {
   const trialCount = (tenants ?? []).filter(t => t.plan === 'trial').length
 
   return (
+    <IssueContextProvider page="Settings" section="Platform Admin">
     <div className="page">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Star size={18} style={{ color: '#f59e0b' }} />
           <h1>Platform Admin</h1>
         </div>
+        <ReportIssueButton />
       </div>
 
       {/* Metrics */}
@@ -121,6 +125,7 @@ export default function Platform() {
         </div>
       )}
     </div>
+    </IssueContextProvider>
   )
 }
 

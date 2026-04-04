@@ -5,6 +5,8 @@ import { useLocations } from '../../hooks/useLocations'
 import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { Plus, Trash2, ChevronRight } from 'lucide-react'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 export default function Recruitment() {
   const { role } = useAuthContext()
@@ -59,6 +61,7 @@ export default function Recruitment() {
   const activeStages = PIPELINE_STAGES.filter(s => !['rejected', 'withdrawn'].includes(s.value))
 
   return (
+    <IssueContextProvider page="Backstage — Recruitment">
     <div className="page">
       <div className="page-header">
         <h1>Teacher Recruitment</h1>
@@ -69,6 +72,7 @@ export default function Recruitment() {
         }}>
           <Plus size={14} /> Add Prospect
         </button>
+        <ReportIssueButton />
       </div>
 
       {/* Pipeline overview */}
@@ -186,5 +190,6 @@ export default function Recruitment() {
         </div>
       )}
     </div>
+    </IssueContextProvider>
   )
 }

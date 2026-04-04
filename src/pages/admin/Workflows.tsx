@@ -4,6 +4,8 @@ import { useWorkflows, useToggleWorkflow, useSeedWorkflows, type Workflow } from
 import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { Zap, Clock, Bell, FileText, CheckSquare } from 'lucide-react'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 const TRIGGER_ICONS: Record<string, any> = { schedule: Clock, event: Zap, threshold: Bell }
 const ACTION_ICONS: Record<string, any> = { send_communication: Bell, create_task: CheckSquare, send_notification: Bell, generate_report: FileText, update_record: Zap }
@@ -34,6 +36,7 @@ export default function Workflows() {
   const activeCount = (workflows ?? []).filter(w => w.enabled).length
 
   return (
+    <IssueContextProvider page="AI Workflows">
     <div className="page">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -41,6 +44,7 @@ export default function Workflows() {
           <h1>AI Workflows</h1>
         </div>
         <span style={{ fontSize: 12, color: '#8080A8', marginLeft: 12 }}>{activeCount} active</span>
+        <ReportIssueButton />
       </div>
 
       <div style={{ fontSize: 13, color: '#8080A8', marginBottom: 24, maxWidth: 600 }}>
@@ -103,5 +107,6 @@ export default function Workflows() {
         </div>
       )}
     </div>
+    </IssueContextProvider>
   )
 }

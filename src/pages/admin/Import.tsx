@@ -6,6 +6,8 @@ import { parseCsv } from '../../hooks/useImport'
 import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { Upload, Check, AlertTriangle } from 'lucide-react'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 type Step = 'upload' | 'map' | 'preview' | 'importing' | 'done'
 
@@ -187,8 +189,9 @@ export default function Import() {
   }
 
   return (
+    <IssueContextProvider page="Settings" section="Import">
     <div className="page" style={{ maxWidth: 700, margin: '0 auto' }}>
-      <div className="page-header"><h1>Import Students</h1></div>
+      <div className="page-header"><h1>Import Students</h1><ReportIssueButton /></div>
 
       {/* Upload */}
       {step === 'upload' && (
@@ -287,5 +290,6 @@ export default function Import() {
         </div>
       )}
     </div>
+    </IssueContextProvider>
   )
 }

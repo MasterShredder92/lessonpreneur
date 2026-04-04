@@ -14,7 +14,7 @@ const INSTRUMENTS = [
   { id: 'piano', emoji: '🎹', label: 'Piano' },
   { id: 'guitar', emoji: '🎸', label: 'Guitar' },
   { id: 'vocals', emoji: '🎤', label: 'Vocals' },
-  { id: 'drums', emoji: '🥁', label: 'Drums' },
+  { id: 'drums', emoji: '🪘', label: 'Drums' },
   { id: 'violin', emoji: '🎻', label: 'Violin' },
   { id: 'other', emoji: '🎵', label: 'Other' },
 ]

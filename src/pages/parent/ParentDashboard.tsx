@@ -7,6 +7,7 @@ import MusicLoader from '../../components/shared/MusicLoader'
 import ShareableProgressCard from '../../components/shared/ShareableProgressCard'
 import { useAvailableRescheduleSlots, useRescheduleSession } from '../../hooks/useDirectorWorkflow'
 import { toast } from '../../components/shared/Toast'
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { Music, Star, Share2, RefreshCw } from 'lucide-react'
 
 function formatTime(t: string) {
@@ -205,7 +206,7 @@ export default function ParentDashboard() {
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>{s.first_name}</span>
               </div>
               <div style={{ fontSize: 11, color: '#A0A0C8' }}>
-                {s.instrument && <div>{s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1)}</div>}
+                {s.instrument && <div title={s.instrument}>{getInstrumentEmoji(s.instrument)} {s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1)}</div>}
                 {s.teacher_name && <div style={{ marginTop: 2 }}>with {s.teacher_name}</div>}
               </div>
             </div>
@@ -303,8 +304,8 @@ function ProgressUpdateCard({ update, onShare }: { update: ParentUpdate; onShare
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{update.student_name}</span>
           {update.instrument && (
-            <span style={{ fontSize: 10, color: '#A0A0C8', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: 4 }}>
-              {update.instrument.charAt(0).toUpperCase() + update.instrument.slice(1)}
+            <span title={update.instrument} style={{ fontSize: 10, color: '#A0A0C8', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: 4 }}>
+              {getInstrumentEmoji(update.instrument)}
             </span>
           )}
         </div>
@@ -324,7 +325,7 @@ function ProgressUpdateCard({ update, onShare }: { update: ParentUpdate; onShare
         {engagementEmoji && (
           <span style={{ fontSize: 14 }}>{engagementEmoji}</span>
         )}
-        {update.worked_on.length > 0 && (
+        {(update.worked_on?.length ?? 0) > 0 && (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {update.worked_on.slice(0, 3).map(tag => (
               <span key={tag} style={{ fontSize: 9, color: '#8080A8', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: 4 }}>

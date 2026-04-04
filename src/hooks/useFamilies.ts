@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { batchIn } from '../lib/batchQuery'
 import { useAuthContext } from '../app/AuthContext'
@@ -68,6 +68,10 @@ export interface Family {
   // Computed
   activeStudentCount: number
   hasOverdueInvoice: boolean
+  paymentStatus: 'current' | 'overdue' | 'scheduled' | 'paused' | 'no_invoice' | 'cancelled'
+  overdueAmountDisplay: string | null
+  monthlyTotalCents: number
+  latestInvoice: { status: string; amountCents: number; date: string } | null
   instrumentList: string[]
   students: FamilyStudent[]
   teacherNames: string[]
@@ -84,6 +88,7 @@ export interface Family {
 export function useFamiliesPage() {
   return useQuery({
     queryKey: ['families_page'],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data: families, error } = await supabase
         .from('families')
@@ -117,7 +122,7 @@ export function useFamiliesPage() {
       const locMap = new Map<string, { name: string; color: string }>()
       locations?.forEach((l: any) => locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? '#D4226A' }))
 
-      // Check for overdue invoices per family
+      // Check for overdue invoices per family (invoice_tokens + square_invoices)
       const today = new Date().toISOString().slice(0, 10)
       const { data: overdueTokens } = await supabase
         .from('invoice_tokens')
@@ -125,6 +130,40 @@ export function useFamiliesPage() {
         .not('status', 'in', '("paid","cancelled","expired")')
         .lt('due_date', today)
       const overdueSet = new Set((overdueTokens ?? []).map((t: any) => t.family_id))
+
+      // Monthly totals from student_effective_rate view
+      const { data: effectiveRates } = await supabase
+        .from('student_effective_rate')
+        .select('family_id, monthly_cents')
+      const monthlyByFamily = new Map<string, number>()
+      for (const r of (effectiveRates ?? [])) {
+        monthlyByFamily.set(r.family_id, (monthlyByFamily.get(r.family_id) ?? 0) + (r.monthly_cents ?? 0))
+      }
+
+      // Square invoice status per family — latest invoice + status flags
+      const { data: squareInvoices } = await supabase
+        .from('square_invoices')
+        .select('family_id, status, requested_amount, amount_paid, due_date, invoice_date')
+        .not('family_id', 'is', null)
+        .not('status', 'in', '("CANCELED","DRAFT")')
+        .order('invoice_date', { ascending: false })
+      const squareByFamily = new Map<string, { hasScheduled: boolean; hasOverdue: boolean; hasPaid: boolean; overdueCents: number; latest: { status: string; amountCents: number; date: string } | null }>()
+      for (const inv of (squareInvoices ?? [])) {
+        const entry = squareByFamily.get(inv.family_id) ?? { hasScheduled: false, hasOverdue: false, hasPaid: false, overdueCents: 0, latest: null }
+        const s = (inv.status ?? '').toUpperCase()
+        if (s === 'SCHEDULED' || s === 'RECURRING') entry.hasScheduled = true
+        if (s === 'PAID' || s === 'PARTIALLY_REFUNDED') entry.hasPaid = true
+        if (s === 'UNPAID' && inv.due_date && inv.due_date < today) {
+          entry.hasOverdue = true
+          entry.overdueCents += (inv.requested_amount ?? 0) - (inv.amount_paid ?? 0)
+        }
+        // Keep the most recent invoice (already sorted desc)
+        if (!entry.latest) {
+          const amt = s === 'PARTIALLY_REFUNDED' ? (inv.amount_paid ?? 0) : (inv.requested_amount ?? 0)
+          entry.latest = { status: s, amountCents: amt, date: inv.due_date ?? inv.invoice_date ?? '' }
+        }
+        squareByFamily.set(inv.family_id, entry)
+      }
 
       // Group students by family
       const familyStudents = new Map<string, FamilyStudent[]>()
@@ -158,7 +197,26 @@ export function useFamiliesPage() {
           teacherNames: tNames,
           locationName: loc?.name ?? null,
           locationColor: loc?.color ?? null,
-          hasOverdueInvoice: overdueSet.has(f.id),
+          hasOverdueInvoice: overdueSet.has(f.id) || (f.overdue_balance_cents ?? 0) > 0 || (squareByFamily.get(f.id)?.hasOverdue ?? false),
+          paymentStatus: (() => {
+            const bs = f.billing_status ?? 'active'
+            if (bs === 'cancelled') return 'cancelled' as const
+            if (bs === 'paused') return 'paused' as const
+            const sq = squareByFamily.get(f.id)
+            const isOverdue = overdueSet.has(f.id) || (f.overdue_balance_cents ?? 0) > 0 || (sq?.hasOverdue ?? false)
+            if (isOverdue) return 'overdue' as const
+            if (sq?.hasScheduled) return 'scheduled' as const
+            if (sq?.hasPaid) return 'current' as const
+            if (activeStuds.length > 0 && !sq) return 'no_invoice' as const
+            return 'current' as const
+          })(),
+          overdueAmountDisplay: (() => {
+            const sq = squareByFamily.get(f.id)
+            const cents = (f.overdue_balance_cents ?? 0) || (sq?.overdueCents ?? 0)
+            return cents > 0 ? `$${(cents / 100).toFixed(0)}` : null
+          })(),
+          monthlyTotalCents: monthlyByFamily.get(f.id) ?? 0,
+          latestInvoice: squareByFamily.get(f.id)?.latest ?? null,
         } as Family
       })
     },

@@ -77,15 +77,15 @@ export function useGenerateValueCard() {
       const periodEnd = now.toISOString().split('T')[0]
       const periodStart = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).toISOString().split('T')[0]
 
-      // Get student info
+      // Get student info (including teacher_id for direct lookup)
       const { data: student } = await supabase
         .from('students')
-        .select('id, first_name, last_name, instrument, location_id, family_id, created_at')
+        .select('id, first_name, last_name, instrument, location_id, family_id, teacher_id, created_at')
         .eq('id', studentId)
         .single()
       if (!student) throw new Error('Student not found')
 
-      // Get attendance data (last 60 days)
+      // FIX 1: Get attendance data — filter by block_type='student_session' only
       const sixtyDaysAgo = new Date(now)
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
       const { data: blocks } = await supabase
@@ -93,53 +93,107 @@ export function useGenerateValueCard() {
         .select('id, checked_in, block_type')
         .eq('student_id', studentId)
         .eq('status', 'booked')
+        .eq('block_type', 'student_session')
         .gte('block_date', sixtyDaysAgo.toISOString().split('T')[0])
         .lte('block_date', periodEnd)
 
       const totalSessions = blocks?.length ?? 0
       const attended = blocks?.filter((b: any) => b.checked_in)?.length ?? 0
-      const attendanceRate = totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : 95
+      // FIX 2: No fake 95% default — use real rate or null
+      const attendanceRate = totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : null
 
-      // Get session logs for teacher highlights
+      // Get session logs for teacher highlights (from session_log table)
       const { data: logs } = await supabase
         .from('session_log')
-        .select('teacher_note, worked_on, progress_indicator, teacher_id')
+        .select('teacher_note, worked_on, progress_indicator, instrument')
         .eq('student_id', studentId)
         .order('created_at', { ascending: false })
         .limit(10)
 
-      const workedOn = [...new Set((logs ?? []).flatMap((l: any) => l.worked_on ?? []))]
-      const teacherNotes = (logs ?? []).filter((l: any) => l.teacher_note).map((l: any) => l.teacher_note)
+      // Also pull from teacher_session_notes (newer system)
+      const { data: tsNotes } = await supabase
+        .from('teacher_session_notes')
+        .select('raw_note, ai_enhanced_note, topics_covered, skills_progressing, mood')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false })
+        .limit(10)
 
-      // Get teacher name
+      const workedOn = [...new Set([
+        ...(logs ?? []).flatMap((l: any) => l.worked_on ?? []),
+        ...(tsNotes ?? []).flatMap((n: any) => n.topics_covered ?? []),
+      ])]
+      const skillsProgressing = [...new Set((tsNotes ?? []).flatMap((n: any) => n.skills_progressing ?? []))]
+      const teacherNotes = [
+        ...(logs ?? []).filter((l: any) => l.teacher_note).map((l: any) => l.teacher_note),
+        ...(tsNotes ?? []).filter((n: any) => n.ai_enhanced_note || n.raw_note).map((n: any) => n.ai_enhanced_note || n.raw_note),
+      ]
+
+      // FIX 3: Get teacher name from students.teacher_id → teachers table (has first_name directly)
       let teacherName = 'your teacher'
-      if (logs && logs.length > 0) {
+      if (student.teacher_id) {
         const { data: teacher } = await supabase
           .from('teachers')
-          .select('first_name')
-          .eq('id', logs[0].teacher_id)
+          .select('first_name, last_name')
+          .eq('profile_id', student.teacher_id)
           .single()
         if (teacher) teacherName = teacher.first_name
       }
 
+      // Get instrument — prefer students.instrument, fallback to session_log instrument
+      const instrument = student.instrument
+        || (logs ?? []).find((l: any) => l.instrument)?.instrument
+        || null
+
       // Calculate months enrolled
       const monthsEnrolled = Math.max(1, Math.round((now.getTime() - new Date(student.created_at).getTime()) / (30 * 24 * 60 * 60 * 1000)))
 
-      // Calculate percentile rank (generous: 75-99)
-      const { count: totalActive } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('status', 'active')
-      // Generous ranking: if attendance >= 80%, score 85-99
-      const percentileRank = Math.min(99, Math.max(75, Math.round(75 + (attendanceRate / 100) * 24)))
+      // FIX 4: Real percentile rank — compare this student's attendance to all active students
+      let percentileRank: number | null = null
+      if (attendanceRate !== null) {
+        // Get attendance rates for all active students in the same period
+        const { data: allBlocks } = await supabase
+          .from('schedule_blocks')
+          .select('student_id, checked_in')
+          .eq('status', 'booked')
+          .eq('block_type', 'student_session')
+          .gte('block_date', sixtyDaysAgo.toISOString().split('T')[0])
+          .lte('block_date', periodEnd)
 
-      // Lifetime sessions
+        if (allBlocks && allBlocks.length > 0) {
+          const studentRates = new Map<string, { total: number; attended: number }>()
+          allBlocks.forEach((b: any) => {
+            const cur = studentRates.get(b.student_id) ?? { total: 0, attended: 0 }
+            cur.total++
+            if (b.checked_in) cur.attended++
+            studentRates.set(b.student_id, cur)
+          })
+          const rates = [...studentRates.values()]
+            .filter(r => r.total >= 2) // need at least 2 sessions to rank
+            .map(r => Math.round((r.attended / r.total) * 100))
+          if (rates.length > 1) {
+            const belowCount = rates.filter(r => r < attendanceRate).length
+            percentileRank = Math.round((belowCount / rates.length) * 100)
+          }
+        }
+      }
+
+      // Lifetime attended sessions
       const { count: lifetimeSessions } = await supabase
         .from('schedule_blocks')
         .select('*', { count: 'exact', head: true })
         .eq('student_id', studentId)
         .eq('status', 'booked')
+        .eq('block_type', 'student_session')
         .eq('checked_in', true)
 
-      // Generate AI summary
+      // FIX 5: Redesigned AI prompt — short, emoji-led, 3-5 lines
       const token = (await supabase.auth.getSession()).data.session?.access_token
+      const attendanceStr = attendanceRate !== null ? `${attendanceRate}%` : 'just getting started'
+      const periodStr = totalSessions > 0 ? `${attended}/${totalSessions} sessions attended` : 'new this period'
+      const rankStr = percentileRank !== null ? `Top ${100 - percentileRank}% of students` : ''
+      const skillsStr = [...workedOn, ...skillsProgressing].slice(0, 5).join(', ') || 'building foundations'
+      const highlightsStr = teacherNotes.slice(0, 2).join(' | ') || ''
+
       const aiResponse = await fetch(`https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-assistant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -147,20 +201,28 @@ export function useGenerateValueCard() {
           question: `Generate a value card progress summary for this student.`,
           tenant_id: TENANT_ID,
           conversation_history: [],
-          system_override: `You are generating a parent-facing progress snapshot for a music student. Be warm, celebratory, and encouraging. NEVER mention payment, billing, or anything negative. Use the student's real data.
+          system_override: `You write SHORT parent-facing progress snapshots for music students. NEVER mention payment or billing.
 
-Student: ${student.first_name} ${student.last_name}
-Instrument: ${student.instrument}
+FORMAT: Exactly 3-5 short lines. Each line starts with an emoji. No paragraphs. No bold. No "top X%" unless rankStr is provided.
+
+DATA:
+Student: ${student.first_name}
+Instrument: ${instrument || 'Music'}
 Teacher: ${teacherName}
 Months enrolled: ${monthsEnrolled}
-Attendance rate: ${attendanceRate}%
-Sessions this period: ${attended}/${totalSessions}
-Lifetime sessions: ${lifetimeSessions ?? 0}
-Percentile rank: Top ${100 - percentileRank}% of families
-Skills worked on: ${workedOn.join(', ') || 'various topics'}
-Teacher notes (positive only): ${teacherNotes.slice(0, 3).join(' | ') || 'Great progress!'}
+Attendance: ${attendanceStr} (${periodStr})
+${rankStr ? `Ranking: ${rankStr}` : ''}
+Skills: ${skillsStr}
+${highlightsStr ? `Teacher says: ${highlightsStr}` : ''}
 
-Write 3-4 sentences. Start with the student's name. Mention their attendance, what they've been working on, and their ranking. End with encouragement. This is for the parent to read — make them feel proud.`,
+EXAMPLE OUTPUT:
+🎵 Emma attended 12/13 guitar sessions this month — amazing consistency!
+📈 Working on chord transitions, strumming patterns, and reading tabs
+⭐ Teacher Sam says: "Really nailing those barre chords now"
+🏆 Top 15% attendance among all students
+🎯 Keep it up Emma — real momentum building!
+
+Write in this exact style. Be genuine, not generic. Use the real data above. If data is limited, keep it to 3 lines.`,
         }),
       })
       const aiData = await aiResponse.json()
@@ -180,9 +242,10 @@ Write 3-4 sentences. Start with the student's name. Mention their attendance, wh
         months_enrolled: monthsEnrolled,
         percentile_rank: percentileRank,
         teacher_highlights: teacherNotes.slice(0, 3),
-        skills_worked_on: workedOn,
-        ai_summary: aiData?.answer ?? `${student.first_name} is doing great with ${student.instrument} lessons! Keep up the amazing work.`,
-        instrument: student.instrument,
+        skills_worked_on: [...workedOn, ...skillsProgressing].slice(0, 10),
+        milestones: skillsProgressing.length > 0 ? skillsProgressing.slice(0, 5).map(s => ({ skill: s, status: 'progressing' })) : [],
+        ai_summary: aiData?.answer ?? `🎵 ${student.first_name} is building great ${instrument || 'music'} habits with ${teacherName}!\n📈 ${periodStr}\n🎯 Keep showing up — consistency is everything!`,
+        instrument,
         teacher_name: teacherName,
       }).select().single()
 

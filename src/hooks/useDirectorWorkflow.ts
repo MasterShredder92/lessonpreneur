@@ -103,6 +103,7 @@ export function useRescheduleSession() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       qc.invalidateQueries({ queryKey: ['student-blocks'] })
       qc.invalidateQueries({ queryKey: ['parent-upcoming'] })
       qc.invalidateQueries({ queryKey: ['reschedule-slots'] })

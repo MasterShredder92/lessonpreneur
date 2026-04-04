@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
@@ -8,12 +9,15 @@ import { useTeacherLocations, useToggleTeacherLocation, useToggleSubAvailable } 
 import { supabase } from '../../lib/supabase'
 import RoomsManager from '../../components/rooms/RoomsManager'
 import DataGrid from '../../components/shared/DataGrid'
-import { Upload, Check, ChevronDown, ChevronUp, Clock, Video } from 'lucide-react'
+import { Upload, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
 import type { Location } from '../../lib/types'
 import { useTenantBilling, useCreateCheckout, useCustomerPortal } from '../../hooks/useTenantBilling'
+import { useIssues, useCreateIssue, useUpdateIssue, useScreenshotUrl, PAGES, PAGE_SECTION_MAP, CATEGORIES, SEVERITIES, STATUS_COLORS, STATUS_LABELS, getSectionsForPage, getSubsectionsForSection, type StatusGroup } from '../../hooks/useIssues'
 import { useStripeConnectStatus, useStripeConnectOnboard } from '../../hooks/useStripeConnect'
 import { getTierByKey, TRIAL_DAYS } from '../../lib/pricing'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 interface LocationFormData {
   name: string; address: string; city: string; state: string; zip: string
@@ -25,54 +29,149 @@ const emptyForm: LocationFormData = {
   phone: '', email: '', website: '', google_review_url: '',
 }
 
-type Tab = 'general' | 'locations' | 'rooms' | 'teacher-locations' | 'master-control' | 'permissions' | 'branding' | 'billing' | 'payments' | 'integrations'
+type Tab = 'business' | 'locations' | 'access' | 'billing-config' | 'issues'
+
+// Map old tab names to new ones for bookmark compatibility
+const TAB_REDIRECTS: Record<string, Tab> = {
+  general: 'business', branding: 'business',
+  rooms: 'locations', 'teacher-locations': 'locations',
+  permissions: 'access', 'master-control': 'access',
+  billing: 'billing-config', payments: 'billing-config',
+  integrations: 'business', // integrations removed from settings
+}
+
+const VALID_TABS: Tab[] = ['business', 'locations', 'access', 'billing-config', 'issues']
 
 export default function Settings() {
   const { role, tenantId } = useAuthContext()
   const isOwner = role === 'owner'
-  const [tab, setTab] = useState<Tab>('locations')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const resolveTab = useCallback((): Tab => {
+    const raw = searchParams.get('tab') ?? ''
+    if (VALID_TABS.includes(raw as Tab)) return raw as Tab
+    if (TAB_REDIRECTS[raw]) return TAB_REDIRECTS[raw]
+    return 'business'
+  }, [searchParams])
+
+  const tab = resolveTab()
+  const setTab = (t: Tab) => setSearchParams({ tab: t }, { replace: true })
+
+  // Redirect old tab names in URL
+  useEffect(() => {
+    const raw = searchParams.get('tab') ?? ''
+    if (TAB_REDIRECTS[raw]) {
+      setSearchParams({ tab: TAB_REDIRECTS[raw] }, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   return (
+    <IssueContextProvider page="Settings">
     <div className="page">
       <div className="page-header">
         <h1>Settings</h1>
+        <ReportIssueButton />
       </div>
 
       <div className="settings-tabs">
-        <button className={`settings-tab ${tab === 'general' ? 'active' : ''}`} onClick={() => setTab('general')}>General</button>
+        <button className={`settings-tab ${tab === 'business' ? 'active' : ''}`} onClick={() => setTab('business')}>Business</button>
         <button className={`settings-tab ${tab === 'locations' ? 'active' : ''}`} onClick={() => setTab('locations')}>Locations</button>
-        <button className={`settings-tab ${tab === 'rooms' ? 'active' : ''}`} onClick={() => setTab('rooms')}>Rooms</button>
-        <button className={`settings-tab ${tab === 'teacher-locations' ? 'active' : ''}`} onClick={() => setTab('teacher-locations')}>Teacher Locations</button>
         {isOwner && (
-          <button className={`settings-tab ${tab === 'master-control' ? 'active' : ''}`} onClick={() => setTab('master-control')}>Master Control</button>
+          <button className={`settings-tab ${tab === 'access' ? 'active' : ''}`} onClick={() => setTab('access')}>Access & Control</button>
         )}
         {isOwner && (
-          <button className={`settings-tab ${tab === 'permissions' ? 'active' : ''}`} onClick={() => setTab('permissions')}>Permissions</button>
+          <button className={`settings-tab ${tab === 'billing-config' ? 'active' : ''}`} onClick={() => setTab('billing-config')}>Billing Config</button>
         )}
-        {isOwner && (
-          <button className={`settings-tab ${tab === 'branding' ? 'active' : ''}`} onClick={() => setTab('branding')}>Branding</button>
-        )}
-        {isOwner && (
-          <button className={`settings-tab ${tab === 'billing' ? 'active' : ''}`} onClick={() => setTab('billing')}>Billing</button>
-        )}
-        {isOwner && (
-          <button className={`settings-tab ${tab === 'payments' ? 'active' : ''}`} onClick={() => setTab('payments')}>Payments</button>
-        )}
-        {isOwner && (
-          <button className={`settings-tab ${tab === 'integrations' ? 'active' : ''}`} onClick={() => setTab('integrations')}>Integrations</button>
+        {(role === 'owner' || role === 'admin' || role === 'company_director') && (
+          <button className={`settings-tab ${tab === 'issues' ? 'active' : ''}`} onClick={() => setTab('issues')}>Issues</button>
         )}
       </div>
 
-      {tab === 'general' && <GeneralTab tenantId={tenantId} />}
-      {tab === 'locations' && <LocationsTab isOwner={isOwner} tenantId={tenantId} />}
-      {tab === 'rooms' && <RoomsManager />}
-      {tab === 'teacher-locations' && <TeacherLocationsTab />}
-      {tab === 'master-control' && isOwner && <MasterControlTab />}
-      {tab === 'permissions' && isOwner && <PermissionsTab tenantId={tenantId} />}
-      {tab === 'branding' && isOwner && <BrandingTab tenantId={tenantId} />}
-      {tab === 'billing' && isOwner && <BillingSettingsTab />}
-      {tab === 'payments' && isOwner && <PaymentsTab />}
-      {tab === 'integrations' && isOwner && <IntegrationsTab tenantId={tenantId} />}
+      {tab === 'business' && <BusinessTab tenantId={tenantId} isOwner={isOwner} />}
+      {tab === 'locations' && <LocationsConsolidatedTab isOwner={isOwner} tenantId={tenantId} />}
+      {tab === 'access' && isOwner && <AccessControlTab tenantId={tenantId} />}
+      {tab === 'billing-config' && isOwner && <BillingConfigTab />}
+      {tab === 'issues' && <IssuesTab />}
+    </div>
+    </IssueContextProvider>
+  )
+}
+
+// ─── Collapsible Section Wrapper ─────────────────────
+
+function CollapsibleSection({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div style={{ padding: '20px 22px', borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 16 }}>
+      <button onClick={() => setOpen(!open)} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+      }}>
+        <span style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4' }}>{title}</span>
+        {open ? <ChevronUp size={16} style={{ color: '#8080A8' }} /> : <ChevronDown size={16} style={{ color: '#8080A8' }} />}
+      </button>
+      <div style={{ overflow: 'hidden', maxHeight: open ? '9999px' : '0px', transition: 'max-height 0.2s ease', marginTop: open ? 16 : 0 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ─── Consolidated Tabs ───────────────────────────────
+
+function BusinessTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: boolean }) {
+  return (
+    <div>
+      <CollapsibleSection title="General">
+        <GeneralTab tenantId={tenantId} />
+      </CollapsibleSection>
+      {isOwner && (
+        <CollapsibleSection title="Branding">
+          <BrandingTab tenantId={tenantId} />
+        </CollapsibleSection>
+      )}
+    </div>
+  )
+}
+
+function LocationsConsolidatedTab({ isOwner, tenantId }: { isOwner: boolean; tenantId: string | null }) {
+  return (
+    <div>
+      <CollapsibleSection title="Locations">
+        <LocationsTab isOwner={isOwner} tenantId={tenantId} />
+      </CollapsibleSection>
+      <CollapsibleSection title="Rooms">
+        <RoomsManager />
+      </CollapsibleSection>
+      <CollapsibleSection title="Teacher Locations">
+        <TeacherLocationsTab />
+      </CollapsibleSection>
+    </div>
+  )
+}
+
+function AccessControlTab({ tenantId }: { tenantId: string | null }) {
+  return (
+    <div>
+      <CollapsibleSection title="Permissions">
+        <PermissionsTab tenantId={tenantId} />
+      </CollapsibleSection>
+      <CollapsibleSection title="Master Control">
+        <MasterControlTab />
+      </CollapsibleSection>
+    </div>
+  )
+}
+
+function BillingConfigTab() {
+  return (
+    <div>
+      <CollapsibleSection title="Billing Settings">
+        <BillingSettingsTab />
+      </CollapsibleSection>
+      <CollapsibleSection title="Payment Settings">
+        <PaymentsTab />
+      </CollapsibleSection>
     </div>
   )
 }
@@ -979,200 +1078,183 @@ function TeacherLocationRow({ teacher, locations }: { teacher: any; locations: L
 }
 
 // ─── Permissions Tab ─────────────────────────────────────────────
-const PERMISSION_CATEGORIES: Record<string, string> = {
-  students: 'Students',
-  teachers: 'Teachers',
-  schedule: 'Schedule',
-  leads: 'Leads',
-  payroll: 'Payroll',
-  master_sheet: 'Master Sheets',
-  messages: 'Messages',
-  settings: 'Settings',
-  files: 'Files',
-}
 
-const ROLE_LIST = [
-  { key: 'company_director', label: 'Company Director' },
-  { key: 'studio_director', label: 'Studio Director' },
-  { key: 'teacher', label: 'Teacher' },
-  { key: 'parent', label: 'Parent' },
+const ROLE_MATRIX = [
+  {
+    role: 'Owner', summary: 'Full access to everything across all locations.', color: '#D4226A',
+    pages: [[true,'Dashboard — all locations'],[true,'Schedule — all locations, full control'],[true,'Students — full CRUD, all locations'],[true,'Families — full access, billing status, Square IDs'],[true,'Leads — full access, all locations'],[true,'Teachers — full access, all locations'],[true,'Billing — charge runs, refunds, full control'],[true,'Payroll — override bonus, close period'],[true,'Retention — all tabs, all locations'],[true,'Integrations — full access'],[true,'Settings — all tabs including Access & Control']] as [boolean,string][],
+    actions: [[true,'Create, assign, complete, dismiss any task'],[true,'Report any issue type (bugs, display, data, features)'],[true,'View pipeline prompts on issues'],[true,"Manage issue log (won't fix, duplicate, retry, resolve)"],[true,"Change any team member's role"],[true,'Export data and reports']] as [boolean,string][],
+  },
+  {
+    role: 'Company Director', summary: 'Nearly full access. Cannot change system settings or permissions.', color: '#FFB800',
+    pages: [[true,'Dashboard — all locations'],[true,'Schedule — all locations, full control'],[true,'Students — full CRUD, all locations'],[true,'Families — view/edit contact info, change billing status'],[true,'Leads — full access, all locations'],[true,'Teachers — full access, all locations'],[true,'Billing — view and edit, cannot run charges'],[true,'Payroll — edit sessions, director pay, tips; cannot override bonus'],[true,'Retention — all tabs, all locations'],[true,'Integrations — view only'],[true,'Settings — Business, Locations, Issues tabs only'],[false,'Settings — Access & Control (hidden)'],[false,'Settings — Billing Config (hidden)']] as [boolean,string][],
+    actions: [[true,'Create tasks for studio directors'],[true,'Complete and dismiss tasks'],[true,'Report bugs, display issues, data issues'],[false,'Cannot report feature requests'],[false,'Cannot view pipeline prompts'],[false,"Cannot manage issue log (won't fix, duplicate, etc.)"],[false,'Cannot change team roles']] as [boolean,string][],
+  },
+  {
+    role: 'Studio Director', summary: 'Location-scoped access. Sees only their assigned location.', color: '#00A5E8',
+    pages: [[true,'Dashboard — their location only'],[true,'Schedule — their location only'],[true,'Students — their location only, read-only'],[true,'Families — read-only'],[true,'Leads — their location only'],[true,'Teachers — their location only'],[true,'Retention — their location only'],[false,'Billing — no access'],[false,'Payroll — read-only'],[false,'Integrations — no access'],[false,'Settings — no access']] as [boolean,string][],
+    actions: [[true,'Complete tasks assigned to them'],[false,'Cannot create or dismiss tasks'],[false,'Cannot report issues'],[false,'Cannot change roles']] as [boolean,string][],
+  },
+  {
+    role: 'Teacher', summary: 'Sees only their own schedule and students.', color: '#8080A8',
+    pages: [[true,'Teacher Schedule — their sessions only'],[true,'Teacher Students — their assigned students only'],[false,'Dashboard — no access'],[false,'Families — no access'],[false,'Leads — no access'],[false,'Billing — no access'],[false,'Payroll — no access'],[false,'Retention — no access'],[false,'Integrations — no access'],[false,'Settings — no access']] as [boolean,string][],
+    actions: [[false,'No task access'],[false,'No issue reporting'],[false,'No administrative actions']] as [boolean,string][],
+  },
+  {
+    role: 'Parent', summary: 'Sees only their own family and student information.', color: '#55516E',
+    pages: [[true,'Parent Dashboard — their family only'],[true,'Student info — their enrolled students'],[false,'All admin pages — no access']] as [boolean,string][],
+    actions: [[false,'No administrative actions']] as [boolean,string][],
+  },
 ]
 
+const ROLE_PILL_COLORS: Record<string, string> = { owner: '#D4226A', admin: '#FF5500', company_director: '#FFB800', studio_director: '#00A5E8', teacher: '#8080A8' }
+const ROLE_LABELS: Record<string, string> = { owner: 'Owner', admin: 'Admin', company_director: 'Company Director', studio_director: 'Studio Director', teacher: 'Teacher' }
+
 function PermissionsTab({ tenantId }: { tenantId: string | null }) {
+  const { role: myRole, profile } = useAuthContext()
+  const isOwnerRole = myRole === 'owner' || myRole === 'admin'
+  return (
+    <div>
+      <PermissionMatrix />
+      {isOwnerRole && <TeamMembers tenantId={tenantId} myProfileId={profile?.id} />}
+    </div>
+  )
+}
+
+function PermissionMatrix() {
+  const [openRole, setOpenRole] = useState<string | null>(null)
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>Role Permissions</div>
+      <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 16 }}>What each role can see and do.</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {ROLE_MATRIX.map(r => {
+          const isOpen = openRole === r.role
+          return (
+            <div key={r.role} style={{ borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: `1px solid ${isOpen ? `${r.color}30` : 'rgba(255,255,255,0.06)'}`, overflow: 'hidden' }}>
+              <button onClick={() => setOpenRole(isOpen ? null : r.role)} style={{ width: '100%', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: r.color }}>{r.role}</div>
+                  <div style={{ fontSize: 12, color: '#8080A8', marginTop: 2 }}>{r.summary}</div>
+                </div>
+                {isOpen ? <ChevronUp size={16} style={{ color: '#8080A8' }} /> : <ChevronDown size={16} style={{ color: '#8080A8' }} />}
+              </button>
+              {isOpen && (
+                <div style={{ padding: '0 18px 18px', borderLeft: `3px solid ${r.color}`, marginLeft: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Pages</div>
+                  {r.pages.map(([ok, text], i) => (
+                    <div key={i} style={{ fontSize: 12, color: ok ? '#A0A0C8' : '#55516E', padding: '3px 0', display: 'flex', gap: 6 }}><span>{ok ? '✅' : '❌'}</span><span>{text}</span></div>
+                  ))}
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 12, marginBottom: 6 }}>Actions</div>
+                  {r.actions.map(([ok, text], i) => (
+                    <div key={i} style={{ fontSize: 12, color: ok ? '#A0A0C8' : '#55516E', padding: '3px 0', display: 'flex', gap: 6 }}><span>{ok ? '✅' : '❌'}</span><span>{text}</span></div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function TeamMembers({ tenantId, myProfileId }: { tenantId: string | null; myProfileId?: string }) {
   const qc = useQueryClient()
-  const [selectedRole, setSelectedRole] = useState('company_director')
-  const [saving, setSaving] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [confirmModal, setConfirmModal] = useState<{ id: string; name: string; from: string; to: string } | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  // Fetch permission definitions
-  const { data: definitions } = useQuery({
-    queryKey: ['permission-definitions', tenantId],
+  const { data: members, isLoading } = useQuery({
+    queryKey: ['team_members', tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data } = await supabase.from('permission_definitions').select('*').eq('tenant_id', tenantId!)
+      const { data, error } = await supabase.from('profiles').select('id, first_name, last_name, email, role').eq('tenant_id', tenantId!).not('role', 'in', '("parent","student")').order('first_name')
+      if (error) throw error
       return data ?? []
     },
   })
 
-  // Fetch grants
-  const { data: grants } = useQuery({
-    queryKey: ['permission-grants', tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase.from('permission_set_grants').select('*').eq('tenant_id', tenantId!)
-      return data ?? []
-    },
-  })
+  const rolePriority: Record<string, number> = { owner: 0, admin: 1, company_director: 2, studio_director: 3, teacher: 4 }
+  const filtered = (members ?? []).filter(m => {
+    if (search) { const q = search.toLowerCase(); const n = `${m.first_name ?? ''} ${m.last_name ?? ''}`.toLowerCase(); if (!n.includes(q) && !(m.email ?? '').toLowerCase().includes(q)) return false }
+    if (roleFilter === 'owners') return m.role === 'owner'
+    if (roleFilter === 'directors') return ['admin', 'company_director', 'studio_director'].includes(m.role)
+    if (roleFilter === 'teachers') return m.role === 'teacher'
+    return true
+  }).sort((a, b) => (rolePriority[a.role] ?? 9) - (rolePriority[b.role] ?? 9))
 
-  const getDefaultForRole = (def: any, role: string): boolean => {
-    switch (role) {
-      case 'company_director': return def.company_director_default ?? false
-      case 'studio_director': return def.studio_director_default ?? false
-      case 'teacher': return def.teacher_default ?? false
-      case 'parent': return def.parent_default ?? false
-      default: return false
-    }
+  const handleRoleChange = async () => {
+    if (!confirmModal || !tenantId) return
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('profiles').update({ role: confirmModal.to }).eq('id', confirmModal.id)
+      if (error) throw error
+      supabase.from('audit_log').insert({ tenant_id: tenantId, action: 'ROLE_CHANGED', table_name: 'profiles', record_id: confirmModal.id, old_value: { role: confirmModal.from }, new_value: { role: confirmModal.to }, performed_by: myProfileId }).then(() => {}).catch(() => {})
+      qc.invalidateQueries({ queryKey: ['team_members'] })
+      qc.invalidateQueries({ queryKey: ['teachers'] })
+      toast(`${confirmModal.name}'s role updated to ${ROLE_LABELS[confirmModal.to] ?? confirmModal.to}`, 'success')
+      setConfirmModal(null)
+    } catch (err: any) { toast(err.message ?? 'Failed to change role', 'error') }
+    finally { setSaving(false) }
   }
 
-  const isGranted = (permKey: string, role: string): boolean => {
-    const grant = grants?.find((g: any) => g.role === role && g.permission_key === permKey)
-    if (grant) return grant.is_granted
-    const def = definitions?.find((d: any) => d.key === permKey)
-    if (def) return getDefaultForRole(def, role)
-    return false
-  }
-
-  const handleToggle = async (permKey: string, role: string, currentValue: boolean) => {
-    if (!tenantId) return
-    const cellKey = `${role}-${permKey}`
-    setSaving(cellKey)
-
-    // Upsert into permission_set_grants
-    const existing = grants?.find((g: any) => g.role === role && g.permission_key === permKey)
-    if (existing) {
-      await supabase.from('permission_set_grants').update({ is_granted: !currentValue }).eq('id', existing.id)
-    } else {
-      await supabase.from('permission_set_grants').insert({
-        tenant_id: tenantId,
-        role,
-        permission_key: permKey,
-        is_granted: !currentValue,
-      })
-    }
-
-    qc.invalidateQueries({ queryKey: ['permission-grants', tenantId] })
-    qc.invalidateQueries({ queryKey: ['permissions'] })
-    setSaving(null)
-  }
-
-  // Group definitions by category
-  const grouped: Record<string, any[]> = {}
-  ;(definitions ?? []).forEach((d: any) => {
-    const cat = d.category ?? d.key.split('.')[0] ?? 'other'
-    if (!grouped[cat]) grouped[cat] = []
-    grouped[cat].push(d)
-  })
-
-  const isOwnerView = selectedRole === 'owner'
+  const availableRoles = ['owner', 'admin', 'company_director', 'studio_director', 'teacher']
 
   return (
-    <div style={{ marginTop: 16, display: 'flex', gap: 16, minHeight: 500 }}>
-      {/* Left sidebar — role list */}
-      <div style={{ width: 200, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {/* Owner — locked */}
-        <button
-          onClick={() => setSelectedRole('owner')}
-          style={{
-            padding: '12px 16px', borderRadius: 10, textAlign: 'left', cursor: 'pointer',
-            background: isOwnerView ? 'rgba(255,184,0,0.1)' : 'rgba(255,255,255,0.03)',
-            border: isOwnerView ? '1px solid rgba(255,184,0,0.3)' : '1px solid rgba(255,255,255,0.06)',
-            color: isOwnerView ? '#FFB800' : '#8080A8', fontSize: 13, fontWeight: 700,
-          }}
-        >
-          Owner
-          <div style={{ fontSize: 10, fontWeight: 500, color: '#606088', marginTop: 2 }}>Full access — always on</div>
-        </button>
-
-        <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '8px 0' }} />
-
-        {ROLE_LIST.map((r) => (
-          <button
-            key={r.key}
-            onClick={() => setSelectedRole(r.key)}
-            style={{
-              padding: '10px 16px', borderRadius: 10, textAlign: 'left', cursor: 'pointer',
-              background: selectedRole === r.key ? 'rgba(232,72,138,0.08)' : 'rgba(255,255,255,0.03)',
-              border: selectedRole === r.key ? '1px solid rgba(232,72,138,0.25)' : '1px solid rgba(255,255,255,0.06)',
-              color: selectedRole === r.key ? '#E8488A' : '#A0A0C8', fontSize: 13, fontWeight: 600,
-            }}
-          >
-            {r.label}
-          </button>
-        ))}
+    <div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>Team Members</div>
+      <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 16 }}>Assign roles to your team. {filtered.length} team members</div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email..." style={{ flex: 1, minWidth: 200, padding: '8px 14px', borderRadius: 10, fontSize: 13, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#E0E0F4', outline: 'none' }} />
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[['all','All'],['owners','Owners'],['directors','Directors'],['teachers','Teachers']].map(([k,l]) => (
+            <button key={k} onClick={() => setRoleFilter(k)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: roleFilter === k ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.03)', color: roleFilter === k ? '#D4226A' : '#8080A8', border: roleFilter === k ? '1px solid rgba(212,34,106,0.25)' : '1px solid rgba(255,255,255,0.06)' }}>{l}</button>
+          ))}
+        </div>
       </div>
-
-      {/* Main panel — permissions grouped by category */}
-      <div style={{ flex: 1 }}>
-        {isOwnerView ? (
-          <div style={{ padding: 24, textAlign: 'center' }}>
-            <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>*</div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#FFB800', marginBottom: 6 }}>Owner — Full Access</p>
-            <p style={{ fontSize: 13, color: '#8080A8' }}>The owner role always has access to every permission. This cannot be changed.</p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {Object.entries(PERMISSION_CATEGORIES).map(([catKey, catLabel]) => {
-              const perms = grouped[catKey]
-              if (!perms || perms.length === 0) return null
-              return (
-                <div key={catKey} className="card" style={{ padding: '16px 20px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>{catLabel}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {perms.map((def: any) => {
-                      const granted = isGranted(def.key, selectedRole)
-                      const cellKey = `${selectedRole}-${def.key}`
-                      const isSaving = saving === cellKey
-                      return (
-                        <div
-                          key={def.key}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            padding: '8px 12px', borderRadius: 8,
-                            background: granted ? 'rgba(34,197,94,0.04)' : 'transparent',
-                          }}
-                        >
-                          <div>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#C0C0E0' }}>{def.label ?? def.key}</span>
-                            {def.description && (
-                              <div style={{ fontSize: 11, color: '#8080A8', marginTop: 1 }}>{def.description}</div>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => handleToggle(def.key, selectedRole, granted)}
-                            disabled={!!saving}
-                            style={{
-                              width: 44, height: 24, borderRadius: 12, border: 'none', cursor: saving ? 'wait' : 'pointer',
-                              background: granted ? '#22C55E' : 'rgba(255,255,255,0.1)',
-                              position: 'relative', transition: 'background 150ms ease', flexShrink: 0,
-                            }}
-                          >
-                            <div style={{
-                              width: 18, height: 18, borderRadius: 9, background: '#fff',
-                              position: 'absolute', top: 3,
-                              left: granted ? 23 : 3,
-                              transition: 'left 150ms ease',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                            }} />
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
+      {isLoading ? <MusicLoader /> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {filtered.map(m => {
+            const name = `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || 'Unnamed'
+            const isMe = m.id === myProfileId
+            const pillColor = ROLE_PILL_COLORS[m.role] ?? '#8080A8'
+            return (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{name}{isMe && <span style={{ fontSize: 10, color: '#55516E', marginLeft: 6 }}>(you)</span>}</div>
+                  <div style={{ fontSize: 11, color: '#55516E' }}>{m.email ?? '—'}</div>
                 </div>
-              )
-            })}
+                <select value={m.role} disabled={isMe} title={isMe ? 'You cannot change your own role' : undefined}
+                  onChange={e => { const nr = e.target.value; if (nr === m.role) return; setConfirmModal({ id: m.id, name, from: m.role, to: nr }); e.target.value = m.role }}
+                  style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: isMe ? 'not-allowed' : 'pointer', background: `${pillColor}18`, color: pillColor, border: `1px solid ${pillColor}30`, outline: 'none', opacity: isMe ? 0.5 : 1 }}>
+                  {availableRoles.map(r => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
+                </select>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {confirmModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setConfirmModal(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '90%', maxWidth: 420, padding: 24, borderRadius: 16, background: '#12121E', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#E0E0F4', marginBottom: 12 }}>Change Role</div>
+            <div style={{ fontSize: 13, color: '#A0A0C8', marginBottom: 6 }}><strong style={{ color: '#E0E0F4' }}>{confirmModal.name}</strong></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: `${ROLE_PILL_COLORS[confirmModal.from] ?? '#8080A8'}18`, color: ROLE_PILL_COLORS[confirmModal.from] ?? '#8080A8' }}>{ROLE_LABELS[confirmModal.from]}</span>
+              <span style={{ color: '#55516E' }}>→</span>
+              <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: `${ROLE_PILL_COLORS[confirmModal.to] ?? '#8080A8'}18`, color: ROLE_PILL_COLORS[confirmModal.to] ?? '#8080A8' }}>{ROLE_LABELS[confirmModal.to]}</span>
+            </div>
+            {confirmModal.to === 'owner' && <div style={{ fontSize: 12, color: '#FFB800', marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)' }}>Owners have full unrestricted access to everything.</div>}
+            {confirmModal.to === 'teacher' && ['owner','admin','company_director'].includes(confirmModal.from) && <div style={{ fontSize: 12, color: '#EF4444', marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>This will remove {confirmModal.name}'s administrative access. They will only see their own schedule and students.</div>}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmModal(null)} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 12, background: 'none', color: '#8080A8', border: 'none', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleRoleChange} disabled={saving} style={{ padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: '#D4226A', color: '#fff', border: 'none', opacity: saving ? 0.5 : 1 }}>{saving ? 'Saving...' : 'Confirm Change'}</button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1517,87 +1599,516 @@ function PaymentsTab() {
 // INTEGRATIONS TAB
 // ═══════════════════════════════════════
 
-function IntegrationsTab({ tenantId }: { tenantId: string | null }) {
-  const qc = useQueryClient()
+// ═══════════════════════════════════════════════════════
+// ISSUES TAB
+// ═══════════════════════════════════════════════════════
 
-  const { data: googleToken, isLoading } = useQuery({
-    queryKey: ['google-oauth-status', tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('google_oauth_tokens')
-        .select('connected_email, created_at')
-        .eq('tenant_id', tenantId!)
-        .single()
-      return data
-    },
-    staleTime: 1000 * 10,
-  })
-
-  const isConnected = !!googleToken?.connected_email
-
-  const handleConnect = async () => {
-    try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token
-      if (!token) { toast('Not authenticated', 'error'); return }
-
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-oauth-start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      })
-      const data = await res.json()
-      if (!data.url) { toast(data.error || 'Failed to start OAuth', 'error'); return }
-
-      const popup = window.open(data.url, 'google-oauth', 'width=500,height=600,left=200,top=200')
-      const interval = setInterval(async () => {
-        if (popup?.closed) {
-          clearInterval(interval)
-          // Check if connection succeeded
-          const { data: newToken } = await supabase
-            .from('google_oauth_tokens')
-            .select('connected_email')
-            .eq('tenant_id', tenantId!)
-            .single()
-          qc.invalidateQueries({ queryKey: ['google-oauth-status'] })
-          if (newToken?.connected_email) {
-            toast('Google Calendar connected!', 'success')
-          }
-        }
-      }, 500)
-    } catch (err: any) { toast(err.message || 'Failed', 'error') }
-  }
-
-  const handleDisconnect = async () => {
-    if (!tenantId) return
-    await supabase.from('google_oauth_tokens').delete().eq('tenant_id', tenantId)
-    qc.invalidateQueries({ queryKey: ['google-oauth-status'] })
-    toast('Google Calendar disconnected', 'success')
-  }
+function IssuesTab() {
+  const { role } = useAuthContext()
+  const isOwner = role === 'owner' || role === 'admin'
+  const [statusFilter, setStatusFilter] = useState<StatusGroup>('open')
+  const { data: issues, isLoading } = useIssues(statusFilter)
+  const totalCount = issues?.length ?? 0
+  const openCount = issues?.filter(i => ['reported', 'queued', 'diagnosing', 'fixing', 'deploying'].includes(i.status)).length ?? 0
 
   return (
-    <div style={{ maxWidth: 600 }}>
-      <div style={{ padding: 24, borderRadius: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: isConnected ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${isConnected ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Video size={20} style={{ color: isConnected ? '#22C55E' : '#EF4444' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4' }}>Google Calendar</div>
-            <div style={{ fontSize: 12, color: '#8080A8' }}>Google Meet virtual sessions</div>
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <IssueReportForm isOwner={isOwner} />
+
+      {/* Issue Log */}
+      <div style={{ padding: '20px 22px', borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>Issue Log</div>
+          <div style={{ fontSize: 12, color: '#8080A8' }}>{totalCount} issues{statusFilter === 'open' ? '' : ` · ${openCount} open`}</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConnected ? '#22C55E' : '#EF4444' }} />
-          <span style={{ fontSize: 13, color: isConnected ? '#22C55E' : '#EF4444', fontWeight: 600 }}>
-            {isLoading ? 'Checking...' : isConnected ? `Connected — ${googleToken.connected_email}` : 'Not connected'}
-          </span>
+
+        {/* Filter pills */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+          {([['all', 'All'], ['open', 'Open'], ['resolved', 'Resolved'], ['failed', 'Failed'], ['wont_fix', "Won't Fix"]] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setStatusFilter(key)} style={{
+              padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              background: statusFilter === key ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.03)',
+              color: statusFilter === key ? '#D4226A' : '#8080A8',
+              border: statusFilter === key ? '1px solid rgba(212,34,106,0.25)' : '1px solid rgba(255,255,255,0.06)',
+            }}>{label}</button>
+          ))}
         </div>
-        {isConnected ? (
-          <button onClick={handleDisconnect} style={{ padding: '10px 20px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Disconnect</button>
+
+        {isLoading ? <MusicLoader /> : !issues?.length ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#55516E', fontSize: 13 }}>No issues found.</div>
         ) : (
-          <button onClick={handleConnect} style={{ padding: '10px 20px', borderRadius: 10, background: '#22C55E', border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Connect Google Calendar</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {issues.map(issue => <IssueRow key={issue.id} issue={issue} isOwner={isOwner} />)}
+          </div>
         )}
       </div>
     </div>
   )
+}
+
+// ─── Report Form ─────────────────────────────────────
+
+function IssueReportForm({ isOwner }: { isOwner: boolean }) {
+  const createIssue = useCreateIssue()
+  const [title, setTitle] = useState('')
+  const [page, setPage] = useState('')
+  const [section, setSection] = useState('')
+  const [subsection, setSubsection] = useState('')
+  const [otherPage, setOtherPage] = useState('')
+  const [otherSection, setOtherSection] = useState('')
+  const [otherSubsection, setOtherSubsection] = useState('')
+  const [element, setElement] = useState('')
+  const [platform, setPlatform] = useState('both')
+  const [category, setCategory] = useState('')
+  const [severity, setSeverity] = useState('normal')
+  const [desc, setDesc] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const categories = isOwner ? CATEGORIES : CATEGORIES.filter(c => c.value !== 'feature_request')
+  const selectedSeverity = SEVERITIES.find(s => s.value === severity)
+
+  const sections = getSectionsForPage(page)
+  const subsections = getSubsectionsForSection(page, section)
+  const hasSubsections = subsections !== null && subsections.length > 0
+
+  const clearForm = () => {
+    setTitle(''); setPage(''); setSection(''); setSubsection('')
+    setOtherPage(''); setOtherSection(''); setOtherSubsection('')
+    setPlatform('both'); setElement('')
+    setCategory(''); setSeverity('normal'); setDesc('')
+    setFile(null); setPreview(null)
+  }
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.size > 5 * 1024 * 1024) { toast('Screenshot must be under 5MB', 'error'); return }
+    setFile(f)
+    const reader = new FileReader()
+    reader.onload = () => setPreview(reader.result as string)
+    reader.readAsDataURL(f)
+  }
+
+  const handleSubmit = async () => {
+    if (!title.trim()) { toast('Title is required', 'error'); return }
+    if (!page) { toast('Select a page', 'error'); return }
+    if (page === 'Other' && !otherPage.trim()) { toast('Describe the page', 'error'); return }
+    if (!section) { toast('Select a section', 'error'); return }
+    if (section === 'Other' && !otherSection.trim()) { toast('Describe the section', 'error'); return }
+    if (hasSubsections && subsection === 'Other' && !otherSubsection.trim()) { toast('Describe the subsection', 'error'); return }
+    if (!element.trim()) { toast('Describe the element', 'error'); return }
+    if (!category) { toast('Select a category', 'error'); return }
+    if (desc.trim().length < 20) { toast('Description must be at least 20 characters', 'error'); return }
+
+    const finalPage = page === 'Other' ? `Other: ${otherPage.trim()}` : page
+    const finalSection = section === 'Other' ? `Other: ${otherSection.trim()}` : section
+    const finalSubsection = !hasSubsections ? null
+      : subsection === 'Other' ? `Other: ${otherSubsection.trim()}`
+      : subsection || null
+
+    setIsSubmitting(true)
+    try {
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Request timed out — please try again')), 15000))
+      await Promise.race([
+        createIssue.mutateAsync({
+          title: title.trim(), page: finalPage, section: finalSection, subsection: finalSubsection,
+          platform, element_description: element.trim(),
+          category, severity, description: desc.trim(), screenshotFile: file,
+        }),
+        timeout,
+      ])
+      toast('Issue reported — fix pipeline activated', 'success')
+      clearForm()
+    } catch (err: any) {
+      toast(err.message ?? 'Failed to submit issue', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13,
+    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+    color: '#E0E0F4', outline: 'none',
+  }
+  const disabledStyle: React.CSSProperties = { ...inputStyle, opacity: 0.4, cursor: 'not-allowed' }
+
+  return (
+    <div style={{ padding: '20px 22px', borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>Report an Issue</div>
+      <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 18 }}>Describe what's wrong and we'll fix it.</div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Title */}
+        <div>
+          <input value={title} onChange={e => setTitle(e.target.value.slice(0, 100))} maxLength={100} placeholder="Brief summary of the issue" style={inputStyle} />
+          <div style={{ fontSize: 11, marginTop: 4, color: (100 - title.length) === 0 ? '#D4226A' : (100 - title.length) < 20 ? '#FF5500' : '#55516E' }}>{100 - title.length} characters remaining</div>
+        </div>
+
+        {/* Page → Section → Subsection cascade */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 11, color: '#8080A8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Where is the issue?</div>
+          <select value={page} onChange={e => { setPage(e.target.value); setSection(''); setSubsection(''); setOtherPage(''); setOtherSection(''); setOtherSubsection('') }} style={inputStyle}>
+            <option value="">Select page...</option>
+            {PAGES.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          {page === 'Other' && (
+            <input value={otherPage} onChange={e => setOtherPage(e.target.value.slice(0, 100))} maxLength={100} placeholder="Describe the page..." style={{ ...inputStyle, borderColor: 'rgba(251,146,60,0.3)' }} />
+          )}
+          <select value={section} onChange={e => { setSection(e.target.value); setSubsection(''); setOtherSection(''); setOtherSubsection('') }} disabled={!page} style={page ? inputStyle : disabledStyle}>
+            <option value="">Select section...</option>
+            {sections.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {section === 'Other' && (
+            <input value={otherSection} onChange={e => setOtherSection(e.target.value.slice(0, 100))} maxLength={100} placeholder="Describe the section..." style={{ ...inputStyle, borderColor: 'rgba(251,146,60,0.3)' }} />
+          )}
+          {hasSubsections && (
+            <select value={subsection} onChange={e => { setSubsection(e.target.value); setOtherSubsection('') }} style={inputStyle}>
+              <option value="">Select subsection (optional)...</option>
+              {subsections.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
+          {hasSubsections && subsection === 'Other' && (
+            <input value={otherSubsection} onChange={e => setOtherSubsection(e.target.value.slice(0, 100))} maxLength={100} placeholder="Describe the subsection..." style={{ ...inputStyle, borderColor: 'rgba(251,146,60,0.3)' }} />
+          )}
+        </div>
+
+        {/* Platform */}
+        <div>
+          <div style={{ fontSize: 11, color: '#8080A8', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[{ value: 'mobile', label: 'Mobile' }, { value: 'desktop', label: 'Desktop' }, { value: 'both', label: 'Both' }].map(p => (
+              <button key={p.value} onClick={() => setPlatform(p.value)} style={{
+                padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: platform === p.value ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
+                color: platform === p.value ? '#E0E0F4' : '#8080A8',
+                border: `1px solid ${platform === p.value ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)'}`,
+              }}>{p.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Element */}
+        <div>
+          <input value={element} onChange={e => setElement(e.target.value.slice(0, 200))} maxLength={200} placeholder="Which specific element? (e.g. the Save button, the name column)" style={inputStyle} />
+          <div style={{ fontSize: 11, marginTop: 4, color: (200 - element.length) === 0 ? '#D4226A' : (200 - element.length) < 20 ? '#FF5500' : '#55516E' }}>{200 - element.length} characters remaining</div>
+        </div>
+
+        {/* Category dropdown */}
+        <CategoryDropdown categories={categories} value={category} onChange={setCategory} />
+
+        {/* Severity pills */}
+        <div>
+          <div style={{ fontSize: 11, color: '#8080A8', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {SEVERITIES.map(s => (
+              <button key={s.value} onClick={() => setSeverity(s.value)} style={{
+                padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: severity === s.value ? `${s.color}18` : 'rgba(255,255,255,0.03)',
+                color: severity === s.value ? s.color : '#8080A8',
+                border: `1px solid ${severity === s.value ? `${s.color}30` : 'rgba(255,255,255,0.06)'}`,
+              }}>{s.label}</button>
+            ))}
+          </div>
+          {selectedSeverity && <div style={{ fontSize: 11, color: '#55516E', marginTop: 4 }}>{selectedSeverity.hint}</div>}
+        </div>
+
+        {/* Description */}
+        <div>
+          <textarea value={desc} onChange={e => setDesc(e.target.value.slice(0, 500))} maxLength={500} placeholder="What were you doing? What happened? What should have happened?" rows={4} style={{ ...inputStyle, resize: 'vertical', minHeight: 100 }} />
+          <div style={{ fontSize: 11, marginTop: 4, color: (500 - desc.length) === 0 ? '#D4226A' : (500 - desc.length) < 20 ? '#FF5500' : '#55516E' }}>{500 - desc.length} characters remaining</div>
+        </div>
+
+        {/* Screenshot */}
+        <div>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} style={{ display: 'none' }} />
+          {!preview ? (
+            <button onClick={() => fileRef.current?.click()} style={{
+              padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              background: 'rgba(255,255,255,0.03)', color: '#8080A8', border: '1px solid rgba(255,255,255,0.08)',
+            }}>📷 Add Screenshot</button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <img src={preview} alt="Screenshot" style={{ height: 48, borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)' }} />
+              <button onClick={() => { setFile(null); setPreview(null) }} style={{
+                background: 'none', border: 'none', color: '#EF4444', fontSize: 16, cursor: 'pointer',
+              }}>✕</button>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+          <button onClick={clearForm} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'none', color: '#8080A8', border: 'none' }}>Cancel</button>
+          <button onClick={handleSubmit} disabled={isSubmitting} style={{
+            padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            background: '#D4226A', color: '#fff', border: 'none', opacity: isSubmitting ? 0.5 : 1,
+          }}>{isSubmitting ? 'Submitting...' : 'Submit Issue'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Issue Row (expandable) ─────────────────────────
+
+function IssueRow({ issue, isOwner }: { issue: any; isOwner: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const [actionModal, setActionModal] = useState<string | null>(null)
+  const [actionNotes, setActionNotes] = useState('')
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const updateIssue = useUpdateIssue()
+  const { data: screenshotUrl } = useScreenshotUrl(issue.screenshot_path)
+  const [lightbox, setLightbox] = useState(false)
+
+  const statusColor = STATUS_COLORS[issue.status] ?? '#55516E'
+  const isPulsing = ['diagnosing', 'fixing'].includes(issue.status)
+  const catMeta = CATEGORIES.find(c => c.value === issue.category)
+  const sevMeta = SEVERITIES.find(s => s.value === issue.severity)
+
+  const timeAgo = (d: string) => {
+    const diff = (Date.now() - new Date(d).getTime()) / 1000
+    if (diff < 60) return 'just now'
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+    return `${Math.floor(diff / 86400)}d ago`
+  }
+
+  const handleAction = async (action: string) => {
+    try {
+      if (action === 'wont_fix') {
+        await updateIssue.mutateAsync({ id: issue.id, status: 'wont_fix', resolution_notes: actionNotes, resolved_at: new Date().toISOString(), resolved_by: 'admin' })
+      } else if (action === 'resolve') {
+        await updateIssue.mutateAsync({ id: issue.id, status: 'resolved', resolution_notes: actionNotes, resolved_at: new Date().toISOString(), resolved_by: 'admin' })
+      } else if (action === 'retry') {
+        await updateIssue.mutateAsync({ id: issue.id, status: 'reported', resolution_notes: null, pipeline_prompt: null, pipeline_started_at: null, pipeline_completed_at: null, deploy_status: 'pending' })
+      } else if (action === 'duplicate') {
+        await updateIssue.mutateAsync({ id: issue.id, status: 'duplicate', resolution_notes: actionNotes })
+      }
+      toast(`Issue updated`, 'success')
+      setActionModal(null)
+      setActionNotes('')
+    } catch (err: any) {
+      toast(err.message ?? 'Failed', 'error')
+    }
+  }
+
+  return (
+    <>
+      <div onClick={() => setExpanded(!expanded)} style={{
+        padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+        transition: 'border-color 0.2s',
+      }}>
+        {/* Collapsed */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0,
+            ...(isPulsing ? { animation: 'issue-pulse 1.5s infinite' } : {}),
+          }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{issue.title}</div>
+            <div style={{ fontSize: 11, color: '#55516E', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span>{issue.page} → {issue.section}{issue.subsection ? ` → ${issue.subsection}` : ''}</span>
+              {catMeta && <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700, background: `${catMeta.color}15`, color: catMeta.color }}>{catMeta.pillLabel}</span>}
+            </div>
+          </div>
+          {sevMeta && sevMeta.value !== 'normal' && (
+            <span style={{ padding: '2px 8px', borderRadius: 5, fontSize: 9, fontWeight: 700, background: `${sevMeta.color}15`, color: sevMeta.color }}>{sevMeta.label}</span>
+          )}
+          <div style={{ fontSize: 10, color: '#55516E', textAlign: 'right', flexShrink: 0 }}>
+            <div>{issue.reporter_name?.split(' ')[0]}</div>
+            <div>{timeAgo(issue.created_at)}</div>
+          </div>
+        </div>
+
+        {/* Expanded */}
+        {expanded && (
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.65, marginBottom: 10 }}>{issue.description}</div>
+            <div style={{ fontSize: 11, color: '#55516E', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div><strong style={{ color: '#8080A8' }}>Element:</strong> {issue.element_description}</div>
+              {issue.platform && <div><strong style={{ color: '#8080A8' }}>Platform:</strong> {issue.platform === 'both' ? 'Both' : issue.platform === 'mobile' ? 'Mobile' : 'Desktop'}</div>}
+              {issue.reported_from_url && <div><strong style={{ color: '#8080A8' }}>Reported from:</strong> {issue.reported_from_url}</div>}
+              {issue.reported_screen_width && issue.reported_screen_height && <div><strong style={{ color: '#8080A8' }}>Screen:</strong> {issue.reported_screen_width} × {issue.reported_screen_height}px</div>}
+            </div>
+
+            {screenshotUrl && (
+              <div style={{ marginBottom: 10 }}>
+                <img src={screenshotUrl} alt="Screenshot" onClick={() => setLightbox(true)} style={{ maxHeight: 80, borderRadius: 6, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)' }} />
+              </div>
+            )}
+
+            {issue.status === 'resolved' && (
+              <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)', marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#22C55E', marginBottom: 3 }}>Resolved</div>
+                {issue.resolution_notes && <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.5 }}>{issue.resolution_notes}</div>}
+                <div style={{ fontSize: 10, color: '#55516E', marginTop: 4 }}>
+                  {issue.resolved_at && timeAgo(issue.resolved_at)} by {issue.resolved_by === 'system:claude_code' ? 'Auto-fix pipeline' : issue.resolved_by ?? 'admin'}
+                </div>
+              </div>
+            )}
+
+            {issue.status === 'failed_build' && (
+              <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', marginBottom: 3 }}>Build failed — awaiting manual review</div>
+                {issue.resolution_notes && <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.5, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{issue.resolution_notes}</div>}
+              </div>
+            )}
+
+            {isOwner && issue.pipeline_prompt && (
+              <div style={{ marginTop: 8 }}>
+                <button onClick={() => setPromptOpen(!promptOpen)} style={{
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                  color: '#8080A8', display: 'flex', alignItems: 'center', gap: 4, padding: 0,
+                }}>
+                  {promptOpen ? '▾' : '▸'} View Pipeline Prompt
+                </button>
+                {promptOpen && (
+                  <div style={{ marginTop: 6, position: 'relative' }}>
+                    <button onClick={() => {
+                      navigator.clipboard.writeText(issue.pipeline_prompt!)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    }} style={{
+                      position: 'absolute', top: 6, right: 6, padding: '3px 10px', borderRadius: 6,
+                      fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                      background: copied ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.06)',
+                      color: copied ? '#22C55E' : '#8080A8',
+                      border: `1px solid ${copied ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.08)'}`,
+                    }}>{copied ? 'Copied!' : 'Copy to Clipboard'}</button>
+                    <pre style={{
+                      fontSize: 11, lineHeight: 1.5, color: '#A0A0C8', fontFamily: 'monospace',
+                      whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      padding: '12px 14px', borderRadius: 8, maxHeight: 400, overflowY: 'auto',
+                      background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)',
+                    }}>{issue.pipeline_prompt}</pre>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isOwner && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                {!['resolved', 'wont_fix', 'duplicate'].includes(issue.status) && (
+                  <>
+                    <button onClick={() => setActionModal('wont_fix')} style={actionBtnStyle}>Won't Fix</button>
+                    <button onClick={() => setActionModal('duplicate')} style={actionBtnStyle}>Duplicate</button>
+                    <button onClick={() => setActionModal('retry')} style={actionBtnStyle}>Retry Pipeline</button>
+                    <button onClick={() => setActionModal('resolve')} style={actionBtnStyle}>Resolve Manually</button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Screenshot lightbox */}
+      {lightbox && screenshotUrl && (
+        <div onClick={() => setLightbox(false)} style={{
+          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+        }}>
+          <img src={screenshotUrl} alt="Full screenshot" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 10 }} />
+        </div>
+      )}
+
+      {/* Action modal */}
+      {actionModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => { setActionModal(null); setActionNotes('') }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '90%', maxWidth: 420, padding: 24, borderRadius: 16,
+            background: '#12121E', border: '1px solid rgba(255,255,255,0.08)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#E0E0F4', marginBottom: 12 }}>
+              {actionModal === 'wont_fix' && "Mark as Won't Fix"}
+              {actionModal === 'duplicate' && 'Mark as Duplicate'}
+              {actionModal === 'retry' && 'Retry Pipeline'}
+              {actionModal === 'resolve' && 'Resolve Manually'}
+            </div>
+
+            {actionModal === 'retry' ? (
+              <div style={{ fontSize: 13, color: '#A0A0C8', marginBottom: 16 }}>Re-send this issue to the fix pipeline?</div>
+            ) : (
+              <textarea value={actionNotes} onChange={e => setActionNotes(e.target.value)} placeholder={actionModal === 'duplicate' ? 'Which issue is this a duplicate of?' : 'Resolution notes...'} rows={3} style={{
+                width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13,
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                color: '#E0E0F4', outline: 'none', resize: 'vertical', marginBottom: 16,
+              }} />
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setActionModal(null); setActionNotes('') }} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 12, background: 'none', color: '#8080A8', border: 'none', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => handleAction(actionModal)} disabled={updateIssue.isPending || (actionModal !== 'retry' && !actionNotes.trim())} style={{
+                padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: actionModal === 'wont_fix' ? '#55516E' : '#D4226A', color: '#fff', border: 'none',
+                opacity: updateIssue.isPending || (actionModal !== 'retry' && !actionNotes.trim()) ? 0.4 : 1,
+              }}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function CategoryDropdown({ categories, value, onChange }: { categories: readonly { value: string; label: string; helper: string; color: string }[]; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selected = categories.find(c => c.value === value)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div style={{ fontSize: 11, color: '#8080A8', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</div>
+      <button onClick={() => setOpen(!open)} style={{
+        width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13, textAlign: 'left',
+        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+        color: selected ? '#E0E0F4' : '#55516E', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span>{selected ? selected.label : 'What kind of issue is this?'}</span>
+        <ChevronDown size={14} style={{ color: '#55516E', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 50,
+          background: '#12121E', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden',
+        }}>
+          {categories.map(c => (
+            <button key={c.value} onClick={() => { onChange(c.value); setOpen(false) }} style={{
+              display: 'block', width: '100%', padding: '10px 14px', textAlign: 'left', cursor: 'pointer',
+              background: value === c.value ? 'rgba(255,255,255,0.04)' : 'transparent', border: 'none',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+              onMouseLeave={e => e.currentTarget.style.background = value === c.value ? 'rgba(255,255,255,0.04)' : 'transparent'}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#E0E0F4' }}>{c.label}</div>
+              <div style={{ fontSize: 11, color: '#55516E', marginTop: 2 }}>{c.helper}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const actionBtnStyle: React.CSSProperties = {
+  padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+  cursor: 'pointer', background: 'rgba(255,255,255,0.03)', color: '#8080A8',
+  border: '1px solid rgba(255,255,255,0.06)',
 }

@@ -94,7 +94,7 @@ export default function ThankYou() {
         {/* Drums — same drum kit as /omaha/drums, uses /audio/drums/*.wav */}
         <div style={{ background: '#111', borderRadius: 16, padding: 20, border: '1px solid #222', overflow: 'hidden' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', marginBottom: 12, textAlign: 'center', letterSpacing: 1 }}>
-            🥁 DRUMS
+            🪘 DRUMS
           </div>
           <DrumsWidget />
         </div>

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { useTeacherRecord } from './useTeacherDashboard'
 
 export interface TeacherBlock {
   block_id: string
@@ -22,29 +23,25 @@ export interface TeacherBlock {
   // Session log state
   has_session_log: boolean
   session_log_id: string | null
+  // Session note state
+  has_session_note: boolean
+  session_note_id: string | null
 }
 
 export function useTeacherDayBlocks(date: string) {
-  const { profile } = useAuthContext()
+  const { data: teacherId } = useTeacherRecord()
 
   return useQuery<TeacherBlock[]>({
-    queryKey: ['teacher-day-blocks', date, profile?.id],
-    enabled: !!date && !!profile?.id,
+    queryKey: ['teacher-day-blocks', date, teacherId],
+    enabled: !!date && !!teacherId,
     queryFn: async () => {
-      // Get teacher ID from profile
-      const { data: teacher } = await supabase
-        .from('teachers')
-        .select('id')
-        .eq('profile_id', profile!.id)
-        .single()
-
-      if (!teacher) return []
+      if (!teacherId) return []
 
       // Get all blocks for this teacher on this date
       const { data: blocks, error } = await supabase
         .from('schedule_blocks')
         .select('id, student_id, block_date, start_time, end_time, status, block_type, checked_in, room, room_id, notes, location_id')
-        .eq('teacher_id', teacher.id)
+        .eq('teacher_id', teacherId)
         .eq('block_date', date)
         .order('start_time')
 
@@ -89,6 +86,14 @@ export function useTeacherDayBlocks(date: string) {
       const logMap = new Map<string, string>()
       logs?.forEach((l: any) => logMap.set(l.schedule_block_id, l.id))
 
+      // Check which blocks already have session notes
+      const { data: sessionNotes } = await supabase
+        .from('teacher_session_notes')
+        .select('id, schedule_block_id')
+        .in('schedule_block_id', blockIds)
+      const noteMap = new Map<string, string>()
+      sessionNotes?.forEach((n: any) => noteMap.set(n.schedule_block_id, n.id))
+
       return blocks.map((b: any): TeacherBlock => {
         const student = b.student_id ? studentMap.get(b.student_id) : null
         return {
@@ -110,6 +115,8 @@ export function useTeacherDayBlocks(date: string) {
           notes: b.notes,
           has_session_log: logMap.has(b.id),
           session_log_id: logMap.get(b.id) ?? null,
+          has_session_note: noteMap.has(b.id),
+          session_note_id: noteMap.get(b.id) ?? null,
         }
       })
     },
@@ -171,17 +178,12 @@ export function useSubmitSessionLog() {
 
       if (error) throw error
 
-      // Mark the block as checked in
-      await supabase
-        .from('schedule_blocks')
-        .update({ checked_in: true })
-        .eq('id', params.block.block_id)
-
       return { sessionLogId: log.id }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['teacher-day-blocks'] })
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       qc.invalidateQueries({ queryKey: ['student-blocks'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
       qc.invalidateQueries({ queryKey: ['teacher-pay-summary'] })

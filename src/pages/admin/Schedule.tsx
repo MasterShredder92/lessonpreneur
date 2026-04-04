@@ -24,6 +24,8 @@ import { ChevronLeft, ChevronRight, ChevronDown, Calendar, Music, MapPin, UserPl
 import { useQuery } from '@tanstack/react-query'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -345,7 +347,7 @@ export default function Schedule() {
       setSelectedStudentId('')
       setStudentSearch('')
       setAssignRoom('')
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
     }
 
     if (isOutsideHours(time)) {
@@ -382,19 +384,24 @@ export default function Schedule() {
         toast(`Room "${room?.name ?? 'selected'}" is already booked at this time. Pick another room.`, 'error')
         return
       }
-      await supabase.from('schedule_blocks').update({ room_id: assignRoom, room: room?.name ?? null }).eq('id', assignModal.block_id)
+      const { error: roomErr } = await supabase.from('schedule_blocks').update({ room_id: assignRoom, room: room?.name ?? null }).eq('id', assignModal.block_id)
+      if (roomErr) { toast('Failed to set room: ' + roomErr.message, 'error'); return }
     }
-    await assignStudent.mutateAsync({
-      blockId: assignModal.block_id,
-      studentId: selectedStudentId,
-      recurring,
-    })
-    setAssignModal(null)
-    setSelectedStudentId('')
-    setRecurring(true)
-    setNonRecurringReason('')
-    setStudentSearch('')
-    setAssignRoom('')
+    try {
+      await assignStudent.mutateAsync({
+        blockId: assignModal.block_id,
+        studentId: selectedStudentId,
+        recurring,
+      })
+      setAssignModal(null)
+      setSelectedStudentId('')
+      setRecurring(true)
+      setNonRecurringReason('')
+      setStudentSearch('')
+      setAssignRoom('')
+    } catch (err: any) {
+      toast(err.message || 'Failed to assign student', 'error')
+    }
   }
 
   const handleUnassign = () => {
@@ -402,7 +409,7 @@ export default function Schedule() {
     if (detailModal.is_recurring) {
       setSeriesBlock({ block: detailModal, action: 'unassign' })
     } else {
-      unassignBlock.mutateAsync(detailModal.block_id).then(() => setDetailModal(null))
+      unassignBlock.mutateAsync(detailModal.block_id).then(() => setDetailModal(null)).catch((err: any) => toast(err.message || 'Failed to unassign', 'error'))
     }
   }
 
@@ -410,7 +417,7 @@ export default function Schedule() {
     if (!detailModal) return
     const { error } = await supabase.from('schedule_blocks').delete().eq('id', detailModal.block_id)
     if (error) { toast('Failed to delete block: ' + error.message, 'error'); return }
-    qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+    qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
     toast('Block deleted', 'success')
     setDetailModal(null)
   }
@@ -489,7 +496,7 @@ export default function Schedule() {
       }).eq('id', source.block_id)
       if (e2) toast('Warning: moved but old slot not cleared', 'error')
       else toast(isSub ? 'Sub lesson moved' : 'Student moved', 'success')
-      await qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      await qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
     }
 
     if (dragBlock.teacher_id !== targetBlock.teacher_id) {
@@ -639,6 +646,7 @@ export default function Schedule() {
   }
 
   return (
+    <IssueContextProvider page="Schedule">
     <div className="page" style={{ maxWidth: 'none' }}>
       {/* Unified toolbar — locations | date nav | actions (desktop only) */}
       {!isMobile && <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${locColor}25`, borderRadius: 12, marginBottom: 8, position: 'relative', overflow: 'visible', zIndex: 50, gap: 8, flexWrap: 'wrap' }}>
@@ -691,6 +699,7 @@ export default function Schedule() {
             {allGridTeachersFull.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
 
+          <ReportIssueButton />
           {/* Legend dropdown */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowLegend(!showLegend)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.08)', background: showLegend ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', color: '#A0A0C8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
@@ -708,7 +717,7 @@ export default function Schedule() {
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, padding: '10px 14px', background: '#1C1C2A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 140, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
                   {[
                     { label: 'Booked', color: '#FACC15' }, { label: 'First Day', color: '#38BDF8' }, { label: 'Last Day', color: '#DC0000' },
-                    { label: 'Call Out', color: '#FF5500' }, { label: 'Meet & Greet', color: '#FF1493' }, { label: 'Sub', color: '#22C55E' }, { label: 'Training', color: '#818CF8' },
+                    { label: 'Call Out', color: '#FF5500' }, { label: 'Meet & Greet', color: '#FF1493' }, { label: 'Sub', color: '#22C55E' }, { label: 'Training', color: '#818CF8' }, { label: 'Locked Times', color: '#606088' },
                   ].map((l) => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 12, height: 12, borderRadius: 4, background: l.color, flexShrink: 0 }} />
@@ -725,17 +734,22 @@ export default function Schedule() {
       {lastDayResult && <div style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#EF4444' }}>{lastDayResult}</div>}
       {firstDayResult && <div style={{ padding: '8px 14px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#3B82F6' }}>{firstDayResult}</div>}
 
-      {/* Schedule Intelligence — utilization bar */}
-      {scheduleIntel && scheduleIntel.utilization.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+      {/* Schedule Intelligence — utilization bar (desktop only) */}
+      {!isMobile && scheduleIntel && scheduleIntel.utilization.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {scheduleIntel.utilization.map(loc => (
             <div key={loc.locationId} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
               <div style={{ width: 6, height: 6, borderRadius: 3, background: loc.color }} />
               <span style={{ fontSize: 10, color: '#A0A0C8', fontWeight: 600 }}>{loc.locationName}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: loc.utilizationPercent >= 80 ? '#22C55E' : loc.utilizationPercent >= 50 ? '#FFB800' : '#EF4444', fontFamily: 'monospace' }}>{loc.utilizationPercent}%</span>
-              <span style={{ fontSize: 9, color: '#606088' }}>{loc.openBlocks} open</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: loc.utilizationPercent >= 80 ? '#22C55E' : loc.utilizationPercent >= 50 ? '#FFB800' : '#EF4444', fontFamily: 'monospace' }}>{loc.utilizationPercent}% utilized</span>
+              <span style={{ fontSize: 9, color: '#606088' }}>{loc.bookedBlocks}/{loc.totalBlocks} slots</span>
             </div>
           ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: 'rgba(212,34,106,0.04)', border: '1px solid rgba(212,34,106,0.12)' }}>
+            <span style={{ fontSize: 10, color: '#D4226A', fontWeight: 700, fontFamily: 'monospace' }}>{scheduleIntel.overall.utilizationPercent}%</span>
+            <span style={{ fontSize: 10, color: '#A0A0C8', fontWeight: 600 }}>Total</span>
+            <span style={{ fontSize: 9, color: '#606088' }}>{scheduleIntel.overall.bookedBlocks}/{scheduleIntel.overall.totalBlocks} slots</span>
+          </div>
           {scheduleIntel.insights.filter(i => i.priority === 'high').map((insight, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.1)' }}>
               <span style={{ fontSize: 10, color: '#EF4444' }}>{insight.message}</span>
@@ -793,13 +807,16 @@ export default function Schedule() {
             }).eq('id', source.block_id)
             if (e2) toast('Warning: moved but old slot not cleared', 'error')
             else toast('Student moved', 'success')
-            await qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+            await qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
           }}
           locations={locations ?? []}
           selectedLocation={effectiveLocation}
           onLocationChange={setSelectedLocation}
           selectedDate={selectedDate}
           onNavigateDate={navigateDate}
+          utilization={scheduleIntel?.utilization ?? []}
+          onStarOpen={() => setStarOpen(!starOpen)}
+          starOpen={starOpen}
         />
       ) : isLoading ? (
         <div className="loading-screen" style={{ height: 400 }}><MusicLoader /></div>
@@ -876,7 +893,7 @@ export default function Schedule() {
                             .eq('block_date', selectedDate)
                             .eq('location_id', effectiveLocation)
                           if (error) { toast('Failed to remove sub: ' + error.message, 'error'); return }
-                          qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                          qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
                           toast('Sub removed', 'success')
                         }}
                         title="Remove sub from today"
@@ -964,7 +981,7 @@ export default function Schedule() {
                             if (clearErr) toast('Warning: moved but old slot not cleared', 'error')
                             else toast('Student moved', 'success')
                             setDragBlock(null); setDragOverTarget(null)
-                            qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                            qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
                           }
                           if (dragBlock.teacher_id !== t.id) {
                             const capturedDrag = dragBlock
@@ -1165,7 +1182,7 @@ export default function Schedule() {
                                 block_date: selectedDate, start_time: '15:00:00', end_time: '15:30:00',
                                 status: 'available', block_type: 'open_time', is_recurring: false,
                               })
-                              qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                              qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
                               setShowAddTeacher(false)
                             }}
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none', background: 'rgba(168,85,247,0.06)', cursor: 'pointer', marginBottom: 4, textAlign: 'left' }}
@@ -1194,7 +1211,7 @@ export default function Schedule() {
                                   block_date: selectedDate, start_time: '15:00:00', end_time: '15:30:00',
                                   status: 'available', block_type: 'open_time', is_recurring: false,
                                 })
-                                qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                                qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
                                 setShowAddTeacher(false)
                               }
                               if (!isAtLocation) {
@@ -1273,29 +1290,38 @@ export default function Schedule() {
                     onClick={async () => {
                       if (!lockReason.trim()) { setAssignError('Please enter a reason'); return }
                       setLockSubmitting(true)
+                      setAssignError(null)
                       try {
-                        await supabase.from('schedule_blocks').update({ block_type: 'not_bookable', notes: `[Locked] ${lockReason.trim()}` }).eq('id', assignModal.block_id)
-                        if (lockRecurring) {
-                          // Lock all future blocks at same teacher/time/DOW
-                          const dow = new Date(assignModal.block_date + 'T00:00:00').getDay()
-                          const { data: futureBlocks } = await supabase.from('schedule_blocks').select('id, block_date')
-                            .eq('teacher_id', assignModal.teacher_id).eq('start_time', assignModal.start_time).eq('status', 'available').gt('block_date', assignModal.block_date)
-                          const sameDayIds = (futureBlocks ?? [])
-                            .filter((fb: any) => new Date(fb.block_date + 'T00:00:00').getDay() === dow)
-                            .map((fb: any) => fb.id)
-                          if (sameDayIds.length > 0) {
-                            await supabase.from('schedule_blocks').update({ block_type: 'not_bookable', notes: `[Locked] ${lockReason.trim()}` }).in('id', sameDayIds)
+                        const lockPromise = (async () => {
+                          const { error: lockErr } = await supabase.from('schedule_blocks').update({ block_type: 'not_bookable', notes: `[Locked] ${lockReason.trim()}` }).eq('id', assignModal.block_id)
+                          if (lockErr) throw new Error(lockErr.message)
+                          if (lockRecurring) {
+                            const dow = new Date(assignModal.block_date + 'T00:00:00').getDay()
+                            const { data: futureBlocks } = await supabase.from('schedule_blocks').select('id, block_date')
+                              .eq('teacher_id', assignModal.teacher_id).eq('start_time', assignModal.start_time).eq('status', 'available').gt('block_date', assignModal.block_date)
+                            const sameDayIds = (futureBlocks ?? [])
+                              .filter((fb: any) => new Date(fb.block_date + 'T00:00:00').getDay() === dow)
+                              .map((fb: any) => fb.id)
+                            if (sameDayIds.length > 0) {
+                              const { error: recurErr } = await supabase.from('schedule_blocks').update({ block_type: 'not_bookable', notes: `[Locked] ${lockReason.trim()}` }).in('id', sameDayIds)
+                              if (recurErr) throw new Error(recurErr.message)
+                            }
                           }
-                        }
-                        await supabase.from('activity_log').insert({
-                          tenant_id: assignModal.tenant_id, entity_type: 'schedule_block', entity_id: assignModal.block_id,
-                          action: 'lock_time', description: `Locked: ${assignModal.teacher_name} @ ${formatTime(assignModal.start_time)} on ${new Date(assignModal.block_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}${lockRecurring ? ' (recurring)' : ''}. Reason: ${lockReason.trim()}`,
-                          performed_by: profile?.id ?? null,
-                        }).then(() => {})
-                        qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                          await supabase.from('activity_log').insert({
+                            tenant_id: assignModal.tenant_id, entity_type: 'schedule_block', entity_id: assignModal.block_id,
+                            action: 'lock_time', description: `Locked: ${assignModal.teacher_name} @ ${formatTime(assignModal.start_time)} on ${new Date(assignModal.block_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}${lockRecurring ? ' (recurring)' : ''}. Reason: ${lockReason.trim()}`,
+                            performed_by: profile?.id ?? null,
+                          })
+                        })()
+                        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Lock timed out — please try again')), 15000))
+                        await Promise.race([lockPromise, timeout])
+                        qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                        toast('Time locked', 'success')
                         setAssignModal(null); setShowLockFlow(false); setLockReason(''); setLockRecurring(false)
-                      } catch (err: any) { setAssignError(err.message) }
-                      finally { setLockSubmitting(false) }
+                      } catch (err: any) {
+                        toast(err.message || 'Failed to lock time', 'error')
+                        setAssignError(err.message || 'Failed to lock time')
+                      } finally { setLockSubmitting(false) }
                     }}
                     disabled={!lockReason.trim() || lockSubmitting}
                     style={{ width: '100%', padding: '11px 16px', borderRadius: 10, background: lockReason.trim() ? '#64648C' : '#363656', border: 'none', cursor: lockReason.trim() ? 'pointer' : 'not-allowed', color: '#fff', fontWeight: 700, fontSize: 13, opacity: lockReason.trim() ? 1 : 0.5, marginBottom: 6 }}
@@ -1472,11 +1498,13 @@ export default function Schedule() {
                                 setAssignError(`Room "${room?.name ?? 'selected'}" is already booked at this time. Pick another room.`)
                                 return
                               }
-                              await supabase.from('schedule_blocks').update({ room_id: assignRoom, room: room?.name ?? null }).eq('id', assignModal.block_id)
+                              const { error: roomErr } = await supabase.from('schedule_blocks').update({ room_id: assignRoom, room: room?.name ?? null }).eq('id', assignModal.block_id)
+                              if (roomErr) throw new Error('Failed to set room: ' + roomErr.message)
                             }
                             // Update block type if not default
                             if (assignBlockType !== 'student_session') {
-                              await supabase.from('schedule_blocks').update({ block_type: assignBlockType }).eq('id', assignModal.block_id)
+                              const { error: typeErr } = await supabase.from('schedule_blocks').update({ block_type: assignBlockType }).eq('id', assignModal.block_id)
+                              if (typeErr) throw new Error('Failed to set block type: ' + typeErr.message)
                             }
                             await assignStudent.mutateAsync({ blockId: assignModal.block_id, studentId: selectedStudentId, recurring })
                             setAssignModal(null)
@@ -1545,13 +1573,13 @@ export default function Schedule() {
           blocks={blocks}
           date={selectedDate}
           tenantId={tenantId ?? ''}
-          onClose={() => { setBulkVirtualOpen(false); qc.invalidateQueries({ queryKey: ['schedule-grid'] }) }}
+          onClose={() => { setBulkVirtualOpen(false); qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] }) }}
         />
       )}
 
       {/* Star AI — portaled to body so position:fixed works above overflow:auto ancestors */}
       {createPortal(<>
-      <button
+      {!isMobile && <button
         onClick={() => setStarOpen(!starOpen)}
         style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
@@ -1567,7 +1595,7 @@ export default function Schedule() {
           ? <X size={18} style={{ color: '#A0A0C8' }} />
           : <><Star size={17} style={{ color: '#fff' }} /><span style={{ color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em' }}>Ask Star</span></>
         }
-      </button>
+      </button>}
 
       {starOpen && (
         <div style={{
@@ -1633,7 +1661,7 @@ export default function Schedule() {
               <div style={{ fontSize: 10, fontWeight: 700, color: '#A855F7', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Confirm Action</div>
               <div style={{ fontSize: 12, color: '#E8E8FC', marginBottom: 8, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{pendingAction.description}</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={async () => { await confirmAction(); qc.invalidateQueries({ queryKey: ['schedule-grid'] }) }} disabled={starLoading} style={{ flex: 1, padding: '8px', borderRadius: 8, background: '#22C55E', border: 'none', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Confirm</button>
+                <button onClick={async () => { await confirmAction(); qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] }) }} disabled={starLoading} style={{ flex: 1, padding: '8px', borderRadius: 8, background: '#22C55E', border: 'none', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Confirm</button>
                 <button onClick={rejectAction} style={{ flex: 1, padding: '8px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
               </div>
             </div>
@@ -1668,6 +1696,7 @@ export default function Schedule() {
       )}
       </>, document.body)}
     </div>
+    </IssueContextProvider>
   )
 }
 

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+
 /* ── helpers ── */
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -316,6 +318,7 @@ export default function TeacherCalloutWizard({ date, locationId, teachers, onClo
 
       // Force full cache invalidation
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       qc.invalidateQueries({ queryKey: ['student-blocks'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
       setApplied(true)
@@ -453,7 +456,7 @@ export default function TeacherCalloutWizard({ date, locationId, teachers, onClo
                       <div style={{ fontSize: 10, color: '#A0A0C8', display: 'flex', gap: 8 }}>
                         <span>{formatTime(block.start_time)} - {formatTime(block.end_time)}</span>
                         <span style={{ padding: '1px 6px', borderRadius: 4, background: 'rgba(255,184,0,0.1)', color: '#FFB800', fontSize: 9, fontWeight: 600 }}>
-                          {block.instrument ? block.instrument.charAt(0).toUpperCase() + block.instrument.slice(1) : 'N/A'}
+                          {block.instrument ? getInstrumentEmoji(block.instrument) : '🎵'}
                         </span>
                       </div>
                     </div>
@@ -497,7 +500,7 @@ export default function TeacherCalloutWizard({ date, locationId, teachers, onClo
                     <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <span style={{ fontSize: 12, fontWeight: 700, color: '#E0E0F4' }}>{block.student_name}</span>
-                        <span style={{ fontSize: 10, color: '#A0A0C8', marginLeft: 8 }}>{formatTime(block.start_time)} · {block.instrument ? block.instrument.charAt(0).toUpperCase() + block.instrument.slice(1) : ''}</span>
+                        <span style={{ fontSize: 10, color: '#A0A0C8', marginLeft: 8 }}>{formatTime(block.start_time)} · {block.instrument ? getInstrumentEmoji(block.instrument) : '🎵'}</span>
                       </div>
                       {assigned && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

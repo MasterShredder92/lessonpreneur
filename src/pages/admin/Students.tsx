@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
@@ -19,6 +19,9 @@ import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import AddStudentModal from '../../components/students/AddStudentModal'
 import DataGrid from '../../components/shared/DataGrid'
 import { useChurnRiskScores, RISK_TIERS } from '../../hooks/useChurnRisk'
+import { useScrollRestore } from '../../hooks/useScrollRestore'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 const INSTRUMENT_ICON: Record<string, any> = {
   guitar: Guitar, bass: Guitar, ukulele: Guitar, banjo: Guitar,
@@ -38,6 +41,11 @@ const INSTRUMENTS = ['piano','guitar','vocals','drums','banjo','bass','brass','c
 const EXIT_REASONS = ['Schedule Conflict', 'Moving Away', 'Financial', 'Lost Interest', 'Switching Schools', 'Taking a Break', 'Other']
 
 type StatusTab = 'active' | 'former' | 'all'
+type SortOption = 'az_first' | 'za_first' | 'az_last' | 'za_last' | 'newest' | 'oldest'
+
+function isIncomplete(s: StudentRow): boolean {
+  return !s.instrument || !s.teacher_id || !s.blocks_per_week || !s.rate_per_session || !s.location_id
+}
 
 export default function Students() {
   const { role, tenantId } = useAuthContext()
@@ -51,12 +59,15 @@ export default function Students() {
   const { canDo } = usePermissions()
   const canViewContact = canDo('students.view_contact')
   const canViewBilling = canDo('students.view_billing')
+  const { saveScroll } = useScrollRestore('students')
 
   const [activeTab, setActiveTab] = useState<StatusTab>('active')
   const [locationFilter, setLocationFilter] = useState(searchParams.get('location') ?? '')
-  const [teacherFilter, setTeacherFilter] = useState('')
+  const [teacherFilter, setTeacherFilter] = useState(searchParams.get('teacher') ?? '')
   const [instrumentFilter, setInstrumentFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>('az_first')
+  const [showIncomplete, setShowIncomplete] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editStudent, setEditStudent] = useState<StudentRow | null>(null)
   const [exitStudent, setExitStudent] = useState<StudentRow | null>(null)
@@ -93,14 +104,31 @@ export default function Students() {
   const formerCt = allForCounts?.filter((s) => s.status === 'former' || s.status === 'inactive').length ?? 0
   const allCt = allForCounts?.length ?? 0
 
-  // Apply search + instrument filter
-  const filtered = (allStudents ?? []).filter((s) => {
-    if (instrumentFilter && s.instrument !== instrumentFilter) return false
-    if (!search) return true
-    const name = `${s.first_name} ${s.last_name}`.toLowerCase()
-    const fam = (s.family_name ?? '').toLowerCase()
-    return name.includes(search.toLowerCase()) || fam.includes(search.toLowerCase())
-  })
+  // Apply search + instrument + incomplete filter, then sort
+  const filtered = useMemo(() => {
+    let list = (allStudents ?? []).filter((s) => {
+      if (instrumentFilter && s.instrument !== instrumentFilter) return false
+      if (showIncomplete && !isIncomplete(s)) return false
+      if (!search) return true
+      const name = `${s.first_name} ${s.last_name}`.toLowerCase()
+      const fam = (s.family_name ?? '').toLowerCase()
+      return name.includes(search.toLowerCase()) || fam.includes(search.toLowerCase())
+    })
+    list = [...list].sort((a, b) => {
+      switch (sortBy) {
+        case 'az_first': return a.first_name.localeCompare(b.first_name)
+        case 'za_first': return b.first_name.localeCompare(a.first_name)
+        case 'az_last': return a.last_name.localeCompare(b.last_name)
+        case 'za_last': return b.last_name.localeCompare(a.last_name)
+        case 'newest': return (b.start_date ?? '').localeCompare(a.start_date ?? '')
+        case 'oldest': return (a.start_date ?? '').localeCompare(b.start_date ?? '')
+        default: return 0
+      }
+    })
+    return list
+  }, [allStudents, instrumentFilter, showIncomplete, search, sortBy])
+
+  const incompleteCount = useMemo(() => (allStudents ?? []).filter(isIncomplete).length, [allStudents])
 
   // Get instruments for filter dropdown
   const instruments = [...new Set((allStudents ?? []).map((s) => s.instrument).filter(Boolean))].sort()
@@ -142,6 +170,7 @@ export default function Students() {
   }
 
   return (
+    <IssueContextProvider page="Roster — Students">
     <div className="page">
       <div className="page-header">
         <h1>Students</h1>
@@ -175,7 +204,7 @@ export default function Students() {
             </button>
             {showMoreMenu && (
               <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setShowMoreMenu(false)} />
+                <div style={{ position: 'fixed', inset: 0, zIndex: 90, cursor: 'pointer' }} onClick={() => setShowMoreMenu(false)} onTouchEnd={(e) => { e.preventDefault(); setShowMoreMenu(false) }} />
                 <div className="student-more-dropdown">
                   {role === 'owner' && (
                     <button onClick={() => { setShowMasterSheet(true); setShowMoreMenu(false) }}>Master Sheet</button>
@@ -189,6 +218,7 @@ export default function Students() {
                   {canExport && (
                     <button onClick={() => { setShowExport(true); setShowMoreMenu(false) }}>Export CSV</button>
                   )}
+                  <button onClick={() => setShowMoreMenu(false)} style={{ color: '#8080A8', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 2 }}>Close</button>
                 </div>
               </>
             )}
@@ -200,6 +230,7 @@ export default function Students() {
             </button>
           )}
         </div>
+        <ReportIssueButton />
       </div>
 
       {/* Tabs */}
@@ -290,6 +321,32 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
             ))}
           </select>
         </div>
+        <div className="student-filter-row-2" style={{ marginTop: 6 }}>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value="az_first">A → Z First Name</option>
+            <option value="za_first">Z → A First Name</option>
+            <option value="az_last">A → Z Last Name</option>
+            <option value="za_last">Z → A Last Name</option>
+            <option value="newest">Newest Enrolled</option>
+            <option value="oldest">Oldest Enrolled</option>
+          </select>
+          <button
+            onClick={() => setShowIncomplete(!showIncomplete)}
+            className="filter-select"
+            style={{
+              flex: 'none',
+              cursor: 'pointer',
+              textAlign: 'center',
+              fontWeight: showIncomplete ? 700 : 500,
+              background: showIncomplete ? 'rgba(251,146,60,0.12)' : undefined,
+              borderColor: showIncomplete ? 'rgba(251,146,60,0.35)' : undefined,
+              color: showIncomplete ? '#FB923C' : '#A0A0C8',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Needs Attention{incompleteCount > 0 ? ` (${incompleteCount})` : ''}
+          </button>
+        </div>
         <span className="visibility-count">Showing {filtered.length} student{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
@@ -321,7 +378,7 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
               <div
                 key={s.id}
                 className={`lead-card${isFormer ? ' lead-card-stale' : ''}`}
-                onClick={() => navigate(`/admin/students/${s.id}`)}
+                onClick={() => { saveScroll(); navigate(`/admin/students/${s.id}`) }}
               >
                 {/* Edge accent — location color */}
                 <div className="lead-card-edge" style={{
@@ -687,6 +744,7 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
         />
       )}
     </div>
+    </IssueContextProvider>
   )
 }
 

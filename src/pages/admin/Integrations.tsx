@@ -5,6 +5,8 @@ import { useIntegrations, useConnectIntegration, useDisconnectIntegration, useTo
 import IntegrationConnectModal from '../../components/admin/IntegrationConnectModal'
 import IntegrationConfigureModal from '../../components/admin/IntegrationConfigureModal'
 import type { IntegrationConfig } from '../../hooks/useIntegrations'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 // ─── Integration Data ───────────────────────────────
 
@@ -119,10 +121,14 @@ export default function Integrations() {
   }
 
   return (
+    <IssueContextProvider page="Settings" section="Integrations">
     <div className="page" style={{ maxWidth: 1100 }}>
       {/* Hero */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>Integrations</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>Integrations</h1>
+          <ReportIssueButton />
+        </div>
         <p style={{ fontSize: 13, color: '#8080A8', marginBottom: 16 }}>Connect your tools. Automate your workflow.</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#22C55E' }}>{connectedItems.length} connected</span>
@@ -290,5 +296,6 @@ export default function Integrations() {
         />
       )}
     </div>
+    </IssueContextProvider>
   )
 }

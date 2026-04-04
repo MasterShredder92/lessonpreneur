@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { LESSON_LOOKBACK_DAYS } from '../lib/constants'
 import { useAuthContext } from '../app/AuthContext'
@@ -56,6 +56,7 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
   return useQuery({
     queryKey: ['students', tenantId, filters?.status, filters?.locationId, filters?.teacherId],
     enabled: !!tenantId,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       let query = supabase
         .from('students')

@@ -2,7 +2,6 @@ import { NavLink, Outlet } from 'react-router-dom'
 import PageTransition from '../shared/PageTransition'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
-import NotificationBell from '../shared/NotificationBell'
 import RoleSwitcher from '../shared/RoleSwitcher'
 import { useTheme } from '../../hooks/useTheme'
 
@@ -20,7 +19,6 @@ export default function ParentShell() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <RoleSwitcher />
-          <NotificationBell />
           <span className="text-muted" style={{ fontSize: '13px' }}>
             {profile?.first_name}
           </span>

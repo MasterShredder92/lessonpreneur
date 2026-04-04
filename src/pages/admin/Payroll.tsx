@@ -27,6 +27,8 @@ import {
   AlertTriangle,
   BarChart3,
 } from 'lucide-react'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 // ─── Constants ────────────────────────────────────────────────
 const MONTHS = [
@@ -540,6 +542,7 @@ export default function Payroll() {
 
   // ─── Render ────────────────────────────────────────────────
   return (
+    <IssueContextProvider page="The Band — Payroll">
     <div className="page">
       {/* Print-only header */}
       <div className="print-only" style={{ display: 'none' }}>
@@ -557,6 +560,7 @@ export default function Payroll() {
           <DollarSign size={20} style={{ color: '#FFB800' }} />
           <h1>Payroll</h1>
         </div>
+        <ReportIssueButton />
       </div>
 
       {/* ─── Top Bar ─────────────────────────────────────────── */}
@@ -1064,5 +1068,6 @@ export default function Payroll() {
         }
       `}</style>
     </div>
+    </IssueContextProvider>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -11,11 +11,14 @@ import { useAI } from '../../hooks/useAI'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell } from 'lucide-react'
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { useReactivateStudent } from '../../hooks/useRetention'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_SESSIONS_PER_MONTH } from '../../lib/constants'
 import { supabase, getCurrentBillingCycleId } from '../../lib/supabase'
 import { calculatePreviewRate } from '../../hooks/useFamilyRate'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 // ═══════════════════════════════════════
 // DISPLAY HELPERS
@@ -24,6 +27,12 @@ import { calculatePreviewRate } from '../../hooks/useFamilyRate'
 function stripFamily(name: string | null | undefined): string {
   if (!name) return '---'
   return name.replace(/\s+family$/i, '').trim() || name
+}
+
+function familyNeedsAttention(f: Family): boolean {
+  if (!f.primary_email || !f.primary_phone || !f.square_customer_id) return true
+  const active = (f.students ?? []).filter(s => s.status === 'active')
+  return active.some(s => !s.teacher_id || !s.instrument)
 }
 
 function formatDollars(cents: number | null | undefined): string {
@@ -79,8 +88,10 @@ export default function Families() {
 
   const [search, setSearch] = useState('')
   const [familyTab, setFamilyTab] = useState<'active' | 'inactive' | 'all'>('active')
-  const [locationFilters, setLocationFilters] = useState<Set<string>>(new Set())
+  const [locationFilter, setLocationFilter] = useState('')
   const [rateFilter, setRateFilter] = useState<number>(0)
+  const [sortBy, setSortBy] = useState<'az' | 'za' | 'newest' | 'oldest'>('az')
+  const [showNeedsAttention, setShowNeedsAttention] = useState(false)
   const [searchParams] = useSearchParams()
   const initialFamily = searchParams.get('family')
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(initialFamily)
@@ -101,9 +112,10 @@ export default function Families() {
   const baseList = familyTab === 'all' ? allFamilies : familyTab === 'active' ? allActive : allInactive
 
   const filtered = useMemo(() => {
-    return baseList.filter((f) => {
-      if (locationFilters.size > 0 && (!f.locationName || !locationFilters.has(f.locationName))) return false
+    let list = baseList.filter((f) => {
+      if (locationFilter && f.locationName !== locationFilter) return false
       if (rateFilter && f.rate_tier !== rateFilter) return false
+      if (showNeedsAttention && !familyNeedsAttention(f)) return false
       if (search) {
         const q = search.toLowerCase()
         const haystack = `${f.name} ${f.parent_name ?? ''} ${f.primary_contact_name ?? ''} ${f.primary_email ?? ''} ${f.primary_phone ?? ''}`.toLowerCase()
@@ -111,18 +123,19 @@ export default function Families() {
       }
       return true
     })
-  }, [baseList, search, locationFilters, rateFilter])
+    list = [...list].sort((a, b) => {
+      switch (sortBy) {
+        case 'az': return stripFamily(a.name).localeCompare(stripFamily(b.name))
+        case 'za': return stripFamily(b.name).localeCompare(stripFamily(a.name))
+        case 'newest': return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+        case 'oldest': return (a.created_at ?? '').localeCompare(b.created_at ?? '')
+        default: return 0
+      }
+    })
+    return list
+  }, [baseList, search, locationFilter, rateFilter, sortBy, showNeedsAttention])
 
-  // Location counts from the current baseList
-  const locCounts = useMemo(() => {
-    const map = new Map<string, number>()
-    baseList.forEach(f => { if (f.locationName) map.set(f.locationName, (map.get(f.locationName) ?? 0) + 1) })
-    return map
-  }, [baseList])
-
-  function toggleLoc(name: string) {
-    setLocationFilters(s => { const n = new Set(s); n.has(name) ? n.delete(name) : n.add(name); return n })
-  }
+  const needsAttentionCount = useMemo(() => baseList.filter(familyNeedsAttention).length, [baseList])
 
   if (isLoading) {
     return (
@@ -143,6 +156,7 @@ export default function Families() {
   }
 
   return (
+    <IssueContextProvider page="Roster — Families">
     <div className="page">
       {/* HEADER — stat bar */}
       <div className="page-header">
@@ -157,55 +171,68 @@ export default function Families() {
         {canExport && (
           <button className="btn-ghost" onClick={() => setShowExport(true)} style={{ fontSize: 11, marginLeft: 'auto' }}>Export CSV</button>
         )}
+        <ReportIssueButton />
       </div>
 
-      {/* SEARCH + FILTERS — one line */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="\u{1F50D} Search families..." className="filter-select" style={{ flex: 1, minWidth: 180, fontSize: 13, padding: '8px 14px', borderRadius: 10, background: '#141420', border: '1px solid #1C1C2A', color: '#F0EEF8' }} />
-        <select value={familyTab} onChange={e => setFamilyTab(e.target.value as any)} style={{
-          padding: '8px 14px', borderRadius: 10, background: '#141420', border: '1px solid #1C1C2A',
-          color: '#F0EEF8', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
-        }}>
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        <select value={rateFilter} onChange={e => setRateFilter(Number(e.target.value))} style={{
-          padding: '8px 14px', borderRadius: 10, background: '#141420', border: '1px solid #1C1C2A',
-          color: '#F0EEF8', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
-        }}>
-          <option value={0}>All Rates</option>
-          {RATE_OPTIONS.filter(r => r.value).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-        </select>
-        <span style={{ fontSize: 12, color: '#8080A8', whiteSpace: 'nowrap' }}>{filtered.length} showing</span>
+      {/* FILTERS — matches Students page layout */}
+      <div className="schedule-filters" style={{ marginBottom: '16px' }}>
+        <div className="student-filter-row-1">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search families..."
+            className="filter-select"
+            style={{ minWidth: 160, flex: 1 }}
+          />
+        </div>
+        <div className="student-filter-row-2">
+          <select value={familyTab} onChange={e => setFamilyTab(e.target.value as any)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">All</option>
+          </select>
+          <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value="">Locations</option>
+            {locations?.filter((l: any) => l.is_active).map((loc: any) => (
+              <option key={loc.id} value={loc.name.replace(' Music Lessons', '')}>{loc.name.replace(' Music Lessons', '')}</option>
+            ))}
+          </select>
+          <select value={rateFilter} onChange={e => setRateFilter(Number(e.target.value))} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value={0}>All Rates</option>
+            {RATE_OPTIONS.filter(r => r.value).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
+        </div>
+        <div className="student-filter-row-2" style={{ marginTop: 6 }}>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as 'az' | 'za' | 'newest' | 'oldest')} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value="az">A → Z</option>
+            <option value="za">Z → A</option>
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+          </select>
+          <button
+            onClick={() => setShowNeedsAttention(!showNeedsAttention)}
+            className="filter-select"
+            style={{
+              flex: 'none',
+              cursor: 'pointer',
+              textAlign: 'center',
+              fontWeight: showNeedsAttention ? 700 : 500,
+              background: showNeedsAttention ? 'rgba(251,146,60,0.12)' : undefined,
+              borderColor: showNeedsAttention ? 'rgba(251,146,60,0.35)' : undefined,
+              color: showNeedsAttention ? '#FB923C' : '#A0A0C8',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Needs Attention{needsAttentionCount > 0 ? ` (${needsAttentionCount})` : ''}
+          </button>
+        </div>
+        <span className="visibility-count">Showing {filtered.length} famil{filtered.length !== 1 ? 'ies' : 'y'}</span>
       </div>
 
-      {/* LOCATION PILLS — prominent, color-coded, multi-select */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {locations?.filter((l: any) => l.is_active).map((loc: any) => {
-          const locName = loc.name.replace(' Music Lessons', '')
-          const isOn = locationFilters.has(locName)
-          const c = loc.color ?? '#D4226A'
-          const count = locCounts.get(locName) ?? 0
-          return (
-            <button key={loc.id} onClick={() => toggleLoc(locName)} style={{
-              padding: '9px 24px', borderRadius: 100, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              background: isOn ? c : '#1C1C2A',
-              color: isOn ? '#fff' : c,
-              border: isOn ? 'none' : `1.5px solid ${c}66`,
-              boxShadow: isOn ? `0 0 14px ${c}66` : 'none',
-              transition: 'all 0.2s',
-            }}>
-              {locName} ({count})
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Family Cards with alpha grouping */}
+      {/* Family Cards */}
       <div className="lead-cards">
         {filtered.length > 0 ? (() => {
-          if (locationFilters.size > 0) {
+          if (sortBy !== 'az') {
             return filtered.map((f) => (
               <FamilyCard key={f.id} family={f} onClick={() => setSelectedFamilyId(f.id)} />
             ))
@@ -283,6 +310,7 @@ export default function Families() {
         </div>
       )}
     </div>
+    </IssueContextProvider>
   )
 }
 
@@ -306,10 +334,10 @@ function FamilyCard({ family: f, onClick }: { family: Family; onClick: () => voi
         background: isInactive ? '#606088' : locColor,
         boxShadow: isInactive ? 'none' : `0 0 12px ${locColor}80`,
       }} />
-      <div style={{ flex: 1, padding: '14px 16px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ flex: 1, minWidth: 0, padding: '14px 16px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Row 1: Family name + rate */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', overflowWrap: 'break-word', wordBreak: 'break-word', minWidth: 0 }}>
             {stripFamily(f.name)}
           </span>
           {f.is_military && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,184,0,0.15)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.25)', fontWeight: 700, flexShrink: 0 }}>MIL</span>}
@@ -318,34 +346,86 @@ function FamilyCard({ family: f, onClick }: { family: Family; onClick: () => voi
             background: isInactive ? 'rgba(255,255,255,0.06)' : rateEdge.solid,
             color: isInactive ? '#606088' : '#1A1A2E',
           }}>
-            ${(f.rate_tier / 100).toFixed(0)}
+            ${f.monthlyTotalCents > 0 ? (f.monthlyTotalCents / 100).toFixed(0) : (f.rate_tier / 100).toFixed(0)}
+            <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.7 }}>/mo</span>
           </span>
         </div>
 
         {/* Row 2: Email · Phone */}
-        <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#A0A0C8' }}>
-          {f.primary_email && <CopyText value={f.primary_email} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }} />}
+        <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#A0A0C8', flexWrap: 'wrap', minWidth: 0 }}>
+          {f.primary_email && <CopyText value={f.primary_email} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60vw' }} />}
           {f.primary_phone && <CopyText value={f.primary_phone} />}
         </div>
 
         {/* Row 3: Students · Instrument · Names */}
-        <div style={{ fontSize: 12, color: '#C0C0E0' }}>
+        <div style={{ fontSize: 12, color: '#C0C0E0', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
           {f.activeStudentCount} student{f.activeStudentCount !== 1 ? 's' : ''}
           {studentInstruments && <span style={{ color: '#8080A8' }}> · {studentInstruments}</span>}
           {studentNames && <span style={{ color: '#8080A8' }}> · {studentNames}</span>}
         </div>
 
         {/* Row 4: Status pills */}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, ...(f.card_last_four ? { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' } : { background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' }) }}>
-            {f.card_last_four ? 'Card ✓' : 'No Card'}
+            {f.card_last_four ? `${f.card_brand ?? 'Card'} ····${f.card_last_four}` : 'No Card'}
           </span>
-          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, ...(f.hasOverdueInvoice ? { background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' } : f.billing_status === 'paused' ? { background: 'rgba(148,163,184,0.12)', color: '#94A3B8', border: '1px solid rgba(148,163,184,0.3)' } : { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' }) }}>
-            {f.hasOverdueInvoice ? 'Overdue' : f.billing_status === 'paused' ? 'Paused' : 'Current'}
-          </span>
+          <PaymentBadge status={f.paymentStatus} overdueAmount={f.overdueAmountDisplay} />
         </div>
+        {/* Row 5: Latest invoice line */}
+        {f.latestInvoice && <InvoiceLine invoice={f.latestInvoice} />}
       </div>
     </div>
+  )
+}
+
+function InvoiceLine({ invoice }: { invoice: { status: string; amountCents: number; date: string } }) {
+  const amt = `$${(invoice.amountCents / 100).toFixed(0)}`
+  const dateStr = invoice.date ? new Date(invoice.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+  const s = invoice.status.toUpperCase()
+
+  let text: string
+  let color: string
+  if (s === 'PAID' || s === 'PARTIALLY_REFUNDED') {
+    text = `Paid ${amt}${dateStr ? ` on ${dateStr}` : ''}`
+    color = '#4ADE80'
+  } else if (s === 'SCHEDULED' || s === 'RECURRING') {
+    text = `Due ${amt}${dateStr ? ` on ${dateStr}` : ''}`
+    color = '#38BDF8'
+  } else if (s === 'UNPAID') {
+    text = `Unpaid ${amt}${dateStr ? ` \u2014 due ${dateStr}` : ''}`
+    color = '#F87171'
+  } else {
+    return null
+  }
+
+  return <div style={{ fontSize: 10, color, opacity: 0.8, fontWeight: 600 }}>{text}</div>
+}
+
+// ═══════════════════════════════════════
+// PAYMENT STATUS BADGE
+// ═══════════════════════════════════════
+
+const PAYMENT_BADGE_STYLES: Record<string, { bg: string; color: string; border: string }> = {
+  current:    { bg: 'rgba(74,222,128,0.12)',  color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' },
+  scheduled:  { bg: 'rgba(56,189,248,0.12)',  color: '#38BDF8', border: '1px solid rgba(56,189,248,0.3)' },
+  overdue:    { bg: 'rgba(248,113,113,0.15)', color: '#F87171', border: '1px solid rgba(248,113,113,0.4)' },
+  paused:     { bg: 'rgba(148,163,184,0.12)', color: '#94A3B8', border: '1px solid rgba(148,163,184,0.3)' },
+  no_invoice: { bg: 'rgba(255,184,0,0.12)',   color: '#FFB800', border: '1px solid rgba(255,184,0,0.3)' },
+  cancelled:  { bg: 'rgba(96,96,136,0.12)',   color: '#606088', border: '1px solid rgba(96,96,136,0.3)' },
+}
+
+const PAYMENT_BADGE_LABELS: Record<string, string> = {
+  current: 'Current', scheduled: 'Scheduled', overdue: 'Overdue',
+  paused: 'Paused', no_invoice: 'No Invoice', cancelled: 'Cancelled',
+}
+
+function PaymentBadge({ status, overdueAmount }: { status: string; overdueAmount?: string | null }) {
+  const s = PAYMENT_BADGE_STYLES[status] ?? PAYMENT_BADGE_STYLES.current
+  const label = PAYMENT_BADGE_LABELS[status] ?? 'Current'
+  return (
+    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, background: s.bg, color: s.color, border: s.border }}>
+      {label}{status === 'overdue' && overdueAmount ? ` ${overdueAmount}` : ''}
+    </span>
   )
 }
 
@@ -354,6 +434,127 @@ function FamilyCard({ family: f, onClick }: { family: Family; onClick: () => voi
 // ═══════════════════════════════════════
 
 type ModalTab = 'account' | 'director'
+type MobileTab = 'account' | 'contact' | 'billing' | 'notifications'
+
+function useIsMobile(breakpoint = 900) {
+  const [mobile, setMobile] = useState(typeof window !== 'undefined' && window.innerWidth < breakpoint)
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches)
+    setMobile(mq.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [breakpoint])
+  return mobile
+}
+
+function MobileNotificationPrefs({ family, toggleStyle, thumbStyle }: {
+  family: any
+  toggleStyle: (on: boolean) => React.CSSProperties
+  thumbStyle: (on: boolean) => React.CSSProperties
+}) {
+  const qc = useQueryClient()
+  const [sms, setSms] = useState(family.notify_via_sms ?? true)
+  const [email, setEmail] = useState(family.notify_via_email ?? true)
+  const [rem4hr, setRem4hr] = useState(family.reminder_4hr ?? true)
+  const [rem1hr, setRem1hr] = useState(family.reminder_1hr ?? false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const dirty = sms !== (family.notify_via_sms ?? true) ||
+    email !== (family.notify_via_email ?? true) ||
+    rem4hr !== (family.reminder_4hr ?? true) ||
+    rem1hr !== (family.reminder_1hr ?? false)
+
+  const handleToggle = (field: 'sms' | 'email', val: boolean) => {
+    setError('')
+    if (field === 'sms') {
+      if (!val && !email) { setError('At least one notification method is required.'); return }
+      setSms(val)
+    } else {
+      if (!val && !sms) { setError('At least one notification method is required.'); return }
+      setEmail(val)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      const { error: err } = await supabase.from('families').update({
+        notify_via_sms: sms,
+        notify_via_email: email,
+        reminder_4hr: rem4hr,
+        reminder_1hr: rem1hr,
+      }).eq('id', family.id)
+      if (err) throw err
+      qc.invalidateQueries({ queryKey: ['family_detail'] })
+      qc.invalidateQueries({ queryKey: ['families'] })
+      toast('Notification preferences saved', 'success')
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to save')
+    } finally { setSaving(false) }
+  }
+
+  const sectionLabel = (text: string) => (
+    <div style={{ fontSize: 11, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 10 }}>{text}</div>
+  )
+
+  const row = (label: string, control: React.ReactNode) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, padding: '0 4px' }}>
+      <span style={{ fontSize: 14, color: '#C0C0E0' }}>{label}</span>
+      {control}
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {sectionLabel('How We Reach You')}
+      {row('Text message', (
+        <button style={toggleStyle(sms)} onClick={() => handleToggle('sms', !sms)}>
+          <div style={thumbStyle(sms)} />
+        </button>
+      ))}
+      {row('Email', (
+        <button style={toggleStyle(email)} onClick={() => handleToggle('email', !email)}>
+          <div style={thumbStyle(email)} />
+        </button>
+      ))}
+
+      <div style={{ height: 12 }} />
+      {sectionLabel('Session Reminders')}
+      {row('24 hours before', (
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#22C55E', padding: '3px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.1)' }}>Always on</span>
+      ))}
+      {row('4 hours before', (
+        <button style={toggleStyle(rem4hr)} onClick={() => setRem4hr(!rem4hr)}>
+          <div style={thumbStyle(rem4hr)} />
+        </button>
+      ))}
+      {row('1 hour before', (
+        <button style={toggleStyle(rem1hr)} onClick={() => setRem1hr(!rem1hr)}>
+          <div style={thumbStyle(rem1hr)} />
+        </button>
+      ))}
+
+      {error && <div style={{ fontSize: 13, color: '#EF4444', marginTop: 8, padding: '8px 12px', background: 'rgba(239,68,68,0.08)', borderRadius: 10 }}>{error}</div>}
+
+      {dirty && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            width: '100%', padding: '12px 16px', borderRadius: 12, marginTop: 10,
+            background: '#22C55E', border: 'none', cursor: 'pointer',
+            color: '#fff', fontWeight: 700, fontSize: 14, minHeight: 44,
+          }}
+        >
+          {saving ? 'Saving...' : 'Save Preferences'}
+        </button>
+      )}
+    </div>
+  )
+}
 
 function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   familyId: string; canEdit: boolean; onClose: () => void; onNavigateStudent: (studentId: string) => void
@@ -369,7 +570,9 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   const [activityLimit, setActivityLimit] = useState(20)
   const { data: activityLog } = useFamilyActivityLog(familyId, activityLimit)
 
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState<ModalTab>('account')
+  const [mobileTab, setMobileTab] = useState<MobileTab>('account')
   const [confirmAction, setConfirmAction] = useState<{ status: string } | null>(null)
   const [editing, setEditing] = useState(false)
   const [showStar, setShowStar] = useState(false)
@@ -463,7 +666,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
     const ctx = [
       `Family: ${family.name}`, `Parent: ${family.parent_first_name ?? ''} ${family.parent_last_name ?? family.parent_name ?? ''}`.trim(),
       `Location: ${family.locationName ?? 'Unknown'}`, `Status: ${family.billing_status}`,
-      `Rate: $${(family.rate_tier / 100).toFixed(2)}/mo${family.rate_tier_override ? ' (override)' : ''}`,
+      `Rate: $${(family.rate_tier / 100).toFixed(2)}/session, Monthly: $${(family.monthlyTotalCents / 100).toFixed(2)}${family.rate_tier_override ? ' (override)' : ''}`,
       `Balance: ${formatDollars(family.balance)}`,
       family.overdue_balance_cents && family.overdue_balance_cents > 0 ? `Overdue: ${formatDollars(family.overdue_balance_cents)}` : null,
       `Lifetime Paid: ${formatDollars(family.lifetime_paid_cents)}`, `Active Students: ${family.activeStudentCount}`,
@@ -478,36 +681,260 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   const statusStyle = STATUS_BADGE[status] ?? STATUS_BADGE.active
   const rateColor = family ? getRateTierColor(family.rate_tier) : getRateTierColor(4500)
 
-  // Field display helpers
-  const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  // ── Render helpers (plain functions, NOT components — avoids React type-instability on re-render) ──
+  const fld = (label: string, value: React.ReactNode) => (
     <div style={{ marginBottom: 8 }}>
       <span style={labelStyle}>{label}</span>
       <div style={valueStyle}>{value || <span style={{ color: '#363656' }}>—</span>}</div>
     </div>
   )
 
-  const EditInput = ({ field, label }: { field: string; label: string }) => (
-    <div style={{ marginBottom: 8 }}>
+  const inp = (field: string, label: string) => (
+    <div key={field} style={{ marginBottom: 8 }}>
       <span style={labelStyle}>{label}</span>
       {editing ? (
-        <input value={form[field] ?? ''} onChange={(e) => setForm({ ...form, [field]: e.target.value })} className="filter-select" style={{ width: '100%', fontSize: 13, marginTop: 3 }} />
+        <input value={form[field] ?? ''} onChange={(e) => setForm(prev => ({ ...prev, [field]: e.target.value }))} className="filter-select" style={{ width: '100%', fontSize: 13, marginTop: 3 }} />
       ) : (
         <div style={valueStyle}>{(family as any)?.[field] || <span style={{ color: '#363656' }}>—</span>}</div>
       )}
     </div>
   )
 
-  const EditTextarea = ({ field, label, placeholder }: { field: string; label: string; placeholder?: string }) => (
-    <div style={{ marginBottom: 8 }}>
+  const txt = (field: string, label: string, placeholder?: string) => (
+    <div key={field} style={{ marginBottom: 8 }}>
       <span style={labelStyle}>{label}</span>
       {editing ? (
-        <textarea value={form[field] ?? ''} onChange={(e) => setForm({ ...form, [field]: e.target.value })} rows={3} placeholder={placeholder} className="filter-select" style={{ width: '100%', fontSize: 13, marginTop: 3, resize: 'vertical', fontFamily: 'inherit' }} />
+        <textarea value={form[field] ?? ''} onChange={(e) => setForm(prev => ({ ...prev, [field]: e.target.value }))} rows={3} placeholder={placeholder} className="filter-select" style={{ width: '100%', fontSize: 13, marginTop: 3, resize: 'vertical', fontFamily: 'inherit' }} />
       ) : (
         <div style={{ ...valueStyle, whiteSpace: 'pre-wrap' }}>{(family as any)?.[field] || <span style={{ color: '#363656' }}>—</span>}</div>
       )}
     </div>
   )
 
+  // ── Shared toggle styles ──
+  const mToggle = (on: boolean): React.CSSProperties => ({
+    width: 44, height: 24, borderRadius: 12, cursor: 'pointer',
+    background: on ? '#22C55E' : '#333', position: 'relative',
+    transition: 'background 200ms', flexShrink: 0, border: 'none',
+  })
+  const mThumb = (on: boolean): React.CSSProperties => ({
+    position: 'absolute', top: 2, left: on ? 22 : 2,
+    width: 20, height: 20, borderRadius: '50%', background: '#fff',
+    transition: 'left 200ms', pointerEvents: 'none' as const,
+  })
+
+  // ── Tab switch handler ──
+  const switchTab = (t: MobileTab) => {
+    setMobileTab(t)
+    if (editing) { setEditing(false) }
+  }
+
+  // ── Safe accessors ──
+  const students = family?.students ?? []
+  const activeStudents = students.filter((s: any) => s.status === 'active')
+
+  // ── MOBILE LAYOUT ──
+  if (isMobile) {
+    return createPortal(
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: '95vh',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          background: '#141224', borderRadius: '20px 20px 0 0',
+          border: '1px solid rgba(212,34,106,0.15)', borderBottom: 'none',
+        }}>
+          <div style={{ height: 3, background: 'linear-gradient(90deg, #D4226A, #7B2CBF)', borderRadius: '20px 20px 0 0', flexShrink: 0 }} />
+
+          {isLoading || !family ? (
+            <div style={{ padding: 40, textAlign: 'center' }}><MusicLoader /></div>
+          ) : (<>
+            {/* ── MOBILE HEADER ── */}
+            <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4', overflowWrap: 'break-word' }}>{stripFamily(family.name)}</div>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: statusStyle.bg, border: `1px solid ${statusStyle.border}`, color: statusStyle.color, flexShrink: 0 }}>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </span>
+              {canEdit && !editing && (
+                <button onClick={startEditing} title="Edit" style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8080A8', flexShrink: 0 }}>
+                  <Pencil size={14} />
+                </button>
+              )}
+              {editing && (
+                <>
+                  <button className="btn-ghost" onClick={() => setEditing(false)} style={{ fontSize: 11, padding: '5px 10px', flexShrink: 0 }}>Cancel</button>
+                  <button className="btn-primary" onClick={handleSave} disabled={updateFamily.isPending} style={{ fontSize: 11, padding: '5px 12px', flexShrink: 0 }}>
+                    {updateFamily.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                </>
+              )}
+              <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8080A8', flexShrink: 0 }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* ── MOBILE TABS ── */}
+            <div style={{ display: 'flex', gap: 6, padding: '10px 16px', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              {(['account', 'contact', 'billing', 'notifications'] as MobileTab[]).map((t) => (
+                <button key={t} onClick={() => switchTab(t)} style={{
+                  padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0,
+                  background: mobileTab === t ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.04)',
+                  color: mobileTab === t ? '#E8488A' : '#8080A8',
+                  border: mobileTab === t ? '1px solid rgba(212,34,106,0.25)' : '1px solid rgba(255,255,255,0.06)',
+                }}>{t === 'account' ? 'Account' : t === 'contact' ? 'Contact' : t === 'billing' ? 'Billing' : 'Notifications'}</button>
+              ))}
+            </div>
+
+            {/* ── MOBILE TAB CONTENT ── */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 24px' }}>
+
+              {/* ── MOBILE: ACCOUNT ── */}
+              {mobileTab === 'account' && (<>
+                {inp('name', 'Account Name')}
+                {fld('Member Since', family.created_at ? new Date(family.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '---')}
+                {family.locationName && fld('Location', family.locationName)}
+                {family.square_customer_id && (
+                  <div style={{ marginBottom: 8 }}>
+                    <span style={labelStyle}>Square ID</span>
+                    <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, color: '#606088', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{family.square_customer_id}</span>
+                      <button onClick={() => { navigator.clipboard.writeText(family.square_customer_id); toast('Copied', 'success') }} style={{ fontSize: 10, fontWeight: 600, color: '#8080A8', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', flexShrink: 0 }}>Copy</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Students */}
+                <div style={{ ...sectionLabelStyle, marginTop: 16 }}>Students ({family.activeStudentCount ?? 0} active)</div>
+                {activeStudents.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {activeStudents.map((s: any) => (
+                      <div key={s.id} onClick={() => onNavigateStudent(s.id)} style={{
+                        padding: '12px 14px', borderRadius: 10, cursor: 'pointer', minHeight: 44,
+                        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                      }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4', flex: 1, minWidth: 0, overflowWrap: 'break-word' }}>{s.first_name} {s.last_name}</span>
+                        <span style={{ fontSize: 12, color: '#A0A0C8', flexShrink: 0 }}>{s.instrument ? getInstrumentEmoji(s.instrument) : ''}</span>
+                        <span style={{ fontSize: 11, color: '#8080A8', flexShrink: 0 }}>{s.teacher_name}</span>
+                        <ChevronRight size={12} style={{ color: '#363656', flexShrink: 0 }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : <div style={{ fontSize: 13, color: '#606088', padding: '12px 0' }}>No students linked.</div>}
+
+                {/* Activity log */}
+                {canEdit && activityLog && activityLog.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={sectionLabelStyle}>Activity</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {activityLog.slice(0, activityLimit).map((ev) => <ActivityRow key={ev.id} event={ev} />)}
+                      {activityLog.length >= activityLimit && (
+                        <button onClick={() => setActivityLimit((l) => l + 20)} style={{ background: 'none', border: 'none', color: '#8080A8', fontSize: 11, cursor: 'pointer', padding: '8px 0', textAlign: 'center' }}>Show more</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>)}
+
+              {/* ── MOBILE: CONTACT ── */}
+              {mobileTab === 'contact' && (<>
+                <div style={sectionLabelStyle}>Primary Contact</div>
+                {inp('parent_first_name', 'First Name')}
+                {inp('parent_last_name', 'Last Name')}
+                {editing ? inp('primary_email', 'Email') : (
+                  <div style={{ marginBottom: 8 }}>
+                    <span style={labelStyle}>Email</span>
+                    <div style={{ ...valueStyle, overflowWrap: 'break-word', wordBreak: 'break-all' }}>{family.primary_email || <span style={{ color: '#363656' }}>—</span>}</div>
+                  </div>
+                )}
+                {editing ? inp('primary_phone', 'Phone') : (
+                  <div style={{ marginBottom: 8 }}>
+                    <span style={labelStyle}>Phone</span>
+                    <div style={valueStyle}>{family.primary_phone ? <a href={`tel:${family.primary_phone}`} style={{ color: '#D0D0E8', textDecoration: 'none' }}>{family.primary_phone}</a> : <span style={{ color: '#363656' }}>—</span>}</div>
+                  </div>
+                )}
+
+                <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Emergency Contact</div>
+                {inp('emergency_contact_name', 'Name')}
+                {editing ? inp('emergency_contact_phone', 'Phone') : (
+                  <div style={{ marginBottom: 8 }}>
+                    <span style={labelStyle}>Phone</span>
+                    <div style={valueStyle}>{family.emergency_contact_phone ? <a href={`tel:${family.emergency_contact_phone}`} style={{ color: '#D0D0E8', textDecoration: 'none' }}>{family.emergency_contact_phone}</a> : <span style={{ color: '#363656' }}>—</span>}</div>
+                  </div>
+                )}
+                {inp('emergency_contact_relationship', 'Relationship')}
+              </>)}
+
+              {/* ── MOBILE: BILLING ── */}
+              {mobileTab === 'billing' && (<>
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{
+                    fontSize: 14, fontWeight: 700, padding: '5px 14px', borderRadius: 8,
+                    background: rateColor.bg, border: `1px solid ${rateColor.border}`, color: rateColor.text,
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                  }}>
+                    ${formatRate(family.rate_tier)}/mo
+                    {family.rate_tier_override && <Lock size={11} />}
+                  </span>
+                </div>
+                {fld('Card on File', family.card_last_four ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#22C55E' }}><CreditCard size={13} /> {family.card_brand ?? 'Card'} ····{family.card_last_four}</span>
+                ) : <span style={{ color: '#EF4444', fontWeight: 700 }}>No Card</span>)}
+                <div style={{ marginBottom: 12 }}>
+                  <span style={labelStyle}>Balance</span>
+                  <div style={{ marginTop: 3, fontSize: 18, fontWeight: 800, color: (family.balance ?? 0) > 0 ? '#22C55E' : (family.balance ?? 0) < 0 ? '#EF4444' : '#A0A0C8' }}>
+                    {formatDollars(family.balance)}
+                  </div>
+                </div>
+                {fld('Lifetime Paid', <span style={{ fontWeight: 700, color: '#A0A0C8' }}>{formatDollars(family.lifetime_paid_cents)}</span>)}
+                {(family.overdue_balance_cents ?? 0) > 0 && fld('Overdue', <span style={{ fontWeight: 700, color: '#EF4444' }}>{formatDollars(family.overdue_balance_cents)}</span>)}
+                {canEdit && (
+                  <button onClick={() => setShowCreateInvoice(true)} style={{
+                    marginTop: 8, width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44,
+                    background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)',
+                  }}>
+                    <Receipt size={14} /> Create Invoice
+                  </button>
+                )}
+                <button onClick={askStar} style={{
+                  marginTop: 8, width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44,
+                  background: 'transparent', border: '1px solid rgba(212,34,106,0.25)', color: '#E8488A',
+                }}>
+                  <Star size={14} /> Ask Star
+                </button>
+                {showStar && (
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#FFB800', fontSize: 12, fontWeight: 700 }}><Star size={12} /> Star</div>
+                      <button className="btn-ghost" onClick={() => setShowStar(false)} style={{ fontSize: 10, padding: '2px 8px' }}>Close</button>
+                    </div>
+                    {aiLoading ? <div style={{ fontSize: 13, color: '#8080A8' }}>Thinking...</div>
+                      : (aiMessages?.length ?? 0) > 0 ? <div style={{ fontSize: 13, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{aiMessages[aiMessages.length - 1]?.content}</div> : null}
+                  </div>
+                )}
+              </>)}
+
+              {/* ── MOBILE: NOTIFICATIONS ── */}
+              {mobileTab === 'notifications' && (
+                <MobileNotificationPrefs family={family} toggleStyle={mToggle} thumbStyle={mThumb} />
+              )}
+            </div>
+          </>)}
+        </div>
+
+        {/* Modals (shared) */}
+        {showCreateInvoice && family && <CreateInvoiceFromFamily family={family} onClose={() => setShowCreateInvoice(false)} />}
+        {confirmAction && <ConfirmModal title={`${confirmAction.status === 'suspended' ? 'Suspend' : 'Cancel'} Family Billing?`} message={confirmAction.status === 'suspended' ? 'This will suspend billing.' : 'This will cancel billing.'} variant={confirmAction.status === 'cancelled' ? 'danger' : 'warning'} confirmLabel={confirmAction.status === 'suspended' ? 'Suspend' : 'Cancel Billing'} onConfirm={() => doStatusChange(confirmAction.status)} onCancel={() => setConfirmAction(null)} />}
+        {deleteConfirm && <ConfirmModal title="Delete File?" message={`Delete "${deleteConfirm.file_name}"?`} variant="danger" confirmLabel="Delete" onConfirm={() => handleDeleteFile(deleteConfirm)} onCancel={() => setDeleteConfirm(null)} />}
+      </div>,
+      document.body
+    )
+  }
+
+  // ── DESKTOP LAYOUT (unchanged) ──
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{
@@ -531,7 +958,20 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 {family.is_military && <span style={{ marginLeft: 8, fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,184,0,0.15)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.25)', fontWeight: 700 }}>MIL</span>}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {canEdit && !editing && (
+                <button onClick={startEditing} className="btn-outline" style={{ fontSize: 11, padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Pencil size={11} /> Edit
+                </button>
+              )}
+              {editing && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn-ghost" onClick={cancelEditing} style={{ fontSize: 11, padding: '5px 12px' }}>Cancel</button>
+                  <button className="btn-primary" onClick={handleSave} disabled={updateFamily.isPending} style={{ fontSize: 11, padding: '5px 14px' }}>
+                    {updateFamily.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              )}
               <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 8, background: statusStyle.bg, border: `1px solid ${statusStyle.border}`, color: statusStyle.color }}>
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </span>
@@ -579,19 +1019,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 }}>{t === 'account' ? 'Account' : 'Director'}</button>
               ))}
             </div>
-            {canEdit && !editing && (
-              <button onClick={startEditing} className="btn-outline" style={{ fontSize: 11, padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                <Pencil size={11} /> Edit
-              </button>
-            )}
-            {editing && (
-              <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                <button className="btn-ghost" onClick={cancelEditing} style={{ fontSize: 11, padding: '5px 12px' }}>Cancel</button>
-                <button className="btn-primary" onClick={handleSave} disabled={updateFamily.isPending} style={{ fontSize: 11, padding: '5px 14px' }}>
-                  {updateFamily.isPending ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Tab content — scrollable, fixed height */}
@@ -604,10 +1031,10 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 {/* LEFT */}
                 <div>
                   <div style={sectionLabelStyle}>Primary Contact</div>
-                  <EditInput field="parent_first_name" label="First Name" />
-                  <EditInput field="parent_last_name" label="Last Name" />
-                  <EditInput field="primary_email" label="Email" />
-                  <EditInput field="primary_phone" label="Phone" />
+                  {inp('parent_first_name', 'First Name')}
+                  {inp('parent_last_name', 'Last Name')}
+                  {inp('primary_email', 'Email')}
+                  {inp('primary_phone', 'Phone')}
                   {editing && (
                     <div style={{ marginBottom: 8 }}>
                       <span style={labelStyle}>Military</span>
@@ -623,18 +1050,18 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   )}
 
                   <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Emergency Contact</div>
-                  <EditInput field="emergency_contact_name" label="Name" />
-                  <EditInput field="emergency_contact_phone" label="Phone" />
-                  <EditInput field="emergency_contact_relationship" label="Relationship" />
+                  {inp('emergency_contact_name', 'Name')}
+                  {inp('emergency_contact_phone', 'Phone')}
+                  {inp('emergency_contact_relationship', 'Relationship')}
                 </div>
 
                 {/* RIGHT */}
                 <div>
                   <div style={sectionLabelStyle}>Account</div>
-                  <EditInput field="name" label="Account Name" />
-                  <Field label="Member Since" value={family.created_at ? new Date(family.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '---'} />
-                  {family.square_customer_id && <Field label="Adkins Music Lessons ID" value={<span style={{ color: '#606088', fontSize: 11 }}>{family.square_customer_id}</span>} />}
-                  {family.locationName && <Field label="Location" value={family.locationName} />}
+                  {inp('name', 'Account Name')}
+                  {fld('Member Since', family.created_at ? new Date(family.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '---')}
+                  {family.square_customer_id && fld('Adkins Music Lessons ID', <span style={{ color: '#606088', fontSize: 11 }}>{family.square_customer_id}</span>)}
+                  {family.locationName && fld('Location', family.locationName)}
 
                   <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Billing</div>
                   <div style={{ marginBottom: 8 }}>
@@ -650,9 +1077,9 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                       </span>
                     </div>
                   </div>
-                  <Field label="Card on File" value={family.card_last_four ? (
+                  {fld('Card on File', family.card_last_four ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CreditCard size={13} /> {family.card_brand ?? 'Card'} ····{family.card_last_four}</span>
-                  ) : <span style={{ color: '#EF4444' }}>No Card</span>} />
+                  ) : <span style={{ color: '#EF4444' }}>No Card</span>)}
                   <div style={{ marginBottom: 8 }}>
                     <span style={labelStyle}>Balance</span>
                     <div style={{ marginTop: 3, fontSize: 16, fontWeight: 800, color: (family.balance ?? 0) > 0 ? '#22C55E' : (family.balance ?? 0) < 0 ? '#EF4444' : '#A0A0C8' }}>
@@ -678,9 +1105,9 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   <Users size={14} style={{ color: '#8080A8' }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Students ({family.activeStudentCount} active)</span>
                 </div>
-                {family.students.length > 0 ? (
+                {(family.students?.length ?? 0) > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {family.students.map((s) => {
+                    {family.students?.map((s) => {
                       const isActive = s.status === 'active'
                       return (
                         <div key={s.id} onClick={() => onNavigateStudent(s.id)} style={{
@@ -793,7 +1220,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                       <button className="btn-ghost" onClick={() => setShowStar(false)} style={{ fontSize: 10, padding: '2px 8px' }}>Close</button>
                     </div>
                     {aiLoading ? <div style={{ fontSize: 13, color: '#8080A8' }}>Thinking...</div>
-                      : aiMessages.length > 0 ? <div style={{ fontSize: 13, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{aiMessages[aiMessages.length - 1]?.content}</div> : null}
+                      : (aiMessages?.length ?? 0) > 0 ? <div style={{ fontSize: 13, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{aiMessages[aiMessages.length - 1]?.content}</div> : null}
                   </div>
                 )}
               </div>
@@ -820,30 +1247,30 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                       </span>
                     </div>
                   </div>
-                  <Field label="Billing Day" value={family.billing_day ? `${family.billing_day}${family.billing_day === 1 ? 'st' : 'th'}` : '---'} />
-                  <Field label="Card on File" value={family.card_last_four ? (
+                  {fld('Billing Day', family.billing_day ? `${family.billing_day}${family.billing_day === 1 ? 'st' : 'th'}` : '---')}
+                  {fld('Card on File', family.card_last_four ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CreditCard size={13} /> {family.card_brand ?? 'Card'} ····{family.card_last_four}</span>
-                  ) : <span style={{ color: '#EF4444' }}>No Card</span>} />
+                  ) : <span style={{ color: '#EF4444' }}>No Card</span>)}
                   <div style={{ marginBottom: 8 }}>
                     <span style={labelStyle}>Balance</span>
                     <div style={{ marginTop: 3, fontSize: 16, fontWeight: 800, color: (family.balance ?? 0) > 0 ? '#22C55E' : (family.balance ?? 0) < 0 ? '#EF4444' : '#A0A0C8' }}>
                       {formatDollars(family.balance)}
                     </div>
                   </div>
-                  <Field label="Lifetime Paid" value={<span style={{ fontWeight: 700, color: '#A0A0C8' }}>{formatDollars(family.lifetime_paid_cents)}</span>} />
-                  {(family.overdue_balance_cents ?? 0) > 0 && <Field label="Overdue" value={<span style={{ fontWeight: 700, color: '#EF4444' }}>{formatDollars(family.overdue_balance_cents)}</span>} />}
+                  {fld('Lifetime Paid', <span style={{ fontWeight: 700, color: '#A0A0C8' }}>{formatDollars(family.lifetime_paid_cents)}</span>)}
+                  {(family.overdue_balance_cents ?? 0) > 0 && fld('Overdue', <span style={{ fontWeight: 700, color: '#EF4444' }}>{formatDollars(family.overdue_balance_cents)}</span>)}
 
                   <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Sessions</div>
-                  <Field label="Instruments" value={family.instrumentList.length > 0 ? family.instrumentList.map(i => i.charAt(0).toUpperCase() + i.slice(1)).join(', ') : '—'} />
-                  <Field label="Session Days" value={family.sessionDays?.length ? family.sessionDays.join(', ') : '—'} />
-                  <Field label="Sessions / Month" value={String(family.totalSessionsPerMonth ?? 0)} />
+                  {fld('Instruments', (family.instrumentList?.length ?? 0) > 0 ? family.instrumentList?.map((i: string) => i.charAt(0).toUpperCase() + i.slice(1)).join(', ') : '—')}
+                  {fld('Session Days', family.sessionDays?.length ? family.sessionDays?.join(', ') : '—')}
+                  {fld('Sessions / Month', String(family.totalSessionsPerMonth ?? 0))}
                 </div>
 
                 {/* RIGHT — Notes (editable) + Files */}
                 <div>
                   <div style={sectionLabelStyle}>Notes</div>
-                  <EditTextarea field="billing_notes" label="Billing Notes" placeholder="Billing-related notes..." />
-                  <EditTextarea field="scheduling_notes" label="Scheduling Notes" placeholder="e.g. No Mondays after 6pm, prefers same teacher for siblings..." />
+                  {txt('billing_notes', 'Billing Notes', 'Billing-related notes...')}
+                  {txt('scheduling_notes', 'Scheduling Notes', 'e.g. No Mondays after 6pm, prefers same teacher for siblings...')}
 
                   <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Files</div>
                   <FileSection label="Contract" fileType="contract" files={files ?? []} canUpload={canUpload} onUpload={() => { setUploadType('contract'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />

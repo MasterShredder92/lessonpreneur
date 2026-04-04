@@ -2,20 +2,15 @@ import { useState, useRef, useEffect, useContext, createContext, useCallback, ty
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import PageTransition from '../shared/PageTransition'
 import MobileTabBar from './MobileTabBar'
-import { useQuery } from '@tanstack/react-query'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
 import { ADMIN_NAV_ITEMS } from '../../lib/constants'
-import { useAI } from '../../hooks/useAI'
-import { useStarContext } from '../../hooks/useStarContext'
 import { useTheme } from '../../hooks/useTheme'
-import { useOnboardingMode, getOnboardingSystemPrompt } from '../../hooks/useOnboardingMode'
-import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Users, CalendarDays, UserPlus, Music2, CreditCard, BookOpen, Settings2, LogOut, Send, Star, ChevronDown, ShieldCheck, Guitar, Plug } from 'lucide-react'
-import NotificationBell from '../shared/NotificationBell'
+import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Star, ChevronDown, ShieldCheck, Guitar, Plug } from 'lucide-react'
 import RoleSwitcher from '../shared/RoleSwitcher'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
+import StarModal from '../ai/StarModal'
 
 const NAV_ICONS: Record<string, ReactNode> = {
   'dashboard': <LayoutDashboard size={18} />,
@@ -26,13 +21,6 @@ const NAV_ICONS: Record<string, ReactNode> = {
   'guitar': <Guitar size={18} />,
   'book': <BookOpen size={18} />,
 }
-
-const SUGGESTIONS = [
-  "How are we doing today?",
-  "Who needs attention right now?",
-  "What's my revenue this month?",
-  "Compare my locations",
-]
 
 export default function AdminShell() {
   const { profile, tenantId, signOut } = useAuthContext()
@@ -65,17 +53,7 @@ export default function AdminShell() {
     if (hoverLeaveTimer.current) clearTimeout(hoverLeaveTimer.current)
   }, [])
 
-  const [inputValue, setInputValue] = useState('')
-  const { data: starContext } = useStarContext()
   const theme = useTheme()
-  const onboarding = useOnboardingMode()
-
-  // Use onboarding prompt for new tenants, business context for established ones
-  const aiContext = onboarding.needsOnboarding
-    ? getOnboardingSystemPrompt(onboarding.tenantName, onboarding.progress, onboarding.studentCount, onboarding.teacherCount)
-    : starContext?.summary ?? null
-  const { messages, isLoading, sendMessage, clearConversation, pendingAction, confirmAction, rejectAction } = useAI(tenantId, null, aiContext)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Dropdown expand/collapse — auto-expand if on a child route
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
@@ -99,19 +77,6 @@ export default function AdminShell() {
   }
 
 
-  // Get tenant info for Star's branding
-  const { data: tenant } = useQuery({
-    queryKey: ['tenant-shell', tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase.from('tenants').select('name, logo_url').eq('id', tenantId!).single()
-      return data
-    },
-  })
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
 
   // Listen for AI panel open events from other components
   useEffect(() => {
@@ -119,21 +84,6 @@ export default function AdminShell() {
     window.addEventListener('open-ai-panel', handler)
     return () => window.removeEventListener('open-ai-panel', handler)
   }, [])
-
-  // Auto-open Star for new tenants
-  useEffect(() => {
-    if (onboarding.isNew && messages.length === 0) setAiPanelOpen(true)
-  }, [onboarding.isNew])
-
-  const handleSend = () => {
-    if (!inputValue.trim() || isLoading) return
-    sendMessage(inputValue)
-    setInputValue('')
-  }
-
-  const handleSuggestion = (q: string) => {
-    sendMessage(q)
-  }
 
   return (
     <div className="admin-shell" style={preview.active ? { paddingTop: 40 } : undefined}>
@@ -287,11 +237,7 @@ export default function AdminShell() {
             <span className="nav-label">Star</span>
           </button>
 
-          <div className="nav-item" style={{ cursor: 'default', padding: '4px 12px' }}>
-            <NotificationBell />
-          </div>
-
-          <NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+<NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Plug size={15} />
             <span className="nav-label">Integrations</span>
           </NavLink>
@@ -325,105 +271,7 @@ export default function AdminShell() {
       <MobileTabBar />
       <FloatingIssueReporter />
 
-      {aiPanelOpen && (
-        <aside className="ai-panel">
-          <div className="ai-panel-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="star-avatar">
-                <Star size={14} />
-              </div>
-              <div>
-                <div className="star-name">Star</div>
-                <div className="star-subtitle">Your Music School Coach</div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {messages.length > 0 && (
-                <button className="btn-ghost" onClick={clearConversation} style={{ fontSize: '11px', padding: '2px 8px' }}>Clear</button>
-              )}
-              <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); setAiPanelOpen(false) }} style={{ padding: '4px 8px' }}>X</button>
-            </div>
-          </div>
-
-          <div className="ai-panel-body">
-            {messages.length === 0 && (
-              <>
-                <div className="star-welcome">
-                  <div className="star-welcome-avatar">
-                    <Star size={20} />
-                  </div>
-                  <p style={{ fontSize: 13, color: '#C8C8E0', lineHeight: 1.6, marginTop: 10 }}>
-                    Hey{profile?.first_name ? ` ${profile.first_name}` : ''}! I'm <strong>Star</strong> — your music school coach. I'm here to help you grow {tenant?.name ?? 'your business'}, fill more slots, and make your life easier.
-                  </p>
-                  <p style={{ fontSize: 12, color: '#A0A0C8', marginTop: 8 }}>
-                    Ask me anything or pick a suggestion below.
-                  </p>
-                </div>
-                <div className="ai-panel-suggestions">
-                  {SUGGESTIONS.map((q) => (
-                    <button key={q} className="ai-suggestion-btn" onClick={() => handleSuggestion(q)}>{q}</button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {messages.map((msg, i) => (
-              <div key={i} className={`ai-message ${msg.role}`}>
-                {msg.role === 'user' ? (
-                  <div className="ai-message-label" style={{ color: '#E8488A' }}>
-                    {tenant?.name ?? 'You'}
-                  </div>
-                ) : (
-                  <div className="ai-message-label" style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#FFB800' }}>
-                    <Star size={10} />
-                    Star
-                  </div>
-                )}
-                <div className="ai-message-content">{msg.content}</div>
-              </div>
-            ))}
-
-            {isLoading && (
-              <div className="ai-message assistant">
-                <div className="ai-message-label">AI</div>
-                <div className="ai-message-content ai-typing">Thinking...</div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Action confirmation card */}
-          {pendingAction && (
-            <div style={{ padding: '12px 14px', margin: '0 12px 8px', background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: 12 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#A855F7', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Proposed Action</div>
-              <div style={{ fontSize: 13, color: '#E8E8FC', marginBottom: 10, lineHeight: 1.5 }}>{pendingAction.description}</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={confirmAction} disabled={isLoading} style={{ flex: 1, padding: '9px', borderRadius: 8, background: '#22C55E', border: 'none', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', boxShadow: '0 2px 8px rgba(34,197,94,0.3)' }}>
-                  Confirm
-                </button>
-                <button onClick={rejectAction} style={{ flex: 1, padding: '9px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#A0A0C8', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="ai-panel-input">
-            <input
-              type="text"
-              placeholder={pendingAction ? "Confirm or cancel the action above..." : "Ask a question or give a command..."}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-              disabled={isLoading}
-            />
-            <button className="btn-primary" onClick={handleSend} disabled={isLoading || !inputValue.trim()} style={{ padding: '8px 12px' }}>
-              <Send size={14} />
-            </button>
-          </div>
-        </aside>
-      )}
+      <StarModal open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
     </div>
   )
 }

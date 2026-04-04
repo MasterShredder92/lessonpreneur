@@ -6,6 +6,8 @@ import { useAuthContext } from '../../app/AuthContext'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { Download, TrendingUp } from 'lucide-react'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 export default function Analytics() {
   const { tenantId } = useAuthContext()
@@ -17,6 +19,7 @@ export default function Analytics() {
   if (isLoading) return <div className="page"><div className="page-header"><h1>Analytics</h1></div><div style={{ height: 300 }}><MusicLoader /></div></div>
 
   return (
+    <IssueContextProvider page="Analytics">
     <div className="page">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -33,6 +36,7 @@ export default function Analytics() {
           </select>
           {tenantId && <button onClick={() => exportRetention(tenantId)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 6, fontSize: 11, background: 'rgba(255,255,255,0.04)', color: '#8080A8', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer' }}><Download size={11} /> Export</button>}
         </div>
+        <ReportIssueButton />
       </div>
 
       {data && (
@@ -112,6 +116,7 @@ export default function Analytics() {
         </div>
       )}
     </div>
+    </IssueContextProvider>
   )
 }
 

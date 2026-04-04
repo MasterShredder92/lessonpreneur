@@ -19,6 +19,12 @@ export interface LocationUtilization {
   utilizationPercent: number
 }
 
+export interface OverallUtilization {
+  totalBlocks: number
+  bookedBlocks: number
+  utilizationPercent: number
+}
+
 const LOCATION_COLORS: Record<string, string> = {
   'd48229c1-b70a-4d29-893e-5079887dab76': '#D41113',
   'f7b52dd5-12ee-437f-9c60-f8adf454ac31': '#A333FF',
@@ -27,10 +33,10 @@ const LOCATION_COLORS: Record<string, string> = {
 }
 
 export function useScheduleIntelligence(weekStart: string, weekEnd: string) {
-  return useQuery<{ utilization: LocationUtilization[]; insights: ScheduleInsight[] }>({
+  return useQuery<{ utilization: LocationUtilization[]; overall: OverallUtilization; insights: ScheduleInsight[] }>({
     queryKey: ['schedule-intelligence', weekStart, weekEnd],
     enabled: !!weekStart && !!weekEnd,
-    staleTime: 60_000,
+    staleTime: 0,
     queryFn: async () => {
       // Get all blocks for the week
       const { data: blocks } = await supabase
@@ -43,12 +49,18 @@ export function useScheduleIntelligence(weekStart: string, weekEnd: string) {
       const locMap = new Map((locations ?? []).map(l => [l.id, l.name?.replace(' Music Lessons', '') ?? '']))
 
       // Calculate utilization per location
+      // Total slots = student_session OR open_time blocks only
+      // Booked = student_session with student_id assigned and status = 'booked'
       const byLoc = new Map<string, { total: number; booked: number; open: number }>()
       for (const b of blocks ?? []) {
+        if (b.block_type !== 'student_session' && b.block_type !== 'open_time') continue
         const entry = byLoc.get(b.location_id) ?? { total: 0, booked: 0, open: 0 }
         entry.total++
-        if (b.status === 'booked') entry.booked++
-        else if (b.status === 'available') entry.open++
+        if (b.block_type === 'student_session' && b.student_id && b.status === 'booked') {
+          entry.booked++
+        } else if (b.status === 'available') {
+          entry.open++
+        }
         byLoc.set(b.location_id, entry)
       }
 
@@ -61,6 +73,15 @@ export function useScheduleIntelligence(weekStart: string, weekEnd: string) {
         openBlocks: data.open,
         utilizationPercent: data.total > 0 ? Math.round((data.booked / data.total) * 100) : 0,
       })).sort((a, b) => b.utilizationPercent - a.utilizationPercent)
+
+      // Overall across all locations
+      const overallTotal = utilization.reduce((s, l) => s + l.totalBlocks, 0)
+      const overallBooked = utilization.reduce((s, l) => s + l.bookedBlocks, 0)
+      const overall: OverallUtilization = {
+        totalBlocks: overallTotal,
+        bookedBlocks: overallBooked,
+        utilizationPercent: overallTotal > 0 ? Math.round((overallBooked / overallTotal) * 100) : 0,
+      }
 
       // Generate insights
       const insights: ScheduleInsight[] = []
@@ -116,7 +137,7 @@ export function useScheduleIntelligence(weekStart: string, weekEnd: string) {
         })
       }
 
-      return { utilization, insights }
+      return { utilization, overall, insights }
     },
   })
 }

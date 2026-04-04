@@ -2,9 +2,13 @@ import { useState } from 'react'
 import { useTeacherDayBlocks, useSubmitSessionLog, WORKED_ON_OPTIONS, type TeacherBlock } from '../../hooks/useTeacherSchedule'
 import { useGenerateParentUpdate } from '../../hooks/useParentUpdates'
 import { useCheckAchievements } from '../../hooks/useAchievements'
+import { getLocationColor } from '../../utils/locationColor'
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
-import { Check, ChevronLeft, ChevronRight, Music, Mic, Clock } from 'lucide-react'
+import StudentProfileCard from '../../components/teacher/StudentProfileCard'
+import SessionNoteModal from '../../components/teacher/SessionNoteModal'
+import { Check, ChevronLeft, ChevronRight, Clock, User, FileText } from 'lucide-react'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -33,17 +37,21 @@ const PROGRESS_OPTIONS = [
 ]
 
 const ENGAGEMENT_EMOJIS = [
-  { level: 1, emoji: '😴', label: 'Low' },
-  { level: 2, emoji: '😐', label: 'Fair' },
-  { level: 3, emoji: '🙂', label: 'Good' },
-  { level: 4, emoji: '😄', label: 'Great' },
-  { level: 5, emoji: '🔥', label: 'On Fire' },
+  { level: 1, emoji: '\uD83D\uDE34', label: 'Low' },
+  { level: 2, emoji: '\uD83D\uDE10', label: 'Fair' },
+  { level: 3, emoji: '\uD83D\uDE42', label: 'Good' },
+  { level: 4, emoji: '\uD83D\uDE04', label: 'Great' },
+  { level: 5, emoji: '\uD83D\uDD25', label: 'On Fire' },
 ]
 
 export default function TeacherSchedule() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const { data: blocks, isLoading } = useTeacherDayBlocks(selectedDate)
   const [activeBlock, setActiveBlock] = useState<TeacherBlock | null>(null)
+  const [quickCardStudentId, setQuickCardStudentId] = useState<string | null>(null)
+  const [noteModal, setNoteModal] = useState<{
+    studentId: string; studentName: string; instrument: string | null; blockId: string; date: string
+  } | null>(null)
 
   const navigate = (days: number) => {
     const d = new Date(selectedDate + 'T12:00:00')
@@ -57,7 +65,7 @@ export default function TeacherSchedule() {
   const totalCount = studentBlocks.length
 
   return (
-    <div className="page" style={{ maxWidth: 540, margin: '0 auto', padding: '16px' }}>
+    <div className="page" style={{ maxWidth: 580, margin: '0 auto', padding: '16px' }}>
       {/* Date Navigation */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 8 }}>
@@ -99,20 +107,23 @@ export default function TeacherSchedule() {
             const isStudent = !!block.student_id && block.block_type !== 'call_out'
             const isLogged = block.has_session_log
             const isActive = activeBlock?.block_id === block.block_id
+            const locColor = getLocationColor(block.location_id)
 
             if (!isStudent) {
-              // Non-student block (open time, call out, etc.)
+              // Open time / call out — view only, dashed green for open
+              const isOpen = block.block_type === 'open_time'
               return (
                 <div key={block.block_id} style={{
                   padding: '10px 14px', borderRadius: 10,
-                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
-                  opacity: 0.5,
+                  background: isOpen ? 'rgba(34,197,94,0.02)' : 'rgba(255,255,255,0.02)',
+                  border: isOpen ? '1px dashed rgba(34,197,94,0.2)' : '1px solid rgba(255,255,255,0.04)',
+                  opacity: 0.6,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Clock size={14} style={{ color: '#606088' }} />
-                    <span style={{ fontSize: 12, color: '#606088' }}>{formatTime(block.start_time)}</span>
-                    <span style={{ fontSize: 11, color: '#606088', fontStyle: 'italic' }}>
-                      {block.block_type === 'open_time' ? 'Open' : block.block_type.replace(/_/g, ' ')}
+                    <Clock size={14} style={{ color: isOpen ? '#22C55E' : '#606088' }} />
+                    <span style={{ fontSize: 12, color: isOpen ? '#22C55E' : '#606088' }}>{formatTime(block.start_time)}</span>
+                    <span style={{ fontSize: 11, color: isOpen ? '#22C55E' : '#606088', fontStyle: 'italic' }}>
+                      {isOpen ? 'Open' : block.block_type.replace(/_/g, ' ')}
                     </span>
                   </div>
                 </div>
@@ -122,16 +133,12 @@ export default function TeacherSchedule() {
             return (
               <div key={block.block_id}>
                 {/* Session card */}
-                <div
-                  onClick={() => !isLogged && setActiveBlock(isActive ? null : block)}
-                  style={{
-                    padding: '14px 16px', borderRadius: 12,
-                    background: isLogged ? 'rgba(34,197,94,0.04)' : isActive ? 'rgba(212,34,106,0.06)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${isLogged ? 'rgba(34,197,94,0.15)' : isActive ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.06)'}`,
-                    cursor: isLogged ? 'default' : 'pointer',
-                    transition: 'all 150ms ease',
-                  }}
-                >
+                <div style={{
+                  padding: '14px 16px', borderRadius: 12,
+                  background: isLogged ? 'rgba(34,197,94,0.04)' : isActive ? 'rgba(212,34,106,0.06)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${isLogged ? 'rgba(34,197,94,0.15)' : isActive ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                  transition: 'all 150ms ease',
+                }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {/* Status indicator */}
                     <div style={{
@@ -141,10 +148,8 @@ export default function TeacherSchedule() {
                     }}>
                       {isLogged ? (
                         <Check size={16} style={{ color: '#22C55E' }} />
-                      ) : block.instrument?.toLowerCase().includes('voice') || block.instrument?.toLowerCase().includes('vocal') ? (
-                        <Mic size={14} style={{ color: '#A0A0C8' }} />
                       ) : (
-                        <Music size={14} style={{ color: '#A0A0C8' }} />
+                        <span style={{ fontSize: 16 }}>{getInstrumentEmoji(block.instrument ?? null)}</span>
                       )}
                     </div>
 
@@ -153,22 +158,78 @@ export default function TeacherSchedule() {
                       <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>
                         {block.student_first_name ?? block.student_name}
                       </div>
-                      <div style={{ fontSize: 11, color: '#A0A0C8', marginTop: 1, display: 'flex', gap: 8 }}>
+                      <div style={{ fontSize: 11, color: '#A0A0C8', marginTop: 1, display: 'flex', gap: 8, alignItems: 'center' }}>
                         <span>{formatTime(block.start_time)}</span>
-                        {block.instrument && <span>{block.instrument.charAt(0).toUpperCase() + block.instrument.slice(1)}</span>}
+                        {block.instrument && <span title={block.instrument}>{getInstrumentEmoji(block.instrument)}</span>}
                         {block.room && <span>Rm {block.room}</span>}
+                        <span style={{
+                          padding: '1px 6px', borderRadius: 8, fontSize: 9, fontWeight: 700,
+                          color: locColor, background: `${locColor}15`,
+                        }}>
+                          {block.location_name}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Quick action */}
-                    {!isLogged && !isActive && (
-                      <span style={{ fontSize: 10, fontWeight: 600, color: '#D4226A', padding: '4px 10px', borderRadius: 6, background: 'rgba(212,34,106,0.08)' }}>
-                        Log
-                      </span>
-                    )}
-                    {isLogged && (
-                      <span style={{ fontSize: 10, fontWeight: 600, color: '#22C55E' }}>Logged</span>
-                    )}
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      {/* Student Quick Card button */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); block.student_id && setQuickCardStudentId(block.student_id) }}
+                        title="Student info"
+                        style={{
+                          padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)',
+                          background: 'rgba(255,255,255,0.03)', cursor: 'pointer', color: '#8080A8',
+                        }}
+                      >
+                        <User size={13} />
+                      </button>
+
+                      {!isLogged && (
+                        <button
+                          onClick={() => setActiveBlock(isActive ? null : block)}
+                          style={{
+                            padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 600,
+                            color: isActive ? '#fff' : '#D4226A',
+                            background: isActive ? '#D4226A' : 'rgba(212,34,106,0.08)',
+                            border: 'none', cursor: 'pointer',
+                          }}
+                        >
+                          {isActive ? 'Close' : 'Log'}
+                        </button>
+                      )}
+                      {isLogged && !block.has_session_note && block.student_id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setNoteModal({
+                              studentId: block.student_id!,
+                              studentName: block.student_name ?? block.student_first_name ?? 'Student',
+                              instrument: block.instrument,
+                              blockId: block.block_id,
+                              date: block.block_date,
+                            })
+                          }}
+                          style={{
+                            padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
+                            color: '#FFB800', background: 'rgba(255,184,0,0.08)',
+                            border: '1px solid rgba(255,184,0,0.15)', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 3,
+                          }}
+                        >
+                          <FileText size={11} />
+                          Note
+                        </button>
+                      )}
+                      {isLogged && block.has_session_note && (
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#22C55E', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <Check size={12} /> Noted
+                        </span>
+                      )}
+                      {isLogged && (
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#22C55E', padding: '4px 0' }}>Logged</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -183,6 +244,30 @@ export default function TeacherSchedule() {
             )
           })}
         </div>
+      )}
+
+      {/* Student Profile Card Modal */}
+      {quickCardStudentId && (
+        <StudentProfileCard
+          studentId={quickCardStudentId}
+          onClose={() => setQuickCardStudentId(null)}
+        />
+      )}
+
+      {/* Session Note Modal */}
+      {noteModal && (
+        <SessionNoteModal
+          studentId={noteModal.studentId}
+          studentName={noteModal.studentName}
+          instrument={noteModal.instrument}
+          scheduleBlockId={noteModal.blockId}
+          noteDate={noteModal.date}
+          onClose={() => setNoteModal(null)}
+          onSaved={() => {
+            setNoteModal(null)
+            toast('Session note saved!', 'success')
+          }}
+        />
       )}
     </div>
   )

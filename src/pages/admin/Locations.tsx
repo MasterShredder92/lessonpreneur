@@ -3,6 +3,8 @@ import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { useLocations, useCreateLocation, useUpdateLocation } from '../../hooks/useLocations'
 import type { Location } from '../../lib/types'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 interface LocationFormData {
   name: string
@@ -112,6 +114,7 @@ export default function Locations() {
   }
 
   return (
+    <IssueContextProvider page="Settings" section="Locations">
     <div className="page">
       <div className="page-header">
         <h1>Locations</h1>
@@ -121,6 +124,7 @@ export default function Locations() {
             + Add Location
           </button>
         )}
+        <ReportIssueButton />
       </div>
 
       <div className="locations-grid">
@@ -238,5 +242,6 @@ export default function Locations() {
         </div>
       )}
     </div>
+    </IssueContextProvider>
   )
 }

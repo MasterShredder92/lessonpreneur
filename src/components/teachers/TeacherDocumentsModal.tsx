@@ -12,12 +12,15 @@ interface Props {
   teacherName: string
   w9Status: string | null
   w9CompletedAt: string | null
+  contractStatus: string | null
+  contractSignedAt: string | null
+  contractPdfUrl: string | null
   onClose: () => void
 }
 
 const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }
 
-export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status, w9CompletedAt, onClose }: Props) {
+export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status, w9CompletedAt, contractStatus, contractSignedAt, contractPdfUrl, onClose }: Props) {
   const qc = useQueryClient()
   const { role, profile } = useAuthContext()
   const isOwner = role === 'owner'
@@ -44,12 +47,10 @@ export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status
     },
   })
 
-  const w9Docs = docs?.filter(d => d.category === 'W-9') ?? []
-  const contractDocs = docs?.filter(d => d.category === 'Contract') ?? []
   const otherDocs = docs?.filter(d => d.category === 'Other') ?? []
 
-  const isW9Complete = w9Status === 'complete'
-  const contractStatus: 'missing' | 'sent' | 'signed' = contractDocs.length > 0 ? 'signed' : 'missing'
+  const isW9Complete = w9Status === 'complete' || w9Status === 'completed'
+  const isContractSigned = contractStatus === 'signed'
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -121,11 +122,11 @@ export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status
               <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>W-9</span>
               <span style={{
                 marginLeft: 'auto', fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 100,
-                background: isW9Complete ? 'rgba(34,197,94,0.1)' : 'rgba(255,184,0,0.1)',
-                color: isW9Complete ? '#22C55E' : '#FFB800',
-                border: `1px solid ${isW9Complete ? 'rgba(34,197,94,0.3)' : 'rgba(255,184,0,0.3)'}`,
+                background: isW9Complete ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                color: isW9Complete ? '#22C55E' : '#EF4444',
+                border: `1px solid ${isW9Complete ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
               }}>
-                {isW9Complete ? 'Complete' : 'Missing'}
+                {isW9Complete ? 'Completed' : 'Missing'}
               </span>
             </div>
 
@@ -164,31 +165,30 @@ export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status
           {/* ═══ CONTRACT SECTION ═══ */}
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '18px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <FileSignature size={18} style={{ color: contractStatus === 'signed' ? '#22C55E' : '#8080A8' }} />
+              <FileSignature size={18} style={{ color: isContractSigned ? '#22C55E' : '#8080A8' }} />
               <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>Contract</span>
               <span style={{
                 marginLeft: 'auto', fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 100,
-                background: contractStatus === 'signed' ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)',
-                color: contractStatus === 'signed' ? '#22C55E' : '#8080A8',
-                border: `1px solid ${contractStatus === 'signed' ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                background: isContractSigned ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                color: isContractSigned ? '#22C55E' : '#EF4444',
+                border: `1px solid ${isContractSigned ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
               }}>
-                {contractStatus === 'signed' ? 'Signed' : 'Missing'}
+                {isContractSigned ? 'Signed' : 'Missing'}
               </span>
             </div>
 
-            {contractStatus === 'signed' ? (
+            {isContractSigned ? (
               <div>
-                <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 10 }}>Signed {fmtDate(contractDocs[0]?.uploaded_at)}</div>
-                <a href={contractDocs[0]?.file_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#C0C0E0', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                  <ExternalLink size={12} /> View PDF
-                </a>
+                <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 10 }}>Signed {fmtDate(contractSignedAt)}</div>
+                {contractPdfUrl && (
+                  <a href={contractPdfUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 8, background: 'rgba(212,34,106,0.1)', border: '1px solid rgba(212,34,106,0.3)', color: '#E8488A', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                    <ExternalLink size={12} /> View PDF
+                  </a>
+                )}
               </div>
             ) : (
               <div>
-                <div style={{ fontSize: 12, color: '#606088', marginBottom: 10 }}>SignWell integration coming soon</div>
-                <button disabled style={{ padding: '10px 20px', borderRadius: 10, background: '#1C1C2A', border: '1px solid rgba(255,255,255,0.06)', color: '#606088', fontSize: 13, fontWeight: 700, cursor: 'not-allowed' }}>
-                  Send Contract
-                </button>
+                <div style={{ fontSize: 12, color: '#606088' }}>No signed contract on file</div>
               </div>
             )}
           </div>

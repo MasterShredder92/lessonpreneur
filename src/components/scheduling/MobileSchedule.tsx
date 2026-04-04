@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, ChevronDown, HelpCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, HelpCircle, Star } from 'lucide-react'
 import type { GridBlock } from '../../hooks/useScheduleGrid'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
@@ -17,6 +17,14 @@ interface Location {
   is_active: boolean
 }
 
+interface UtilizationItem {
+  locationId: string
+  locationName: string
+  color: string
+  openBlocks: number
+  utilizationPercent: number
+}
+
 interface MobileScheduleProps {
   teachers: Teacher[]
   blocks: GridBlock[]
@@ -30,6 +38,9 @@ interface MobileScheduleProps {
   onLocationChange: (id: string) => void
   selectedDate: string
   onNavigateDate: (days: number) => void
+  utilization?: UtilizationItem[]
+  onStarOpen?: () => void
+  starOpen?: boolean
 }
 
 const BLOCK_COLORS: Record<string, { bg: string; dark: boolean }> = {
@@ -52,11 +63,11 @@ const LEGEND_ITEMS = [
   { type: 'call_out', label: 'Callout' },
   { type: 'last_day', label: 'Last Day' },
   { type: 'open_time', label: 'Open' },
-  { type: 'not_bookable', label: 'Not Bookable' },
+  { type: 'not_bookable', label: 'Locked Times' },
   { type: 'teacher_training', label: 'Training' },
 ]
 
-export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime, onBlockClick, onOpenSlotClick, onDragDrop, locations, selectedLocation, onLocationChange, selectedDate, onNavigateDate }: MobileScheduleProps) {
+export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime, onBlockClick, onOpenSlotClick, onDragDrop, locations, selectedLocation, onLocationChange, selectedDate, onNavigateDate, utilization, onStarOpen, starOpen }: MobileScheduleProps) {
   const [focusedTeacher, setFocusedTeacher] = useState<string | null>(null)
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
@@ -119,6 +130,10 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
   const currentLocation = activeLocations.find(l => l.id === selectedLocation)
   const currentLocationName = currentLocation?.name?.replace(' Music Lessons', '') ?? 'Location'
   const locColor = (currentLocation as any)?.color ?? '#D4226A'
+
+  // Build open-count lookup from utilization data
+  const openCountMap = new Map<string, number>()
+  utilization?.forEach(u => openCountMap.set(u.locationId, u.openBlocks))
 
   // Short date format: "Mar 31"
   const dateObj = new Date(selectedDate + 'T00:00:00')
@@ -333,24 +348,29 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', overflow: 'hidden' }}>
-      {/* Row 1 — Location + Date + Legend */}
+      {/* Row 1 — Location dropdown + Star button */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '6px 10px', flexShrink: 0, position: 'relative',
-        borderBottom: `1px solid ${locColor}20`,
+        gap: 8,
       }}>
         {/* Left: Location dropdown */}
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
           <button
             onClick={(e) => { e.stopPropagation(); setShowLocationDropdown(v => !v); setShowLegend(false) }}
             style={{
-              display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px',
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
               background: `${locColor}18`, border: `1px solid ${locColor}30`, borderRadius: 8,
               color: '#E0E0F4', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              width: '100%',
             }}
           >
-            {currentLocationName}
-            <ChevronDown size={12} style={{ color: '#8080A8' }} />
+            <div style={{ width: 8, height: 8, borderRadius: 3, background: locColor, flexShrink: 0 }} />
+            <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentLocationName}</span>
+            {openCountMap.has(selectedLocation) && (
+              <span style={{ fontSize: 10, color: '#8080A8', fontWeight: 500, flexShrink: 0 }}>{openCountMap.get(selectedLocation)} open</span>
+            )}
+            <ChevronDown size={12} style={{ color: '#8080A8', flexShrink: 0 }} />
           </button>
 
           {/* Location dropdown */}
@@ -360,12 +380,13 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
               style={{
                 position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100,
                 background: '#1C1C2E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 160, overflow: 'hidden',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 200, overflow: 'hidden',
               }}
             >
               {activeLocations.map(loc => {
                 const c = (loc as any).color ?? '#D4226A'
                 const active = loc.id === selectedLocation
+                const openCount = openCountMap.get(loc.id)
                 return (
                   <button
                     key={loc.id}
@@ -378,7 +399,10 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                     }}
                   >
                     <div style={{ width: 8, height: 8, borderRadius: 3, background: c, flexShrink: 0 }} />
-                    {loc.name.replace(' Music Lessons', '')}
+                    <span style={{ flex: 1 }}>{loc.name.replace(' Music Lessons', '')}</span>
+                    {openCount != null && (
+                      <span style={{ fontSize: 10, color: '#606088', fontWeight: 500 }}>{openCount} open</span>
+                    )}
                   </button>
                 )
               })}
@@ -386,8 +410,32 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
           )}
         </div>
 
+        {/* Right: Star button */}
+        {onStarOpen && (
+          <button
+            onClick={onStarOpen}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px',
+              borderRadius: 8, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+              background: starOpen ? 'rgba(255,184,0,0.15)' : 'rgba(255,184,0,0.08)',
+              border: `1px solid ${starOpen ? 'rgba(255,184,0,0.35)' : 'rgba(255,184,0,0.2)'}`,
+              color: '#FFB800', fontSize: 11, fontWeight: 700,
+            }}
+          >
+            <Star size={13} />
+            Ask Star
+          </button>
+        )}
+      </div>
+
+      {/* Row 2 — Date nav + Legend */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '4px 10px 6px', flexShrink: 0,
+        borderBottom: `1px solid ${locColor}20`,
+      }}>
         {/* Center: Date nav */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' }}>
           <button
             onClick={() => onNavigateDate(-1)}
             style={{
@@ -587,7 +635,7 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       maxWidth: '100%', textAlign: 'center', lineHeight: 1.2,
                     }}>
-                      {block.student_name?.split(' ')[0] ?? block.block_type.replace(/_/g, ' ')}
+                      {block.student_name ?? (block.block_type === 'not_bookable' ? 'Locked' : block.block_type.replace(/_/g, ' '))}
                     </div>
                     {isExpanded && block.instrument && (
                       <div title={block.instrument} style={{ fontSize: 13, marginTop: 1, textAlign: 'center' }}>

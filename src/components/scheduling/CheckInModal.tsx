@@ -145,7 +145,8 @@ export default function CheckInModal({ block, onClose }: Props) {
         .eq('start_time', block.start_time)
         .eq('status', 'available')
 
-      await supabase.from('schedule_blocks').update({ teacher_id: selectedSubTeacherId }).eq('id', block.block_id)
+      const { error: subErr } = await supabase.from('schedule_blocks').update({ teacher_id: selectedSubTeacherId }).eq('id', block.block_id)
+      if (subErr) throw new Error(subErr.message)
 
       await supabase.from('activity_log').insert({
         tenant_id: block.tenant_id, entity_type: 'schedule_block', entity_id: block.block_id,
@@ -154,7 +155,7 @@ export default function CheckInModal({ block, onClose }: Props) {
         performed_by: user?.id ?? null,
       }).then(() => {})
 
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       toast('Substitute changed', 'success')
       onClose()
     } catch (err: any) { setError(err.message) }
@@ -231,20 +232,25 @@ export default function CheckInModal({ block, onClose }: Props) {
     try {
       if (cancelType === 'call_out') {
         // Today only — change to call_out, future stays
-        await supabase.from('schedule_blocks').update({ block_type: 'call_out', notes: logNote }).eq('id', block.block_id)
+        const { error: e } = await supabase.from('schedule_blocks').update({ block_type: 'call_out', notes: logNote }).eq('id', block.block_id)
+        if (e) throw new Error(e.message)
       } else if (cancelType === 'student_leaving') {
         // Mark as last day, revert all future recurring to open
-        await supabase.from('schedule_blocks').update({ block_type: 'last_day', notes: logNote }).eq('id', block.block_id)
+        const { error: e } = await supabase.from('schedule_blocks').update({ block_type: 'last_day', notes: logNote }).eq('id', block.block_id)
+        if (e) throw new Error(e.message)
         if (block.is_recurring && block.student_id) {
-          await supabase.from('schedule_blocks').update({ student_id: null, status: 'available', block_type: 'open_time', is_recurring: false, notes: null })
+          const { error: fe } = await supabase.from('schedule_blocks').update({ student_id: null, status: 'available', block_type: 'open_time', is_recurring: false, notes: null })
             .eq('teacher_id', block.teacher_id).eq('start_time', block.start_time).eq('student_id', block.student_id).gt('block_date', block.block_date)
+          if (fe) throw new Error(fe.message)
         }
       } else {
         // our_end or accidental — revert to open
-        await supabase.from('schedule_blocks').update({ student_id: null, status: 'available', block_type: 'open_time', is_recurring: false, notes: logNote }).eq('id', block.block_id)
+        const { error: e } = await supabase.from('schedule_blocks').update({ student_id: null, status: 'available', block_type: 'open_time', is_recurring: false, notes: logNote }).eq('id', block.block_id)
+        if (e) throw new Error(e.message)
         if (cancelType === 'our_end' && block.is_recurring && block.student_id) {
-          await supabase.from('schedule_blocks').update({ student_id: null, status: 'available', block_type: 'open_time', is_recurring: false, notes: null })
+          const { error: fe } = await supabase.from('schedule_blocks').update({ student_id: null, status: 'available', block_type: 'open_time', is_recurring: false, notes: null })
             .eq('teacher_id', block.teacher_id).eq('start_time', block.start_time).eq('student_id', block.student_id).gt('block_date', block.block_date)
+          if (fe) throw new Error(fe.message)
         }
       }
 
@@ -273,7 +279,7 @@ export default function CheckInModal({ block, onClose }: Props) {
         teacher_id: block.teacher_id,
       })
 
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       onClose()
     } catch (err: any) { setError(err.message) }
     finally { setCancelSubmitting(false) }
@@ -318,7 +324,8 @@ export default function CheckInModal({ block, onClose }: Props) {
                         // Accidental — no reason needed, just revert to open
                         setCancelSubmitting(true)
                         try {
-                          await supabase.from('schedule_blocks').update({ student_id: null, status: 'available', block_type: 'open_time', is_recurring: false, notes: '[Accidental Booking]' }).eq('id', block.block_id)
+                          const { error: accErr } = await supabase.from('schedule_blocks').update({ student_id: null, status: 'available', block_type: 'open_time', is_recurring: false, notes: '[Accidental Booking]' }).eq('id', block.block_id)
+                          if (accErr) throw new Error(accErr.message)
                           await supabase.from('activity_log').insert({
                             tenant_id: block.tenant_id, entity_type: 'schedule_block', entity_id: block.block_id,
                             action: 'cancel_accidental',
@@ -331,7 +338,7 @@ export default function CheckInModal({ block, onClose }: Props) {
                             location_name: block.location_name ?? 'Studio', block_date: block.block_date, start_time: block.start_time,
                             family_id: null, teacher_id: block.teacher_id,
                           })
-                          qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                          qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
                           onClose()
                         } catch (err: any) { setError(err.message) }
                         finally { setCancelSubmitting(false) }
@@ -445,7 +452,7 @@ export default function CheckInModal({ block, onClose }: Props) {
           {block.has_session_log && block.session_log && (
             <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.12)' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#22C55E', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Session Log</div>
-              {block.session_log.worked_on.length > 0 && (
+              {(block.session_log.worked_on?.length ?? 0) > 0 && (
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
                   {block.session_log.worked_on.map((tag: string) => (
                     <span key={tag} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', color: '#22C55E', fontWeight: 600 }}>{tag}</span>
@@ -577,8 +584,9 @@ export default function CheckInModal({ block, onClose }: Props) {
                       try {
                         if (block.is_virtual) {
                           // Revert to in-person
-                          await supabase.from('schedule_blocks').update({ is_virtual: false, meet_link: null, meet_event_id: null }).eq('id', block.block_id)
-                          qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                          const { error: vErr } = await supabase.from('schedule_blocks').update({ is_virtual: false, meet_link: null, meet_event_id: null }).eq('id', block.block_id)
+                          if (vErr) throw new Error(vErr.message)
+                          qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
                           toast('Converted back to in-person', 'success')
                         } else {
                           // Convert to virtual
@@ -603,7 +611,7 @@ export default function CheckInModal({ block, onClose }: Props) {
                             meet_link: result.meet_link,
                           })
 
-                          qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                          qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
                           toast('Virtual session created. Link sent to teacher and parent.', 'success')
                         }
                         setShowVirtualConfirm(false)
@@ -642,14 +650,15 @@ export default function CheckInModal({ block, onClose }: Props) {
                           if (!undoReason.trim()) { setError('Please enter a reason'); return }
                           setUndoSubmitting(true)
                           try {
-                            await supabase.from('schedule_blocks').update({ checked_in: false, teacher_tally: false }).eq('id', block.block_id)
+                            const { error: undoErr } = await supabase.from('schedule_blocks').update({ checked_in: false, teacher_tally: false }).eq('id', block.block_id)
+                            if (undoErr) throw new Error(undoErr.message)
                             await supabase.from('activity_log').insert({
                               tenant_id: block.tenant_id, entity_type: 'schedule_block', entity_id: block.block_id,
                               action: 'undo_checkin',
                               description: `Undo check-in: ${block.student_name} — ${block.teacher_name} @ ${formatTime(block.start_time)} on ${dateStr}. Reason: ${undoReason.trim()}`,
                               performed_by: user?.id ?? null,
                             }).then(() => {})
-                            qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                            qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
                             onClose()
                           } catch (err: any) { setError(err.message) }
                           finally { setUndoSubmitting(false) }
@@ -786,9 +795,10 @@ function RoomSelector({ block }: { block: GridBlock }) {
         return
       }
     }
-    await supabase.from('schedule_blocks').update({ room_id: roomId || null, room: room?.name ?? null }).eq('id', block.block_id)
+    const { error: roomErr } = await supabase.from('schedule_blocks').update({ room_id: roomId || null, room: room?.name ?? null }).eq('id', block.block_id)
+    if (roomErr) { toast('Failed to update room: ' + roomErr.message, 'error'); return }
     setCurrentRoom(roomId)
-    qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+    qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
     toast(roomId ? `Moved to ${room?.name}` : 'Room removed', 'success')
   }
 

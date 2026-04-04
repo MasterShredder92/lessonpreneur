@@ -10,6 +10,8 @@ import ConvertLeadModal from '../../components/leads/ConvertLeadModal'
 import DataGrid from '../../components/shared/DataGrid'
 import { CORE_INSTRUMENTS, OTHER_INSTRUMENTS } from '../../lib/constants'
 import { toast } from '../../components/shared/Toast'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 const STAGES = ['inquiry', 'contacted', 'scheduled', 'enrolled', 'lost'] as const
 
@@ -291,6 +293,7 @@ export default function Leads() {
   }
 
   return (
+    <IssueContextProvider page="New Members">
     <div className="page" style={{ maxWidth: 'none' }}>
       {/* Header — stage counts inline */}
       <div className="page-header">
@@ -338,6 +341,7 @@ export default function Leads() {
             Export CSV
           </button>
         </div>
+        <ReportIssueButton />
       </div>
 
       {/* Active / Lost tabs */}
@@ -647,6 +651,7 @@ export default function Leads() {
         />
       )}
     </div>
+    </IssueContextProvider>
   )
 }
 
@@ -827,7 +832,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     </button>
                   </div>
                   {aiMatch.error && <div className="form-error" style={{ fontSize: 11 }}>{aiMatch.error}</div>}
-                  {aiMatch.result && aiMatch.result.recommendations.length > 0 && (
+                  {aiMatch.result && (aiMatch.result.recommendations?.length ?? 0) > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {aiMatch.result.recommendations.map((rec: TeacherMatch, i: number) => (
                         <div key={rec.teacher_id} className="lead-star-match">
@@ -837,7 +842,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                             <span className={rec.match_score >= 80 ? 'badge-green' : rec.match_score >= 65 ? 'badge-gold' : 'badge-red'} style={{ fontSize: 10 }}>{rec.match_score}%</span>
                           </div>
                           <p style={{ fontSize: 12.5, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 8 }}>{rec.match_reason}</p>
-                          {rec.suggested_slots.length > 0 && (
+                          {(rec.suggested_slots?.length ?? 0) > 0 && (
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {rec.suggested_slots.slice(0, 3).map((slot: any) => (
                                 <button key={slot.block_id} className="lead-star-slot" onClick={onConvert}>
@@ -852,7 +857,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       ))}
                     </div>
                   )}
-                  {aiMatch.result && aiMatch.result.recommendations.length === 0 && !aiMatch.result.recovery_analysis && (
+                  {aiMatch.result && (aiMatch.result.recommendations?.length ?? 0) === 0 && !aiMatch.result.recovery_analysis && (
                     <p style={{ fontSize: 12.5, color: '#8080A8' }}>No matching teachers found. Try adjusting the lead's location or instrument.</p>
                   )}
                   {/* Recovery analysis for lost leads */}

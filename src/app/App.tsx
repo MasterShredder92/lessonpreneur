@@ -37,6 +37,7 @@ const PianoLanding = lazy(() => import('../pages/PianoLanding'))
 const MoreLanding = lazy(() => import('../pages/MoreLanding'))
 const SignupLanding = lazy(() => import('../pages/SignupLanding'))
 const ThankYou = lazy(() => import('../pages/ThankYou'))
+const FamilyPortal = lazy(() => import('../pages/family/FamilyPortal'))
 
 // Shells (loaded eagerly — they're the layout)
 import AdminShell from '../components/layout/AdminShell'
@@ -68,8 +69,10 @@ const Analytics = lazy(() => import('../pages/admin/Analytics'))
 const IntegrationsPage = lazy(() => import('../pages/admin/Integrations'))
 
 // Teacher/Parent/Student pages (lazy)
+const TeacherDashboard = lazy(() => import('../pages/teacher/TeacherDashboard'))
 const TeacherSchedule = lazy(() => import('../pages/teacher/TeacherSchedule'))
 const TeacherStudents = lazy(() => import('../pages/teacher/TeacherStudents'))
+const TeacherDocuments = lazy(() => import('../pages/teacher/TeacherDocuments'))
 const ParentDashboard = lazy(() => import('../pages/parent/ParentDashboard'))
 const StudentPractice = lazy(() => import('../pages/student/StudentPractice'))
 
@@ -175,9 +178,11 @@ export default function App() {
                 </RouteGuard>
               }
             >
-              <Route index element={<Navigate to="schedule" replace />} />
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<TeacherDashboard />} />
               <Route path="schedule" element={<TeacherSchedule />} />
               <Route path="students" element={<TeacherStudents />} />
+              <Route path="documents" element={<TeacherDocuments />} />
             </Route>
 
             {/* Parent routes */}
@@ -205,6 +210,9 @@ export default function App() {
               <Route index element={<Navigate to="practice" replace />} />
               <Route path="practice" element={<StudentPractice />} />
             </Route>
+
+            {/* Family portal — standalone, no shell */}
+            <Route path="/family/:familyId" element={<FamilyPortal />} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/login" replace />} />

@@ -1,941 +1,1194 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
-import { useQueryClient } from '@tanstack/react-query'
-import { createPortal } from 'react-dom'
-import { useAuthContext } from '../../app/AuthContext'
-import { supabase } from '../../lib/supabase'
 import { useLocations } from '../../hooks/useLocations'
-import { useBillingDashboard, useBillingAlerts, useBillingFamilies, useFamilyBillingDetail, useFamilyPaymentHistory, useUpdateBillingStatus, useUpdateBillingDay, useAdjustBalance, useAddBillingAdjustment, useDeleteBillingAdjustment, useSquareInvoiceSummary, useSquareInvoicesByFamily, useBillingHeroStats } from '../../hooks/useBillingPage'
-import { useOverrideFamilyRate, useRemoveFamilyRateOverride } from '../../hooks/useFamilyRate'
+import {
+  useBillingHeroStats,
+  useBillingFamilies,
+  useNextCycle,
+  useRemainingToCollect,
+  useOverdueFamilies,
+  usePaidThisMonth,
+  useCreditsLedger,
+  useCreateBillingAdjustment,
+  useCreateOneOffInvoice,
+} from '../../hooks/useBillingPage'
 import { toast } from '../../components/shared/Toast'
-import ConfirmModal from '../../components/shared/ConfirmModal'
-import DraggableModal from '../../components/shared/DraggableModal'
-import { CreditCard, Lock, X, ChevronDown, ChevronRight } from 'lucide-react'
-import { syncSquareCustomers, type SquareCustomer } from '../../lib/squareSync'
-import { DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_PER_SESSION, DEFAULT_RATE_TIER_CENTS } from '../../lib/constants'
-import InvoicesPanel from '../../components/billing/InvoicesPanel'
-import SquareSyncPanel from '../../components/billing/SquareSyncPanel'
-import { useQuery } from '@tanstack/react-query'
+import {
+  CreditCard, DollarSign, AlertTriangle, CheckCircle, Users,
+  FileText, RefreshCw, X, ChevronDown, Plus, Search,
+} from 'lucide-react'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
 
 function dollars(cents: number | null | undefined): string {
   if (cents == null || cents === 0) return '$0.00'
-  return `$${(Math.abs(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const abs = Math.abs(cents) / 100
+  return `${cents < 0 ? '-' : ''}$${abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
-function stripFamily(name: string | null): string { return (name ?? '').replace(/\s+family$/i, '').trim() || name ?? '' }
 
-const RATE_LABELS: Record<number, { label: string; color: string; bg: string }> = {
-  4500: { label: '$45.00 — Standard', color: '#A0A0C8', bg: 'rgba(128,128,168,0.1)' },
-  4000: { label: '$40.00 — Multi-Student', color: '#FFB800', bg: 'rgba(255,184,0,0.1)' },
-  3750: { label: '$37.50 — Volume', color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
-}
-const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
-  active: { color: '#22C55E', bg: 'rgba(34,197,94,0.12)' },
-  paused: { color: '#FFB800', bg: 'rgba(255,184,0,0.12)' },
-  suspended: { color: '#FF7800', bg: 'rgba(255,120,0,0.12)' },
-  cancelled: { color: '#8080A8', bg: 'rgba(255,255,255,0.04)' },
-}
-const ALERT_ICONS: Record<string, { icon: string }> = {
-  no_card: { icon: '🔴' }, overdue: { icon: '🟠' }, expiring_card: { icon: '🟡' }, paused_with_students: { icon: '🔵' },
-}
-const LOCATION_BRAND_COLORS: Record<string, string> = {
-  'd48229c1-b70a-4d29-893e-5079887dab76': '#D41113',  // Omaha
-  'f7b52dd5-12ee-437f-9c60-f8adf454ac31': '#A333FF',  // Bellevue
-  'cebd97d4-c241-4de2-8ade-49e5cc0070d5': '#00A5E8',  // Elkhorn
-  '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#00A651',  // Gretna
-}
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }
+type SectionKey = 'invoices' | 'next' | 'remaining' | 'overdue' | 'paid'
 
-export default function Billing() {
-  const { role, tenantId } = useAuthContext()
-  const { data: stats } = useBillingDashboard()
-  const { data: alerts } = useBillingAlerts()
-  const { data: locations } = useLocations()
-  const [filters, setFilters] = useState<any>({})
-  const [locationFilter, setLocationFilter] = useState('')
-  const { data: families } = useBillingFamilies(filters)
-  const { data: sqSummary } = useSquareInvoiceSummary()
-  const { data: sqFamilies } = useSquareInvoicesByFamily()
-  const { data: heroStats } = useBillingHeroStats(locationFilter || undefined)
-  const { data: pendingInvoiceCount } = useQuery({
-    queryKey: ['invoice_pending_count', tenantId],
-    enabled: !!tenantId,
-    queryFn: async () => {
-      const { count } = await supabase.from('invoice_tokens').select('id', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId!)
-        .in('status', ['pending', 'sent', 'viewed'])
-      return count ?? 0
-    },
-  })
-  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null)
-  const [alertsExpanded, setAlertsExpanded] = useState(false)
-  const [billingTab, setBillingTab] = useState<'active' | 'paused' | 'inactive'>('active')
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
-  const [page, setPage] = useState(0)
-  const isOwner = role === 'owner' || role === 'admin'
-  const queryClient = useQueryClient()
-  const [syncLoading, setSyncLoading] = useState(false)
-  const [syncStatus, setSyncStatus] = useState('')
-  const [billingView, setBillingView] = useState<'families' | 'invoices' | 'square_sync'>('families')
-  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('')
-  const [unmatchedCustomers, setUnmatchedCustomers] = useState<SquareCustomer[]>([])
-  const [showUnmatched, setShowUnmatched] = useState(false)
+// ══════════════════════════════════════════
+// GLASS CARD STYLES
+// ══════════════════════════════════════════
 
-  async function handleSyncSquare() {
-    setSyncLoading(true)
-    setSyncStatus('Starting sync...')
-    try {
-      const result = await syncSquareCustomers((status) => setSyncStatus(status), tenantId!)
-      toast(`Synced: ${result.squareCustomers} customers found, ${result.matched} matched, ${result.updated} updated`, 'success')
-      setUnmatchedCustomers(result.unmatched)
-      if (result.unmatched.length > 0) setShowUnmatched(true)
-      await queryClient.invalidateQueries({ queryKey: ['billing_families'] })
-      await queryClient.invalidateQueries({ queryKey: ['billing_dashboard'] })
-      await queryClient.invalidateQueries({ queryKey: ['billing_summary'] })
-      await queryClient.invalidateQueries({ queryKey: ['square_invoices_summary'] })
-      await queryClient.invalidateQueries({ queryKey: ['square_invoices_by_family'] })
-      await queryClient.invalidateQueries({ queryKey: ['billing_hero_stats'] })
-      setSyncStatus('')
-    } catch (err) {
-      console.error('Square sync error:', err)
-      toast(`Sync failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
-      setSyncStatus('')
-    } finally {
-      setSyncLoading(false)
-    }
+const glass: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.03)',
+  border: '1px solid rgba(255,255,255,0.06)',
+  borderRadius: 16,
+  padding: 20,
+}
+
+const glassCompact: React.CSSProperties = {
+  ...glass,
+  padding: 14,
+}
+
+// ══════════════════════════════════════════
+// STATUS BADGE
+// ══════════════════════════════════════════
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    active: '#22C55E',
+    paused: '#FFB800',
+    suspended: '#FF7800',
+    cancelled: '#8080A8',
+    pending: '#FFB800',
+    completed: '#22C55E',
+    failed: '#EF4444',
   }
-
-  // Apply location filter client-side (families have primary_location_id)
-  const locationFiltered = useMemo(() => {
-    if (!locationFilter || !families) return families ?? []
-    return families.filter((f: any) => {
-      // Check if any of the family's students are at this location
-      return f.students?.some((s: any) => s.location_id === locationFilter) || false
-    })
-  }, [families, locationFilter])
-
-  const visibleAlerts = (alerts ?? []).filter(a => !dismissedAlerts.has(a.id))
-
-  const activeLocName = locationFilter ? locations?.find((l: any) => l.id === locationFilter)?.name?.replace(' Music Lessons', '') : ''
-  const locationLabel = activeLocName ? `${activeLocName} only` : 'All locations'
-  const billingTabFiltered = useMemo(() => {
-    if (billingTab === 'active') return locationFiltered.filter((f: any) => f.billing_status === 'active')
-    if (billingTab === 'paused') return locationFiltered.filter((f: any) => f.billing_status === 'paused')
-    return locationFiltered.filter((f: any) => f.billing_status === 'cancelled' || f.billing_status === 'suspended' || (f.billing_status !== 'active' && f.billing_status !== 'paused'))
-  }, [locationFiltered, billingTab])
+  const c = colors[status] ?? '#606088'
   return (
-    <div className="page">
-      <div className="page-header">
-        <h1>Billing</h1>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 11, fontWeight: 600, color: c,
+      padding: '2px 8px', borderRadius: 6,
+      background: `${c}18`, border: `1px solid ${c}30`,
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: 3, background: c }} />
+      {status}
+    </span>
+  )
+}
+
+// ══════════════════════════════════════════
+// CARD ON FILE
+// ══════════════════════════════════════════
+
+function CardBadge({ brand, last4 }: { brand: string | null; last4: string | null }) {
+  if (!last4) return <span style={{ fontSize: 11, color: '#EF4444' }}>No card</span>
+  return (
+    <span style={{ fontSize: 11, color: '#A0A0C8', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <CreditCard size={12} />
+      {brand ?? 'Card'} ····{last4}
+    </span>
+  )
+}
+
+// ══════════════════════════════════════════
+// MODAL SHELL
+// ══════════════════════════════════════════
+
+function ModalShell({ onClose, title, children }: { onClose: () => void; title: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 10000,
+      background: 'rgba(2,2,9,0.95)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16,
+    }} onClick={onClose}>
+      <div style={{
+        ...glass,
+        maxWidth: 680, width: '100%', maxHeight: '85vh', overflow: 'auto',
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(255,255,255,0.08)',
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#E0E0F4', margin: 0 }}>{title}</h2>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 8,
+            width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: '#A0A0C8',
+          }}>
+            <X size={16} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════
+// SHARED INPUT STYLES
+// ══════════════════════════════════════════
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box' as const,
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 8, padding: '8px 10px',
+  color: '#E0E0F4', fontSize: 13,
+  outline: 'none', minHeight: 36,
+}
+
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  cursor: 'pointer',
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11, color: '#A0A0C8', fontWeight: 500,
+  display: 'block', marginBottom: 4,
+}
+
+const utilBtn: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 5,
+  fontSize: 12, fontWeight: 500, color: '#A0A0C8',
+  background: 'rgba(255,255,255,0.03)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 8, padding: '6px 12px',
+  cursor: 'pointer', minHeight: 32,
+}
+
+// ══════════════════════════════════════════
+// MAIN PAGE
+// ══════════════════════════════════════════
+
+function BillingInner() {
+  const { data: locations } = useLocations()
+
+  const [locationFilter, setLocationFilter] = useState('')
+  const [activeSection, setActiveSection] = useState<SectionKey>('invoices')
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('name')
+  const [showCreditsLedger, setShowCreditsLedger] = useState(false)
+  const [showOneOff, setShowOneOff] = useState(false)
+  const [showSquareSync, setShowSquareSync] = useState(false)
+  const [creditRow, setCreditRow] = useState<string | null>(null)
+  const [expandedCard, setExpandedCard] = useState<string>('collected')
+
+  // Data hooks
+  const { data: heroStats, isLoading: heroLoading } = useBillingHeroStats(locationFilter || undefined)
+  const { data: families, isLoading: familiesLoading } = useBillingFamilies(locationFilter)
+  const { data: nextCycle, isLoading: nextLoading } = useNextCycle(locationFilter)
+  const { data: remaining, isLoading: remainingLoading } = useRemainingToCollect(locationFilter)
+  const { data: overdue, isLoading: overdueLoading } = useOverdueFamilies(locationFilter)
+  const { data: paidData, isLoading: paidLoading } = usePaidThisMonth(locationFilter)
+  const { data: credits } = useCreditsLedger(locationFilter)
+
+  // Mutations
+  const createAdj = useCreateBillingAdjustment()
+  const createInvoice = useCreateOneOffInvoice()
+
+  // Locations
+  const activeLocations = useMemo(() =>
+    (locations ?? []).filter((l: any) => l.is_active),
+    [locations],
+  )
+
+  const locColorMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const l of activeLocations) {
+      m[l.id] = l.color || '#D4226A'
+    }
+    return m
+  }, [activeLocations])
+
+  // Filtered families for Section 1
+  const filteredFamilies = useMemo(() => {
+    let list = families ?? []
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter(f =>
+        f.name?.toLowerCase().includes(q) ||
+        f.parent_name?.toLowerCase().includes(q) ||
+        f.students.some(s => `${s.first_name} ${s.last_name}`.toLowerCase().includes(q))
+      )
+    }
+    if (sortBy === 'name') list = [...list].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+    if (sortBy === 'amount') list = [...list].sort((a, b) => b.monthlyTotalCents - a.monthlyTotalCents)
+    if (sortBy === 'students') list = [...list].sort((a, b) => b.activeStudentCount - a.activeStudentCount)
+    return list
+  }, [families, search, sortBy])
+
+  // Snapshot card config
+  const snapshotCards = heroStats ? [
+    {
+      key: 'collected',
+      label: 'Collected This Month',
+      value: dollars(heroStats.collectedCents),
+      sub: `${heroStats.collectedCount} payments received`,
+      accent: '#22C55E',
+      border: 'rgba(34,197,94,0.2)',
+      bg: 'linear-gradient(150deg, rgba(6,18,9,0.97), rgba(4,12,6,0.99))',
+      edgeBg: 'linear-gradient(#16A34A, #22C55E, #16A34A)',
+      edgeShadow: '0 0 24px rgba(22,163,74,0.65)',
+      glowColor: 'rgba(22,163,74,0.18)',
+    },
+    {
+      key: 'awaiting',
+      label: 'Awaiting Payment',
+      value: dollars(heroStats.awaitingCents),
+      sub: `${heroStats.awaitingCount} invoices scheduled`,
+      accent: '#FBBF24',
+      border: 'rgba(251,191,36,0.18)',
+      bg: 'linear-gradient(150deg, rgba(13,10,4,0.97), rgba(9,7,3,0.99))',
+      edgeBg: 'linear-gradient(#D97706, #FBBF24, #D97706)',
+      edgeShadow: '0 0 24px rgba(251,191,36,0.55)',
+      glowColor: 'rgba(251,191,36,0.16)',
+    },
+    {
+      key: 'discounted',
+      label: 'Discounted This Month',
+      value: dollars(heroStats.discountedCents),
+      sub: `Full potential: ${dollars(heroStats.fullPotentialCents)}`,
+      accent: '#EF4444',
+      border: 'rgba(239,68,68,0.18)',
+      bg: 'linear-gradient(150deg, rgba(15,5,5,0.97), rgba(10,3,3,0.99))',
+      edgeBg: 'linear-gradient(#B91C1C, #EF4444, #B91C1C)',
+      edgeShadow: '0 0 24px rgba(239,68,68,0.5)',
+      glowColor: 'rgba(239,68,68,0.15)',
+    },
+    {
+      key: 'nextMonth',
+      label: `${heroStats.nextMonthLabel} Billing`,
+      value: dollars(heroStats.nextMonthCents),
+      sub: `${heroStats.nextMonthCount} invoices scheduled`,
+      accent: '#8080A8',
+      border: 'rgba(128,128,168,0.18)',
+      bg: 'linear-gradient(150deg, rgba(8,8,14,0.97), rgba(5,5,10,0.99))',
+      edgeBg: 'linear-gradient(#606088, #8080A8, #606088)',
+      edgeShadow: '0 0 24px rgba(128,128,168,0.4)',
+      glowColor: 'rgba(128,128,168,0.12)',
+    },
+  ] : []
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#020209', padding: '0 16px 40px' }}>
+      {/* HEADER */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '20px 0 12px', flexWrap: 'wrap', gap: 8,
+      }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#E0E0F4', margin: 0 }}>Billing</h1>
+        <ReportIssueButton context="billing" />
+      </div>
+
+      {/* LOCATION FILTER — Desktop pills */}
+      <div className="billing-loc-pills" style={{
+        display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16,
+      }}>
         <button
-          onClick={handleSyncSquare}
-          disabled={syncLoading}
+          onClick={() => setLocationFilter('')}
           style={{
-            padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            background: 'rgba(0,120,255,0.12)', color: '#0078FF', border: '1px solid rgba(0,120,255,0.25)',
-            opacity: syncLoading ? 0.6 : 1, marginLeft: 12,
+            padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+            border: `1px solid ${!locationFilter ? '#D4226A' : 'rgba(255,255,255,0.1)'}`,
+            background: !locationFilter ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.03)',
+            color: !locationFilter ? '#D4226A' : '#A0A0C8',
+            cursor: 'pointer', whiteSpace: 'nowrap', minHeight: 32,
           }}
         >
-          {syncLoading ? syncStatus || 'Syncing...' : 'Sync from Square'}
+          All Locations
         </button>
-        {/* Location filter tabs */}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 3, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 3 }}>
-          <button onClick={() => { setLocationFilter(''); setPage(0) }} style={{
-            padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            background: !locationFilter ? 'rgba(212,34,106,0.12)' : 'transparent',
-            color: !locationFilter ? '#E8488A' : '#8080A8',
-            border: !locationFilter ? '1px solid rgba(212,34,106,0.2)' : '1px solid transparent',
-          }}>All</button>
-          {locations?.filter((l: any) => l.is_active).map((loc: any) => {
-            const locName = loc.name.replace(' Music Lessons', '')
-            const isActive = locationFilter === loc.id
-            const brandColor = LOCATION_BRAND_COLORS[loc.id] ?? loc.color ?? '#D4226A'
-            return (
-              <button key={loc.id} onClick={() => { setLocationFilter(isActive ? '' : loc.id); setPage(0) }} style={{
-                padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                background: isActive ? `${brandColor}20` : 'transparent',
-                color: isActive ? brandColor : '#8080A8',
-                border: isActive ? `1px solid ${brandColor}40` : '1px solid transparent',
-              }}>{locName}</button>
-            )
-          })}
+        {activeLocations.map((loc: any) => {
+          const c = loc.color || '#D4226A'
+          const active = locationFilter === loc.id
+          return (
+            <button
+              key={loc.id}
+              onClick={() => setLocationFilter(active ? '' : loc.id)}
+              style={{
+                padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                border: `1px solid ${active ? c : 'rgba(255,255,255,0.1)'}`,
+                background: active ? `${c}22` : 'rgba(255,255,255,0.03)',
+                color: active ? c : '#A0A0C8',
+                cursor: 'pointer', whiteSpace: 'nowrap', minHeight: 32,
+              }}
+            >
+              {loc.name}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* LOCATION FILTER — Mobile dropdown */}
+      <div className="billing-loc-dropdown" style={{ display: 'none', marginBottom: 16 }}>
+        <div style={{ position: 'relative' }}>
+          <select
+            value={locationFilter}
+            onChange={e => setLocationFilter(e.target.value)}
+            style={{
+              width: '100%', appearance: 'none' as const,
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 10, color: '#E0E0F4', fontSize: 13, fontWeight: 600,
+              padding: '10px 36px 10px 14px', cursor: 'pointer', minHeight: 40,
+            }}
+          >
+            <option value="">All Locations</option>
+            {activeLocations.map((loc: any) => (
+              <option key={loc.id} value={loc.id}>{loc.name}</option>
+            ))}
+          </select>
+          <ChevronDown size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#606088', pointerEvents: 'none' as const }} />
         </div>
       </div>
 
-      {/* Location label — prominent, brand-colored */}
-      {locationFilter && (() => {
-        const loc = locations?.find((l: any) => l.id === locationFilter)
-        const locName = loc?.name?.replace(' Music Lessons', '') ?? ''
-        const brandColor = LOCATION_BRAND_COLORS[locationFilter] ?? '#D4226A'
-        return (
-          <div style={{
-            padding: '8px 0 4px', textAlign: 'center',
-            animation: 'fadeIn 150ms ease',
+      {/* SNAPSHOT CARDS */}
+      {heroLoading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={28} /></div>
+      ) : heroStats ? (
+        <>
+          {/* Desktop: 4 cards in a row */}
+          <div className="billing-snapshot-desktop" style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10,
           }}>
-            <span style={{ fontSize: 30, fontWeight: 700, color: brandColor, letterSpacing: '-0.01em' }}>
-              {locName}
-            </span>
-          </div>
-        )
-      })()}
-
-      {/* FINANCIAL HERO CARDS — powered by useBillingHeroStats */}
-      <div className="financial-grid" style={{ marginBottom: 8 }}>
-        {/* LEFT — Paid This Month — GREEN */}
-        <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(6,18,9,0.97), rgba(4,12,6,0.99))', border: '1px solid rgba(34,197,94,0.2)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(34,197,94,0.14)' }}>
-          <div className="financial-card-edge" style={{ background: 'linear-gradient(#16A34A, #22C55E, #16A34A)', boxShadow: '0 0 24px rgba(22,163,74,0.65), 0 0 60px rgba(22,163,74,0.2)' }} />
-          <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(22,163,74,0.18) 0%, transparent 70%)' }} />
-          <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(22,163,74,0.08) 0%, transparent 70%)' }} />
-          <div className="financial-card-content">
-            <div className="financial-label">Paid This Month</div>
-            <div className="financial-value">{dollars(heroStats?.paidThisMonthCents ?? 0)}</div>
-            <div className="financial-sub">Confirmed Square payments collected · {locationLabel}</div>
-          </div>
-        </div>
-
-        {/* MIDDLE — Remaining to Collect — GOLD */}
-        <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(13,10,4,0.97), rgba(9,7,3,0.99))', border: '1px solid rgba(251,191,36,0.18)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(251,191,36,0.12)' }}>
-          <div className="financial-card-edge" style={{ background: 'linear-gradient(#D97706, #FBBF24, #D97706)', boxShadow: '0 0 24px rgba(251,191,36,0.55), 0 0 60px rgba(255,184,0,0.18)' }} />
-          <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.16) 0%, transparent 70%)' }} />
-          <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.07) 0%, transparent 70%)' }} />
-          <div className="financial-card-content">
-            <div className="financial-label">Remaining to Collect</div>
-            <div className="financial-value">{dollars(heroStats?.remainingToCollectCents ?? 0)}</div>
-            <div className="financial-sub">Invoices sent minus payments received · {locationLabel}</div>
-          </div>
-        </div>
-
-        {/* RIGHT — Total Overdue — RED */}
-        <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(15,5,5,0.97), rgba(10,3,3,0.99))', border: '1px solid rgba(239,68,68,0.18)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(239,68,68,0.12)' }}>
-          <div className="financial-card-edge" style={{ background: 'linear-gradient(#B91C1C, #EF4444, #B91C1C)', boxShadow: '0 0 24px rgba(239,68,68,0.5), 0 0 60px rgba(220,38,38,0.16)' }} />
-          <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 70%)' }} />
-          <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(220,38,38,0.07) 0%, transparent 70%)' }} />
-          <div className="financial-card-content">
-            <div className="financial-label">Total Overdue</div>
-            <div className="financial-value">{(heroStats?.totalOverdueCents ?? 0) > 0 ? dollars(heroStats?.totalOverdueCents ?? 0) : '$0.00'}</div>
-            <div className="financial-sub">{(heroStats?.totalOverdueCents ?? 0) > 0 ? `${heroStats?.familiesOutstanding ?? 0} families past grace period` : 'No overdue invoices'}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Collection Progress */}
-      {(() => {
-        const paid = heroStats?.paidThisMonthCents ?? 0
-        const total = (heroStats?.remainingToCollectCents ?? 0) + paid
-        const pct = total > 0 ? Math.round((paid / total) * 100) : 0
-        return (
-          <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#8080A8' }}>Collection Progress</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#A0A0C8' }}>{pct}%</span>
-            </div>
-            <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #16A34A, #22C55E)', width: `${pct}%`, transition: 'width 300ms ease' }} />
-            </div>
-            <div style={{ fontSize: 10, color: '#606088', marginTop: 4 }}>
-              {dollars(paid)} paid of {dollars(total)} expected · {heroStats?.familiesWithInvoices ?? 0} families
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* 5 STAT CARDS */}
-      <div className="billing-stat-cards">
-        {[
-          { label: 'Families with Invoices', value: heroStats?.familiesWithInvoices ?? 0, color: '#22C55E', filter: {}, invoiceFilter: '' },
-          { label: 'Families Outstanding', value: heroStats?.familiesOutstanding ?? 0, color: '#FF8C00', filter: { balance: 'overdue' }, invoiceFilter: 'overdue' },
-          { label: 'Total Overdue', value: (heroStats?.totalOverdueCents ?? 0) > 0 ? dollars(heroStats?.totalOverdueCents ?? 0) : '$0', color: '#EF4444', filter: { balance: 'overdue' }, invoiceFilter: 'overdue' },
-          { label: 'Remaining to Collect', value: dollars(heroStats?.remainingToCollectCents ?? 0), color: '#38BDF8', filter: {}, invoiceFilter: '' },
-          { label: 'Paid This Month', value: dollars(heroStats?.paidThisMonthCents ?? 0), color: '#22C55E', filter: {}, invoiceFilter: '' },
-        ].map((c, i) => (
-          <div key={i} onClick={() => {
-            if (c.invoiceFilter) {
-              setBillingView('invoices')
-              setInvoiceStatusFilter(c.invoiceFilter)
-            } else if (c.filter && Object.keys(c.filter).length) {
-              setFilters(c.filter); setPage(0)
-            }
-          }} style={{
-            padding: '16px 18px', borderRadius: 14, cursor: Object.keys(c.filter).length ? 'pointer' : 'default',
-            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-            borderLeft: `3px solid ${c.color}`,
-          }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#E0E0F4' }}>{c.value}</div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#8080A8', marginTop: 2 }}>{c.label}</div>
-          </div>
-        ))}
-      </div>
-      <div className="billing-swipe-hint">Swipe to see more →</div>
-
-      {/* SECTION TABS */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, padding: '4px', background: 'rgba(255,255,255,0.02)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
-        <button onClick={() => { setBillingView('families'); setInvoiceStatusFilter('') }} style={{
-          flex: 1, padding: '12px 32px', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer',
-          background: billingView === 'families' ? '#D4226A' : 'transparent',
-          color: billingView === 'families' ? '#fff' : '#8080A8',
-          border: 'none',
-          boxShadow: billingView === 'families' ? '0 4px 16px rgba(212,34,106,0.3)' : 'none',
-          transition: 'all 0.2s',
-        }}>
-          {'\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}'} Families
-        </button>
-        <button onClick={() => setBillingView('invoices')} style={{
-          flex: 1, padding: '12px 32px', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer',
-          background: billingView === 'invoices' ? '#D4226A' : 'transparent',
-          color: billingView === 'invoices' ? '#fff' : '#8080A8',
-          border: 'none',
-          boxShadow: billingView === 'invoices' ? '0 4px 16px rgba(212,34,106,0.3)' : 'none',
-          transition: 'all 0.2s',
-        }}>
-          {'\u{1F9FE}'} Invoices{(pendingInvoiceCount ?? 0) > 0 && (
-            <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 800, padding: '2px 8px', borderRadius: 100, background: billingView === 'invoices' ? 'rgba(255,255,255,0.2)' : 'rgba(212,34,106,0.15)', color: billingView === 'invoices' ? '#fff' : '#D4226A' }}>
-              {pendingInvoiceCount}
-            </span>
-          )}
-        </button>
-        <button onClick={() => setBillingView('square_sync')} style={{
-          flex: 1, padding: '12px 32px', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer',
-          background: billingView === 'square_sync' ? '#D4226A' : 'transparent',
-          color: billingView === 'square_sync' ? '#fff' : '#8080A8',
-          border: 'none',
-          boxShadow: billingView === 'square_sync' ? '0 4px 16px rgba(212,34,106,0.3)' : 'none',
-          transition: 'all 0.2s',
-        }}>
-          Square Sync
-        </button>
-      </div>
-
-      {billingView === 'square_sync' ? (
-        <SquareSyncPanel locations={locations ?? []} initialLocationFilter={locationFilter} />
-      ) : billingView === 'invoices' ? (
-        <InvoicesPanel locations={locations ?? []} initialStatusFilter={invoiceStatusFilter} />
-      ) : (<>
-      {/* ALERTS */}
-      <div style={{ marginBottom: 24, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, overflow: 'hidden' }}>
-        <div onClick={() => setAlertsExpanded(!alertsExpanded)} style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-          {alertsExpanded ? <ChevronDown size={14} style={{ color: '#8080A8' }} /> : <ChevronRight size={14} style={{ color: '#8080A8' }} />}
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>Action Required</span>
-          {visibleAlerts.length > 0 ? <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(239,68,68,0.12)', color: '#EF4444' }}>{visibleAlerts.length}</span>
-            : <span style={{ fontSize: 11, color: '#22C55E', fontWeight: 600 }}>All clear</span>}
-        </div>
-        {alertsExpanded && visibleAlerts.length > 0 && (
-          <div style={{ padding: '0 18px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {visibleAlerts.slice(0, 20).map((a) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
-                <span style={{ fontSize: 14 }}>{ALERT_ICONS[a.type]?.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#D0D0E8' }}>{a.familyName}</span>
-                  {a.parentName && <span style={{ fontSize: 11, color: '#8080A8' }}> — {a.parentName}</span>}
-                  <span style={{ fontSize: 11, color: '#A0A0C8' }}> — {a.detail}</span>
+            {snapshotCards.map(card => (
+              <div key={card.key} style={{
+                position: 'relative', overflow: 'hidden', borderRadius: 14,
+                background: card.bg, border: `1px solid ${card.border}`,
+                boxShadow: `0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 ${card.border}`,
+                padding: '18px 16px',
+              }}>
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, bottom: 0, width: 3,
+                  background: card.edgeBg, boxShadow: card.edgeShadow,
+                }} />
+                <div style={{
+                  position: 'absolute', top: -20, left: -20, width: 100, height: 100,
+                  background: `radial-gradient(circle, ${card.glowColor} 0%, transparent 70%)`,
+                  pointerEvents: 'none',
+                }} />
+                <div style={{ position: 'relative' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {card.label}
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: card.accent === '#8080A8' ? '#C0C0E0' : card.accent, marginBottom: 6 }}>
+                    {card.value}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#606088' }}>{card.sub}</div>
                 </div>
-                <button onClick={() => setSelectedFamilyId(a.familyId)} className="btn-outline" style={{ fontSize: 10, padding: '3px 10px' }}>View</button>
-                <button onClick={() => setDismissedAlerts(new Set([...dismissedAlerts, a.id]))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#606088', padding: 2 }}><X size={12} /></button>
               </div>
             ))}
           </div>
-        )}
-      </div>
 
-      {/* ACTIVE / INACTIVE TABS + SEARCH */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <div className="lead-view-tabs" style={{ marginBottom: 0 }}>
-          <button className={`lead-view-tab${billingTab === 'active' ? ' active' : ''}`} onClick={() => setBillingTab('active')}>
-            Active <span className="tab-count">{locationFiltered.filter((f: any) => f.billing_status === 'active').length}</span>
-          </button>
-          <button className={`lead-view-tab${billingTab === 'paused' ? ' active' : ''}`} onClick={() => setBillingTab('paused')}>
-            Paused <span className="tab-count">{locationFiltered.filter((f: any) => f.billing_status === 'paused').length}</span>
-          </button>
-          <button className={`lead-view-tab${billingTab === 'inactive' ? ' active' : ''}`} onClick={() => setBillingTab('inactive')}>
-            Inactive <span className="tab-count">{locationFiltered.filter((f: any) => f.billing_status === 'cancelled' || f.billing_status === 'suspended' || (f.billing_status !== 'active' && f.billing_status !== 'paused')).length}</span>
-          </button>
-        </div>
-        <input value={filters.search ?? ''} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="Search families..." className="filter-select" style={{ minWidth: 200, fontSize: 12 }} />
-        <select value={filters.rateTier ?? ''} onChange={(e) => setFilters({ ...filters, rateTier: Number(e.target.value) || undefined })} className="filter-select" style={{ fontSize: 11, width: 'auto' }}>
-          <option value="">All Rates</option><option value="4500">$45</option><option value="4000">$40</option><option value="3750">$37.50</option>
-        </select>
-        {Object.values(filters).some(Boolean) && <button className="btn-ghost" onClick={() => setFilters({})} style={{ fontSize: 10 }}>Clear</button>}
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, color: '#8080A8' }}>{billingTabFiltered.length} families</span>
-      </div>
-
-      {/* COMPACT ROWS — grouped by location or flat */}
-      <BillingFamilyList families={billingTabFiltered} onSelect={setSelectedFamilyId} locationFilter={locationFilter} locations={locations ?? []} onLocationSelect={setLocationFilter} sqFamilies={sqFamilies ?? []} />
-
-      {selectedFamilyId && <BillingDetailModal familyId={selectedFamilyId} onClose={() => setSelectedFamilyId(null)} />}
-
-      {/* UNMATCHED SQUARE CUSTOMERS PANEL */}
-      {unmatchedCustomers.length > 0 && <UnmatchedCustomersPanel
-        customers={unmatchedCustomers}
-        expanded={showUnmatched}
-        onToggle={() => setShowUnmatched(!showUnmatched)}
-      />}
-      </>)}
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════
-// UNMATCHED SQUARE CUSTOMERS PANEL
-// ═══════════════════════════════════════
-
-const PAGE_SIZE = 50
-
-function UnmatchedCustomersPanel({ customers, expanded, onToggle }: {
-  customers: SquareCustomer[]; expanded: boolean; onToggle: () => void
-}) {
-  const [search, setSearch] = useState('')
-  const [sortDesc, setSortDesc] = useState(true)
-  const [page, setPage] = useState(0)
-
-  const filtered = useMemo(() => {
-    let list = customers
-    if (search) {
-      const q = search.toLowerCase()
-      list = list.filter(c =>
-        `${c.given_name ?? ''} ${c.family_name ?? ''} ${c.email_address ?? ''} ${c.phone_number ?? ''}`.toLowerCase().includes(q)
-      )
-    }
-    list = [...list].sort((a, b) => {
-      const da = a.created_at ?? ''
-      const db = b.created_at ?? ''
-      return sortDesc ? db.localeCompare(da) : da.localeCompare(db)
-    })
-    return list
-  }, [customers, search, sortDesc])
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const pageList = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-
-  return (
-    <div style={{ marginTop: 24, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, overflow: 'hidden' }}>
-      <div onClick={onToggle} style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-        {expanded ? <ChevronDown size={14} style={{ color: '#8080A8' }} /> : <ChevronRight size={14} style={{ color: '#8080A8' }} />}
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>Unmatched Square Customers</span>
-        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(255,184,0,0.12)', color: '#FFB800' }}>{customers.length}</span>
-      </div>
-
-      {expanded && (
-        <div style={{ padding: '0 18px 16px' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-            <input
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(0) }}
-              placeholder="Filter by name, email, or phone..."
-              className="filter-select"
-              style={{ minWidth: 260, fontSize: 12 }}
-            />
-            <button onClick={() => setSortDesc(!sortDesc)} style={{
-              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              background: 'rgba(255,255,255,0.04)', color: '#A0A0C8', border: '1px solid rgba(255,255,255,0.08)',
-            }}>
-              Created {sortDesc ? 'Newest' : 'Oldest'}
-            </button>
-            <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 12, color: '#8080A8' }}>{filtered.length} customers</span>
-          </div>
-
-          {/* Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 1fr', gap: 8, padding: '6px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={labelStyle}>Name</span>
-            <span style={labelStyle}>Email</span>
-            <span style={labelStyle}>Phone</span>
-            <span style={labelStyle}>Created</span>
-          </div>
-
-          {/* Rows */}
-          {pageList.map(c => (
-            <div key={c.id} style={{
-              display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 1fr', gap: 8,
-              padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.03)',
-              fontSize: 12, color: '#C0C0D8',
-            }}>
-              <span style={{ fontWeight: 600, color: '#E0E0F4' }}>
-                {[c.given_name, c.family_name].filter(Boolean).join(' ') || '—'}
-              </span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {c.email_address || '—'}
-              </span>
-              <span>{c.phone_number || '—'}</span>
-              <span style={{ color: '#A0A0C8' }}>
-                {c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-              </span>
-            </div>
-          ))}
-
-          {filtered.length === 0 && (
-            <div style={{ padding: '20px 12px', textAlign: 'center', fontSize: 12, color: '#8080A8' }}>No customers match your filter</div>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 }}>
-              <button disabled={page === 0} onClick={() => setPage(page - 1)} style={{
-                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: page === 0 ? 'default' : 'pointer',
-                background: 'rgba(255,255,255,0.04)', color: page === 0 ? '#404060' : '#A0A0C8', border: '1px solid rgba(255,255,255,0.06)',
-              }}>Prev</button>
-              <span style={{ fontSize: 11, color: '#8080A8', padding: '4px 8px' }}>{page + 1} / {totalPages}</span>
-              <button disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} style={{
-                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: page >= totalPages - 1 ? 'default' : 'pointer',
-                background: 'rgba(255,255,255,0.04)', color: page >= totalPages - 1 ? '#404060' : '#A0A0C8', border: '1px solid rgba(255,255,255,0.06)',
-              }}>Next</button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════
-// BILLING DETAIL MODAL
-// ═══════════════════════════════════════
-
-// ═══════════════════════════════════════
-// COMPACT BILLING LIST — location grouped, expandable rows
-// ═══════════════════════════════════════
-
-function BillingFamilyList({ families, onSelect, locationFilter, locations, onLocationSelect, sqFamilies }: {
-  families: BillingFamily[]; onSelect: (id: string) => void; locationFilter: string; locations: any[]; onLocationSelect?: (id: string) => void; sqFamilies: import('../../hooks/useBillingPage').SquareInvoiceFamily[]
-}) {
-  // Group by location if no filter active
-  const locMap = new Map(locations.map((l: any) => [l.id, { name: l.name?.replace(' Music Lessons', ''), color: l.color ?? '#D4226A' }]))
-
-  // If filtered to one location, show the family rows
-  if (locationFilter) {
-    return <CompactFamilyRows families={families} onSelect={onSelect} />
-  }
-
-  // Build Square invoice lookup by family_id
-  const sqByFamily = new Map(sqFamilies.map(sf => [sf.family_id, sf]))
-
-  // ALL VIEW — location summary cards (click to filter)
-  const groups = new Map<string, { name: string; color: string; id: string; families: BillingFamily[] }>()
-  for (const f of families) {
-    const stuLoc = f.students?.[0]?.location_id
-    if (stuLoc && locMap.has(stuLoc)) {
-      const loc = locMap.get(stuLoc)!
-      if (!groups.has(stuLoc)) groups.set(stuLoc, { ...loc, id: stuLoc, families: [] })
-      groups.get(stuLoc)!.families.push(f)
-    }
-  }
-  const sortedGroups = [...groups.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name))
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {sortedGroups.map(([locId, group]) => {
-        const activeFams = group.families.filter(f => f.billing_status === 'active')
-        // Aggregate Square invoice data for families in this location
-        const locSqFamilies = group.families.map(f => sqByFamily.get(f.id)).filter(Boolean) as import('../../hooks/useBillingPage').SquareInvoiceFamily[]
-        const recurringCents = locSqFamilies.reduce((s, sf) => s + sf.scheduled_cents, 0)
-        const actualCents = locSqFamilies.reduce((s, sf) => s + sf.paid_this_month_cents, 0)
-        const overdueFams = locSqFamilies.filter(sf => sf.has_unpaid)
-        const overdueCents = 0 // would need per-family unpaid cents; using count for now
-        const paidFams = locSqFamilies.filter(sf => sf.paid_this_month_cents > 0).length
-        const outstandingFams = overdueFams.length
-
-        return (
-          <div key={locId} onClick={() => onLocationSelect?.(locId)} style={{
-            padding: '14px 18px', borderRadius: 14, cursor: 'pointer',
-            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-            borderLeft: `3px solid ${group.color}`, transition: 'all 120ms',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = `${group.color}40` }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)' }}
-          >
-            {/* Location name + family count */}
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-              <span style={{ fontSize: 15, fontWeight: 800, color: '#E0E0F4' }}>{group.name}</span>
-              <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 10 }}>{activeFams.length} families</span>
-            </div>
-            {/* Stats row */}
-            <div style={{ display: 'flex', gap: 0 }}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#22C55E' }}>${(actualCents / 100).toLocaleString('en-US', { minimumFractionDigits: 0 })}</div>
-                <div style={{ fontSize: 9, fontWeight: 600, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Invoice Revenue</div>
-              </div>
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.04)', margin: '0 4px' }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#FFB800' }}>${(recurringCents / 100).toLocaleString('en-US', { minimumFractionDigits: 0 })}</div>
-                <div style={{ fontSize: 9, fontWeight: 600, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Recurring</div>
-              </div>
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.04)', margin: '0 4px' }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#22C55E' }}>{paidFams}</div>
-                <div style={{ fontSize: 9, fontWeight: 600, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Paid</div>
-              </div>
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.04)', margin: '0 4px' }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: outstandingFams > 0 ? '#FF8C00' : '#8080A8' }}>{outstandingFams}</div>
-                <div style={{ fontSize: 9, fontWeight: 600, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Unpaid</div>
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function CompactFamilyRows({ families, onSelect }: {
-  families: BillingFamily[]; onSelect: (id: string) => void
-}) {
-  return (
-    <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
-      {families.map((f, i) => {
-        const bal = f.balance ?? 0
-        const monthlyTotal = f.students.reduce((s: number, st: any) => s + (st.monthly_cents ?? (st.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH) * (st.rate_per_session ?? DEFAULT_RATE_PER_SESSION) * 100), 0)
-
-        return (
-          <div key={f.id}
-            onClick={() => onSelect(f.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 0, padding: '10px 14px',
-              background: 'rgba(255,255,255,0.015)',
-              borderTop: i > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-              cursor: 'pointer', transition: 'background 100ms',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.015)' }}
-          >
-            {/* Family + Parent */}
-            <div style={{ width: 150, minWidth: 120, flexShrink: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#D0D0E8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stripFamily(f.name)}</div>
-              <div style={{ fontSize: 10, color: '#8080A8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.parent_name ?? '—'}</div>
-            </div>
-            {/* Students — each name with instrument underneath */}
-            <div style={{ flex: 1, minWidth: 0, marginLeft: 12, display: 'flex', gap: 14 }}>
-              {f.students.length > 0 ? f.students.slice(0, 4).map((s: any) => (
-                <div key={s.student_id ?? s.first_name} style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#C0C0E0', whiteSpace: 'nowrap' }}>{s.first_name}</div>
-                  <div style={{ fontSize: 9, color: '#606088', whiteSpace: 'nowrap' }}>{s.instrument ? s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1) : '—'}</div>
-                </div>
-              )) : <span style={{ fontSize: 11, color: '#606088' }}>—</span>}
-              {f.students.length > 4 && <span style={{ fontSize: 10, color: '#606088', alignSelf: 'center' }}>+{f.students.length - 4}</span>}
-            </div>
-            {/* Monthly */}
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#E0E0F4', width: 85, textAlign: 'right', flexShrink: 0 }}>
-              ${(monthlyTotal / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </span>
-            {/* Rate pill */}
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: (RATE_LABELS[f.rate_tier] ?? RATE_LABELS[4500]).bg, color: (RATE_LABELS[f.rate_tier] ?? RATE_LABELS[4500]).color, marginLeft: 10, flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-              ${(f.rate_tier / 100).toFixed(0)}{f.rate_tier_override && <Lock size={8} />}
-            </span>
-            {/* Billing Day */}
-            <span style={{ fontSize: 10, color: '#8080A8', width: 30, textAlign: 'center', marginLeft: 10, flexShrink: 0 }}>
-              {f.billing_day ?? 1}{(f.billing_day ?? 1) === 1 ? 'st' : 'th'}
-            </span>
-            {/* Balance */}
-            <div style={{ width: 70, textAlign: 'right', marginLeft: 8, flexShrink: 0 }}>
-              {bal > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: '#22C55E' }}>{dollars(bal)}</span>
-                : bal < 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: '#EF4444' }}>{dollars(bal)}</span>
-                : <span style={{ fontSize: 11, color: '#363656' }}>—</span>}
-            </div>
-            {/* Card */}
-            <div style={{ width: 70, textAlign: 'right', marginLeft: 8, flexShrink: 0 }}>
-              {f.card_last_four
-                ? <span style={{ fontSize: 10, color: '#8080A8' }}>••••{f.card_last_four}</span>
-                : <span style={{ fontSize: 10, color: '#606088' }}>No Card</span>}
-            </div>
-            {/* Arrow */}
-            <ChevronRight size={14} style={{ color: '#363656', marginLeft: 6, flexShrink: 0 }} />
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function BillingDetailModal({ familyId, onClose }: { familyId: string; onClose: () => void }) {
-  const navigate = useNavigate()
-  const { role } = useAuthContext()
-  const isOwner = role === 'owner' || role === 'admin'
-  const { data } = useFamilyBillingDetail(familyId)
-  const { data: history } = useFamilyPaymentHistory(familyId)
-  const updateStatus = useUpdateBillingStatus()
-  const updateDay = useUpdateBillingDay()
-  const adjustBalance = useAdjustBalance()
-  const addAdjustment = useAddBillingAdjustment()
-  const deleteAdjustment = useDeleteBillingAdjustment()
-  const overrideRate = useOverrideFamilyRate()
-  const removeOverride = useRemoveFamilyRateOverride()
-
-  const [tab, setTab] = useState<'overview' | 'history'>('overview')
-  const [showBalanceAdj, setShowBalanceAdj] = useState(false)
-  const [balType, setBalType] = useState<'credit' | 'debit'>('credit')
-  const [balAmount, setBalAmount] = useState('')
-  const [balReason, setBalReason] = useState('')
-  const [showRateOverride, setShowRateOverride] = useState(false)
-  const [overrideValue, setOverrideValue] = useState(4500)
-  const [overrideReason, setOverrideReason] = useState('')
-  const [showAddAdj, setShowAddAdj] = useState(false)
-  const [adjStudent, setAdjStudent] = useState('')
-  const [adjAmount, setAdjAmount] = useState('')
-  const [adjReason, setAdjReason] = useState('')
-  const [confirmStatus, setConfirmStatus] = useState<string | null>(null)
-  const [pauseReason, setPauseReason] = useState('')
-  const [pauseReturnDate, setPauseReturnDate] = useState('')
-  const [inactiveReason, setInactiveReason] = useState('')
-
-  const family = data?.family
-  const students = data?.students ?? []
-  const adjustments = data?.adjustments ?? []
-
-  if (!family) return createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}><div onClick={(e) => e.stopPropagation()} style={{ padding: 40, background: '#141224', borderRadius: 20 }}><MusicLoader /></div></div>, document.body)
-
-  const rate = RATE_LABELS[family.rate_tier ?? DEFAULT_RATE_TIER_CENTS] ?? RATE_LABELS[4500]
-  const sc = STATUS_COLORS[family.billing_status ?? 'active'] ?? STATUS_COLORS.active
-  const bal = family.balance ?? 0
-  const pendingAdj = adjustments.filter((a: any) => !a.applied)
-  const appliedAdj = adjustments.filter((a: any) => a.applied)
-  const monthlySubtotal = students.reduce((sum: number, s: any) => sum + (s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH) * (s.rate_per_session ?? DEFAULT_RATE_PER_SESSION), 0)
-  const pendingAdjTotal = pendingAdj.reduce((sum: number, a: any) => sum + (a.amount_cents ?? 0), 0) / 100
-  const monthlyTotal = monthlySubtotal - Math.abs(pendingAdjTotal)
-
-  const handleStatusChange = (s: string) => {
-    if (s === 'paused' || s === 'cancelled') { setConfirmStatus(s); setPauseReason(''); setPauseReturnDate(''); setInactiveReason(''); return }
-    updateStatus.mutateAsync({ familyId, oldStatus: family.billing_status, newStatus: s }).then(() => toast('Updated', 'success'))
-  }
-
-  return (
-    <DraggableModal
-      id={`billing-${familyId}`}
-      onClose={onClose}
-      title={stripFamily(family.name)}
-      subtitle={family.parent_name ?? '—'}
-      width={680}
-      height="75vh"
-      headerRight={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><button onClick={() => { onClose(); navigate(`/admin/families?family=${familyId}`) }} style={{ fontSize: 11, color: '#38BDF8', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit', padding: 0 }}>View Family</button><span style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 8, background: sc.bg, color: sc.color }}>{(family.billing_status ?? 'active').charAt(0).toUpperCase() + (family.billing_status ?? '').slice(1)}</span></div>}
-    >
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, padding: '12px 20px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-          {(['overview', 'history'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: 'pointer', borderRadius: '8px 8px 0 0', background: tab === t ? 'rgba(212,34,106,0.08)' : 'transparent', color: tab === t ? '#E8488A' : '#8080A8', border: tab === t ? '1px solid rgba(212,34,106,0.15)' : '1px solid transparent', borderBottom: tab === t ? '1px solid #141224' : 'none', marginBottom: -1 }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>
-          ))}
-        </div>
-
-        {/* Tab content — scrollable, fixed height */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-
-        {/* OVERVIEW TAB */}
-        {tab === 'overview' && (
-          <div style={{ padding: '20px 20px 24px' }}>
-            {/* Monthly Breakdown */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={labelStyle}>Monthly Breakdown</div>
-              <div style={{ marginTop: 8 }}>
-                {students.map((s: any) => (<div key={s.id} style={{ padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontSize: 13, fontWeight: 700, color: '#D0D0E8' }}>{s.first_name} {s.last_name}</div><div style={{ fontSize: 11, color: '#8080A8' }}>{s.instrument ? s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1) : '—'} · {s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH} sessions × ${(s.rate_per_session ?? DEFAULT_RATE_PER_SESSION).toFixed(2)}</div></div><span style={{ fontSize: 14, fontWeight: 800, color: '#D0D0E8' }}>${((s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH) * (s.rate_per_session ?? DEFAULT_RATE_PER_SESSION)).toFixed(2)}</span></div>))}
-                {pendingAdj.map((a: any) => (<div key={a.id} style={{ padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 12, color: '#FFB800' }}>{a.reason}</span>{isOwner && <button onClick={() => deleteAdjustment.mutateAsync({ id: a.id, familyId })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#606088', padding: 0 }}><X size={11} /></button>}</div><span style={{ fontSize: 13, fontWeight: 700, color: '#FFB800' }}>−${((a.amount_cents ?? 0) / 100).toFixed(2)}</span></div>))}
-                <div style={{ borderTop: '2px solid rgba(255,255,255,0.08)', marginTop: 6, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8' }}>Next Month's Charge</span><span style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4' }}>${monthlyTotal.toFixed(2)}</span></div>
-              </div>
-            </div>
-
-            {/* Next Month Adjustment — inline add */}
-            <div style={{ padding: 14, borderRadius: 12, background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.12)', marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showAddAdj ? 10 : 0 }}>
-                <div><div style={{ fontSize: 12, fontWeight: 700, color: '#FFB800' }}>Adjust Next Month</div><div style={{ fontSize: 10, color: '#8080A8' }}>Credit for something that happened this month</div></div>
-                {!showAddAdj && <button onClick={() => { setShowAddAdj(true); if (students.length === 1) { setAdjStudent(students[0].id); setAdjAmount(((students[0].rate_per_session ?? DEFAULT_RATE_PER_SESSION)).toFixed(2)) } }} className="btn-outline" style={{ fontSize: 10, padding: '4px 12px', borderColor: 'rgba(255,184,0,0.3)', color: '#FFB800' }}>+ Add Credit</button>}
-              </div>
-              {showAddAdj && (() => {
-                const presetReasons = ['Teacher Callout', 'Studio Cancellation'] as const
-                const isPreset = presetReasons.includes(adjReason as any)
-                const isOther = !isPreset && adjReason !== ''
-                const pickStudent = (id: string) => {
-                  setAdjStudent(id)
-                  const stu = students.find((s: any) => s.id === id)
-                  if (stu) setAdjAmount(((stu.rate_per_session ?? DEFAULT_RATE_PER_SESSION)).toFixed(2))
-                }
-                return (
-                <div>
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
-                    {students.length > 1 ? (
-                      <div style={{ flex: 1 }}><div style={labelStyle}>Student</div><select value={adjStudent} onChange={(e) => pickStudent(e.target.value)} className="filter-select" style={{ width: '100%' }}><option value="">Select...</option>{students.map((s: any) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}</select></div>
-                    ) : (
-                      <div style={{ flex: 1 }}><div style={labelStyle}>Student</div><div style={{ fontSize: 12, color: '#C0C0E0', padding: '6px 0' }}>{students[0]?.first_name} {students[0]?.last_name}</div></div>
-                    )}
-                    <div style={{ width: 120 }}><div style={labelStyle}>Amount ($)</div><input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} className="filter-select" style={{ width: '100%' }} placeholder="45.00" /></div>
-                  </div>
-                  <div style={{ marginBottom: 8 }}>
-                    <div style={labelStyle}>Reason</div>
-                    <div style={{ display: 'flex', gap: 4, marginBottom: isOther ? 6 : 0 }}>
-                      {presetReasons.map(r => (<button key={r} onClick={() => setAdjReason(r)} style={{ padding: '3px 10px', borderRadius: 8, fontSize: 10, cursor: 'pointer', background: adjReason === r ? 'rgba(255,184,0,0.1)' : 'rgba(255,255,255,0.03)', color: adjReason === r ? '#FFB800' : '#8080A8', border: `1px solid ${adjReason === r ? 'rgba(255,184,0,0.25)' : 'rgba(255,255,255,0.06)'}` }}>{r}</button>))}
-                      <button onClick={() => { setAdjReason(''); setTimeout(() => document.getElementById('adj-custom-reason')?.focus(), 50) }} style={{ padding: '3px 10px', borderRadius: 8, fontSize: 10, cursor: 'pointer', background: isOther ? 'rgba(255,184,0,0.1)' : 'rgba(255,255,255,0.03)', color: isOther ? '#FFB800' : '#8080A8', border: `1px solid ${isOther ? 'rgba(255,184,0,0.25)' : 'rgba(255,255,255,0.06)'}` }}>Other</button>
+          {/* Mobile: Accordion cards */}
+          <div className="billing-snapshot-mobile" style={{ display: 'none', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+            {snapshotCards.map(card => {
+              const isExpanded = expandedCard === card.key
+              return (
+                <div key={card.key} style={{
+                  position: 'relative', overflow: 'hidden', borderRadius: 12,
+                  background: card.bg, border: `1px solid ${card.border}`,
+                  cursor: 'pointer',
+                }} onClick={() => setExpandedCard(isExpanded ? '' : card.key)}>
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, bottom: 0, width: 3,
+                    background: card.edgeBg,
+                  }} />
+                  {isExpanded ? (
+                    <div style={{ padding: '14px 14px 14px 16px', position: 'relative' }}>
+                      <div style={{
+                        position: 'absolute', top: -20, left: -20, width: 80, height: 80,
+                        background: `radial-gradient(circle, ${card.glowColor} 0%, transparent 70%)`,
+                        pointerEvents: 'none',
+                      }} />
+                      <div style={{ position: 'relative' }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                          {card.label}
+                        </div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: card.accent === '#8080A8' ? '#C0C0E0' : card.accent, marginBottom: 4 }}>
+                          {card.value}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#606088' }}>{card.sub}</div>
+                      </div>
                     </div>
-                    {!isPreset && <input id="adj-custom-reason" value={adjReason} onChange={(e) => setAdjReason(e.target.value)} className="filter-select" style={{ width: '100%', fontSize: 12 }} placeholder="Describe what happened..." autoFocus />}
+                  ) : (
+                    <div style={{ padding: '10px 14px 10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#A0A0C8' }}>{card.label}</span>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: card.accent === '#8080A8' ? '#C0C0E0' : card.accent }}>
+                        {card.value}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Earning Potential Bar */}
+          <div style={{ padding: '6px 14px', textAlign: 'center', fontSize: 11, color: '#606088', marginBottom: 4 }}>
+            Full earning potential this month: <span style={{ fontWeight: 700, color: '#8080A8' }}>{dollars(heroStats.fullPotentialCents)}</span>
+          </div>
+
+          {/* Past Due Alert */}
+          {heroStats.pastDueCents > 0 && (
+            <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 4, background: '#EF4444', boxShadow: '0 0 8px rgba(239,68,68,0.6)', flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 700 }}>
+                {dollars(heroStats.pastDueCents)} past due
+              </span>
+              <span style={{ fontSize: 10, color: '#8080A8' }}>
+                — {heroStats.pastDueFamilies} {heroStats.pastDueFamilies === 1 ? 'family' : 'families'}
+              </span>
+            </div>
+          )}
+        </>
+      ) : null}
+
+      {/* UTILITY STRIP */}
+      <div style={{
+        display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap',
+      }}>
+        <button onClick={() => setShowCreditsLedger(true)} style={utilBtn}>
+          <FileText size={13} /> Credits Ledger
+        </button>
+        <button onClick={() => setShowOneOff(true)} style={utilBtn}>
+          <Plus size={13} /> One-Off Invoice
+        </button>
+        <button onClick={() => setShowSquareSync(true)} style={utilBtn}>
+          <RefreshCw size={13} /> Square Sync
+        </button>
+      </div>
+
+      {/* SECTION TABS */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, overflowX: 'auto' }}>
+        {([
+          { key: 'invoices' as SectionKey, label: 'Families' },
+          { key: 'next' as SectionKey, label: 'Next Cycle' },
+          { key: 'remaining' as SectionKey, label: 'Remaining' },
+          { key: 'overdue' as SectionKey, label: 'Overdue' },
+          { key: 'paid' as SectionKey, label: 'Paid' },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveSection(tab.key)}
+            style={{
+              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              border: `1px solid ${activeSection === tab.key ? '#D4226A' : 'rgba(255,255,255,0.08)'}`,
+              background: activeSection === tab.key ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.02)',
+              color: activeSection === tab.key ? '#D4226A' : '#A0A0C8',
+              cursor: 'pointer', whiteSpace: 'nowrap', minHeight: 32,
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* SECTION CONTENT */}
+      {activeSection === 'invoices' && (
+        <SectionInvoices
+          families={filteredFamilies}
+          loading={familiesLoading}
+          search={search}
+          setSearch={setSearch}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          locColorMap={locColorMap}
+        />
+      )}
+      {activeSection === 'next' && (
+        <SectionNextCycle
+          data={nextCycle}
+          loading={nextLoading}
+          creditRow={creditRow}
+          setCreditRow={setCreditRow}
+          onAddCredit={async (familyId, amt, reason) => {
+            try {
+              await createAdj.mutateAsync({
+                familyId,
+                adjustmentType: 'credit',
+                amountCents: amt,
+                reason,
+              })
+              toast('Credit added', 'success')
+              setCreditRow(null)
+            } catch {
+              toast('Failed to add credit', 'error')
+            }
+          }}
+        />
+      )}
+      {activeSection === 'remaining' && (
+        <SectionRemaining data={remaining} loading={remainingLoading} />
+      )}
+      {activeSection === 'overdue' && (
+        <SectionOverdue data={overdue} loading={overdueLoading} />
+      )}
+      {activeSection === 'paid' && (
+        <SectionPaid data={paidData} loading={paidLoading} />
+      )}
+
+      {/* MODALS */}
+      {showCreditsLedger && (
+        <CreditsLedgerModal credits={credits ?? []} onClose={() => setShowCreditsLedger(false)} />
+      )}
+      {showOneOff && (
+        <OneOffInvoiceModal
+          families={families ?? []}
+          onClose={() => setShowOneOff(false)}
+          onSubmit={async (data) => {
+            try {
+              await createInvoice.mutateAsync(data)
+              toast('Invoice created', 'success')
+              setShowOneOff(false)
+            } catch {
+              toast('Failed to create invoice', 'error')
+            }
+          }}
+          submitting={createInvoice.isPending}
+        />
+      )}
+      {showSquareSync && (
+        <SquareSyncModal onClose={() => setShowSquareSync(false)} />
+      )}
+
+      {/* RESPONSIVE STYLES */}
+      <style>{`
+        @media (max-width: 768px) {
+          .billing-loc-pills { display: none !important; }
+          .billing-loc-dropdown { display: block !important; }
+          .billing-snapshot-desktop { display: none !important; }
+          .billing-snapshot-mobile { display: flex !important; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════
+// SECTION 1: FAMILIES INVOICES
+// ══════════════════════════════════════════
+
+function SectionInvoices({
+  families, loading, search, setSearch, sortBy, setSortBy, locColorMap,
+}: {
+  families: any[]; loading: boolean; search: string; setSearch: (s: string) => void;
+  sortBy: string; setSortBy: (s: string) => void; locColorMap: Record<string, string>;
+}) {
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+
+  return (
+    <div>
+      {/* TOOLBAR */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 8, padding: '0 10px', flex: '1 1 200px', minHeight: 36,
+        }}>
+          <Search size={14} style={{ color: '#606088' }} />
+          <input
+            placeholder="Search families or students..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              background: 'none', border: 'none', outline: 'none',
+              color: '#E0E0F4', fontSize: 13, width: '100%', padding: '8px 0',
+            }}
+          />
+        </div>
+        <div style={{ position: 'relative' }}>
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+            style={{
+              appearance: 'none' as const, background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
+              color: '#A0A0C8', fontSize: 12, padding: '8px 28px 8px 10px',
+              cursor: 'pointer', minHeight: 36,
+            }}
+          >
+            <option value="name">Sort: Name</option>
+            <option value="amount">Sort: Amount</option>
+            <option value="students">Sort: Students</option>
+          </select>
+          <ChevronDown size={12} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#606088', pointerEvents: 'none' as const }} />
+        </div>
+      </div>
+
+      {families.length === 0 ? (
+        <div style={{ ...glass, textAlign: 'center', padding: 40, color: '#606088' }}>
+          No active families found
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {families.map(f => (
+            <div key={f.id} style={glass}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>{f.name}</div>
+                  {f.parent_name && <div style={{ fontSize: 12, color: '#A0A0C8' }}>{f.parent_name}</div>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <StatusBadge status={f.billing_status} />
+                  <CardBadge brand={f.card_brand} last4={f.card_last_four} />
+                </div>
+              </div>
+
+              {/* Students */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                {f.students.map((s: any) => {
+                  const locColor = s.location_id ? locColorMap[s.location_id] : null
+                  return (
+                    <div key={s.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '6px 10px', borderRadius: 8,
+                      background: 'rgba(255,255,255,0.02)', flexWrap: 'wrap', gap: 4,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {locColor && <span style={{ width: 6, height: 6, borderRadius: 3, background: locColor, flexShrink: 0 }} />}
+                        <span style={{ fontSize: 13, color: '#E0E0F4', fontWeight: 500 }}>{s.first_name} {s.last_name}</span>
+                        {s.instrument && <span style={{ fontSize: 11, color: '#606088' }}>{s.instrument}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                        <span style={{ color: '#A0A0C8' }}>{s.sessions_per_month} sessions</span>
+                        <span style={{ color: '#A0A0C8' }}>@ {dollars(s.rate_per_session * 100)}</span>
+                        <span style={{ color: '#FFB800', fontWeight: 600 }}>{dollars(s.monthly_cents)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Footer */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ fontSize: 11, color: '#606088' }}>
+                  {f.billing_day ? `Bills on day ${f.billing_day}` : 'No billing day set'}
+                  {f.overdue_balance_cents > 0 && (
+                    <span style={{ color: '#EF4444', marginLeft: 10, fontWeight: 600 }}>
+                      Overdue: {dollars(f.overdue_balance_cents)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#FFB800' }}>
+                  {dollars(f.monthlyTotalCents)}<span style={{ fontSize: 11, fontWeight: 400, color: '#606088' }}>/mo</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════
+// SECTION 2: NEXT CYCLE
+// ══════════════════════════════════════════
+
+function SectionNextCycle({
+  data, loading, creditRow, setCreditRow, onAddCredit,
+}: {
+  data: any; loading: boolean;
+  creditRow: string | null; setCreditRow: (id: string | null) => void;
+  onAddCredit: (familyId: string, amountCents: number, reason: string) => Promise<void>;
+}) {
+  const [creditAmt, setCreditAmt] = useState('')
+  const [creditReason, setCreditReason] = useState('')
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  if (!data) return null
+
+  const { families: fams, totalCents, totalSessions } = data
+
+  return (
+    <div>
+      {/* Summary bar */}
+      <div style={{
+        ...glassCompact,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 12, flexWrap: 'wrap', gap: 8,
+      }}>
+        <span style={{ fontSize: 13, color: '#A0A0C8' }}>
+          {fams.length} families &middot; {totalSessions} sessions
+        </span>
+        <span style={{ fontSize: 16, fontWeight: 800, color: '#FFB800' }}>
+          Projected: {dollars(totalCents)}
+        </span>
+      </div>
+
+      {fams.length === 0 ? (
+        <div style={{ ...glass, textAlign: 'center', padding: 40, color: '#606088' }}>
+          No families for next cycle
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {fams.map((f: any) => (
+            <div key={f.id} style={glass}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>{f.name}</div>
+                  {f.parent_name && <div style={{ fontSize: 11, color: '#A0A0C8' }}>{f.parent_name}</div>}
+                </div>
+                <CardBadge brand={f.card_brand} last4={f.card_last_four} />
+              </div>
+
+              {/* Students */}
+              <div style={{ marginBottom: 8 }}>
+                {f.students.map((s: any) => (
+                  <div key={s.id} style={{ fontSize: 12, color: '#A0A0C8', padding: '2px 0' }}>
+                    {s.first_name}{s.instrument ? ` (${s.instrument})` : ''} — {s.sessions_per_month} sessions — {dollars(s.monthly_cents)}
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}><button className="btn-ghost" style={{ fontSize: 11 }} onClick={() => { setShowAddAdj(false); setAdjAmount(''); setAdjReason(''); setAdjStudent('') }}>Cancel</button><button className="btn-primary" style={{ fontSize: 11, background: 'rgba(255,184,0,0.15)', color: '#FFB800' }} onClick={async () => { if (!adjStudent || !adjAmount || !adjReason) { toast('Fill all fields', 'error'); return }; await addAdjustment.mutateAsync({ familyId, studentId: adjStudent, adjustmentType: 'credit', amountCents: Math.round(parseFloat(adjAmount) * 100), reason: adjReason }); toast('Credit added — will reduce next month\'s charge', 'success'); setShowAddAdj(false); setAdjAmount(''); setAdjReason(''); setAdjStudent('') }}>Apply Credit</button></div>
-                </div>
-                )
-              })()}
-            </div>
+                ))}
+              </div>
 
-            {/* Account Details — compact inline bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', marginBottom: 12 }}>
-              {/* Rate */}
-              <div style={{ textAlign: 'center', flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: rate.bg, color: rate.color, display: 'inline-flex', alignItems: 'center', gap: 3 }}>{rate.label}{family.rate_tier_override && <Lock size={9} />}</span>
-                  {isOwner && <button onClick={() => { setOverrideValue(family.rate_tier ?? DEFAULT_RATE_TIER_CENTS); setShowRateOverride(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#606088', fontSize: 9, padding: 0 }}>edit</button>}
+              {/* Totals row */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                  <span style={{ color: '#A0A0C8' }}>Base: {dollars(f.baseCents)}</span>
+                  {f.creditCents > 0 && (
+                    <span style={{ color: '#22C55E', fontWeight: 600 }}>-{dollars(f.creditCents)}</span>
+                  )}
                 </div>
-                <div style={{ fontSize: 8, color: '#606088', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Rate</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: f.creditCents > 0 ? '#22C55E' : '#FFB800' }}>
+                    {dollars(f.adjustedCents)}
+                  </span>
+                  <button
+                    onClick={() => { setCreditRow(creditRow === f.id ? null : f.id); setCreditAmt(''); setCreditReason('') }}
+                    style={{
+                      ...utilBtn, fontSize: 11, padding: '4px 8px', minHeight: 28,
+                      color: creditRow === f.id ? '#D4226A' : '#A0A0C8',
+                    }}
+                  >
+                    <Plus size={11} /> Credit
+                  </button>
+                </div>
               </div>
-              <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.04)' }} />
-              {/* Billing Day */}
-              <div style={{ textAlign: 'center', flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#D0D0E8' }}>{family.billing_day ?? 1}{(family.billing_day ?? 1) === 1 ? 'st' : 'th'}</span>
-                  {isOwner && <select value={family.billing_day ?? 1} onChange={(e) => updateDay.mutateAsync({ familyId, billingDay: Number(e.target.value) }).then(() => toast('Updated', 'success'))} className="filter-select" style={{ fontSize: 9, width: 'auto', padding: '1px 4px' }}><option value={1}>1st</option><option value={15}>15th</option></select>}
+
+              {/* Inline credit panel */}
+              {creditRow === f.id && (
+                <div style={{
+                  marginTop: 10, padding: 12, borderRadius: 10,
+                  background: 'rgba(212,34,106,0.06)', border: '1px solid rgba(212,34,106,0.15)',
+                  display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end',
+                }}>
+                  <div style={{ flex: '1 1 80px' }}>
+                    <label style={{ fontSize: 10, color: '#A0A0C8', display: 'block', marginBottom: 3 }}>Amount ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={creditAmt}
+                      onChange={e => setCreditAmt(e.target.value)}
+                      placeholder="0.00"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ flex: '2 1 140px' }}>
+                    <label style={{ fontSize: 10, color: '#A0A0C8', display: 'block', marginBottom: 3 }}>Reason</label>
+                    <input
+                      value={creditReason}
+                      onChange={e => setCreditReason(e.target.value)}
+                      placeholder="Missed session, etc."
+                      style={inputStyle}
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      const cents = Math.round(parseFloat(creditAmt || '0') * 100)
+                      if (cents <= 0 || !creditReason.trim()) { toast('Enter amount and reason', 'error'); return }
+                      onAddCredit(f.id, cents, creditReason.trim())
+                    }}
+                    style={{
+                      background: '#D4226A', color: '#fff', border: 'none',
+                      borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600,
+                      cursor: 'pointer', minHeight: 36,
+                    }}
+                  >
+                    Add Credit
+                  </button>
                 </div>
-                <div style={{ fontSize: 8, color: '#606088', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Bill Day</div>
+              )}
+
+              {/* Applied adjustments */}
+              {f.adjustments.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  {f.adjustments.map((a: any) => (
+                    <div key={a.id} style={{
+                      fontSize: 11, color: '#22C55E', padding: '3px 0',
+                      display: 'flex', gap: 6,
+                    }}>
+                      <span>-{dollars(Math.abs(a.amount_cents ?? 0))}</span>
+                      <span style={{ color: '#606088' }}>{a.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════
+// SECTION 3: REMAINING TO COLLECT
+// ══════════════════════════════════════════
+
+function SectionRemaining({ data, loading }: { data: any; loading: boolean }) {
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  const list = data ?? []
+  const total = list.reduce((s: number, f: any) => s + f.remainingCents, 0)
+
+  return (
+    <div>
+      <div style={{
+        ...glassCompact,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 12, flexWrap: 'wrap', gap: 8,
+      }}>
+        <span style={{ fontSize: 13, color: '#A0A0C8' }}>{list.length} families with balance</span>
+        <span style={{ fontSize: 16, fontWeight: 800, color: '#FFB800' }}>{dollars(total)}</span>
+      </div>
+
+      {list.length === 0 ? (
+        <div style={{ ...glass, textAlign: 'center', padding: 40, color: '#22C55E' }}>
+          <CheckCircle size={24} style={{ marginBottom: 8 }} />
+          <div>All collected — nothing outstanding</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {list.map((f: any) => (
+            <div key={f.id} style={glass}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>{f.name}</div>
+                  {f.parent_name && <div style={{ fontSize: 11, color: '#A0A0C8' }}>{f.parent_name}</div>}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#FFB800' }}>{dollars(f.remainingCents)}</div>
+                  <CardBadge brand={f.card_brand} last4={f.card_last_four} />
+                </div>
               </div>
-              <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.04)' }} />
-              {/* Card */}
-              <div style={{ textAlign: 'center', flex: 1 }}>
-                <div style={{ fontSize: 11, color: family.card_last_four ? '#C0C0E0' : '#EF4444', fontWeight: 600 }}>
-                  {family.card_last_four ? `••••${family.card_last_four}` : 'No card'}
+              {f.billing_day && <div style={{ fontSize: 11, color: '#606088', marginTop: 6 }}>Bills on day {f.billing_day}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════
+// SECTION 4: OVERDUE
+// ══════════════════════════════════════════
+
+function SectionOverdue({ data, loading }: { data: any; loading: boolean }) {
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  const list = data ?? []
+  const total = list.reduce((s: number, f: any) => s + f.overdueCents, 0)
+
+  return (
+    <div>
+      {/* Red-accented header */}
+      <div style={{
+        ...glassCompact,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 12, flexWrap: 'wrap', gap: 8,
+        borderColor: 'rgba(239,68,68,0.2)',
+        background: 'rgba(239,68,68,0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <AlertTriangle size={14} style={{ color: '#EF4444' }} />
+          <span style={{ fontSize: 13, color: '#EF4444', fontWeight: 600 }}>{list.length} overdue families</span>
+        </div>
+        <span style={{ fontSize: 16, fontWeight: 800, color: '#EF4444' }}>{dollars(total)}</span>
+      </div>
+
+      {list.length === 0 ? (
+        <div style={{ ...glass, textAlign: 'center', padding: 40, color: '#22C55E' }}>
+          <CheckCircle size={24} style={{ marginBottom: 8 }} />
+          <div>No overdue accounts</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {list.map((f: any) => (
+            <div key={f.id} style={{
+              ...glass,
+              borderColor: 'rgba(239,68,68,0.15)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>{f.name}</div>
+                  {f.parent_name && <div style={{ fontSize: 11, color: '#A0A0C8' }}>{f.parent_name}</div>}
+                  <CardBadge brand={f.card_brand} last4={f.card_last_four} />
                 </div>
-                <div style={{ fontSize: 8, color: '#606088', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Card</div>
-              </div>
-              <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.04)' }} />
-              {/* Balance */}
-              <div style={{ textAlign: 'center', flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: bal > 0 ? '#22C55E' : bal < 0 ? '#EF4444' : '#8080A8' }}>
-                  {bal !== 0 ? dollars(bal) : '$0'}
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#EF4444' }}>{dollars(f.overdueCents)}</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <button style={{
+                      fontSize: 11, fontWeight: 600, color: '#FFB800',
+                      background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.2)',
+                      borderRadius: 6, padding: '4px 10px', cursor: 'pointer', minHeight: 28,
+                    }}>
+                      Retry
+                    </button>
+                    <button style={{
+                      fontSize: 11, fontWeight: 600, color: '#A0A0C8',
+                      background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 6, padding: '4px 10px', cursor: 'pointer', minHeight: 28,
+                    }}>
+                      Contact
+                    </button>
+                  </div>
                 </div>
-                <div style={{ fontSize: 8, color: '#606088', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Balance{isOwner && <button onClick={() => setShowBalanceAdj(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#606088', fontSize: 8, padding: 0, marginLeft: 4 }}>adj</button>}</div>
               </div>
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
-            {/* Status + Notes row */}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Status</div>
-                <div style={{ display: 'flex', gap: 4 }}>{['active', 'paused', 'inactive'].filter(s => s !== (family.billing_status === 'cancelled' || family.billing_status === 'suspended' ? 'inactive' : family.billing_status)).map(s => (<button key={s} onClick={() => handleStatusChange(s === 'inactive' ? 'cancelled' : s)} className="btn-outline" style={{ fontSize: 9, padding: '2px 8px', color: STATUS_COLORS[s === 'inactive' ? 'cancelled' : s]?.color ?? '#8080A8', borderColor: `${(STATUS_COLORS[s === 'inactive' ? 'cancelled' : s]?.color ?? '#8080A8')}40` }}>{s.charAt(0).toUpperCase() + s.slice(1)}</button>))}</div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Notes</div>
-                <textarea defaultValue={family.billing_notes ?? ''} onBlur={async (e) => { if (e.target.value !== (family.billing_notes ?? '')) { const { error } = await supabase.from('families').update({ billing_notes: e.target.value }).eq('id', familyId); if (error) { toast('Failed to save notes: ' + error.message, 'error') } else { toast('Saved', 'success') } } }} rows={2} placeholder="Billing notes..." className="filter-select" style={{ width: '100%', fontSize: 10, resize: 'vertical', fontFamily: 'inherit' }} />
+// ══════════════════════════════════════════
+// SECTION 5: PAID THIS MONTH
+// ══════════════════════════════════════════
+
+function SectionPaid({ data, loading }: { data: any; loading: boolean }) {
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  const payments = data?.payments ?? []
+  const total = data?.totalCents ?? 0
+
+  return (
+    <div>
+      <div style={{
+        ...glassCompact,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 12, flexWrap: 'wrap', gap: 8,
+        borderColor: 'rgba(34,197,94,0.2)',
+        background: 'rgba(34,197,94,0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <CheckCircle size={14} style={{ color: '#22C55E' }} />
+          <span style={{ fontSize: 13, color: '#22C55E', fontWeight: 600 }}>{payments.length} payments this month</span>
+        </div>
+        <span style={{ fontSize: 16, fontWeight: 800, color: '#22C55E' }}>{dollars(total)}</span>
+      </div>
+
+      {payments.length === 0 ? (
+        <div style={{ ...glass, textAlign: 'center', padding: 40, color: '#606088' }}>
+          No payments recorded this month
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {payments.map((p: any) => (
+            <div key={p.id} style={glassCompact}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#E0E0F4' }}>{p.familyName}</div>
+                  {p.parentName && <div style={{ fontSize: 11, color: '#A0A0C8' }}>{p.parentName}</div>}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#22C55E' }}>{dollars(p.amount_cents)}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                    <CardBadge brand={p.card_brand} last4={p.card_last_four} />
+                    <span style={{ fontSize: 10, color: '#606088' }}>
+                      {new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
-            {/* Applied adjustments history (collapsed) */}
-            {appliedAdj.length > 0 && (
-              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Past Adjustments</div>
-                {appliedAdj.map((a: any) => (<div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 11, color: '#8080A8' }}><span style={{ flex: 1 }}>{a.reason}</span><span>−${((a.amount_cents ?? 0) / 100).toFixed(2)}</span><span style={{ fontSize: 9, color: '#606088' }}>{a.applied_at ? new Date(a.applied_at).toLocaleDateString() : ''}</span></div>))}
+// ══════════════════════════════════════════
+// MODAL: CREDITS LEDGER
+// ══════════════════════════════════════════
+
+function CreditsLedgerModal({ credits, onClose }: { credits: any[]; onClose: () => void }) {
+  return (
+    <ModalShell title="Credits Ledger" onClose={onClose}>
+      {credits.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 30, color: '#606088' }}>No adjustments recorded</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {credits.map((c: any) => (
+            <div key={c.id} style={{
+              padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.05)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#E0E0F4' }}>{c.familyName}</div>
+                  {c.studentName && <div style={{ fontSize: 11, color: '#A0A0C8' }}>{c.studentName}</div>}
+                  <div style={{ fontSize: 11, color: '#606088', marginTop: 2 }}>{c.reason}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#22C55E' }}>-{dollars(Math.abs(c.amount_cents ?? 0))}</div>
+                  <div style={{ fontSize: 10, color: '#606088' }}>
+                    {c.adjustment_type} &middot; {c.applied ? 'Applied' : 'Pending'}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#606088' }}>
+                    Cycle: {c.applies_to_cycle} &middot; {new Date(c.created_at).toLocaleDateString()}
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
+          ))}
+        </div>
+      )}
+    </ModalShell>
+  )
+}
+
+// ══════════════════════════════════════════
+// MODAL: ONE-OFF INVOICE
+// ══════════════════════════════════════════
+
+function OneOffInvoiceModal({
+  families, onClose, onSubmit, submitting,
+}: {
+  families: any[]; onClose: () => void;
+  onSubmit: (data: { familyId: string; studentId?: string; description: string; amountCents: number; dueDate: string; note?: string }) => Promise<void>;
+  submitting: boolean;
+}) {
+  const [familyId, setFamilyId] = useState('')
+  const [studentId, setStudentId] = useState('')
+  const [description, setDescription] = useState('')
+  const [amount, setAmount] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [note, setNote] = useState('')
+
+  const selectedFamily = families.find(f => f.id === familyId)
+
+  return (
+    <ModalShell title="Create One-Off Invoice" onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Family */}
+        <div>
+          <label style={labelStyle}>Family</label>
+          <select value={familyId} onChange={e => { setFamilyId(e.target.value); setStudentId('') }} style={selectStyle}>
+            <option value="">Select family...</option>
+            {families.map(f => (
+              <option key={f.id} value={f.id}>{f.name}{f.parent_name ? ` (${f.parent_name})` : ''}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Student (optional) */}
+        {selectedFamily && selectedFamily.students.length > 0 && (
+          <div>
+            <label style={labelStyle}>Student (optional)</label>
+            <select value={studentId} onChange={e => setStudentId(e.target.value)} style={selectStyle}>
+              <option value="">All / General</option>
+              {selectedFamily.students.map((s: any) => (
+                <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+              ))}
+            </select>
           </div>
         )}
 
-        {/* HISTORY TAB */}
-        {tab === 'history' && (
-          <div style={{ padding: '20px 20px 24px' }}>
-            {(history ?? []).length === 0 ? <div style={{ padding: 30, textAlign: 'center', color: '#606088', fontSize: 13 }}>No payment history yet.</div> : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{(history ?? []).map((h: any) => { const ok = h.status === 'completed' || h.status === 'succeeded'; return (<div key={h.id} style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: '#D0D0E8' }}>{dollars(h.amount_cents)}</div><div style={{ fontSize: 11, color: '#8080A8' }}>{new Date(h.created_at).toLocaleDateString()} · {h.card_brand ?? ''} ••••{h.card_last_four ?? ''}</div></div><span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: ok ? '#22C55E' : '#EF4444' }}>{h.status}</span>{isOwner && ok && <button onClick={() => toast('Refund requires Square integration', 'info')} className="btn-ghost" style={{ fontSize: 10 }}>Refund</button>}</div>) })}</div>
-            )}
-          </div>
-        )}
-        </div>{/* end scroll wrapper */}
-
-      {/* Sub-modals */}
-      {showBalanceAdj && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowBalanceAdj(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#1A1830', borderRadius: 16, padding: 24, width: 360, border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#E0E0F4', marginBottom: 16 }}>Adjust Balance</h3>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>{(['credit', 'debit'] as const).map(t => (<button key={t} onClick={() => setBalType(t)} style={{ flex: 1, padding: 8, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: balType === t ? (t === 'credit' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)') : 'rgba(255,255,255,0.03)', color: balType === t ? (t === 'credit' ? '#22C55E' : '#EF4444') : '#8080A8', border: `1px solid ${balType === t ? (t === 'credit' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)') : 'rgba(255,255,255,0.06)'}` }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>))}</div>
-            <div style={{ marginBottom: 12 }}><div style={labelStyle}>Amount ($)</div><input value={balAmount} onChange={(e) => setBalAmount(e.target.value)} type="number" className="filter-select" style={{ width: '100%' }} /></div>
-            <div style={{ marginBottom: 16 }}><div style={labelStyle}>Reason *</div><input value={balReason} onChange={(e) => setBalReason(e.target.value)} className="filter-select" style={{ width: '100%' }} /></div>
-            <div style={{ display: 'flex', gap: 8 }}><button className="btn-ghost" onClick={() => setShowBalanceAdj(false)}>Cancel</button><button className="btn-primary" onClick={async () => { if (!balAmount || !balReason) { toast('Required', 'error'); return }; const cents = Math.round(parseFloat(balAmount) * 100) * (balType === 'debit' ? -1 : 1); await adjustBalance.mutateAsync({ familyId, amountCents: cents, reason: balReason }); toast('Adjusted', 'success'); setShowBalanceAdj(false); setBalAmount(''); setBalReason('') }}>Save</button></div>
-          </div>
+        {/* Description */}
+        <div>
+          <label style={labelStyle}>Description</label>
+          <input value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g., Book fee, recital costume" style={inputStyle} />
         </div>
-      )}
 
-      {showRateOverride && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowRateOverride(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#1A1830', borderRadius: 16, padding: 24, width: 400, border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#E0E0F4', marginBottom: 16 }}>Override Rate</h3>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>{[4500, 4000, 3750].map(v => { const r = RATE_LABELS[v]; return <button key={v} onClick={() => setOverrideValue(v)} style={{ flex: 1, padding: 8, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: overrideValue === v ? `${r.color}18` : 'rgba(255,255,255,0.03)', color: overrideValue === v ? r.color : '#8080A8', border: `1px solid ${overrideValue === v ? `${r.color}40` : 'rgba(255,255,255,0.06)'}` }}>{r.label}</button> })}</div>
-            <div style={{ marginBottom: 16 }}><div style={labelStyle}>Reason *</div><input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} className="filter-select" style={{ width: '100%' }} /></div>
-            <div style={{ display: 'flex', gap: 8 }}><button className="btn-ghost" onClick={() => setShowRateOverride(false)}>Cancel</button>{family.rate_tier_override && <button className="btn-ghost" onClick={async () => { await removeOverride.mutateAsync({ familyId }); toast('Removed', 'success'); setShowRateOverride(false) }} style={{ color: '#FFB800' }}>Remove</button>}<button className="btn-primary" onClick={async () => { if (!overrideReason) { toast('Reason required', 'error'); return }; await overrideRate.mutateAsync({ familyId, rateTier: overrideValue, reason: overrideReason }); toast('Overridden', 'success'); setShowRateOverride(false) }}>Save</button></div>
-          </div>
+        {/* Amount */}
+        <div>
+          <label style={labelStyle}>Amount ($)</label>
+          <input type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" style={inputStyle} />
         </div>
-      )}
 
-      {/* Pause Modal — reason + expected return date */}
-      {confirmStatus === 'paused' && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setConfirmStatus(null)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#1A1830', borderRadius: 16, padding: 24, width: 400, border: '1px solid rgba(255,184,0,0.2)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#FFB800', marginBottom: 4 }}>Pause Billing</h3>
-            <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 16 }}>This family will move to the Paused tab with AI follow-up tracking.</div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={labelStyle}>Why are they pausing?</div>
-              <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-                {['Summer Break', 'Financial', 'Scheduling Conflict', 'Trying Something Else', 'Other'].map(r => (
-                  <button key={r} onClick={() => setPauseReason(r === 'Other' ? '' : r)} style={{ padding: '3px 10px', borderRadius: 8, fontSize: 10, cursor: 'pointer', background: pauseReason === r ? 'rgba(255,184,0,0.1)' : 'rgba(255,255,255,0.03)', color: pauseReason === r ? '#FFB800' : '#8080A8', border: `1px solid ${pauseReason === r ? 'rgba(255,184,0,0.25)' : 'rgba(255,255,255,0.06)'}` }}>{r}</button>
-                ))}
-              </div>
-              {!['Summer Break', 'Financial', 'Scheduling Conflict', 'Trying Something Else'].includes(pauseReason) && (
-                <input value={pauseReason} onChange={(e) => setPauseReason(e.target.value)} className="filter-select" style={{ width: '100%', fontSize: 12 }} placeholder="Describe the reason..." autoFocus />
-              )}
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <div style={labelStyle}>When do they expect to come back?</div>
-              <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-                {['After Summer', 'Next Month', '2 Months', 'Unsure'].map(r => (
-                  <button key={r} onClick={() => setPauseReturnDate(r)} style={{ padding: '3px 10px', borderRadius: 8, fontSize: 10, cursor: 'pointer', background: pauseReturnDate === r ? 'rgba(255,184,0,0.1)' : 'rgba(255,255,255,0.03)', color: pauseReturnDate === r ? '#FFB800' : '#8080A8', border: `1px solid ${pauseReturnDate === r ? 'rgba(255,184,0,0.25)' : 'rgba(255,255,255,0.06)'}` }}>{r}</button>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn-ghost" onClick={() => setConfirmStatus(null)}>Cancel</button>
-              <button className="btn-primary" style={{ background: 'rgba(255,184,0,0.15)', color: '#FFB800' }} onClick={async () => {
-                if (!pauseReason) { toast('Reason required', 'error'); return }
-                if (!pauseReturnDate) { toast('Expected return required', 'error'); return }
-                await updateStatus.mutateAsync({ familyId, oldStatus: family.billing_status, newStatus: 'paused' })
-                // Log the pause reason and return date
-                await supabase.from('audit_log').insert({ tenant_id: family.tenant_id, entity_type: 'family', entity_id: familyId, action: 'billing_paused', details: { reason: pauseReason, expected_return: pauseReturnDate }, performed_by: (await supabase.auth.getUser()).data.user?.id })
-                const { error: notesErr } = await supabase.from('families').update({ billing_notes: `PAUSED: ${pauseReason} | Return: ${pauseReturnDate}${family.billing_notes ? '\n' + family.billing_notes : ''}` }).eq('id', familyId)
-                if (notesErr) toast('Status paused but notes failed to save', 'error')
-                else toast('Paused — will track for follow-up', 'success')
-                setConfirmStatus(null)
-              }}>Pause Billing</button>
-            </div>
-          </div>
+        {/* Due Date */}
+        <div>
+          <label style={labelStyle}>Due Date</label>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={inputStyle} />
         </div>
-      )}
 
-      {/* Inactive Modal — required reason, final */}
-      {confirmStatus === 'cancelled' && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setConfirmStatus(null)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#1A1830', borderRadius: 16, padding: 24, width: 400, border: '1px solid rgba(239,68,68,0.2)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#EF4444', marginBottom: 4 }}>Set Inactive</h3>
-            <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 16 }}>This marks the family as no longer returning. This stops billing and removes them from active views.</div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={labelStyle}>Why are they leaving? *</div>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
-                {['Moved Away', 'Financial', 'Lost Interest', 'Switched Schools', 'Graduated', 'Bad Experience', 'Other'].map(r => (
-                  <button key={r} onClick={() => setInactiveReason(r === 'Other' ? '' : r)} style={{ padding: '3px 10px', borderRadius: 8, fontSize: 10, cursor: 'pointer', background: inactiveReason === r ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.03)', color: inactiveReason === r ? '#EF4444' : '#8080A8', border: `1px solid ${inactiveReason === r ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.06)'}` }}>{r}</button>
-                ))}
-              </div>
-              {!['Moved Away', 'Financial', 'Lost Interest', 'Switched Schools', 'Graduated', 'Bad Experience'].includes(inactiveReason) && (
-                <input value={inactiveReason} onChange={(e) => setInactiveReason(e.target.value)} className="filter-select" style={{ width: '100%', fontSize: 12 }} placeholder="Required: why are they leaving..." autoFocus />
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn-ghost" onClick={() => setConfirmStatus(null)}>Cancel</button>
-              <button className="btn-primary" style={{ background: 'rgba(239,68,68,0.15)', color: '#EF4444' }} onClick={async () => {
-                if (!inactiveReason) { toast('Reason required', 'error'); return }
-                await updateStatus.mutateAsync({ familyId, oldStatus: family.billing_status, newStatus: 'cancelled' })
-                await supabase.from('audit_log').insert({ tenant_id: family.tenant_id, entity_type: 'family', entity_id: familyId, action: 'billing_cancelled', details: { reason: inactiveReason }, performed_by: (await supabase.auth.getUser()).data.user?.id })
-                const { error: notesErr2 } = await supabase.from('families').update({ billing_notes: `INACTIVE: ${inactiveReason}${family.billing_notes ? '\n' + family.billing_notes : ''}` }).eq('id', familyId)
-                if (notesErr2) toast('Status set but notes failed to save', 'error')
-                else toast('Set to Inactive', 'success')
-                setConfirmStatus(null)
-              }}>Confirm Inactive</button>
-            </div>
-          </div>
+        {/* Note */}
+        <div>
+          <label style={labelStyle}>Note (optional)</label>
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Internal note" style={inputStyle} />
         </div>
-      )}
-    </DraggableModal>
+
+        <button
+          disabled={submitting || !familyId || !description || !amount || !dueDate}
+          onClick={() => {
+            const cents = Math.round(parseFloat(amount || '0') * 100)
+            if (cents <= 0) { toast('Enter a valid amount', 'error'); return }
+            onSubmit({
+              familyId,
+              studentId: studentId || undefined,
+              description,
+              amountCents: cents,
+              dueDate,
+              note: note || undefined,
+            })
+          }}
+          style={{
+            background: '#D4226A', color: '#fff', border: 'none',
+            borderRadius: 10, padding: '12px 20px', fontSize: 14, fontWeight: 700,
+            cursor: submitting ? 'wait' : 'pointer',
+            opacity: submitting ? 0.6 : 1,
+            minHeight: 44,
+          }}
+        >
+          {submitting ? 'Creating...' : 'Create Invoice'}
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ══════════════════════════════════════════
+// MODAL: SQUARE SYNC
+// ══════════════════════════════════════════
+
+function SquareSyncModal({ onClose }: { onClose: () => void }) {
+  return (
+    <ModalShell title="Square Sync" onClose={onClose}>
+      <div style={{ textAlign: 'center', padding: '20px 0' }}>
+        <RefreshCw size={32} style={{ color: '#606088', marginBottom: 12 }} />
+        <div style={{ fontSize: 14, color: '#A0A0C8', marginBottom: 16 }}>
+          Sync payment data from Square to update balances and payment history.
+        </div>
+        <div style={{
+          padding: '10px 14px', borderRadius: 8,
+          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+          fontSize: 12, color: '#606088', marginBottom: 16,
+        }}>
+          Last sync: Manual trigger not yet connected
+        </div>
+        <button
+          onClick={() => toast('Square sync coming soon', 'info')}
+          style={{
+            background: '#D4226A', color: '#fff', border: 'none',
+            borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 700,
+            cursor: 'pointer', minHeight: 44,
+          }}
+        >
+          Sync Now
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ══════════════════════════════════════════
+// EXPORT (wrapped with IssueContextProvider)
+// ══════════════════════════════════════════
+
+export default function Billing() {
+  return (
+    <IssueContextProvider page="billing">
+      <BillingInner />
+    </IssueContextProvider>
   )
 }

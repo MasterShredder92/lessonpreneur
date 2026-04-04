@@ -196,6 +196,7 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
       qc.invalidateQueries({ queryKey: ['families'] })
       qc.invalidateQueries({ queryKey: ['families_page'] })
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       qc.invalidateQueries({ queryKey: ['student-blocks'] })
 
       onConverted(data.student_id)

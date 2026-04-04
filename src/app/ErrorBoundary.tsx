@@ -20,7 +20,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[ErrorBoundary] Uncaught error:', error, info.componentStack)
+    console.error('[ErrorBoundary] Uncaught error:', error)
+    console.error('[ErrorBoundary] Component stack:', info.componentStack)
+    console.error('[ErrorBoundary] URL:', window.location.pathname + window.location.search)
   }
 
   render() {

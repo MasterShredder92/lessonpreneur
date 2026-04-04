@@ -9,10 +9,13 @@ import TeacherFormModal from '../../components/teachers/TeacherFormModal'
 import AvailabilityEditModal from '../../components/teachers/AvailabilityEditModal'
 import { supabase } from '../../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Camera, ChevronDown, ChevronRight, Upload, Trash2, FileText } from 'lucide-react'
+import { Pencil, Camera, ChevronDown, ChevronRight, Upload, Trash2, FileText, Users } from 'lucide-react'
+import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import TeacherDocumentsModal from '../../components/teachers/TeacherDocumentsModal'
 import { toast } from '../../components/shared/Toast'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 const DAYS_ORDERED = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
 const DAY_LABELS: Record<string, string> = {
@@ -225,10 +228,14 @@ export default function TeacherDetail() {
   const payRate = Number(t.pay_rate_per_half_hour ?? t.rate_per_block ?? 0)
 
   return (
+    <IssueContextProvider page="The Band — Teachers" section="Teacher Detail">
     <div className="page teacher-detail-page">
-      <button className="btn-ghost" onClick={() => navigate('/admin/teachers')} style={{ marginBottom: 16 }}>
-        ← Back to Teachers
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <button className="btn-ghost" onClick={() => navigate('/admin/teachers')}>
+          ← Back to Teachers
+        </button>
+        <ReportIssueButton />
+      </div>
 
       {/* ── Mobile tab bar ── */}
       <div className="td-mobile-tabs">
@@ -497,6 +504,57 @@ export default function TeacherDetail() {
       </div>
 
       {/* ══════════════════════════════════════════════════ */}
+      {/* 2b. STUDENT ROSTER (Overview tab)                   */}
+      {/* ══════════════════════════════════════════════════ */}
+      {(() => {
+        const active = students?.filter((s: any) => s.status === 'active') ?? []
+        if (active.length === 0) return null
+        return (
+          <div className={`td-section td-tab-overview${mobileTab !== 'overview' ? ' td-tab-hidden' : ''}`} style={{ marginBottom: 14 }}>
+            <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+              <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #3b82f6, #6366f1)', boxShadow: '0 0 12px rgba(59,130,246,0.4)' }} />
+              <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)' }} />
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Users size={13} style={{ color: '#3b82f6' }} />
+                    <span style={sectionLabelStyle}>Students ({active.length})</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {active.map((s: any) => {
+                    const loc = locations?.find((l: any) => l.id === s.location_id)
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => navigate(`/admin/students/${s.id}`)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                          transition: 'background 150ms',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      >
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>{s.instrument ? getInstrumentEmoji(s.instrument) : '\u{1F3B5}'}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', overflowWrap: 'break-word' }}>{s.first_name} {s.last_name}</div>
+                          <div style={{ fontSize: 11, color: '#8080A8' }}>{s.instrument ? s.instrument.charAt(0).toUpperCase() + s.instrument.slice(1) : '—'}</div>
+                        </div>
+                        {loc && <span style={{ fontSize: 10, fontWeight: 600, color: loc.color ?? '#8080A8', padding: '2px 8px', borderRadius: 6, background: `${loc.color ?? '#8080A8'}15`, flexShrink: 0 }}>{loc.name?.replace(' Music Lessons', '')}</span>}
+                        <ChevronRight size={14} style={{ color: '#363656', flexShrink: 0 }} />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ══════════════════════════════════════════════════ */}
       {/* 3. TEACHING PROFILE + BEST MATCH (side by side)    */}
       {/* ══════════════════════════════════════════════════ */}
       <div className={`td-section td-profile-grid td-tab-profile${mobileTab !== 'profile' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
@@ -697,6 +755,34 @@ export default function TeacherDetail() {
               <input ref={docInputRef} type="file" onChange={handleDocUpload} style={{ display: 'none' }} />
             </div>
 
+            {/* Compliance status at a glance */}
+            {teacher && (
+              <div onClick={() => setShowDocsModal(true)} style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 8 }}>
+                  <span style={{ fontSize: 12, color: '#C0C0E0', fontWeight: 600 }}>Contract</span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 100,
+                    background: teacher.contract_status === 'signed' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                    color: teacher.contract_status === 'signed' ? '#22C55E' : '#EF4444',
+                    border: `1px solid ${teacher.contract_status === 'signed' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                  }}>
+                    {teacher.contract_status === 'signed' ? 'Signed' : 'Missing'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 8 }}>
+                  <span style={{ fontSize: 12, color: '#C0C0E0', fontWeight: 600 }}>W-9</span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 100,
+                    background: (teacher.w9_status === 'complete' || teacher.w9_status === 'completed') ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                    color: (teacher.w9_status === 'complete' || teacher.w9_status === 'completed') ? '#22C55E' : '#EF4444',
+                    border: `1px solid ${(teacher.w9_status === 'complete' || teacher.w9_status === 'completed') ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                  }}>
+                    {(teacher.w9_status === 'complete' || teacher.w9_status === 'completed') ? 'Completed' : 'Missing'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* File list */}
             {teacherDocs && teacherDocs.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -727,7 +813,9 @@ export default function TeacherDetail() {
                 ))}
               </div>
             ) : (
-              <p style={{ fontSize: 12, color: '#606088' }}>No documents uploaded yet.</p>
+              !(teacher?.contract_status === 'signed' || teacher?.w9_status === 'complete' || teacher?.w9_status === 'completed') && (
+                <p style={{ fontSize: 12, color: '#606088' }}>No documents uploaded yet.</p>
+              )
             )}
           </div>
         </div>
@@ -844,6 +932,9 @@ export default function TeacherDetail() {
           teacherName={`${teacher.first_name ?? ''} ${teacher.last_name ?? ''}`.trim()}
           w9Status={teacher.w9_status ?? null}
           w9CompletedAt={teacher.w9_completed_at ?? null}
+          contractStatus={teacher.contract_status ?? null}
+          contractSignedAt={teacher.contract_signed_at ?? null}
+          contractPdfUrl={teacher.contract_pdf_url ?? null}
           onClose={() => setShowDocsModal(false)}
         />
       )}
@@ -858,5 +949,6 @@ export default function TeacherDetail() {
         />
       )}
     </div>
+    </IssueContextProvider>
   )
 }

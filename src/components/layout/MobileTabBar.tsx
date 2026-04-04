@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { LayoutDashboard, CalendarDays, Users, UserPlus, Menu, ShieldCheck, Guitar, BookOpen, Settings2, Plug, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Users, UserPlus, Menu, ShieldCheck, Guitar, BookOpen, Settings2, Plug, ChevronRight, X } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 
 const TABS = [
@@ -30,10 +30,64 @@ const MORE_SECTIONS = [
   ]},
 ]
 
+const DISMISS_THRESHOLD = 80
+
 export default function MobileTabBar() {
   const [moreOpen, setMoreOpen] = useState(false)
   const navigate = useNavigate()
   const { profile, role } = useAuthContext()
+
+  // Drag-to-dismiss state
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const dragStartY = useRef(0)
+  const dragOffset = useRef(0)
+  const isDragging = useRef(false)
+
+  const closeSheet = useCallback(() => setMoreOpen(false), [])
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    dragStartY.current = e.touches[0].clientY
+    dragOffset.current = 0
+    isDragging.current = true
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = 'none'
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging.current) return
+    const dy = e.touches[0].clientY - dragStartY.current
+    // Only allow dragging DOWN (positive dy)
+    dragOffset.current = Math.max(0, dy)
+    if (sheetRef.current) {
+      sheetRef.current.style.transform = `translateY(${dragOffset.current}px)`
+    }
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isDragging.current) return
+    isDragging.current = false
+    if (dragOffset.current > DISMISS_THRESHOLD) {
+      // Dismiss: animate the rest of the way down
+      if (sheetRef.current) {
+        sheetRef.current.style.transition = 'transform 200ms ease-out'
+        sheetRef.current.style.transform = 'translateY(100%)'
+      }
+      setTimeout(closeSheet, 200)
+    } else {
+      // Snap back
+      if (sheetRef.current) {
+        sheetRef.current.style.transition = 'transform 200ms ease-out'
+        sheetRef.current.style.transform = 'translateY(0)'
+      }
+    }
+    dragOffset.current = 0
+  }, [closeSheet])
+
+  const goTo = useCallback((path: string) => {
+    navigate(path)
+    setMoreOpen(false)
+  }, [navigate])
 
   return (
     <>
@@ -48,7 +102,6 @@ export default function MobileTabBar() {
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         borderTop: '0.5px solid rgba(255,255,255,0.08)',
-        /* display is controlled by CSS: hidden by default, flex on mobile */
         alignItems: 'flex-start',
         justifyContent: 'space-around',
         zIndex: 9990,
@@ -58,7 +111,7 @@ export default function MobileTabBar() {
             return (
               <button
                 key="more"
-                onClick={() => setMoreOpen(true)}
+                onClick={() => setMoreOpen(prev => !prev)}
                 style={{
                   flex: 1,
                   display: 'flex',
@@ -83,6 +136,7 @@ export default function MobileTabBar() {
             <NavLink
               key={tab.path}
               to={tab.path}
+              onClick={() => setMoreOpen(false)}
               style={({ isActive }) => ({
                 flex: 1,
                 display: 'flex',
@@ -112,15 +166,18 @@ export default function MobileTabBar() {
             background: 'rgba(0,0,0,0.6)',
             backdropFilter: 'blur(2px)',
           }}
-          onClick={() => setMoreOpen(false)}
+          onClick={closeSheet}
         >
           <div
+            ref={sheetRef}
             onClick={e => e.stopPropagation()}
             style={{
               position: 'absolute',
               bottom: 0,
               left: 0,
               right: 0,
+              maxHeight: '85vh',
+              overflowY: 'auto',
               background: 'rgba(16, 14, 30, 0.99)',
               borderRadius: '20px 20px 0 0',
               paddingBottom: `calc(16px + env(safe-area-inset-bottom))`,
@@ -128,9 +185,37 @@ export default function MobileTabBar() {
               animation: 'sheetSlideUp 300ms cubic-bezier(0.32, 0.72, 0, 1)',
             }}
           >
-            {/* Drag handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 8px' }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+            {/* Drag handle — swipe down to dismiss */}
+            <div
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '12px 0 10px',
+                cursor: 'grab',
+                touchAction: 'none',
+              }}
+            >
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }} />
+            </div>
+
+            {/* Close button — always visible */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 16px 4px' }}>
+              <button
+                onClick={closeSheet}
+                style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#8080A8',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                <X size={16} />
+              </button>
             </div>
 
             <div style={{ padding: '0 20px' }}>
@@ -142,7 +227,7 @@ export default function MobileTabBar() {
                   {section.items.map(item => (
                     <button
                       key={item.path}
-                      onClick={() => { navigate(item.path); setMoreOpen(false) }}
+                      onClick={() => goTo(item.path)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -168,7 +253,7 @@ export default function MobileTabBar() {
               {/* Divider + Integrations + Settings */}
               <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.08)', marginTop: 8 }}>
                 <button
-                  onClick={() => { navigate('/admin/integrations'); setMoreOpen(false) }}
+                  onClick={() => goTo('/admin/integrations')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -188,7 +273,7 @@ export default function MobileTabBar() {
                   <ChevronRight size={16} style={{ color: '#363656' }} />
                 </button>
                 <button
-                  onClick={() => { navigate('/admin/settings'); setMoreOpen(false) }}
+                  onClick={() => goTo('/admin/settings')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

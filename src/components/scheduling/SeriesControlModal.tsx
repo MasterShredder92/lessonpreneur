@@ -39,6 +39,7 @@ export default function SeriesControlModal({ blockId, action, studentName, teach
 
       // Invalidate all relevant caches
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       qc.invalidateQueries({ queryKey: ['student-blocks'] })
       qc.invalidateQueries({ queryKey: ['students'] })
       qc.invalidateQueries({ queryKey: ['teacher-blocks'] })

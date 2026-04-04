@@ -11,6 +11,9 @@ import CsvImportFlow from '../../components/shared/CsvImportFlow'
 import { useImportTeachers, TEACHER_TEMPLATE } from '../../hooks/useImport'
 import TeacherSpreadsheet from '../../components/teachers/TeacherSpreadsheet'
 import W9ExportModal from '../../components/teachers/W9ExportModal'
+import { useScrollRestore } from '../../hooks/useScrollRestore'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 const INSTRUMENT_ICON: Record<string, any> = {
   guitar: Guitar, bass: Guitar, ukulele: Guitar, banjo: Guitar,
@@ -37,6 +40,7 @@ export default function Teachers() {
   const { data: monthlyTally } = useTeachersMonthlyTally()
   const navigate = useNavigate()
   const canEdit = role === 'owner' || role === 'admin'
+  const { saveScroll } = useScrollRestore('teachers')
 
   const [showForm, setShowForm] = useState(false)
   const [showSpreadsheet, setShowSpreadsheet] = useState(false)
@@ -105,6 +109,7 @@ export default function Teachers() {
   const displayList = teacherTab === 'active' ? activeTeachers : filteredInactive
 
   return (
+    <IssueContextProvider page="The Band — Teachers">
     <div className="page">
       <div className="page-header">
         <h1>Teachers</h1>
@@ -117,6 +122,7 @@ export default function Teachers() {
             <button className="btn-primary" onClick={() => setShowForm(true)}>+ Add Teacher</button>
           </div>
         )}
+        <ReportIssueButton />
       </div>
 
       {needsReviewCount > 0 && (
@@ -223,12 +229,14 @@ export default function Teachers() {
             : `linear-gradient(180deg, ${edgeColors.map((c: string, i: number) => `${c} ${(i / edgeColors.length) * 100}%, ${c} ${((i + 1) / edgeColors.length) * 100}%`).join(', ')})`
           const edgeShadow = edgeColors.length === 1 ? `0 0 12px ${edgeColors[0]}80` : `0 0 10px ${edgeColors[0]}60`
           const instruments = t.instruments ?? []
+          const w9Done = t.w9_status === 'complete' || t.w9_status === 'completed' || t.w9_status === 'signed' || !!t.w9_completed_at
+          const contractDone = t.contract_status === 'complete' || t.contract_status === 'completed' || t.contract_status === 'signed' || !!t.contract_signed_at
 
           return (
             <div
               key={t.id}
               className={`lead-card${isInactive ? ' lead-card-stale' : ''}`}
-              onClick={() => navigate(`/admin/teachers/${t.id}`)}
+              onClick={() => { saveScroll(); navigate(`/admin/teachers/${t.id}`) }}
             >
               {/* Edge accent */}
               <div className="lead-card-edge" style={{
@@ -354,9 +362,20 @@ export default function Teachers() {
                   }}>
                     {status === 'at_capacity' ? 'At Capacity' : status.charAt(0).toUpperCase() + status.slice(1)}
                   </span>
-                  {t.w9_status !== 'complete' && (
-                    <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,184,0,0.1)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }} title="W-9 not on file">W-9</span>
-                  )}
+                  <div style={{ display: 'flex', gap: 3, marginTop: 3 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                      ...(w9Done
+                        ? { background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.2)' }
+                        : { background: 'rgba(255,184,0,0.1)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }),
+                    }}>{w9Done ? 'W-9 \u2713' : 'W-9'}</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                      ...(contractDone
+                        ? { background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.2)' }
+                        : { background: 'rgba(255,184,0,0.1)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }),
+                    }}>{contractDone ? 'Contract \u2713' : 'Contract'}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -387,5 +406,6 @@ export default function Teachers() {
         />
       )}
     </div>
+    </IssueContextProvider>
   )
 }

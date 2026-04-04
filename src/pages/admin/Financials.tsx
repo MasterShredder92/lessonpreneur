@@ -6,6 +6,8 @@ import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { Plus, Trash2, DollarSign, Download } from 'lucide-react'
 import { exportFinancials } from '../../hooks/useExport'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 function dollars(cents: number): string {
   if (!cents) return '$0'
@@ -91,6 +93,7 @@ export default function Financials() {
   })
 
   return (
+    <IssueContextProvider page="Your Books — Financials">
     <div className="page">
       <div className="page-header">
         <h1>Financials</h1>
@@ -99,6 +102,7 @@ export default function Financials() {
           fontSize: 11, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto',
           background: 'rgba(255,255,255,0.04)', color: '#8080A8', border: '1px solid rgba(255,255,255,0.08)',
         }}><Download size={12} /> Export</button>
+        <ReportIssueButton />
       </div>
 
       {/* P&L HERO */}
@@ -370,6 +374,7 @@ export default function Financials() {
         )
       })()}
     </div>
+    </IssueContextProvider>
   )
 }
 

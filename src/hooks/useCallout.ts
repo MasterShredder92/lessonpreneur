@@ -54,6 +54,7 @@ export function useTransferBlock() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })

@@ -22,6 +22,8 @@ import { useStudentChurnRisk, RISK_TIERS } from '../../hooks/useChurnRisk'
 import { DEFAULT_RATE_PER_SESSION, DEFAULT_RATE_TIER_CENTS } from '../../lib/constants'
 import { useStudentInstruments, useSaveStudentInstruments } from '../../hooks/useStudentInstruments'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -63,6 +65,7 @@ export default function StudentDetail() {
   const [handoffSent, setHandoffSent] = useState(false)
   const [seriesControlBlock, setSeriesControlBlock] = useState<{ id: string; is_recurring: boolean; teacher_name: string; start_time: string; block_date: string } | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<{ title: string; message: string; variant?: 'warning' | 'danger' | 'info'; onConfirm: () => void } | null>(null)
+  const [showBillingDetails, setShowBillingDetails] = useState(false)
   const [showRateOverrideModal, setShowRateOverrideModal] = useState(false)
   const [showSessionCreditModal, setShowSessionCreditModal] = useState(false)
   const [editingFamilyName, setEditingFamilyName] = useState(false)
@@ -201,6 +204,7 @@ export default function StudentDetail() {
   }
 
   return (
+    <IssueContextProvider page="Roster — Students" section="Student Detail">
     <div className="page">
       <button className="btn-ghost" onClick={() => navigate('/admin/students')} style={{ marginBottom: 12 }}>
         ← Back to Students
@@ -210,75 +214,80 @@ export default function StudentDetail() {
       <div className="location-card" style={{ padding: '24px 28px', marginBottom: 14, cursor: 'default' }}>
         <div className="loc-card-edge" style={{ background: student.status === 'active' ? 'linear-gradient(180deg, #22C55E, #16A34A)' : 'linear-gradient(180deg, #EF4444, #B91C1C)', boxShadow: student.status === 'active' ? '0 0 14px rgba(34,197,94,0.5)' : '0 0 14px rgba(239,68,68,0.5)' }} />
         <div className="loc-card-glow" style={{ background: student.status === 'active' ? 'radial-gradient(circle, rgba(34,197,94,0.08) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(239,68,68,0.06) 0%, transparent 70%)' }} />
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, position: 'relative', zIndex: 1 }}>
-          {/* Left — Student */}
-          <div style={{ flex: 1, paddingRight: 24 }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', padding: '3px 12px', borderRadius: 8, border: '1px solid', color: student.status === 'active' ? '#22C55E' : '#EF4444', borderColor: student.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)', background: student.status === 'active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }}>
-              {student.status}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 2px' }}>
-              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>{student.first_name} {student.last_name}</h1>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {/* ── Student Name Row ── */}
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', padding: '3px 12px', borderRadius: 8, border: '1px solid', flexShrink: 0, color: student.status === 'active' ? '#22C55E' : '#EF4444', borderColor: student.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)', background: student.status === 'active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }}>
+                {student.status}
+              </span>
               {churnRisk && churnRisk.tier !== 'low' && (() => {
                 const t = RISK_TIERS[churnRisk.tier]
                 return (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: t.bg, color: t.color, border: `1px solid ${t.color}30` }} title={churnRisk.signals.map(s => s.label).join(', ')}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: t.bg, color: t.color, border: `1px solid ${t.color}30`, flexShrink: 0, whiteSpace: 'nowrap' }} title={churnRisk.signals.map(s => s.label).join(', ')}>
                     {t.label} Risk ({churnRisk.score})
                   </span>
                 )
               })()}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+                {canEdit && (
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    title="Edit Student"
+                    style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8080A8', transition: 'all 140ms ease', flexShrink: 0 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#E8488A'; e.currentTarget.style.borderColor = 'rgba(212,34,106,0.3)'; e.currentTarget.style.background = 'rgba(212,34,106,0.08)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#8080A8'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                <ReportIssueButton />
+              </div>
             </div>
-            <div style={{ fontSize: 13, color: '#A0A0C8' }}>Age {student.age ?? '—'}</div>
-            <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><MapPin size={13} /> {student.location_name ?? '—'}</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><DollarSign size={13} /> ${monthlyTotal}/mo</span>
-            </div>
-            {/* Instruments & Teachers */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
-              {studentInstruments && studentInstruments.length > 1 ? (
-                studentInstruments.map((si) => {
-                  const teacherName = si.teacher_id ? (() => { const t = allTeachers?.find((t: any) => t.id === si.teacher_id); return t ? `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim() : null })() : null
-                  return (
-                    <div key={si.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#C0C0E0' }}>
-                      <span style={{ fontSize: 15 }}>{getInstrumentEmoji(si.instrument)}</span>
-                      <span style={{ fontWeight: 600 }}>{si.instrument.charAt(0).toUpperCase() + si.instrument.slice(1)}</span>
-                      {teacherName && <span style={{ color: '#8080A8' }}>with <strong style={{ color: '#A0A0C8' }}>{teacherName}</strong></span>}
-                      {si.is_primary && studentInstruments.length > 1 && <span style={{ fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 3, background: 'rgba(212,34,106,0.12)', color: '#D4226A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>primary</span>}
-                    </div>
-                  )
-                })
-              ) : (
-                <>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><Music size={13} /> {student.instrument ? student.instrument.charAt(0).toUpperCase() + student.instrument.slice(1) : '—'}</span>
-                  {student.teacher_name && student.teacher_name !== '—' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 12, color: '#A0A0C8' }}>Teacher: <strong style={{ color: '#C0C0E0' }}>{student.teacher_name}</strong></span>
-                      {student.first_teacher_display && (
-                        <span style={{ fontSize: 11, color: '#606088' }}>· Started with {student.first_teacher_display}</span>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            {canEdit && (
-              <button
-                onClick={() => setShowEditModal(true)}
-                title="Edit Student"
-                style={{ position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8080A8', transition: 'all 140ms ease' }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#E8488A'; e.currentTarget.style.borderColor = 'rgba(212,34,106,0.3)'; e.currentTarget.style.background = 'rgba(212,34,106,0.08)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = '#8080A8'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
-              >
-                <Pencil size={14} />
-              </button>
+            <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.03em', margin: 0, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+              {student.first_name} {student.last_name}
+            </h1>
+          </div>
+
+          {/* ── Student Details ── */}
+          <div style={{ fontSize: 13, color: '#A0A0C8' }}>Age {student.age ?? '—'}</div>
+          <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><MapPin size={13} /> {student.location_name ?? '—'}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><DollarSign size={13} /> ${monthlyTotal}/mo</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
+            {studentInstruments && studentInstruments.length > 1 ? (
+              studentInstruments.map((si) => {
+                const teacherName = si.teacher_id ? (() => { const t = allTeachers?.find((t: any) => t.id === si.teacher_id); return t ? `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim() : null })() : null
+                return (
+                  <div key={si.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#C0C0E0', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 15 }}>{getInstrumentEmoji(si.instrument)}</span>
+                    <span style={{ fontWeight: 600 }}>{si.instrument ? si.instrument.charAt(0).toUpperCase() + si.instrument.slice(1) : 'Unknown'}</span>
+                    {teacherName && <span style={{ color: '#8080A8' }}>with <strong style={{ color: '#A0A0C8' }}>{teacherName}</strong></span>}
+                    {si.is_primary && studentInstruments.length > 1 && <span style={{ fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 3, background: 'rgba(212,34,106,0.12)', color: '#D4226A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>primary</span>}
+                  </div>
+                )
+              })
+            ) : (
+              <>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><Music size={13} /> {student.instrument ? student.instrument.charAt(0).toUpperCase() + student.instrument.slice(1) : '—'}</span>
+                {student.teacher_name && student.teacher_name !== '—' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: '#A0A0C8' }}>Teacher: <strong style={{ color: '#C0C0E0' }}>{student.teacher_name}</strong></span>
+                    {student.first_teacher_display && (
+                      <span style={{ fontSize: 11, color: '#606088' }}>· Started with {student.first_teacher_display}</span>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Divider */}
-          <div style={{ width: 1, background: 'rgba(255,255,255,0.08)', alignSelf: 'stretch', margin: '0 4px' }} />
+          {/* ── Family Section ── */}
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', width: '100%' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 8 }}>Family</div>
 
-          {/* Right — Family */}
-          <div style={{ minWidth: 200, paddingLeft: 24 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>Family</div>
+            {/* Family name + edit pencil */}
             {editingFamilyName ? (
               <input value={familyNameValue} onChange={(e) => setFamilyNameValue(e.target.value)}
                 onBlur={async () => {
@@ -295,18 +304,43 @@ export default function StudentDetail() {
                 }}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingFamilyName(false) }}
                 autoFocus
-                style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', background: 'transparent', border: 'none', borderBottom: '2px solid #D4226A', outline: 'none', width: '100%', padding: 0, display: 'block' }}
+                style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', background: 'transparent', border: 'none', borderBottom: '2px solid #D4226A', outline: 'none', width: '100%', maxWidth: 300, padding: 0, display: 'block' }}
               />
             ) : (
-              <span onClick={() => { if (canEdit) { setFamilyNameValue(student.family_name ?? ''); setEditingFamilyName(true) } }}
-                style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', display: 'flex', alignItems: 'center', gap: 6, cursor: canEdit ? 'pointer' : 'default' }}>
-                {student.family_name?.replace(/\s+family$/i, '') ?? '—'}
-                {canEdit && <Pencil size={10} style={{ color: '#606088' }} />}
-              </span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span
+                  onClick={() => { if (canEdit) { setFamilyNameValue(student.family_name ?? ''); setEditingFamilyName(true) } }}
+                  style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', cursor: canEdit ? 'pointer' : 'default' }}
+                >
+                  {student.family_name?.replace(/\s+family$/i, '') ?? '—'}
+                </span>
+                {canEdit && (
+                  <button
+                    onClick={() => { setFamilyNameValue(student.family_name ?? ''); setEditingFamilyName(true) }}
+                    title="Edit Family"
+                    style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#606088', transition: 'all 140ms ease', flexShrink: 0 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#E8488A'; e.currentTarget.style.borderColor = 'rgba(212,34,106,0.3)'; e.currentTarget.style.background = 'rgba(212,34,106,0.08)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#606088'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+                  >
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
             )}
-            <span style={{ fontSize: 12, color: '#A0A0C8', display: 'block', marginTop: 4 }}>{student.family_contact ?? '—'}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#A0A0C8', marginTop: 4 }}><Phone size={11} /> {student.family_phone ?? '—'}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#8080A8', marginTop: 2 }}><Mail size={11} /> {student.family_email ?? '—'}</span>
+
+            {/* Contact + family name */}
+            <div style={{ fontSize: 12, color: '#A0A0C8', marginTop: 6, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_contact ?? '—'}</div>
+            {/* Phone */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#A0A0C8', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+              <Phone size={11} style={{ flexShrink: 0 }} /> {student.family_phone ?? '—'}
+            </div>
+            {/* Email */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 11, color: '#8080A8', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+              <Mail size={11} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span style={{ minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_email ?? '—'}</span>
+            </div>
+
+            {/* Siblings */}
             {student.siblings && student.siblings.length > 0 && (
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 6 }}>Siblings</div>
@@ -323,58 +357,93 @@ export default function StudentDetail() {
       </div>
 
       {/* Row 1: Billing + Family + Lesson Stats — 3 cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+      <div className="sd-row-3">
         <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #D97706, #FFB800)', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.07) 0%, transparent 70%)' }} />
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Billing</span>
-              {student.family_card_last_four && (
-                <span style={{ fontSize: 10, color: '#8080A8' }}>{student.family_card_brand ?? 'Card'} ····{student.family_card_last_four}</span>
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Billing</span>
+
+            {/* Family name */}
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4', marginBottom: 6 }}>
+              {student.family_name?.replace(/\s+family$/i, '') ?? '—'}
+            </div>
+
+            {/* Monthly total — big, bold, gold */}
+            <div style={{ fontSize: 28, fontWeight: 800, color: '#FFB800', lineHeight: 1, marginBottom: 8 }}>
+              ${monthlyTotal}<span style={{ fontSize: 13, fontWeight: 600, color: '#8080A8' }}>/mo</span>
+            </div>
+
+            {/* Payment status badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              {overdue > 0 ? (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.12)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.25)' }}>
+                  Overdue ${overdue}
+                </span>
+              ) : (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)' }}>
+                  Current
+                </span>
               )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Monthly</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#E0E0F4' }}>${monthlyTotal}</div>
+
+            {/* Bill Family button */}
+            <button className="btn-primary" onClick={() => navigate(`/admin/families?family=${student.family_id}`)} style={{ fontSize: 11, padding: '8px 0', width: '100%', justifyContent: 'center' }}>
+              Bill Family
+            </button>
+
+            {/* Details toggle */}
+            <button onClick={() => setShowBillingDetails(!showBillingDetails)} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, width: '100%',
+              marginTop: 10, padding: '6px 0', fontSize: 11, fontWeight: 600, color: '#8080A8',
+              background: 'none', border: 'none', cursor: 'pointer',
+              borderTop: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              {showBillingDetails ? 'Hide Details \u25B4' : 'View Details \u25BE'}
+            </button>
+
+            {/* Expanded details */}
+            {showBillingDetails && (
+              <div style={{ paddingTop: 8 }}>
+                <div className="sd-inner-3" style={{ marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Overdue</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: overdue > 0 ? '#B45555' : '#22C55E' }}>{overdue > 0 ? `$${overdue}` : '$0'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Lifetime</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#A0A0C8' }}>${student.total_paid ?? 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Sessions/mo</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#C0C0E0' }}>{student.sessions_per_month ?? student.blocks_per_week * 4}</div>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8', marginBottom: 3 }}>
+                    <span>Rate/session</span>
+                    <span style={{ fontWeight: 700, color: '#C0C0E0' }}>${(student.rate_per_session ?? DEFAULT_RATE_PER_SESSION).toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8' }}>
+                    <span>Monthly est.</span>
+                    <span style={{ fontWeight: 700, color: '#FFB800' }}>${((student.sessions_per_month ?? student.blocks_per_week * 4) * (student.rate_per_session ?? DEFAULT_RATE_PER_SESSION)).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {student.family_card_last_four && (
+                  <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 8 }}>
+                    {student.family_card_brand ?? 'Card'} ending in {student.family_card_last_four}
+                  </div>
+                )}
+
+                {canEdit && (
+                  <button className="btn-outline" onClick={() => setShowSessionCreditModal(true)} style={{ fontSize: 10, padding: '5px 14px', width: '100%', justifyContent: 'center', color: '#22C55E', borderColor: 'rgba(34,197,94,0.25)' }}>
+                    + Session Credit
+                  </button>
+                )}
               </div>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Overdue</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: overdue > 0 ? '#B45555' : '#22C55E' }}>{overdue > 0 ? `$${overdue}` : '$0'}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Lifetime</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#A0A0C8' }}>${student.total_paid ?? 0}</div>
-              </div>
-            </div>
-            {/* Session rate breakdown */}
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8', marginBottom: 3 }}>
-                <span>Sessions/mo</span>
-                <span style={{ fontWeight: 700, color: '#C0C0E0' }}>{student.sessions_per_month ?? student.blocks_per_week * 4}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8', marginBottom: 3 }}>
-                <span>Rate/session</span>
-                <span style={{ fontWeight: 700, color: '#C0C0E0' }}>${(student.rate_per_session ?? DEFAULT_RATE_PER_SESSION).toFixed(2)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8' }}>
-                <span>Monthly est.</span>
-                <span style={{ fontWeight: 700, color: '#FFB800' }}>${((student.sessions_per_month ?? student.blocks_per_week * 4) * (student.rate_per_session ?? DEFAULT_RATE_PER_SESSION)).toFixed(2)}</span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn-primary" style={{ fontSize: 10, padding: '5px 14px', flex: 1, justifyContent: 'center' }} onClick={() => navigate(`/admin/families?family=${student.family_id}`)}>Bill Family</button>
-              {canEdit && (
-                <button
-                  className="btn-outline"
-                  onClick={() => setShowSessionCreditModal(true)}
-                  style={{ fontSize: 10, padding: '5px 14px', color: '#22C55E', borderColor: 'rgba(34,197,94,0.25)' }}
-                >
-                  + Credit
-                </button>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
@@ -382,8 +451,8 @@ export default function StudentDetail() {
         <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #6366F1, #818CF8)', boxShadow: '0 0 12px rgba(99,102,241,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)' }} />
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Family</span>
               {(() => {
                 const bs = (student as any).family_billing_status ?? 'active'
@@ -406,9 +475,9 @@ export default function StudentDetail() {
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', marginBottom: 4 }}>{student.family_name ?? '—'}</div>
             <div style={{ fontSize: 12, color: '#A0A0C8', marginBottom: 6 }}>{(student as any).family_parent_name ?? student.family_contact ?? '—'}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#A0A0C8' }}><Mail size={11} /> {student.family_email ?? '—'}</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#A0A0C8' }}><Phone size={11} /> {student.family_phone ?? '—'}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10, minWidth: 0 }}>
+              <span style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 11.5, color: '#A0A0C8', minWidth: 0 }}><Mail size={11} style={{ flexShrink: 0, marginTop: 2 }} /> <span style={{ minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_email ?? '—'}</span></span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#A0A0C8' }}><Phone size={11} style={{ flexShrink: 0 }} /> {student.family_phone ?? '—'}</span>
             </div>
             {/* Rate Tier Badge */}
             {(() => {
@@ -417,10 +486,11 @@ export default function StudentDetail() {
               const tierLabel = getRateTierLabel(tier, student.family_is_military, student.family_active_students)
               return (
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                     <span style={{
                       fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8,
                       background: tierColor.bg, border: `1px solid ${tierColor.border}`, color: tierColor.text,
+                      overflowWrap: 'break-word', wordBreak: 'break-word',
                     }}>
                       ${formatRate(tier)} — {tierLabel}
                     </span>
@@ -438,7 +508,7 @@ export default function StudentDetail() {
                 </div>
               )
             })()}
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
               <span style={{ fontSize: 11, color: '#8080A8' }}>{(student as any).family_student_count ?? 1} student{((student as any).family_student_count ?? 1) !== 1 ? 's' : ''} in family</span>
               <div style={{ display: 'flex', gap: 6 }}>
                 {(canDo('teachers.edit_pay_rate') || role === 'owner') && (
@@ -455,9 +525,9 @@ export default function StudentDetail() {
         <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 12px rgba(255,85,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.06) 0%, transparent 70%)' }} />
-          <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 12 }}>Lesson Stats & 5th Week</span>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div className="sd-inner-3" style={{ marginBottom: 12 }}>
               <div>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Total Lessons</div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: '#E0E0F4' }}>{student.total_lessons_taken ?? 0}</div>
@@ -505,7 +575,7 @@ export default function StudentDetail() {
       </div>
 
       {/* Row 3: Director Notes + Teacher Notes — side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+      <div className="sd-row-2">
         {/* Director Notes */}
         <div className="location-card" style={{ padding: 18, cursor: 'pointer' }} onClick={() => setShowDirectorNotes(true)}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 12px rgba(255,85,0,0.4)' }} />
@@ -571,7 +641,7 @@ export default function StudentDetail() {
       )}
 
       {/* Row 4: Documents + Teacher Handoff — side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+      <div className="sd-row-2">
         <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #D97706, #FFB800)', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
@@ -1062,6 +1132,7 @@ export default function StudentDetail() {
         />
       )}
     </div>
+    </IssueContextProvider>
   )
 }
 

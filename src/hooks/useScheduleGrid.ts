@@ -252,6 +252,7 @@ export function useAssignStudent() {
       qc.invalidateQueries({ queryKey: ['students-for-assignment'] })
       qc.invalidateQueries({ queryKey: ['available-blocks-for-student'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
     },
   })
 }
@@ -282,6 +283,7 @@ export function useUnassignBlock() {
       qc.invalidateQueries({ queryKey: ['student-blocks'] })
       qc.invalidateQueries({ queryKey: ['available-blocks-for-student'] })
       qc.invalidateQueries({ queryKey: ['students-for-assignment'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
     },
   })
 }
@@ -314,6 +316,7 @@ export function useChangeBlockType() {
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
       qc.invalidateQueries({ queryKey: ['student-blocks'] })
       qc.invalidateQueries({ queryKey: ['available-blocks-for-student'] })
+      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
     },
   })
 }

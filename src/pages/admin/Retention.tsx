@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { useUserLocations } from '../../hooks/useUserLocations'
@@ -9,8 +10,10 @@ import {
   useFormerStudents, useLostLeads, useWinBackMetrics,
 } from '../../hooks/useRetentionData'
 import { toast } from '../../components/shared/Toast'
-import { Shield, Star, AlertTriangle, Send, X, UserX, Clock, ExternalLink, Heart, Sparkles, ArrowRight, RefreshCw, Trophy, TrendingUp } from 'lucide-react'
+import { Shield, Star, AlertTriangle, Send, X, UserX, Clock, ExternalLink, Heart, Sparkles, ArrowRight, RefreshCw, Trophy, TrendingUp, Check, Loader2 } from 'lucide-react'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { IssueContextProvider } from '../../contexts/IssueContext'
+import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 const LOC_COLORS: Record<string, string> = {
   Omaha: '#D41113', Bellevue: '#A333FF', Elkhorn: '#00A5E8', Gretna: '#00A651',
@@ -44,6 +47,64 @@ function MetricCard({ label, value, color = '#E0E0F4' }: { label: string; value:
   )
 }
 
+// ── Checkbox ──
+function RetCheckbox({ checked, indeterminate, onChange, style }: { checked: boolean; indeterminate?: boolean; onChange: () => void; style?: React.CSSProperties }) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (ref.current) ref.current.indeterminate = !!indeterminate }, [indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      style={{
+        width: 18, height: 18, cursor: 'pointer', accentColor: '#D4226A',
+        flexShrink: 0, ...style,
+      }}
+    />
+  )
+}
+
+// ── Portal modal wrapper ──
+function PortalModal({ open, onClose, children, maxWidth = 520 }: { open: boolean; onClose: () => void; children: React.ReactNode; maxWidth?: number }) {
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(2px)',
+        animation: 'fadeIn 180ms ease',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(150deg, rgba(22,20,40,0.99), rgba(16,14,30,0.99))',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 24,
+          boxShadow: '0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(212,34,106,0.06)',
+          width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto',
+          animation: 'slideUp 240ms cubic-bezier(0.4,0,0.2,1)',
+          position: 'relative',
+        }}
+      >
+        {children}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // ══════════════════════════════
 //  MAIN PAGE
 // ══════════════════════════════
@@ -53,11 +114,13 @@ export default function Retention() {
   const { data: userLocations } = useUserLocations()
 
   return (
+    <IssueContextProvider page="Backstage — Retention">
     <div className="page">
       <div className="page-header">
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Shield size={22} /> Retention
         </h1>
+        <ReportIssueButton />
       </div>
 
       {/* Tab bar */}
@@ -78,6 +141,7 @@ export default function Retention() {
       {activeTab === 'win-back' && <WinBackTab locationIds={userLocations} />}
       {activeTab === 'campaigns' && <CampaignsTab locationIds={userLocations} />}
     </div>
+    </IssueContextProvider>
   )
 }
 
@@ -93,6 +157,59 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
   const sendReview = useSendReviewRequest()
   const [generatingFor, setGeneratingFor] = useState<string | null>(null)
   const [previewCard, setPreviewCard] = useState<any>(null)
+
+  // ── Bulk selection state ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; name: string } | null>(null)
+  const [bulkResult, setBulkResult] = useState<{ successes: string[]; failures: { name: string; error: string }[] } | null>(null)
+
+  // Clear selection when locations change
+  const locKey = JSON.stringify(locationIds)
+  useEffect(() => { setSelectedIds(new Set()) }, [locKey])
+
+  const visibleQueue = (valueQueue ?? []).slice(0, 15)
+  const allSelected = visibleQueue.length > 0 && visibleQueue.every(s => selectedIds.has(s.id))
+  const someSelected = visibleQueue.some(s => selectedIds.has(s.id))
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(visibleQueue.map(s => s.id)))
+    }
+  }
+
+  async function handleBulkGenerate() {
+    setBulkConfirmOpen(false)
+    const selected = visibleQueue.filter(s => selectedIds.has(s.id))
+    const successes: string[] = []
+    const failures: { name: string; error: string }[] = []
+
+    for (let i = 0; i < selected.length; i++) {
+      const s = selected[i]
+      setBulkProgress({ current: i + 1, total: selected.length, name: s.name })
+      try {
+        const card = await generateCard.mutateAsync(s.id)
+        await sendCard.mutateAsync(card.id)
+        successes.push(s.name)
+      } catch (err: any) {
+        failures.push({ name: s.name, error: err?.message ?? 'Unknown error' })
+      }
+    }
+
+    setBulkProgress(null)
+    setBulkResult({ successes, failures })
+    setSelectedIds(new Set())
+  }
 
   return (
     <div>
@@ -114,13 +231,68 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
           <span style={{ fontSize: 10, color: '#8080A8' }}>{valueQueue?.length ?? 0} students</span>
           <div className="section-line" />
         </div>
+
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && (
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 20,
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            padding: '12px 20px', marginBottom: 8, borderRadius: 12,
+            background: '#0D0D18', borderBottom: '1px solid rgba(255,255,255,0.08)',
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#FFB800' }}>
+              {selectedIds.size} student{selectedIds.size !== 1 ? 's' : ''} selected
+            </span>
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              style={{ background: 'none', border: 'none', color: '#8080A8', fontSize: 12, cursor: 'pointer', padding: '6px 12px' }}
+            >
+              Clear Selection
+            </button>
+            <button
+              onClick={() => setBulkConfirmOpen(true)}
+              style={{
+                padding: '10px 20px', borderRadius: 10, border: 'none',
+                background: 'linear-gradient(135deg, #D4226A, #A333FF)',
+                color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                minHeight: 40,
+              }}
+            >
+              Generate Cards for Selected
+            </button>
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {(valueQueue ?? []).slice(0, 15).map(s => (
-            <div key={s.id} className="ret-card" style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          {/* Select all header */}
+          {visibleQueue.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px' }}>
+              <RetCheckbox
+                checked={allSelected}
+                indeterminate={someSelected && !allSelected}
+                onChange={toggleSelectAll}
+              />
+              <span style={{ fontSize: 11, color: '#8080A8', fontWeight: 600 }}>
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </span>
+            </div>
+          )}
+
+          {visibleQueue.map(s => (
+            <div key={s.id} className="ret-card" style={{
+              padding: '10px 14px', borderRadius: 10,
+              background: selectedIds.has(s.id) ? 'rgba(212,34,106,0.06)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${selectedIds.has(s.id) ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.05)'}`,
+            }}>
               <div className="ret-card-top">
                 <LocBadge name={s.locationName} />
               </div>
               <div className="ret-card-row">
+                <RetCheckbox
+                  checked={selectedIds.has(s.id)}
+                  onChange={() => toggleSelect(s.id)}
+                />
                 <div style={{ flex: 1, minWidth: 120 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
                   <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{s.instrument}</span>
@@ -154,55 +326,61 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
         </div>
       </div>
 
-      {/* Value Card Preview Modal */}
-      {previewCard && (() => {
-        const topPct = 100 - previewCard.percentile_rank
-        const instrEmoji = getInstrumentEmoji(previewCard.instrument ?? '')
-        const highlights: string[] = previewCard.teacher_highlights ?? []
-        const skills: string[] = previewCard.skills_worked_on ?? []
-        const attendRate = previewCard.attendance_rate ?? 0
-        const attendLabel = attendRate >= 90 ? 'Outstanding' : attendRate >= 75 ? 'Strong' : attendRate >= 50 ? 'Building' : 'Needs Love'
-        const attendEmoji = attendRate >= 90 ? '🔥' : attendRate >= 75 ? '💪' : attendRate >= 50 ? '📈' : '💛'
+      {/* ── Value Card Preview Modal (Portal) ── */}
+      <PortalModal open={!!previewCard} onClose={() => setPreviewCard(null)} maxWidth={440}>
+        {previewCard && (() => {
+          const instrEmoji = getInstrumentEmoji(previewCard.instrument ?? '')
+          const highlights: string[] = previewCard.teacher_highlights ?? []
+          const skills: string[] = previewCard.skills_worked_on ?? []
+          const attendRate = previewCard.attendance_rate
+          const hasAttendance = attendRate !== null && attendRate !== undefined
+          const attendLabel = hasAttendance ? (attendRate >= 90 ? 'Outstanding' : attendRate >= 75 ? 'Strong' : attendRate >= 50 ? 'Building' : 'Needs Love') : 'New'
+          const attendEmoji = hasAttendance ? (attendRate >= 90 ? '🔥' : attendRate >= 75 ? '💪' : attendRate >= 50 ? '📈' : '💛') : '🌱'
+          const hasPercentile = previewCard.percentile_rank !== null && previewCard.percentile_rank !== undefined
+          const topPct = hasPercentile ? 100 - previewCard.percentile_rank : null
+          const instrumentLabel = previewCard.instrument || 'Music'
 
-        return (
-          <div className="modal-overlay" onClick={() => setPreviewCard(null)}>
-            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, overflow: 'hidden' }}>
+          return (
+            <>
               {/* Header with instrument emoji and gradient accent */}
               <div style={{ padding: '24px 24px 16px', background: 'linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(56,189,248,0.06) 100%)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ fontSize: 36, lineHeight: 1 }}>{instrEmoji}</div>
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progress Report</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginTop: 2 }}>{previewCard.instrument} with {previewCard.teacher_name}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginTop: 2 }}>{instrumentLabel} with {previewCard.teacher_name}</div>
                   </div>
                 </div>
               </div>
 
               <div style={{ padding: '20px 24px 24px' }}>
-                {/* Big stat cards — 2x2 grid */}
+                {/* Big stat cards — dynamic grid based on available data */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
-                  {/* Attendance */}
                   <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.12)', textAlign: 'center' }}>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: '#22C55E', lineHeight: 1 }}>{attendRate}%</div>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: '#22C55E', lineHeight: 1 }}>{hasAttendance ? `${attendRate}%` : '—'}</div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#22C55E', marginTop: 4 }}>{attendEmoji} {attendLabel}</div>
                     <div style={{ fontSize: 10, color: '#8080A8', marginTop: 2 }}>Attendance Rate</div>
                   </div>
-
-                  {/* Ranking */}
-                  <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(212,34,106,0.06)', border: '1px solid rgba(212,34,106,0.12)', textAlign: 'center' }}>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: '#D4226A', lineHeight: 1 }}>Top {topPct}%</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#D4226A', marginTop: 4 }}>{topPct <= 10 ? '🏆' : topPct <= 25 ? '⭐' : '🎯'} {topPct <= 10 ? 'Elite' : topPct <= 25 ? 'Excellent' : 'Great'}</div>
-                    <div style={{ fontSize: 10, color: '#8080A8', marginTop: 2 }}>Family Ranking</div>
-                  </div>
-
-                  {/* Sessions */}
-                  <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.12)', textAlign: 'center' }}>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: '#FFB800', lineHeight: 1 }}>{previewCard.attended_sessions_period}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#FFB800', marginTop: 4 }}>🎶 Sessions</div>
-                    <div style={{ fontSize: 10, color: '#8080A8', marginTop: 2 }}>This Period</div>
-                  </div>
-
-                  {/* Months */}
+                  {hasPercentile ? (
+                    <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(212,34,106,0.06)', border: '1px solid rgba(212,34,106,0.12)', textAlign: 'center' }}>
+                      <div style={{ fontSize: 28, fontWeight: 900, color: '#D4226A', lineHeight: 1 }}>Top {topPct}%</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#D4226A', marginTop: 4 }}>{topPct! <= 10 ? '🏆' : topPct! <= 25 ? '⭐' : '🎯'} {topPct! <= 10 ? 'Elite' : topPct! <= 25 ? 'Excellent' : 'Great'}</div>
+                      <div style={{ fontSize: 10, color: '#8080A8', marginTop: 2 }}>Student Ranking</div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.12)', textAlign: 'center' }}>
+                      <div style={{ fontSize: 28, fontWeight: 900, color: '#FFB800', lineHeight: 1 }}>{previewCard.attended_sessions_period}/{previewCard.total_sessions_period}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#FFB800', marginTop: 4 }}>🎶 Attended</div>
+                      <div style={{ fontSize: 10, color: '#8080A8', marginTop: 2 }}>This Period</div>
+                    </div>
+                  )}
+                  {hasPercentile && (
+                    <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.12)', textAlign: 'center' }}>
+                      <div style={{ fontSize: 28, fontWeight: 900, color: '#FFB800', lineHeight: 1 }}>{previewCard.attended_sessions_period}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#FFB800', marginTop: 4 }}>🎶 Sessions</div>
+                      <div style={{ fontSize: 10, color: '#8080A8', marginTop: 2 }}>This Period</div>
+                    </div>
+                  )}
                   <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.12)', textAlign: 'center' }}>
                     <div style={{ fontSize: 28, fontWeight: 900, color: '#38BDF8', lineHeight: 1 }}>{previewCard.months_enrolled}</div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', marginTop: 4 }}>📅 {previewCard.months_enrolled === 1 ? 'Month' : 'Months'}</div>
@@ -242,10 +420,10 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
                   </div>
                 )}
 
-                {/* AI summary — kept short */}
+                {/* AI summary — emoji-led lines */}
                 {previewCard.ai_summary && (
                   <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', marginBottom: 18 }}>
-                    <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.8, whiteSpace: 'pre-line' }}>
                       {previewCard.ai_summary}
                     </div>
                   </div>
@@ -271,10 +449,114 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
                   </button>
                 </div>
               </div>
+            </>
+          )
+        })()}
+      </PortalModal>
+
+      {/* ── Bulk Confirm Modal (Portal) ── */}
+      <PortalModal open={bulkConfirmOpen} onClose={() => setBulkConfirmOpen(false)} maxWidth={480}>
+        <div style={{ padding: '24px' }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4', marginBottom: 8 }}>
+            Generate Cards for {selectedIds.size} Student{selectedIds.size !== 1 ? 's' : ''}
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 16, padding: '8px 0' }}>
+            {visibleQueue.filter(s => selectedIds.has(s.id)).map(s => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <Check size={12} style={{ color: '#22C55E', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: '#E0E0F4', fontWeight: 600 }}>{s.name}</span>
+                <span style={{ fontSize: 11, color: '#8080A8' }}>{s.instrument}</span>
+                <div style={{ flex: 1 }} />
+                <LocBadge name={s.locationName} />
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 20 }}>
+            This will generate and send a progress value card to each selected student's family.
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setBulkConfirmOpen(false)}
+              style={{ padding: '10px 20px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', fontWeight: 600, fontSize: 13, cursor: 'pointer', minHeight: 44 }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleBulkGenerate}
+              style={{
+                padding: '10px 24px', borderRadius: 10, border: 'none',
+                background: 'linear-gradient(135deg, #D4226A, #A333FF)',
+                color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', minHeight: 44,
+              }}
+            >
+              Confirm & Send
+            </button>
+          </div>
+        </div>
+      </PortalModal>
+
+      {/* ── Bulk Progress Modal (Portal) ── */}
+      <PortalModal open={!!bulkProgress} onClose={() => {}} maxWidth={400}>
+        {bulkProgress && (
+          <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+            <Loader2 size={32} style={{ color: '#D4226A', animation: 'spin 1s linear infinite', marginBottom: 16 }} />
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4', marginBottom: 8 }}>
+              Sending to {bulkProgress.name}...
+            </div>
+            <div style={{ fontSize: 12, color: '#8080A8' }}>
+              {bulkProgress.current} of {bulkProgress.total}
+            </div>
+            <div style={{ marginTop: 12, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, #D4226A, #A333FF)', width: `${(bulkProgress.current / bulkProgress.total) * 100}%`, transition: 'width 300ms ease' }} />
             </div>
           </div>
-        )
-      })()}
+        )}
+      </PortalModal>
+
+      {/* ── Bulk Result Modal (Portal) ── */}
+      <PortalModal open={!!bulkResult} onClose={() => setBulkResult(null)} maxWidth={440}>
+        {bulkResult && (
+          <div style={{ padding: '24px' }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#22C55E', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Check size={20} /> Cards Sent
+            </div>
+            {bulkResult.successes.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 6 }}>
+                  Cards requested for {bulkResult.successes.length} student{bulkResult.successes.length !== 1 ? 's' : ''}
+                </div>
+                <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.6 }}>
+                  {bulkResult.successes.join(', ')}
+                </div>
+              </div>
+            )}
+            {bulkResult.failures.length > 0 && (
+              <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#EF4444', marginBottom: 4 }}>
+                  {bulkResult.failures.length} failed:
+                </div>
+                {bulkResult.failures.map((f, i) => (
+                  <div key={i} style={{ fontSize: 11, color: '#EF4444', padding: '2px 0' }}>
+                    {f.name}: {f.error}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setBulkResult(null)}
+                style={{
+                  padding: '10px 24px', borderRadius: 10, border: 'none',
+                  background: 'linear-gradient(135deg, #D4226A, #A333FF)',
+                  color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', minHeight: 44,
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </PortalModal>
 
       {/* B) Google Review Requests */}
       <div style={{ marginBottom: 32 }}>
