@@ -39,6 +39,12 @@ const SignupLanding = lazy(() => import('../pages/SignupLanding'))
 const ThankYou = lazy(() => import('../pages/ThankYou'))
 const FamilyPortal = lazy(() => import('../pages/family/FamilyPortal'))
 
+// Public funnel pages
+const VSLPage = lazy(() => import('../pages/public/VSLPage'))
+const LeadCaptureFormPage = lazy(() => import('../pages/public/LeadCaptureFormPage'))
+const CardCapturePage = lazy(() => import('../pages/public/CardCapturePage'))
+const OnboardingWizardPage = lazy(() => import('../pages/public/OnboardingWizardPage'))
+
 // Shells (loaded eagerly — they're the layout)
 import AdminShell from '../components/layout/AdminShell'
 import TeacherShell from '../components/layout/TeacherShell'
@@ -113,6 +119,11 @@ export default function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/intake/:slug" element={<Intake />} />
             <Route path="/pay/:token" element={<PayInvoice />} />
+            {/* Public funnel — no auth required */}
+            <Route path="/start" element={<VSLPage />} />
+            <Route path="/get-started" element={<LeadCaptureFormPage />} />
+            <Route path="/trial" element={<CardCapturePage />} />
+            <Route path="/onboarding" element={<OnboardingWizardPage />} />
             {/* ── Location-specific nested routes ── */}
             {/* /omaha, /gretna, /bellevue, /elkhorn + instrument sub-routes */}
             {(['omaha', 'gretna', 'bellevue', 'elkhorn'] as LocKey[]).map(loc => (

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useQuery } from '@tanstack/react-query'
@@ -73,6 +74,39 @@ export default function Dashboard() {
     },
     staleTime: 1000 * 60 * 5,
   })
+
+  // Onboarding insight modal
+  const [insightModal, setInsightModal] = useState<{ id: string; content: string } | null>(null)
+  const { profile } = useAuthContext()
+
+  useEffect(() => {
+    if (!profile?.id || !tenantId) return
+    const checkInsight = async () => {
+      try {
+        const { data: rows } = await supabase
+          .from('ai_conversations')
+          .select('id, content, metadata')
+          .eq('tenant_id', tenantId)
+          .eq('profile_id', profile.id)
+          .eq('role', 'assistant')
+          .order('created_at', { ascending: false })
+          .limit(10)
+        const insight = rows?.find((r: any) => r.metadata?.type === 'onboarding_insight' && !r.metadata?.shown)
+        if (insight) setInsightModal({ id: insight.id, content: insight.content })
+      } catch { /* silent */ }
+    }
+    checkInsight()
+  }, [profile?.id, tenantId])
+
+  const dismissInsight = async () => {
+    if (insightModal) {
+      try {
+        const { data: row } = await supabase.from('ai_conversations').select('metadata').eq('id', insightModal.id).single()
+        await supabase.from('ai_conversations').update({ metadata: { ...row?.metadata, shown: true } }).eq('id', insightModal.id)
+      } catch { /* silent */ }
+    }
+    setInsightModal(null)
+  }
 
   if (isLoading || !data) {
     return (
@@ -331,6 +365,60 @@ export default function Dashboard() {
       {/* 5. Tasks — 2 tasks max on dashboard */}
       <TaskCenter compact limit={2} />
       </IssueContextProvider>
+
+      {/* Star Onboarding Insight Modal */}
+      {insightModal && (
+        <div className="modal-overlay" onClick={dismissInsight}>
+          <div
+            className="modal"
+            style={{ maxWidth: 480, animation: 'slideUpInsight 300ms ease', textAlign: 'center' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <style>{`
+              @keyframes slideUpInsight {
+                from { opacity: 0; transform: translateY(40px); }
+                to { opacity: 1; transform: translateY(0); }
+              }
+            `}</style>
+            <div style={{ padding: '32px 28px 28px' }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%', margin: '0 auto 20px',
+                background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="32" height="32" viewBox="0 0 28 28" fill="none">
+                  <path d="M14 4l3.1 6.2 6.9 1-5 4.9 1.2 6.6L14 19.5l-6.2 3.2 1.2-6.6-5-4.9 6.9-1L14 4z" fill="#D4226A" />
+                </svg>
+              </div>
+              <p style={{
+                fontSize: 16, lineHeight: 1.65, color: '#E8E8FC', fontWeight: 500,
+                margin: '0 0 28px',
+              }}>
+                {insightModal.content}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  className="btn-primary"
+                  style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 14 }}
+                  onClick={() => {
+                    dismissInsight()
+                    window.dispatchEvent(new CustomEvent('open-ai-panel'))
+                  }}
+                >
+                  <Star size={14} /> Ask Star about your studio →
+                </button>
+                <button
+                  className="btn-ghost"
+                  style={{ width: '100%', justifyContent: 'center', padding: '10px 16px' }}
+                  onClick={dismissInsight}
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

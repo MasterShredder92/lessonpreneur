@@ -41,6 +41,7 @@ interface MobileScheduleProps {
   utilization?: UtilizationItem[]
   onStarOpen?: () => void
   starOpen?: boolean
+  teacherAvailability?: Map<string, { start: string; end: string }> | null
 }
 
 const BLOCK_COLORS: Record<string, { bg: string; dark: boolean }> = {
@@ -67,7 +68,7 @@ const LEGEND_ITEMS = [
   { type: 'teacher_training', label: 'Training' },
 ]
 
-export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime, onBlockClick, onOpenSlotClick, onDragDrop, locations, selectedLocation, onLocationChange, selectedDate, onNavigateDate, utilization, onStarOpen, starOpen }: MobileScheduleProps) {
+export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime, onBlockClick, onOpenSlotClick, onDragDrop, locations, selectedLocation, onLocationChange, selectedDate, onNavigateDate, utilization, onStarOpen, starOpen, teacherAvailability }: MobileScheduleProps) {
   const [focusedTeacher, setFocusedTeacher] = useState<string | null>(null)
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
@@ -85,6 +86,25 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
   for (const b of blocks) {
     if (!blockLookup.has(b.teacher_id)) blockLookup.set(b.teacher_id, new Map())
     blockLookup.get(b.teacher_id)!.set(b.start_time, b)
+  }
+
+  // Check if a time is outside a teacher's availability
+  const isTeacherUnavailable = (teacherId: string, time: string): string | null => {
+    if (!teacherAvailability || !teacherAvailability.has(teacherId)) return null
+    const avail = teacherAvailability.get(teacherId)!
+    const [h, m] = time.split(':').map(Number)
+    const mins = h * 60 + m
+    const [sh, sm] = avail.start.split(':').map(Number)
+    const [eh, em] = avail.end.split(':').map(Number)
+    const startMins = sh * 60 + sm
+    const endMins = eh * 60 + em
+    if (mins < startMins) {
+      const startH = sh > 12 ? sh - 12 : sh
+      const startAmPm = sh >= 12 ? 'pm' : 'am'
+      return `Not until ${startH}:${String(sm).padStart(2, '0')}${startAmPm}`
+    }
+    if (mins >= endMins) return 'Done'
+    return null
   }
 
   // Current time slot index for highlighting
@@ -276,7 +296,8 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
             const slotMin = h * 60 + m
             const isCurrent = nowMinutes >= slotMin && nowMinutes < slotMin + 30
             const isOpen = !block || block.block_type === 'open_time'
-            const isDragOver = dragSource && dragOverSlot === slot && isOpen
+            const unavailMsg = isTeacherUnavailable(focusedTeacher, slot)
+            const isDragOver = dragSource && dragOverSlot === slot && isOpen && !unavailMsg
             const isDragging = dragSource?.start_time === slot
 
             return (
@@ -291,7 +312,15 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
 
                 {/* Block */}
                 <div data-slot={slot} style={{ flex: 1, padding: '4px 0' }}>
-                  {isOpen ? (
+                  {isOpen && unavailMsg ? (
+                    <div style={{
+                      height: '100%', minHeight: 44, borderRadius: 6,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'rgba(72,72,112,0.03)',
+                    }}>
+                      <span style={{ fontSize: 10, color: '#363656', fontWeight: 500 }}>{unavailMsg}</span>
+                    </div>
+                  ) : isOpen ? (
                     <div
                       data-slot={slot}
                       onClick={() => { if (dragSource) return; const b = block ?? makeOpenBlock(slot); onOpenSlotClick(b) }}
@@ -576,6 +605,14 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
               {/* Time slot cells */}
               {timeSlots.map(slot => {
                 const block = teacherBlocks?.get(slot)
+                const unavailMsg = isTeacherUnavailable(t.id, slot)
+                if ((!block || block.block_type === 'open_time') && unavailMsg) {
+                  return (
+                    <div key={`${t.id}-${slot}`} style={{ height: rowH, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'height 150ms ease' }}>
+                      <span style={{ fontSize: 8, color: '#363656', fontWeight: 500 }}>{unavailMsg}</span>
+                    </div>
+                  )
+                }
                 if (!block || block.block_type === 'open_time') {
                   return (
                     <div key={`${t.id}-${slot}`} style={{ height: rowH, padding: '2px 1px', position: 'relative', transition: 'height 150ms ease' }}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../app/AuthContext'
+import StickyRevenueCounter from '../components/public/StickyRevenueCounter'
 
 /* ═══════════════════════════════════════════════════════
    LESSONPRENEUR — LANDING PAGE V2.1
@@ -31,6 +32,7 @@ export default function MarketingLanding() {
       <Styles />
       <BackgroundOrbs />
       <FloatingParticles />
+      <CtaParticleBurst />
       <Nav />
       <Hero />
       <CredibilityStrip />
@@ -51,6 +53,7 @@ export default function MarketingLanding() {
       <PricingSection />
       <FinalClose />
       <Footer />
+      <StickyRevenueCounter />
     </div>
   )
 }
@@ -90,6 +93,110 @@ function FloatingParticles() {
       ))}
     </div>
   )
+}
+
+function CtaParticleBurst() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const COLORS = ['#D4226A', '#FF5500', '#FFB800']
+    const MAX_PARTICLES = 150
+    const GRAVITY = 120
+    const particles: { x: number; y: number; vx: number; vy: number; r: number; color: string; life: number; maxLife: number }[] = []
+    let animId = 0
+    let lastTime = 0
+
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight }
+    resize()
+    window.addEventListener('resize', resize)
+
+    const spawn = (x: number, y: number, count: number, speed: number) => {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2
+        const v = speed * (0.4 + Math.random() * 0.6)
+        if (particles.length >= MAX_PARTICLES) particles.shift()
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * v,
+          vy: Math.sin(angle) * v,
+          r: 3 + Math.random() * 3,
+          color: COLORS[Math.floor(Math.random() * 3)],
+          life: 0.6,
+          maxLife: 0.6,
+        })
+      }
+    }
+
+    const handleClick = (e: MouseEvent) => {
+      const t = (e.target as Element).closest('.lp2-cta')
+      if (t) spawn(e.clientX, e.clientY, 25, 220)
+    }
+    const hoverSet = new WeakSet<Element>()
+    const handleMouseOver = (e: MouseEvent) => {
+      const t = (e.target as Element).closest('.lp2-cta')
+      if (t && !hoverSet.has(t)) {
+        hoverSet.add(t)
+        const r = (t as HTMLElement).getBoundingClientRect()
+        spawn(r.left + r.width / 2, r.top + r.height / 2, 8, 80)
+      }
+    }
+    const handleMouseOut = (e: MouseEvent) => {
+      const t = (e.target as Element).closest('.lp2-cta')
+      if (t) hoverSet.delete(t)
+    }
+    const handleTouch = (e: TouchEvent) => {
+      const t = (e.target as Element).closest('.lp2-cta')
+      if (t && e.touches[0]) {
+        spawn(e.touches[0].clientX, e.touches[0].clientY, 25, 220)
+        if (navigator.vibrate) navigator.vibrate(50)
+      }
+    }
+
+    document.addEventListener('click', handleClick, true)
+    document.addEventListener('mouseover', handleMouseOver, true)
+    document.addEventListener('mouseout', handleMouseOut, true)
+    document.addEventListener('touchstart', handleTouch, { passive: true })
+
+    const loop = (time: number) => {
+      const dt = lastTime ? Math.min((time - lastTime) / 1000, 0.05) : 0.016
+      lastTime = time
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i]
+        p.life -= dt
+        if (p.life <= 0) { particles.splice(i, 1); continue }
+        p.vy += GRAVITY * dt
+        p.x += p.vx * dt
+        p.y += p.vy * dt
+        const alpha = p.life / p.maxLife
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = p.color
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r * (0.5 + alpha * 0.5), 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.globalAlpha = 1
+      animId = requestAnimationFrame(loop)
+    }
+    animId = requestAnimationFrame(loop)
+
+    return () => {
+      cancelAnimationFrame(animId)
+      window.removeEventListener('resize', resize)
+      document.removeEventListener('click', handleClick, true)
+      document.removeEventListener('mouseover', handleMouseOver, true)
+      document.removeEventListener('mouseout', handleMouseOut, true)
+      document.removeEventListener('touchstart', handleTouch)
+    }
+  }, [])
+
+  return <canvas ref={canvasRef} aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 9999, pointerEvents: 'none' }} />
 }
 
 function Nav() {
@@ -177,6 +284,14 @@ function Hero() {
           </div>
           <div className="lp2-hero-phone">
             <HeroPhoneMock />
+          </div>
+          <div className="lp2-hero-badge">
+            <span className="lp2-hero-badge-dot" />
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <rect x="1" y="3" width="8.5" height="8" rx="1.5" fill="#D4226A"/>
+              <path d="M9.5 5.5L13 3.5v7l-3.5-2v-3Z" fill="#D4226A"/>
+            </svg>
+            Virtual Ready
           </div>
         </div>
       </div>
@@ -568,7 +683,7 @@ function ROICalculator() {
             <span className="lp2-roi-val">{students}</span>
           </div>
           <input id="roi-students" type="range" min={10} max={500} step={25} value={students}
-            onChange={e => setStudents(+e.target.value)}
+            onChange={e => { const v = +e.target.value; setStudents(v); window.dispatchEvent(new CustomEvent('lp:studentcount', { detail: v })) }}
             aria-label="Current number of students" className="lp2-roi-range"
             style={{ '--pct': `${((students - 10) / 490) * 100}%` } as React.CSSProperties} />
           <div className="lp2-roi-range-labels"><span>10</span><span>500</span></div>
@@ -1453,24 +1568,57 @@ function Styles() {
       position: relative; display: flex; align-items: flex-end; justify-content: center;
       gap: 0; max-width: 900px; margin: 0 auto;
     }
-    /* Mobile: show phone with dashboard peek, cropped with fade */
+    /* Mobile: laptop hidden, phone with fade crop, badge visible */
     .lp2-hero-laptop { display: none; }
     .lp2-hero-phone { max-height: 320px; overflow: hidden; mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent 100%); }
-    /* Desktop: side-by-side — copy left, devices right */
+    /* Desktop: copy left, devices right — laptop behind phone */
     @media (min-width: 768px) {
       .lp2-hero { padding: 90px 32px 40px; }
       .lp2-hero-content { display: flex; align-items: center; gap: 40px; }
       .lp2-hero-copy { text-align: left; flex: 0 0 48%; margin-bottom: 0; }
       .lp2-hero-copy .lp2-hero-sub { margin-left: 0; margin-right: 0; }
-      .lp2-hero-devices { flex: 1; margin: 0; }
-      .lp2-hero-laptop { display: block; flex: 1; max-width: 640px; transform: perspective(1400px) rotateY(3deg) rotateX(2deg); transition: transform 0.4s; }
+      .lp2-hero-devices { flex: 1; margin: 0; min-width: 0; }
+      .lp2-hero-laptop {
+        display: block; flex: 1 1 0%; min-width: 240px; max-width: 640px; z-index: 1;
+        transform: perspective(1400px) rotateY(3deg) rotateX(2deg);
+        transition: transform 0.4s;
+      }
       .lp2-hero-laptop:hover { transform: perspective(1400px) rotateY(0deg) rotateX(0deg); }
-      .lp2-hero-phone { flex: 0 0 160px; margin-left: -30px; margin-bottom: 10px; max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none; transform: perspective(1000px) rotateY(-5deg); transition: transform 0.4s; z-index: 2; }
+      .lp2-hero-phone {
+        flex: 0 0 160px; margin-left: -30px; margin-bottom: 10px; z-index: 2;
+        max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none;
+        transform: perspective(1000px) rotateY(-5deg); transition: transform 0.4s;
+      }
       .lp2-hero-phone:hover { transform: perspective(1000px) rotateY(0deg); }
     }
     @media (min-width: 1025px) {
       .lp2-hero-content { gap: 56px; }
       .lp2-hero-phone { flex: 0 0 200px; margin-left: -40px; }
+    }
+
+    /* ── Virtual Ready badge ── */
+    .lp2-hero-badge {
+      position: absolute; top: -8px; right: 8px; z-index: 10;
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px 5px 8px; border-radius: 999px;
+      background: rgba(16,14,30,0.92); border: 1px solid rgba(212,34,106,0.3);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 12px rgba(212,34,106,0.1);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      font-size: 11px; font-weight: 700; color: #E8E8FC;
+      letter-spacing: 0.02em; white-space: nowrap;
+    }
+    .lp2-hero-badge-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #22C55E;
+      box-shadow: 0 0 6px rgba(34,197,94,0.6);
+      animation: lp2BadgePulse 2s ease-in-out infinite;
+    }
+    @keyframes lp2BadgePulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
+      50% { opacity: 0.5; box-shadow: 0 0 12px rgba(34,197,94,0.9); }
+    }
+    @media (min-width: 768px) {
+      .lp2-hero-badge { top: -12px; right: 30px; font-size: 12px; padding: 6px 14px 6px 10px; }
     }
 
     /* ── Andrea testimonial (above pricing) ── */
@@ -1488,7 +1636,7 @@ function Styles() {
 
     /* ── Hero Laptop Mock ── */
     .lp2-hlaptop {
-      border-radius: 12px 12px 0 0; overflow: hidden; background: #0A0A14;
+      width: 100%; border-radius: 12px 12px 0 0; overflow: hidden; background: #0A0A14;
       border: 1px solid rgba(255,255,255,0.1); border-bottom: none;
       box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 60px rgba(212,34,106,0.1);
     }

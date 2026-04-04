@@ -75,11 +75,11 @@ export default function FloatingIssueReporter() {
         reported_screen_height: window.innerHeight,
       })
       if (error) throw error
-      toast.success('Issue reported — thank you!')
+      toast('Issue reported — thank you!', 'success')
       resetForm()
       setOpen(false)
     } catch {
-      toast.error('Failed to submit issue. Please try again.')
+      toast('Failed to submit issue. Please try again.', 'error')
     } finally {
       setSubmitting(false)
     }

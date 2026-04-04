@@ -817,6 +817,7 @@ export default function Schedule() {
           utilization={scheduleIntel?.utilization ?? []}
           onStarOpen={() => setStarOpen(!starOpen)}
           starOpen={starOpen}
+          teacherAvailability={teacherAvailability}
         />
       ) : isLoading ? (
         <div className="loading-screen" style={{ height: 400 }}><MusicLoader /></div>
@@ -1599,8 +1600,11 @@ export default function Schedule() {
 
       {starOpen && (
         <div style={{
-          position: 'fixed', bottom: 80, right: 24, zIndex: 9999,
-          width: 380, maxHeight: '60vh', borderRadius: 16,
+          position: 'fixed', zIndex: 9999,
+          ...(isMobile
+            ? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'calc(100vw - 32px)', maxWidth: 380, maxHeight: '70vh' }
+            : { bottom: 80, right: 24, width: 380, maxHeight: '60vh' }),
+          borderRadius: 16,
           background: '#141224', border: '1px solid rgba(212,34,106,0.2)',
           boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(212,34,106,0.06)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -1616,9 +1620,12 @@ export default function Schedule() {
                 <div style={{ fontSize: 10, color: '#A0A0C8' }}>Schedule Assistant</div>
               </div>
             </div>
-            {starMessages.length > 0 && (
-              <button onClick={starClear} style={{ fontSize: 10, color: '#8080A8', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {starMessages.length > 0 && (
+                <button onClick={starClear} style={{ fontSize: 10, color: '#8080A8', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
+              )}
+              <button onClick={() => setStarOpen(false)} style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}><X size={16} /></button>
+            </div>
           </div>
 
           {/* Messages */}
