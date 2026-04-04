@@ -661,6 +661,10 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 @media (max-width: 640px) {
   .sd-row-3, .sd-row-2 { grid-template-columns: 1fr; }
 }
+.session-tracker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 640px) {
+  .session-tracker-grid { grid-template-columns: 1fr 1fr; }
+}
 
 /* AI MATCH */
 .ai-match-section { padding: 0 20px 16px; }

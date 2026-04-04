@@ -26,6 +26,10 @@ export interface TeacherBlock {
   // Session note state
   has_session_note: boolean
   session_note_id: string | null
+  is_family_callout: boolean
+  is_makeup_session: boolean
+  makeup_session_id: string | null
+  callout_id: string | null
 }
 
 export function useTeacherDayBlocks(date: string) {
@@ -40,7 +44,7 @@ export function useTeacherDayBlocks(date: string) {
       // Get all blocks for this teacher on this date
       const { data: blocks, error } = await supabase
         .from('schedule_blocks')
-        .select('id, student_id, block_date, start_time, end_time, status, block_type, checked_in, room, room_id, notes, location_id')
+        .select('id, student_id, block_date, start_time, end_time, status, block_type, checked_in, room, room_id, notes, location_id, is_family_callout, is_makeup_session, makeup_session_id, callout_id')
         .eq('teacher_id', teacherId)
         .eq('block_date', date)
         .order('start_time')
@@ -117,6 +121,10 @@ export function useTeacherDayBlocks(date: string) {
           session_log_id: logMap.get(b.id) ?? null,
           has_session_note: noteMap.has(b.id),
           session_note_id: noteMap.get(b.id) ?? null,
+          is_family_callout: b.is_family_callout ?? false,
+          is_makeup_session: b.is_makeup_session ?? false,
+          makeup_session_id: b.makeup_session_id ?? null,
+          callout_id: b.callout_id ?? null,
         }
       })
     },

@@ -822,7 +822,12 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                         background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
                         display: 'flex', alignItems: 'center', gap: 10,
                       }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4', flex: 1, minWidth: 0, overflowWrap: 'break-word' }}>{s.first_name} {s.last_name}</span>
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4', overflowWrap: 'break-word' }}>{s.first_name} {s.last_name}</span>
+                          {s.student_display_id && (
+                            <span style={{ fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', color: '#606088', fontWeight: 600 }}>{s.student_display_id}</span>
+                          )}
+                        </div>
                         <span style={{ fontSize: 12, color: '#A0A0C8', flexShrink: 0 }}>{s.instrument ? getInstrumentEmoji(s.instrument) : ''}</span>
                         <span style={{ fontSize: 11, color: '#8080A8', flexShrink: 0 }}>{s.teacher_name}</span>
                         <ChevronRight size={12} style={{ color: '#363656', flexShrink: 0 }} />
@@ -1123,7 +1128,12 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                           background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
                           display: 'flex', alignItems: 'center', gap: 12, opacity: isActive ? 1 : 0.5,
                         }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', flex: 1 }}>{s.first_name} {s.last_name}</span>
+                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.first_name} {s.last_name}</span>
+                            {s.student_display_id && (
+                              <span style={{ fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', color: '#606088', fontWeight: 600 }}>{s.student_display_id}</span>
+                            )}
+                          </div>
                           <span style={{ fontSize: 11, color: '#A0A0C8', padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                           <span style={{ fontSize: 11, color: '#A0A0C8' }}>{s.teacher_name}</span>
                           <span style={{ fontSize: 10, color: '#A0A0C8' }}>{s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH} sessions</span>
@@ -1158,7 +1168,12 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                                 padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)',
                                 border: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 12, opacity: 0.7,
                               }}>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8', flex: 1 }}>{s.first_name} {s.last_name}</span>
+                                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8' }}>{s.first_name} {s.last_name}</span>
+                                  {s.student_display_id && (
+                                    <span style={{ fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', color: '#606088', fontWeight: 600 }}>{s.student_display_id}</span>
+                                  )}
+                                </div>
                                 <span style={{ fontSize: 11, color: '#8080A8' }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                                 {pausedAgo != null && <span style={{ fontSize: 10, color: '#606088' }}>{pausedAgo}mo ago</span>}
                                 {(s as any).pause_reason && <span style={{ fontSize: 10, color: '#606088' }}>{(s as any).pause_reason}</span>}

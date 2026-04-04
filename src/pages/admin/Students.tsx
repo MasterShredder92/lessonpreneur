@@ -408,6 +408,11 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
                   {/* Row 1: Name · Age */}
                   <div className="student-card-m-row">
                     <span className="student-card-m-name">{s.first_name} {s.last_name}</span>
+                    {(s as any).student_display_id && (
+                      <span style={{ fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', color: '#606088', fontWeight: 600 }}>
+                        {(s as any).student_display_id}
+                      </span>
+                    )}
                     <span className="student-card-m-age">{(s as any).age ? `Age ${(s as any).age}` : ''}</span>
                     {(() => {
                       const risk = riskMap.get(s.id)
@@ -487,6 +492,11 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
                         return <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: t.bg, color: t.color }}>{t.label} ({risk.score})</span>
                       })()}
                     </div>
+                    {(s as any).student_display_id && (
+                      <span style={{ fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', color: '#606088', fontWeight: 600, marginTop: 2 }}>
+                        {(s as any).student_display_id}
+                      </span>
+                    )}
                     <span style={{ fontSize: 13, color: '#A0A0C8', marginTop: 2 }}>Age {(s as any).age ?? '—'}</span>
                   </div>
 

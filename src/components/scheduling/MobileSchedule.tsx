@@ -50,6 +50,7 @@ const BLOCK_COLORS: Record<string, { bg: string; dark: boolean }> = {
   meet_greet:      { bg: '#D4226A', dark: true },
   sub:             { bg: '#22C55E', dark: false },
   call_out:        { bg: '#F97316', dark: false },
+  makeup_session:  { bg: '#FF6B6B', dark: true },
   last_day:        { bg: '#EF4444', dark: true },
   open_time:       { bg: 'rgba(255,255,255,0.04)', dark: true },
   not_bookable:    { bg: '#363656', dark: true },
@@ -62,6 +63,7 @@ const LEGEND_ITEMS = [
   { type: 'meet_greet', label: 'Meet & Greet' },
   { type: 'sub', label: 'Sub' },
   { type: 'call_out', label: 'Callout' },
+  { type: 'makeup_session', label: 'Makeup Session' },
   { type: 'last_day', label: 'Last Day' },
   { type: 'open_time', label: 'Open' },
   { type: 'not_bookable', label: 'Locked Times' },
@@ -354,8 +356,15 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                       <div style={{
                         fontSize: 14, fontWeight: 700,
                         color: BLOCK_COLORS[block!.block_type]?.dark ? '#fff' : '#1a1a2e',
+                        display: 'flex', alignItems: 'center', gap: 4,
                       }}>
-                        {block!.student_name ?? block!.block_type.replace(/_/g, ' ')}
+                        {block!.block_type === 'makeup_session' && <span style={{ fontSize: 13 }}>🌺</span>}
+                        {block!.block_type === 'call_out' && block!.is_family_callout && <span style={{ fontSize: 13 }}>👨‍👩‍👧</span>}
+                        {block!.block_type === 'makeup_session'
+                          ? `Makeup · ${block!.student_name ?? ''}`.trim()
+                          : block!.block_type === 'call_out' && block!.is_family_callout
+                            ? `Call Out — Family`
+                            : (block!.student_name ?? block!.block_type.replace(/_/g, ' '))}
                       </div>
                       {block!.instrument && (
                         <div title={block!.instrument} style={{
@@ -672,7 +681,11 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       maxWidth: '100%', textAlign: 'center', lineHeight: 1.2,
                     }}>
-                      {block.student_name ?? (block.block_type === 'not_bookable' ? 'Locked' : block.block_type.replace(/_/g, ' '))}
+                      {block.block_type === 'makeup_session'
+                        ? '🌺 Makeup'
+                        : block.block_type === 'call_out' && block.is_family_callout
+                          ? '👨‍👩‍👧 Family'
+                          : (block.student_name ?? (block.block_type === 'not_bookable' ? 'Locked' : block.block_type.replace(/_/g, ' ')))}
                     </div>
                     {isExpanded && block.instrument && (
                       <div title={block.instrument} style={{ fontSize: 13, marginTop: 1, textAlign: 'center' }}>

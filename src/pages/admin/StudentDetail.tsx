@@ -121,6 +121,74 @@ export default function StudentDetail() {
   const { data: allTeachers } = useTeachers()
   const unassignBlock = useUnassignBlock()
 
+  // Session Tracker: callouts + makeup sessions
+  const { data: sessionTracker } = useQuery({
+    queryKey: ['student-session-tracker', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const currentYear = new Date().getFullYear()
+
+      const { count: bankedCount } = await supabase
+        .from('makeup_sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('student_id', id!)
+        .eq('year', currentYear)
+
+      const { count: totalCalloutsCount } = await supabase
+        .from('student_callouts')
+        .select('id', { count: 'exact', head: true })
+        .eq('student_id', id!)
+
+      const { data: stuRow } = await supabase
+        .from('students')
+        .select('fifth_weeks_used')
+        .eq('id', id!)
+        .single()
+
+      const { data: callouts } = await supabase
+        .from('student_callouts')
+        .select('id, callout_date, schedule_block_id, makeup_session_id, created_at')
+        .eq('student_id', id!)
+        .order('callout_date', { ascending: false })
+        .limit(10)
+
+      // Get original session times
+      const blockIds = (callouts ?? []).map((c: any) => c.schedule_block_id).filter(Boolean)
+      const blockMap = new Map<string, string>()
+      if (blockIds.length > 0) {
+        const { data: blks } = await supabase
+          .from('schedule_blocks')
+          .select('id, start_time')
+          .in('id', blockIds)
+        blks?.forEach((b: any) => blockMap.set(b.id, b.start_time))
+      }
+
+      // Get makeup session dates
+      const makeupIds = (callouts ?? []).map((c: any) => c.makeup_session_id).filter(Boolean)
+      const makeupMap = new Map<string, { scheduled_date: string; status: string }>()
+      if (makeupIds.length > 0) {
+        const { data: mks } = await supabase
+          .from('makeup_sessions')
+          .select('id, scheduled_date, status')
+          .in('id', makeupIds)
+        mks?.forEach((m: any) => makeupMap.set(m.id, { scheduled_date: m.scheduled_date, status: m.status }))
+      }
+
+      return {
+        banked: bankedCount ?? 0,
+        used: (stuRow as any)?.fifth_weeks_used ?? 0,
+        totalCallouts: totalCalloutsCount ?? 0,
+        history: (callouts ?? []).map((c: any) => ({
+          id: c.id,
+          calloutDate: c.callout_date,
+          calledOutTime: c.schedule_block_id ? blockMap.get(c.schedule_block_id) ?? null : null,
+          makeupDate: c.makeup_session_id ? makeupMap.get(c.makeup_session_id)?.scheduled_date ?? null : null,
+          makeupStatus: c.makeup_session_id ? makeupMap.get(c.makeup_session_id)?.status ?? null : null,
+        })),
+      }
+    },
+  })
+
   // Student files
   const { data: studentFiles } = useQuery({
     queryKey: ['student-files', id],
@@ -244,9 +312,21 @@ export default function StudentDetail() {
                 <ReportIssueButton />
               </div>
             </div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.03em', margin: 0, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-              {student.first_name} {student.last_name}
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.03em', margin: 0, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                {student.first_name} {student.last_name}
+              </h1>
+              {(student as any).student_display_id && (
+                <span style={{
+                  fontSize: 11, fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                  padding: '3px 8px', borderRadius: 6,
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                  color: '#8080A8', letterSpacing: '0.02em', opacity: 0.85,
+                }}>
+                  {(student as any).student_display_id}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* ── Student Details ── */}
@@ -526,8 +606,8 @@ export default function StudentDetail() {
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 12px rgba(255,85,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 12 }}>Lesson Stats & 5th Week</span>
-            <div className="sd-inner-3" style={{ marginBottom: 12 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 12 }}>Lesson Stats</span>
+            <div className="sd-inner-3">
               <div>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Total Lessons</div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: '#E0E0F4' }}>{student.total_lessons_taken ?? 0}</div>
@@ -539,17 +619,6 @@ export default function StudentDetail() {
               <div>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Rate</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8' }}>${student.rate_per_session}/lesson</div>
-              </div>
-            </div>
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 8 }}>5th Week Balance</div>
-              <div style={{ display: 'flex', gap: 18 }}>
-                {[{ v: student.total_fifth_weeks ?? 0, l: 'Banked', c: '#E0E0F4' }, { v: student.total_callouts ?? 0, l: 'Used', c: '#E0E0F4' }, { v: (student.total_fifth_weeks ?? 0) - (student.total_callouts ?? 0), l: 'Balance', c: ((student.total_fifth_weeks ?? 0) - (student.total_callouts ?? 0)) >= 0 ? '#22C55E' : '#EF4444' }].map((s, i) => (
-                  <div key={i} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: s.c }}>{s.v}</div>
-                    <div style={{ fontSize: 8, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginTop: 1 }}>{s.l}</div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
@@ -573,6 +642,100 @@ export default function StudentDetail() {
           </p>
         </div>
       </div>
+
+      {/* Session Tracker — 4 stat cards + call-out history */}
+      {sessionTracker && (() => {
+        const balance = sessionTracker.banked - sessionTracker.used
+        const balancePositive = balance >= 0
+        const balanceColor = balancePositive ? '#22C55E' : '#EF4444'
+        const balancePrefix = balance > 0 ? '+' : balance < 0 ? '-' : ''
+        const balanceLabel = balance > 0 ? 'ahead' : balance < 0 ? 'over' : 'even'
+        const statCards = [
+          { emoji: '🌺', label: 'Banked', value: String(sessionTracker.banked), sub: 'makeup sessions', color: '#FF6B6B' },
+          { emoji: '✅', label: 'Used', value: String(sessionTracker.used), sub: 'sessions taken', color: '#E0E0F4' },
+          { emoji: '⚖️', label: 'Balance', value: `${balancePrefix}${Math.abs(balance)} ${balanceLabel}`, sub: '', color: balanceColor },
+          { emoji: '📋', label: 'Call-Outs', value: String(sessionTracker.totalCallouts), sub: 'this year', color: '#E0E0F4' },
+        ]
+        return (
+          <div className="location-card" style={{ padding: 18, marginBottom: 14, cursor: 'default' }}>
+            <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF6B6B, #E55353)', boxShadow: '0 0 12px rgba(255,107,107,0.4)' }} />
+            <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,107,107,0.05) 0%, transparent 70%)' }} />
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 12 }}>Session Tracker</div>
+              <div className="session-tracker-grid">
+                {statCards.map((c, i) => (
+                  <div key={i} style={{
+                    padding: '12px 14px', borderRadius: 10,
+                    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                    backdropFilter: 'blur(10px)',
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 14 }}>{c.emoji}</span>
+                      {c.label}
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'Plus Jakarta Sans, system-ui, sans-serif', color: c.color, lineHeight: 1.1 }}>
+                      {c.value}
+                    </div>
+                    {c.sub && <div style={{ fontSize: 11, color: '#606088', marginTop: 2 }}>{c.sub}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Call-out history */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 }}>Call-Out History</div>
+                {sessionTracker.history.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#606088', padding: '10px 0', fontStyle: 'italic' }}>No call-outs on record. 🌽</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ color: '#606088', textAlign: 'left' }}>
+                          <th style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '6px 8px 6px 0' }}>Date</th>
+                          <th style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '6px 8px' }}>Called Out</th>
+                          <th style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '6px 8px' }}>Makeup Banked For</th>
+                          <th style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '6px 0 6px 8px' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sessionTracker.history.map((h) => {
+                          const isCompleted = h.makeupStatus === 'completed'
+                          return (
+                            <tr key={h.id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                              <td style={{ padding: '8px 8px 8px 0', color: '#C0C0E0' }}>
+                                {new Date(h.calloutDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                              </td>
+                              <td style={{ padding: '8px', color: '#A0A0C8' }}>
+                                {h.calledOutTime ? formatTime(h.calledOutTime) : '—'}
+                              </td>
+                              <td style={{ padding: '8px', color: '#A0A0C8' }}>
+                                {h.makeupDate
+                                  ? new Date(h.makeupDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                  : <span style={{ color: '#606088' }}>—</span>}
+                              </td>
+                              <td style={{ padding: '8px 0 8px 8px' }}>
+                                {h.makeupDate ? (
+                                  isCompleted ? (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)' }}>Completed ✅</span>
+                                  ) : (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,184,0,0.12)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.25)' }}>Banked 🌺</span>
+                                  )
+                                ) : (
+                                  <span style={{ fontSize: 10, color: '#606088' }}>—</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Row 3: Director Notes + Teacher Notes — side by side */}
       <div className="sd-row-2">

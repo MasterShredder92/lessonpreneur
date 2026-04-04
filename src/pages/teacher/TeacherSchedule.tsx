@@ -8,7 +8,7 @@ import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
 import StudentProfileCard from '../../components/teacher/StudentProfileCard'
 import SessionNoteModal from '../../components/teacher/SessionNoteModal'
-import { Check, ChevronLeft, ChevronRight, Clock, User, FileText } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Clock, User, FileText, Info, X } from 'lucide-react'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -52,6 +52,7 @@ export default function TeacherSchedule() {
   const [noteModal, setNoteModal] = useState<{
     studentId: string; studentName: string; instrument: string | null; blockId: string; date: string
   } | null>(null)
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
 
   const navigate = (days: number) => {
     const d = new Date(selectedDate + 'T12:00:00')
@@ -63,6 +64,11 @@ export default function TeacherSchedule() {
   const studentBlocks = (blocks ?? []).filter(b => b.student_id && b.block_type !== 'call_out')
   const completedCount = studentBlocks.filter(b => b.has_session_log).length
   const totalCount = studentBlocks.length
+
+  // Family-initiated call-outs for this day — informational badges
+  const familyCallouts = (blocks ?? []).filter(
+    b => b.block_type === 'call_out' && b.is_family_callout && b.student_first_name && !dismissedAlerts.has(b.block_id)
+  )
 
   return (
     <div className="page" style={{ maxWidth: 580, margin: '0 auto', padding: '16px' }}>
@@ -97,6 +103,30 @@ export default function TeacherSchedule() {
         </div>
       )}
 
+      {/* Family call-out info badges (informational, dismissible) */}
+      {familyCallouts.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+          {familyCallouts.map(fc => (
+            <div key={fc.block_id} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8,
+              background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.2)',
+            }}>
+              <Info size={13} style={{ color: '#38BDF8', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: '#E0E0F4', flex: 1 }}>
+                <strong>{fc.student_first_name}</strong> called out {formatDateLabel(selectedDate).toLowerCase()} — family initiated
+              </span>
+              <button
+                onClick={() => setDismissedAlerts(prev => new Set(prev).add(fc.block_id))}
+                aria-label="Dismiss"
+                style={{ background: 'transparent', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 2, display: 'flex' }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <div style={{ padding: 40, textAlign: 'center' }}><MusicLoader /></div>
       ) : !blocks || blocks.length === 0 ? (
@@ -112,31 +142,44 @@ export default function TeacherSchedule() {
             if (!isStudent) {
               // Open time / call out — view only, dashed green for open
               const isOpen = block.block_type === 'open_time'
+              const isFamilyCallout = block.block_type === 'call_out' && block.is_family_callout
+              const label = isOpen
+                ? 'Open'
+                : isFamilyCallout
+                  ? `Call Out — Family${block.student_first_name ? ` · ${block.student_first_name}` : ''}`
+                  : block.block_type.replace(/_/g, ' ')
+              const color = isOpen ? '#22C55E' : isFamilyCallout ? '#F97316' : '#606088'
               return (
                 <div key={block.block_id} style={{
                   padding: '10px 14px', borderRadius: 10,
-                  background: isOpen ? 'rgba(34,197,94,0.02)' : 'rgba(255,255,255,0.02)',
-                  border: isOpen ? '1px dashed rgba(34,197,94,0.2)' : '1px solid rgba(255,255,255,0.04)',
-                  opacity: 0.6,
+                  background: isOpen ? 'rgba(34,197,94,0.02)' : isFamilyCallout ? 'rgba(249,115,22,0.04)' : 'rgba(255,255,255,0.02)',
+                  border: isOpen
+                    ? '1px dashed rgba(34,197,94,0.2)'
+                    : isFamilyCallout
+                      ? '1px solid rgba(249,115,22,0.18)'
+                      : '1px solid rgba(255,255,255,0.04)',
+                  opacity: isFamilyCallout ? 0.85 : 0.6,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Clock size={14} style={{ color: isOpen ? '#22C55E' : '#606088' }} />
-                    <span style={{ fontSize: 12, color: isOpen ? '#22C55E' : '#606088' }}>{formatTime(block.start_time)}</span>
-                    <span style={{ fontSize: 11, color: isOpen ? '#22C55E' : '#606088', fontStyle: 'italic' }}>
-                      {isOpen ? 'Open' : block.block_type.replace(/_/g, ' ')}
-                    </span>
+                    {isFamilyCallout ? <span style={{ fontSize: 12 }}>👨‍👩‍👧</span> : <Clock size={14} style={{ color }} />}
+                    <span style={{ fontSize: 12, color }}>{formatTime(block.start_time)}</span>
+                    <span style={{ fontSize: 11, color, fontStyle: 'italic' }}>{label}</span>
                   </div>
                 </div>
               )
             }
+
+            const isMakeup = block.block_type === 'makeup_session'
 
             return (
               <div key={block.block_id}>
                 {/* Session card */}
                 <div style={{
                   padding: '14px 16px', borderRadius: 12,
-                  background: isLogged ? 'rgba(34,197,94,0.04)' : isActive ? 'rgba(212,34,106,0.06)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isLogged ? 'rgba(34,197,94,0.15)' : isActive ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                  background: isMakeup
+                    ? 'rgba(255,107,107,0.08)'
+                    : isLogged ? 'rgba(34,197,94,0.04)' : isActive ? 'rgba(212,34,106,0.06)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${isMakeup ? 'rgba(255,107,107,0.3)' : isLogged ? 'rgba(34,197,94,0.15)' : isActive ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.06)'}`,
                   transition: 'all 150ms ease',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -155,8 +198,13 @@ export default function TeacherSchedule() {
 
                     {/* Info */}
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', display: 'flex', alignItems: 'center', gap: 6 }}>
                         {block.student_first_name ?? block.student_name}
+                        {isMakeup && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 6, background: 'rgba(255,107,107,0.18)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.35)' }}>
+                            Makeup 🌺
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 11, color: '#A0A0C8', marginTop: 1, display: 'flex', gap: 8, alignItems: 'center' }}>
                         <span>{formatTime(block.start_time)}</span>

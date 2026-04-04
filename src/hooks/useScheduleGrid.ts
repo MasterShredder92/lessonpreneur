@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { sendAppointmentNotification, buildBlockContext } from '../lib/appointmentNotifications'
 
-export type BlockType = 'open_time' | 'student_session' | 'first_day' | 'last_day' | 'not_bookable' | 'sub' | 'call_out' | 'meet_greet' | 'teacher_training'
+export type BlockType = 'open_time' | 'student_session' | 'first_day' | 'last_day' | 'not_bookable' | 'sub' | 'call_out' | 'meet_greet' | 'teacher_training' | 'makeup_session'
 
 export interface SessionLogSummary {
   id: string
@@ -42,6 +42,10 @@ export interface GridBlock {
   is_virtual: boolean
   meet_link: string | null
   meet_event_id: string | null
+  is_family_callout: boolean
+  callout_id: string | null
+  is_makeup_session: boolean
+  makeup_session_id: string | null
 }
 
 export function useScheduleGrid(date: string, locationId: string | null) {
@@ -56,7 +60,8 @@ export function useScheduleGrid(date: string, locationId: string | null) {
           block_date, start_time, end_time, status, block_type,
           is_recurring, checked_in, teacher_tally, fifth_week, room, room_id, notes,
           original_teacher_id, original_teacher_name,
-          is_virtual, meet_link, meet_event_id
+          is_virtual, meet_link, meet_event_id,
+          is_family_callout, callout_id, is_makeup_session, makeup_session_id
         `)
         .eq('block_date', date)
         .order('start_time')
@@ -167,6 +172,10 @@ export function useScheduleGrid(date: string, locationId: string | null) {
           is_virtual: b.is_virtual ?? false,
           meet_link: b.meet_link ?? null,
           meet_event_id: b.meet_event_id ?? null,
+          is_family_callout: b.is_family_callout ?? false,
+          callout_id: b.callout_id ?? null,
+          is_makeup_session: b.is_makeup_session ?? false,
+          makeup_session_id: b.makeup_session_id ?? null,
         }
       })
 

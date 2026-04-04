@@ -56,6 +56,7 @@ const EDGE_COLORS: Record<string, { bg: string; shadow: string; glow: string }> 
   call_out:         { bg: 'linear-gradient(180deg, #F97316, #EA580C)', shadow: '0 0 10px rgba(249,115,22,0.4)', glow: 'rgba(249,115,22,0.08)' },
   meet_greet:       { bg: 'linear-gradient(180deg, #14B8A6, #0D9488)', shadow: '0 0 10px rgba(20,184,166,0.4)', glow: 'rgba(20,184,166,0.08)' },
   teacher_training: { bg: 'linear-gradient(180deg, #6366F1, #4F46E5)', shadow: '0 0 10px rgba(99,102,241,0.4)', glow: 'rgba(99,102,241,0.08)' },
+  makeup_session:   { bg: 'linear-gradient(180deg, #FF6B6B, #E55353)', shadow: '0 0 10px rgba(255,107,107,0.4)', glow: 'rgba(255,107,107,0.08)' },
 }
 
 // Block types that count toward teacher lesson tally
@@ -707,7 +708,7 @@ export default function Schedule() {
             <button onClick={() => setShowLegend(!showLegend)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.08)', background: showLegend ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', color: '#A0A0C8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
               <span style={{ fontSize: 10, fontWeight: 600, color: '#8080A8' }}>Legend:</span>
               <div style={{ display: 'flex', gap: 3 }}>
-                {['#FACC15','#38BDF8','#DC0000','#FF5500','#FF1493','#22C55E','#818CF8'].map(c => (
+                {['#FACC15','#38BDF8','#DC0000','#FF5500','#FF6B6B','#FF1493','#22C55E','#818CF8'].map(c => (
                   <div key={c} style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
                 ))}
               </div>
@@ -719,7 +720,7 @@ export default function Schedule() {
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, padding: '10px 14px', background: '#1C1C2A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 140, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
                   {[
                     { label: 'Booked', color: '#FACC15' }, { label: 'First Day', color: '#38BDF8' }, { label: 'Last Day', color: '#DC0000' },
-                    { label: 'Call Out', color: '#FF5500' }, { label: 'Meet & Greet', color: '#FF1493' }, { label: 'Sub', color: '#22C55E' }, { label: 'Training', color: '#818CF8' }, { label: 'Locked Times', color: '#606088' },
+                    { label: 'Call Out', color: '#FF5500' }, { label: 'Makeup Session', color: '#FF6B6B' }, { label: 'Meet & Greet', color: '#FF1493' }, { label: 'Sub', color: '#22C55E' }, { label: 'Training', color: '#818CF8' }, { label: 'Locked Times', color: '#606088' },
                   ].map((l) => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 12, height: 12, borderRadius: 4, background: l.color, flexShrink: 0 }} />
@@ -1080,12 +1081,13 @@ export default function Schedule() {
                     call_out: '#FF5500',
                     meet_greet: '#FF1493',
                     sub: '#22C55E',
+                    makeup_session: '#FF6B6B',
                   }
                   // Virtual override — teal #00BCD4
                   const isVirtual = block.is_virtual
                   const bgColor = isVirtual ? '#00BCD4' : (solidColors[bt] ?? '#FACC15')
                   // White text for dark backgrounds, dark text for light backgrounds
-                  const whiteBgTypes = new Set(['last_day', 'sub', 'call_out', 'meet_greet'])
+                  const whiteBgTypes = new Set(['last_day', 'sub', 'call_out', 'meet_greet', 'makeup_session'])
                   const useWhiteText = isVirtual || whiteBgTypes.has(bt)
                   const textColor = useWhiteText ? '#ffffff' : bt === 'first_day' ? '#072030' : '#111111'
                   const textColorMuted = useWhiteText ? 'rgba(255,255,255,0.65)' : bt === 'first_day' ? 'rgba(7,32,48,0.65)' : 'rgba(0,0,0,0.6)'
@@ -1094,6 +1096,13 @@ export default function Schedule() {
                   // Booked block — solid color fill, faded if checked in
                   const isCheckedIn = block.checked_in
                   const isPendingTally = block.checked_in && !block.teacher_tally
+                  const isFamilyCallout = bt === 'call_out' && block.is_family_callout
+                  const isMakeup = bt === 'makeup_session'
+                  const blockTitle = isFamilyCallout
+                    ? `${block.student_name ?? 'Student'} — Family initiated via parent portal on ${block.block_date}`
+                    : isMakeup
+                      ? `${block.student_name ?? 'Student'} — Makeup session (banked from prior call-out)`
+                      : undefined
                   return (
                     <div
                       key={`${time}-${t.id}`}
@@ -1101,6 +1110,7 @@ export default function Schedule() {
                       onDragStart={(e) => { setDragBlock(block); e.dataTransfer.effectAllowed = 'move' }}
                       onDragEnd={() => { setDragBlock(null); setDragOverTarget(null) }}
                       onClick={() => setCheckInBlock(block)}
+                      title={blockTitle}
                       style={{ height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', padding: '3px 4px', cursor: 'grab' }}
                     >
                       <div style={{
@@ -1110,15 +1120,28 @@ export default function Schedule() {
                         boxShadow: isCheckedIn ? 'none' : `0 2px 8px ${bgColor}40`,
                         border: isPendingTally ? `2px dashed ${bgColor}` : '2px solid transparent',
                         transition: 'transform 120ms, box-shadow 120ms',
+                        position: 'relative',
                       }}>
+                        {isFamilyCallout && (
+                          <span title="Family initiated via parent portal" style={{
+                            position: 'absolute', top: 2, right: 3, fontSize: 10, lineHeight: 1,
+                          }}>👨‍👩‍👧</span>
+                        )}
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '4px 6px', height: '100%', textAlign: 'center' }}>
                           <div style={{ fontWeight: 700, fontSize: '16px', color: textColor, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
-                            {block.student_name || 'Student'}
+                            {isMakeup
+                              ? <>Makeup 🌺</>
+                              : isFamilyCallout
+                                ? <>Call Out — Family</>
+                                : (block.student_name || 'Student')}
                           </div>
                           <div style={{ fontSize: '14px', color: textColorMuted, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                             {isVirtual && <span title="Virtual — Google Meet" style={{ fontSize: 12 }}>📹</span>}
                             {block.instrument && <span title={block.instrument} style={{ fontSize: 14 }}>{getInstrumentEmoji(block.instrument)}</span>}
                             {formatTime(block.start_time)}
+                            {(isMakeup || isFamilyCallout) && block.student_name && (
+                              <span style={{ fontSize: 11, opacity: 0.85 }}>· {block.student_name.split(' ')[0]}</span>
+                            )}
                             {block.has_session_log && <span title="Session logged" style={{ fontSize: 10, opacity: 0.8 }}>&#9998;</span>}
                           </div>
                         </div>

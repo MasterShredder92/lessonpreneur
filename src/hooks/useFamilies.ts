@@ -16,6 +16,7 @@ export interface FamilyStudent {
   status: string
   teacher_id: string | null
   teacher_name?: string
+  student_display_id?: string | null
   sessions_per_month?: number
   pause_reason?: string | null
   deactivated_at?: string | null
@@ -99,7 +100,7 @@ export function useFamiliesPage() {
       // Get all students with teacher info
       const { data: students } = await supabase
         .from('students')
-        .select('id, family_id, first_name, last_name, instrument, status, teacher_id')
+        .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id')
         .order('last_name')
 
       // Get teacher names
