@@ -190,6 +190,34 @@ export default function TeacherMobileTabBar() {
               </button>
             </div>
 
+            {/* User profile + Sign Out at top */}
+            {profile && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '8px 20px 16px', borderBottom: '0.5px solid rgba(255,255,255,0.08)',
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#E0E0F4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {profile.first_name} {profile.last_name}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#606088', marginTop: 2 }}>Teacher</div>
+                </div>
+                <button
+                  onClick={() => { signOut(); setMoreOpen(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    minHeight: 44, padding: '0 16px', borderRadius: 10,
+                    background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
+                    color: '#D4226A', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    WebkitTapHighlightColor: 'transparent', flexShrink: 0,
+                  }}
+                >
+                  <LogOut size={15} />
+                  Sign Out
+                </button>
+              </div>
+            )}
+
             <div style={{ padding: '0 20px' }}>
               {/* Documents */}
               <button
@@ -197,7 +225,6 @@ export default function TeacherMobileTabBar() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 14, width: '100%',
                   padding: '14px 0', background: 'none', border: 'none',
-                  borderBottom: '0.5px solid rgba(255,255,255,0.04)',
                   cursor: 'pointer', color: '#C0C0E0',
                   WebkitTapHighlightColor: 'transparent',
                 }}
@@ -206,31 +233,7 @@ export default function TeacherMobileTabBar() {
                 <span style={{ fontSize: 15, fontWeight: 600, flex: 1, textAlign: 'left' }}>My Documents</span>
                 <ChevronRight size={16} style={{ color: '#363656' }} />
               </button>
-
-              {/* Sign Out */}
-              <button
-                onClick={() => { signOut(); setMoreOpen(false) }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14, width: '100%',
-                  padding: '14px 0', background: 'none', border: 'none',
-                  cursor: 'pointer', color: '#C0C0E0',
-                  WebkitTapHighlightColor: 'transparent',
-                }}
-              >
-                <LogOut size={20} style={{ color: '#8080A8', flexShrink: 0 }} />
-                <span style={{ fontSize: 15, fontWeight: 600, flex: 1, textAlign: 'left' }}>Sign Out</span>
-              </button>
             </div>
-
-            {/* User info */}
-            {profile && (
-              <div style={{ padding: '16px 20px 0', borderTop: '0.5px solid rgba(255,255,255,0.04)', marginTop: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8' }}>
-                  {profile.first_name} {profile.last_name}
-                </div>
-                <div style={{ fontSize: 11, color: '#606088' }}>Teacher</div>
-              </div>
-            )}
           </div>
         </div>,
         document.body

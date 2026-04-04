@@ -5,6 +5,7 @@ import { useSiteLocation } from '../hooks/useSiteLocation'
 import ReviewsSection from '../components/site/ReviewsSection'
 import SiteHeader from '../components/site/SiteHeader'
 import { useLocationTracking } from '../hooks/useLocationTracking'
+import { useLocationStats } from '../hooks/useLocationStats'
 import { trackInstrumentView } from '../lib/tracking'
 import './adkins.css'
 import './drums.css'
@@ -119,12 +120,7 @@ const SYNTH_FALLBACKS: Record<string, () => void> = {
 // COMPONENT
 // ═══════════════════════════════════════
 
-const LOC_RANKINGS: Record<LocKey, string> = {
-  omaha: '#2',
-  gretna: '#1',
-  bellevue: '#3',
-  elkhorn: '#6',
-}
+// LOC_RANKINGS removed — now pulled live from Supabase via useLocationStats
 
 export default function DrumsLanding() {
   const siteLoc = useSiteLocation()
@@ -135,6 +131,7 @@ export default function DrumsLanding() {
   const currentInstrument = pathname.split('/')[2] || 'drums'
 
   useLocationTracking(LD)
+  const locStats = useLocationStats(loc)
   useEffect(() => { trackInstrumentView('Drums') }, [])
 
   useEffect(() => {
@@ -274,13 +271,13 @@ export default function DrumsLanding() {
               <a className="ak-btnp" href={ENROLLMENT_URL} style={{ color: '#ffffff', position: 'relative', zIndex: 1 }}>Sign Up For Lessons Now {'\u{2192}'}</a>
             </div>
           </div>
-          <div className="ak-htrust">
-            <div className="ak-tstat"><div className="ak-tnum" style={{ color: LD.accentColor }}>{LOC_RANKINGS[loc]}</div><div className="ak-tlbl">Ranked in Nebraska</div></div>
-            <div className="ak-tdiv" />
-            <div className="ak-tstat"><div className="ak-tnum">650+</div><div className="ak-tlbl">Enrolled</div></div>
-            <div className="ak-tdiv" />
-            <div className="ak-tstat"><div className="ak-tnum">2,200+</div><div className="ak-tlbl">Taught Overall</div></div>
-          </div>
+          {locStats && (
+            <div className="ak-stat-row">
+              <div className="ak-stat-card"><div className="ak-stat-num">#{locStats.stateRank}</div><div className="ak-stat-lbl">Ranked in Nebraska</div></div>
+              <div className="ak-stat-card"><div className="ak-stat-num">{locStats.studentsEnrolled.toLocaleString()}+</div><div className="ak-stat-lbl">Enrolled</div></div>
+              <div className="ak-stat-card"><div className="ak-stat-num">{locStats.studentsTaughtTotal.toLocaleString()}+</div><div className="ak-stat-lbl">Taught Overall</div></div>
+            </div>
+          )}
         </div>
         <div className="dr-eq-strip">
           {eqBars.map((b, i) => (

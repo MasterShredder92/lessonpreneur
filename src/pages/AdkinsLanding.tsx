@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase as anon } from '../lib/supabase'
-import InstrumentTabBar from '../components/shared/InstrumentTabBar'
 import EnrollmentForm from '../components/enrollment/EnrollmentForm'
-import { usePublicTenantId } from '../hooks/usePublicTenantId'
+import CorneliusChat from '../components/site/CorneliusChat'
 import { useRouteLocationKey } from '../config/LocationContext'
-import { LOCATIONS, ALL_LOC_KEYS, LOC_TO_OPT, type LocKey } from '../config/locations'
+import { LOCATIONS, type LocKey } from '../config/locations'
 import { useLocationTracking } from '../hooks/useLocationTracking'
-import ReviewsSection from '../components/site/ReviewsSection'
+import { useLocationStats } from '../hooks/useLocationStats'
 import SiteHeader from '../components/site/SiteHeader'
 import './adkins.css'
 
@@ -26,25 +24,6 @@ function L(key: LocKey) {
   }
 }
 
-interface ChatStep {
-  id: string; type: 'single' | 'multi' | 'text' | 'contact'
-  q: (loc: LocKey, a: string[]) => string
-  opts?: string[]; placeholder?: string
-}
-
-const FLOWS: ChatStep[] = [
-  { id: 'who', type: 'single', q: (loc) => `Hey! I'm Cornelius \u{1F33D} Welcome to ${LOCATIONS[loc].fullName}! First things first — who are we signing up today?`, opts: ['My kid', 'Myself'] },
-  { id: 'age', type: 'single', q: (_, a) => a[0] === 'My kid' ? 'How old is your child?' : 'How old are you?', opts: ['Under 5', '5 – 10', '11 – 17', '18 – 25', '26 or older'] },
-  { id: 'instrument', type: 'multi', q: () => 'Which instruments are you interested in? Tap all that apply! \u{1F3B5}', opts: ['\u{1F3B9} Piano', '\u{1F3B8} Guitar', '\u{1F3A4} Vocals', '\u{1F941} Drums', '\u{1F3BB} Violin', 'Something else'] },
-  { id: 'experience', type: 'single', q: (_, a) => a[0] === 'My kid' ? 'What is their current experience level?' : 'What is your current experience level?', opts: ['None — total beginner', '1 – 2 years', '2 – 4 years', '4+ years'] },
-  { id: 'has_instrument', type: 'single', q: () => 'Does the student have their own instrument?', opts: ['Yes, they have one', 'No, not yet', 'Need help getting one', 'Not applicable'] },
-  { id: 'location', type: 'multi', q: () => 'Which location works best? Tap all that apply! \u{1F4CD}', opts: ['Bellevue (13th & Harlan)', 'Omaha (96th & L)', 'Gretna (203rd Hwy 370)', 'Elkhorn (204th & Hwy 6)'] },
-  { id: 'days', type: 'multi', q: () => 'What days work best for your schedule? Tap all that apply! \u{1F4C5}', opts: ['Mon 3:30–9pm', 'Tue 3:30–9pm', 'Wed 3:30–9pm', 'Thu 3:30–9pm', 'Sat 10am–3pm', 'Any of these work', 'None of these work'] },
-  { id: 'military', type: 'single', q: () => 'Is this student part of a military family?', opts: ['Yes', 'No'] },
-  { id: 'personality', type: 'text', q: (_, a) => { const who = a[0] === 'My kid' ? 'your child' : 'yourself'; return `Almost there! \u{1F3AF} This is where the magic happens — it is what locks in your compatibility score. Tell us a little about ${who}: personality, learning style, goals, anything that helps us find the perfect teacher.`; }, placeholder: 'e.g. My daughter is shy at first but loves performing. She wants to play Taylor Swift songs and eventually join a band...' },
-  { id: 'contact', type: 'contact', q: () => 'Perfect — we have everything we need to find your match. Last step: how do we reach you? We will get you set up to book your first lesson within 24 hours! \u{1F4F1}' },
-  { id: 'source', type: 'single', q: () => 'One last quick question — how did you hear about us?', opts: ['Facebook', 'Instagram', 'Google', 'Signage', 'Driving by', 'Referral', 'Other'] },
-]
 
 const HERO_REVIEWS: Record<LocKey, { text: string; name: string }> = {
   omaha: { text: 'We started with one child in guitar and loved the quality of teaching so much we have 3 kids in 4 different instruments!', name: 'Charles Burkett' },
@@ -92,32 +71,21 @@ function playNote() {
 // ═══════════════════════════════════════
 
 export default function AdkinsLanding() {
-  const tenantId = usePublicTenantId()
   const routeLocKey = useRouteLocationKey()
-  const navigate = useNavigate()
   const [loc, setLoc] = useState<LocKey>(routeLocKey ?? 'omaha')
   const [logos, setLogos] = useState<Record<string, string>>({})
-  const [tipOpen, setTipOpen] = useState(false)
   const [enrollOpen, setEnrollOpen] = useState(false)
   const [expandedInst, setExpandedInst] = useState<number | null>(null)
+  const [randomReviews, setRandomReviews] = useState<{ id: string; reviewer_name: string; text_cleaned: string }[]>([])
   const cardRef = useRef<HTMLDivElement>(null)
-  const enrollRef = useRef<HTMLElement>(null)
 
-  // Chat state
-  const [chatStep, setChatStep] = useState(0)
-  const [chatAnswers, setChatAnswers] = useState<string[]>([])
-  const [chatMsgs, setChatMsgs] = useState<{ from: 'bot' | 'usr'; text: string }[]>([{ from: 'bot', text: FLOWS[0].q('omaha', []) }])
-  const [multiSel, setMultiSel] = useState<string[]>([])
-  const [chatDone, setChatDone] = useState(false)
-  const [contactForm, setContactForm] = useState({ name: '', parent: '', phone: '', email: '' })
-  const [textInput, setTextInput] = useState('')
-  const msgsEndRef = useRef<HTMLDivElement>(null)
-  const locMountedRef = useRef(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   const LD = L(loc)
 
   // Fire correct GA4 + Meta Pixel for this location
   useLocationTracking(LOCATIONS[loc])
+  const locStats = useLocationStats(loc)
 
   // Dynamic SEO: page title + meta description per location
   useEffect(() => {
@@ -141,26 +109,43 @@ export default function AdkinsLanding() {
     })
   }, [])
 
+  // Fetch 3 random reviews for this location from Supabase
+  useEffect(() => {
+    let cancelled = false
+    async function fetchReviews() {
+      const locName = LOCATIONS[loc].name
+      // Try location-specific first
+      const { data: locData } = await anon
+        .from('reviews')
+        .select('id, reviewer_name, text_cleaned')
+        .ilike('location_name', `%${locName}%`)
+        .eq('is_active', true)
+      let pool = locData ?? []
+      // Backfill from all reviews if fewer than 3
+      if (pool.length < 3) {
+        const { data: allData } = await anon
+          .from('reviews')
+          .select('id, reviewer_name, text_cleaned')
+          .eq('is_active', true)
+        const ids = new Set(pool.map(r => r.id))
+        pool = [...pool, ...(allData ?? []).filter(r => !ids.has(r.id))]
+      }
+      // Fisher-Yates shuffle
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[pool[i], pool[j]] = [pool[j], pool[i]]
+      }
+      if (!cancelled) setRandomReviews(pool.slice(0, 3))
+    }
+    fetchReviews()
+    return () => { cancelled = true }
+  }, [loc])
+
   // Set CSS vars on location change
   useEffect(() => {
     const r = document.documentElement.style
     r.setProperty('--c', LD.c); r.setProperty('--cg', LD.cg); r.setProperty('--cl', LD.cl)
   }, [loc])
-
-  // Reset chat on location change (skip initial mount — chatMsgs already initialized)
-  useEffect(() => {
-    if (!locMountedRef.current) { locMountedRef.current = true; return }
-    setChatStep(0); setChatAnswers([]); setMultiSel([]); setChatDone(false)
-    setTextInput(''); setContactForm({ name: '', parent: '', phone: '', email: '' })
-    setChatMsgs([{ from: 'bot', text: FLOWS[0].q(loc, []) }])
-  }, [loc])
-
-  // Auto-scroll chat only after user interaction (more than the initial bot message)
-  useEffect(() => {
-    if (chatMsgs.length <= 1) return
-    const el = msgsEndRef.current?.parentElement
-    if (el) el.scrollTop = el.scrollHeight
-  }, [chatMsgs])
 
   const goEnroll = useCallback(() => setEnrollOpen(true), [])
 
@@ -174,99 +159,6 @@ export default function AdkinsLanding() {
   }, [])
   const resetTilt = useCallback(() => { if (cardRef.current) cardRef.current.style.transform = 'perspective(800px) rotateY(0deg) rotateX(0deg)' }, [])
 
-  // Chat answer handler
-  async function advance(val: string, step: number) {
-    const newAnswers = [...chatAnswers]
-    newAnswers[step] = val
-    setChatAnswers(newAnswers)
-
-    const disp = val.length > 72 ? val.substring(0, 72) + '...' : val
-    const newMsgs = [...chatMsgs, { from: 'usr' as const, text: disp }]
-
-    const nextStep = step + 1
-    if (nextStep < FLOWS.length) {
-      const botMsg = FLOWS[nextStep].q(loc, newAnswers)
-      setChatMsgs([...newMsgs, { from: 'bot' as const, text: botMsg }])
-      setChatStep(nextStep)
-      // Pre-select current location on the location step
-      setMultiSel(FLOWS[nextStep].id === 'location' ? [LOC_TO_OPT[loc]] : [])
-      setTextInput('')
-      setContactForm({ name: '', parent: '', phone: '', email: '' })
-    } else {
-      // Done — show temporary message while matching
-      setChatMsgs([...newMsgs, { from: 'bot' as const, text: 'Finding your best teacher match...' }])
-      setChatDone(true)
-      setChatStep(nextStep)
-
-      // Extract instrument (first selected, strip emoji, lowercase)
-      const rawInstruments = (newAnswers[2] ?? '').split(',').map(s => s.trim())
-      const firstInstr = rawInstruments[0]?.replace(/[\u{1F000}-\u{1FFFF}]/gu, '').trim().toLowerCase() || 'piano'
-
-      // Extract location names from step 5 — map option text to full location names
-      const locOptToName: Record<string, string> = Object.fromEntries(
-        ALL_LOC_KEYS.map(k => [LOC_TO_OPT[k], LOCATIONS[k].fullName])
-      )
-      const selectedLocs = (newAnswers[5] ?? '').split(',').map(s => s.trim())
-      const locationNames = selectedLocs.map(s => locOptToName[s] ?? s).filter(Boolean)
-      if (locationNames.length === 0) locationNames.push(LOCATIONS[loc].fullName)
-
-      // Call real teacher matching RPC
-      let matchScore = 0
-      let matchName = ''
-      try {
-        const { data: matchData } = await anon.rpc('match_teacher', {
-          p_tenant_id: tenantId!,
-          p_instrument: firstInstr,
-          p_location_names: locationNames,
-          p_age_range: newAnswers[1] ?? '',
-          p_personality_notes: newAnswers[8] ?? '',
-        })
-        if (matchData && matchData.length > 0) {
-          matchScore = matchData[0].score ?? 0
-          matchName = matchData[0].first_name ?? ''
-        }
-      } catch (err) {
-        console.error('Teacher match RPC failed:', err)
-      }
-
-      // Display result based on score
-      let finalMsg: string
-      if (matchScore >= 90) {
-        finalMsg = `\u{1F3AF} Your compatibility score is ${matchScore}%! We found an excellent teacher match${matchName ? ` — ${matchName} is going to be perfect` : ''}. You can book your first lesson within 24 hours! \u{1F3B5}`
-      } else if (matchScore >= 75) {
-        finalMsg = '\u{1F3B5} We found a great match for you! You can book your first lesson within 24 hours!'
-      } else {
-        finalMsg = '\u{1F3B5} We will find the right teacher for you \u2014 book your first lesson within 24 hours!'
-      }
-      setChatMsgs(prev => [...prev.slice(0, -1), { from: 'bot' as const, text: finalMsg }])
-
-      // Save lead to Supabase
-      const contact = newAnswers[9]?.split('|') ?? []
-      anon.from('leads').insert({
-        tenant_id: tenantId!,
-        location_id: LD.dbId,
-        who: newAnswers[0] ?? null,
-        age: newAnswers[1] ?? null,
-        instrument: newAnswers[2] ?? null,
-        experience: newAnswers[3] ?? null,
-        notes: [
-          `Has instrument: ${newAnswers[4] ?? 'N/A'}`,
-          `Preferred locations: ${newAnswers[5] ?? 'N/A'}`,
-          `Preferred days: ${newAnswers[6] ?? 'N/A'}`,
-          `Military: ${newAnswers[7] ?? 'N/A'}`,
-          `Personality: ${newAnswers[8] ?? 'N/A'}`,
-          `Source: ${newAnswers[10] ?? 'N/A'}`,
-          `Compatibility score: ${matchScore}%`,
-        ].join('\n'),
-        student_first_name: contact[0] ?? null,
-        parent_name: contact[1] ?? null,
-        phone: contact[2] ?? null,
-        email: contact[3] ?? null,
-        source: 'website',
-        status: 'new',
-      }).then(({ error }) => { if (error) console.error('Lead save failed:', error) })
-    }
-  }
 
   const logoUrl = logos[loc] || ''
 
@@ -296,7 +188,14 @@ export default function AdkinsLanding() {
             <p className="ak-hreview-text">"{HERO_REVIEWS[loc].text}"</p>
             <span className="ak-hreview-name">— {HERO_REVIEWS[loc].name}</span>
           </div>
-          <button className="ak-btnp ak-hero-cta" onClick={goEnroll}>Enroll Now {'\u{2192}'}</button>
+          {locStats && (
+            <div className="ak-stat-row">
+              <div className="ak-stat-card"><div className="ak-stat-num">#{locStats.stateRank}</div><div className="ak-stat-lbl">Ranked in Nebraska</div></div>
+              <div className="ak-stat-card"><div className="ak-stat-num">{locStats.studentsEnrolled.toLocaleString()}+</div><div className="ak-stat-lbl">Enrolled</div></div>
+              <div className="ak-stat-card"><div className="ak-stat-num">{locStats.studentsTaughtTotal.toLocaleString()}+</div><div className="ak-stat-lbl">Taught Overall</div></div>
+            </div>
+          )}
+          <button className="ak-btnp ak-hero-cta" onClick={goEnroll} style={{ marginTop: 20 }}>Enroll Now {'\u{2192}'}</button>
         </div>
       </section>
 
@@ -353,29 +252,50 @@ export default function AdkinsLanding() {
         </div>
       </section>
 
-      {/* 3 STEPS */}
+      {/* 3 STEPS — Roadmap */}
       <section className="ak-steps-sec">
         <div style={{ textAlign: 'center' }}>
           <div className="ak-slbl">Ridiculously Simple</div>
           <h2 className="ak-stitle">3 Steps to Your First Lesson</h2>
         </div>
-        <div className="ak-sgrid">
+        <div className="ak-roadmap">
+          <div className="ak-roadline" />
           {[
             { n: 1, title: 'Tell us about your family', desc: '30 seconds. Instrument, age, and availability. That is it for now.' },
             { n: 2, title: 'We find your match', desc: 'Our system picks the teacher most likely to connect with you or your child — not just whoever is available.' },
             { n: 3, title: 'Book your first lesson within 24 hours', desc: 'Most families have their first lesson locked in same day.' },
           ].map(s => (
-            <div className="ak-scard" key={s.n}>
-              <div className="ak-snum2">{s.n}</div>
-              <h3>{s.title}</h3>
-              <p>{s.desc}</p>
+            <div className="ak-rstep" key={s.n}>
+              <div className="ak-rdot">{s.n}</div>
+              <div className="ak-rbody">
+                <h3>{s.title}</h3>
+                <p>{s.desc}</p>
+              </div>
             </div>
           ))}
+          <div className="ak-rstep ak-rstep-final">
+            <div className="ak-rcorn">
+              <img src="/cornelius.png" alt="Cornelius Cobb" />
+            </div>
+            <div className="ak-rbody">
+              <h3>You are in. Cornelius takes it from here.</h3>
+              <p>Your teacher shows up. You or your child starts playing. That is the whole point.</p>
+            </div>
+          </div>
         </div>
         <div style={{ textAlign: 'center', marginTop: 36 }}>
           <button className="ak-btnp" onClick={goEnroll}>Get Started — Free to Try {'\u{2192}'}</button>
         </div>
       </section>
+
+      {/* TESTIMONIAL 2 — after 3 steps */}
+      {randomReviews[1] && (
+        <div className="ak-testimonial">
+          <div className="ak-test-stars">{'\u{2B50}\u{2B50}\u{2B50}\u{2B50}\u{2B50}'}</div>
+          <p className="ak-test-text">"{randomReviews[1].text_cleaned}"</p>
+          <span className="ak-test-name">— {randomReviews[1].reviewer_name.split(' ')[0]}</span>
+        </div>
+      )}
 
       {/* INSTRUMENTS */}
       <section className="ak-sec">
@@ -421,104 +341,19 @@ export default function AdkinsLanding() {
         </div>
       </section>
 
-      {/* REVIEWS */}
-      <section className="ak-rev-sec">
-        <div style={{ textAlign: 'center' }}>
-          <div className="ak-slbl">Real Families. Real Results.</div>
-          <h2 className="ak-stitle">Do Not Take Our Word For It.</h2>
+      {/* TESTIMONIAL 1 — after instruments */}
+      {randomReviews[0] && (
+        <div className="ak-testimonial">
+          <div className="ak-test-stars">{'\u{2B50}\u{2B50}\u{2B50}\u{2B50}\u{2B50}'}</div>
+          <p className="ak-test-text">"{randomReviews[0].text_cleaned}"</p>
+          <span className="ak-test-name">— {randomReviews[0].reviewer_name.split(' ')[0]}</span>
         </div>
-        <div className="ak-rgrid">
-          {LD.reviews.map((rv, i) => (
-            <div className="ak-rcard" key={`${loc}-${i}`}>
-              <div className="ak-stars">{'\u{2B50}\u{2B50}\u{2B50}\u{2B50}\u{2B50}'}</div>
-              <p className="ak-rtext">"{rv.t}"</p>
-              <div className="ak-reviewer">
-                <div className="ak-ravatar">{rv.n[0]}</div>
-                <div><div className="ak-rname">{rv.n}</div><div className="ak-rrole">{rv.r}</div></div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ textAlign: 'center', marginTop: 36 }}>
-          <button className="ak-btnp" onClick={goEnroll}>Join These Students {'\u{2192}'}</button>
-        </div>
-      </section>
-
-      {/* ENROLLMENT CHAT */}
-      <section className="ak-enroll-sec" ref={enrollRef}>
-        <div className="ak-einner">
-          <div style={{ textAlign: 'center' }}>
-            <div className="ak-slbl">Let Cornelius Help</div>
-            <h2 className="ak-stitle">Ready? Takes About 2 Minutes.</h2>
-            <p style={{ fontSize: 15, color: '#9A96B4', marginTop: 10 }}>Answer a few quick questions and book your first lesson within 24 hours.</p>
-          </div>
-          <div className="ak-chat-ui">
-            <div className="ak-ctopbar">
-              <img className="ak-cava" src="/cornelius.png" alt="Cornelius" />
-              <div className="ak-cinfo"><h4>Cornelius Cobb</h4><p>{LD.full}</p></div>
-              <div className="ak-odot" />
-            </div>
-            <div className="ak-cmsgs">
-              {chatMsgs.map((m, i) => (
-                <div key={i} className={`ak-cmsg ${m.from}`}>
-                  <div className="ak-cbub">{m.text}</div>
-                </div>
-              ))}
-              <div ref={msgsEndRef} />
-            </div>
-            {!chatDone && chatStep < FLOWS.length && (
-              <div className="ak-copts">
-                {FLOWS[chatStep].type === 'single' && FLOWS[chatStep].opts?.map(op => (
-                  <button key={op} className="ak-copt" onClick={() => advance(op, chatStep)}>{op}</button>
-                ))}
-                {FLOWS[chatStep].type === 'multi' && (
-                  <>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, width: '100%' }}>
-                      {FLOWS[chatStep].opts?.map(op => (
-                        <button key={op} className={`ak-copt${multiSel.includes(op) ? ' sel' : ''}`} onClick={() => setMultiSel(s => s.includes(op) ? s.filter(v => v !== op) : [...s, op])}>{op}</button>
-                      ))}
-                    </div>
-                    <button className="ak-copt sel" style={{ width: '100%', marginTop: 5 }} onClick={() => advance(multiSel.length > 0 ? multiSel.join(', ') : 'No preference', chatStep)}>Next {'\u{2192}'}</button>
-                  </>
-                )}
-                {FLOWS[chatStep].type === 'text' && (
-                  <div style={{ width: '100%', padding: '3px 0' }}>
-                    <textarea className="ak-tinp" placeholder={FLOWS[chatStep].placeholder} value={textInput} onChange={e => setTextInput(e.target.value)} />
-                    <button className="ak-copt sel" style={{ width: '100%', marginTop: 7 }} onClick={() => { advance(textInput.trim() || 'No details provided', chatStep); setTextInput('') }}>Lock In My Score {'\u{2192}'}</button>
-                  </div>
-                )}
-                {FLOWS[chatStep].type === 'contact' && (
-                  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                    <input className="ak-cinp" placeholder="Your first name" value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))} />
-                    <input className="ak-cinp" placeholder="Parent / guardian name (if for a child)" value={contactForm.parent} onChange={e => setContactForm(f => ({ ...f, parent: e.target.value }))} />
-                    <input className="ak-cinp" placeholder="Phone number" type="tel" value={contactForm.phone} onChange={e => setContactForm(f => ({ ...f, phone: e.target.value }))} />
-                    <input className="ak-cinp" placeholder="Email address" type="email" value={contactForm.email} onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))} />
-                    <button className="ak-copt sel" style={{ marginTop: 3 }} onClick={() => {
-                      if (!contactForm.name || !contactForm.phone) return
-                      advance(`${contactForm.name}|${contactForm.parent}|${contactForm.phone}|${contactForm.email}`, chatStep)
-                    }}>Get My Compatibility Score {'\u{2192}'}</button>
-                  </div>
-                )}
-              </div>
-            )}
-            {chatDone && (
-              <div className="ak-copts" style={{ justifyContent: 'center', fontSize: 13, color: '#9A96B4' }}>
-                {'\u{1F389}'} Sit tight — we will reach out very soon!
-              </div>
-            )}
-            <div className="ak-cdots">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className={`ak-cdot2${i === Math.min(chatStep, 11) ? ' on' : ''}`} />
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      )}
 
       {/* NO RISK */}
       <section className="ak-norisk-sec">
         <div className="ak-nrinner">
-          <div className="ak-nri">{'\u{1F6E1}{FE0F}'}</div>
+          <div className="ak-nri">{'\u{1F6E1}\u{FE0F}'}</div>
           <h2>We Do Not Believe in<br />Trapping Families.</h2>
           <p>Month to month. Always. If it is not working after the first month, we will make it right — no awkward conversations, no fees, no drama. That is a promise.</p>
           <div className="ak-rpoints">
@@ -559,8 +394,14 @@ export default function AdkinsLanding() {
         </div>
       </section>
 
-      {/* DYNAMIC REVIEWS */}
-      <ReviewsSection />
+      {/* TESTIMONIAL 3 — before final CTA */}
+      {randomReviews[2] && (
+        <div className="ak-testimonial">
+          <div className="ak-test-stars">{'\u{2B50}\u{2B50}\u{2B50}\u{2B50}\u{2B50}'}</div>
+          <p className="ak-test-text">"{randomReviews[2].text_cleaned}"</p>
+          <span className="ak-test-name">— {randomReviews[2].reviewer_name.split(' ')[0]}</span>
+        </div>
+      )}
 
       {/* LOCATION / MAP */}
       <section className="ak-loc-sec">
@@ -627,7 +468,7 @@ export default function AdkinsLanding() {
       {/* FINAL CTA */}
       <section className="ak-final-sec">
         <h2>Your <span>First Lesson</span><br />Is Waiting.</h2>
-        <p>Join 3,800+ students across the Omaha metro — kids, teens, and adults. Book in the next 60 seconds.</p>
+        <p>Join {locStats ? `${locStats.studentsTaughtTotal.toLocaleString()}+` : ''} students across the Omaha metro — kids, teens, and adults. Book in the next 60 seconds.</p>
         <div className="ak-fbtns">
           <button className="ak-btnp" style={{ fontSize: 16, padding: '16px 34px' }} onClick={goEnroll}>Sign Up For Lessons Now {'\u{2192}'}</button>
           <button className="ak-btng" onClick={goEnroll}>Or Text Us First</button>
@@ -646,14 +487,14 @@ export default function AdkinsLanding() {
         id="ak-corn"
         src="/cornelius.png"
         alt="Cornelius Cobb"
-        onClick={() => { setTipOpen(t => !t); playNote() }}
+        onClick={() => { setChatOpen(o => !o); playNote() }}
       />
-      <div id="ak-ctip" className={tipOpen ? 'show' : ''}>
-        <h4>Hey! I am Cornelius {'\u{1F33D}'}</h4>
-        <p>Click me if you have questions, or I can walk you through finding your perfect teacher right now!</p>
-        <br />
-        <button className="ak-copt" style={{ fontSize: 11, padding: '6px 12px' }} onClick={() => { goEnroll(); setTipOpen(false) }}>Find My Teacher {'\u{2192}'}</button>
-      </div>
+      <CorneliusChat
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        locKey={loc}
+        onNavigateSignup={goEnroll}
+      />
 
       {/* Full-screen enrollment form */}
       <EnrollmentForm isOpen={enrollOpen} onClose={() => setEnrollOpen(false)} defaultLocation={loc} />

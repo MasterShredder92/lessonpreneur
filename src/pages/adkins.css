@@ -43,6 +43,22 @@
 .ak-htitle{font-family:'Bebas Neue',sans-serif;line-height:0.92;color:#fff;margin:0 0 20px;letter-spacing:1px;text-align:center}
 .ak-htitle-line1{font-size:clamp(48px,8vw,80px);display:block}
 .ak-htitle-line2{font-size:clamp(48px,8vw,80px);display:block;color:var(--c)}
+/* Instrument page hero variants (BORN/DRUMMERS/GUITARISTS etc) */
+.ak-htitle-born{font-size:clamp(80px,16vw,180px);display:block;line-height:0.85;letter-spacing:-2px;color:var(--c)}
+.ak-htitle-line3{font-size:clamp(44px,7vw,72px);display:block}
+
+/* Stat cards — glassmorphism row */
+.ak-stat-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px;width:100%;max-width:520px}
+.ak-stat-card{flex:1;min-width:100px;padding:16px 12px;border-radius:14px;text-align:center;background:rgba(255,255,255,0.03);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.07);box-shadow:0 4px 20px rgba(0,0,0,0.25)}
+.ak-stat-num{font-family:'Bebas Neue',sans-serif;font-size:clamp(24px,5vw,32px);line-height:1;color:var(--c);white-space:nowrap}
+.ak-stat-lbl{font-size:11px;font-weight:500;color:rgba(255,255,255,0.7);margin-top:4px;white-space:nowrap;letter-spacing:0.3px}
+
+/* Legacy trust bar (used on instrument pages) */
+.ak-htrust{display:flex;align-items:center;gap:18px;padding-top:22px;border-top:1px solid #1C1C2A;flex-wrap:wrap;justify-content:center}
+.ak-tnum{font-family:'Bebas Neue',sans-serif;font-size:26px;color:#fff;line-height:1}
+.ak-tlbl{font-size:11px;color:#55516E;margin-top:2px;letter-spacing:0.4px}
+.ak-tdiv{width:1px;height:32px;background:#1C1C2A}
+.ak-tstat{display:flex;flex-direction:column;align-items:center;gap:2px}
 
 /* Logo circle */
 .ak-hlogo{perspective:800px;cursor:default;margin-bottom:16px}
@@ -114,12 +130,18 @@
 
 /* 3 Steps */
 .ak-steps-sec{background:#0A0A10;border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px}
-.ak-sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:780px;margin:40px auto 0}
-.ak-scard{text-align:center;padding:26px 18px;background:#141420;border-radius:18px;border:1px solid #1C1C2A;transition:all 0.28s}
-.ak-scard:hover{transform:translateY(-4px);border-color:var(--c)}
-.ak-snum2{width:50px;height:50px;border-radius:50%;background:var(--c);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:22px;color:#fff;margin:0 auto 14px;box-shadow:0 4px 14px var(--cg)}
-.ak-scard h3{font-size:15px;font-weight:800;color:#fff;margin-bottom:7px}
-.ak-scard p{font-size:13px;color:#9A96B4;line-height:1.62}
+/* Roadmap — vertical connecting line with dots + Cornelius at the end */
+.ak-roadmap{position:relative;max-width:620px;margin:48px auto 0;padding-left:8px}
+.ak-roadline{position:absolute;left:32px;top:24px;bottom:60px;width:2px;background:linear-gradient(to bottom,var(--c),var(--cl));border-radius:2px;z-index:0}
+.ak-rstep{position:relative;display:flex;align-items:flex-start;gap:22px;padding:14px 0 28px;z-index:1}
+.ak-rstep:last-child{padding-bottom:0}
+.ak-rdot{flex-shrink:0;width:56px;height:56px;border-radius:50%;background:var(--c);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:26px;color:#fff;box-shadow:0 4px 18px var(--cg),0 0 0 6px #0A0A10;position:relative;z-index:2}
+.ak-rcorn{flex-shrink:0;width:66px;height:66px;border-radius:50%;background:#0A0A10;border:3px solid var(--c);box-shadow:0 0 24px var(--cg),0 0 0 4px #0A0A10;overflow:hidden;position:relative;z-index:2;display:flex;align-items:center;justify-content:center;margin-left:-5px}
+.ak-rcorn img{width:100%;height:100%;object-fit:cover}
+.ak-rbody{padding-top:6px;flex:1}
+.ak-rbody h3{font-size:16px;font-weight:800;color:#fff;margin:0 0 6px}
+.ak-rbody p{font-size:14px;color:#9A96B4;line-height:1.62;margin:0}
+.ak-rstep-final .ak-rbody h3{color:var(--c)}
 
 /* Instruments */
 .ak-igrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:40px}
@@ -230,11 +252,6 @@
 #ak-corn:active{transform:scale(0.9)}
 @keyframes ak-cfloat{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-11px) rotate(3deg)}}
 
-#ak-ctip{position:fixed;bottom:100px;right:14px;z-index:999;background:#141420;border:1px solid var(--c);border-radius:14px;padding:13px 16px;max-width:210px;font-size:12px;color:#F0EEF8;box-shadow:0 8px 28px rgba(0,0,0,0.4);line-height:1.5;opacity:0;pointer-events:none;transition:opacity 0.28s,transform 0.28s;transform:translateY(8px)}
-#ak-ctip.show{opacity:1;pointer-events:auto;transform:translateY(0)}
-#ak-ctip h4{font-weight:800;color:#fff;margin-bottom:3px;font-size:13px}
-#ak-ctip::after{content:'';position:absolute;bottom:-7px;right:26px;width:13px;height:13px;background:#141420;border-right:1px solid var(--c);border-bottom:1px solid var(--c);transform:rotate(45deg)}
-
 /* Location color swaps are instant — no transition */
 
 /* Adults Welcome Card */
@@ -248,6 +265,12 @@
 .ak-faq-q{font-size:15px;font-weight:800;color:#E0E0F4;margin:0 0 8px}
 .ak-faq-a{font-size:13px;line-height:1.65;color:#A0A0C8;margin:0}
 
+/* Inline testimonial card */
+.ak-testimonial{max-width:620px;margin:0 auto;padding:32px 24px;text-align:center}
+.ak-test-stars{font-size:16px;letter-spacing:2px;margin-bottom:12px}
+.ak-test-text{font-size:16px;font-weight:600;line-height:1.65;color:#E0E0F4;font-style:italic;margin:0 0 14px}
+.ak-test-name{font-size:13px;font-weight:700;color:var(--c);letter-spacing:0.5px}
+
 /* Mobile */
 @media(max-width:768px){
   .ak-loclabel{display:none}
@@ -260,15 +283,27 @@
   .ak-hero{padding:64px 14px 20px;min-height:100svh}
   .ak-htitle{margin-bottom:14px}
   .ak-htitle-line1,.ak-htitle-line2{font-size:clamp(40px,11vw,64px)}
+  .ak-htitle-born{font-size:clamp(64px,18vw,120px)}
+  .ak-htitle-line3{font-size:clamp(36px,9vw,56px)}
   .ak-lring{width:120px;height:120px}
   .ak-lring img{width:104px;height:104px}
+  .ak-stat-row{gap:6px;max-width:100%}
+  .ak-stat-card{min-width:80px;padding:12px 8px}
+  .ak-stat-num{font-size:clamp(22px,6vw,28px)}
+  .ak-stat-lbl{font-size:10px}
   .ak-hlogo{margin-bottom:10px}
   .ak-henroll-badge{font-size:clamp(20px,5vw,28px);margin-bottom:6px}
   .ak-hsub{font-size:13px;margin-bottom:12px;max-width:340px}
   .ak-hreview{padding:10px 14px;margin-bottom:14px}
   .ak-hreview-text{font-size:13px}
   .ak-hero-cta{font-size:15px;padding:14px 30px}
-  .ak-sgrid{grid-template-columns:1fr}
+  .ak-roadmap{padding-left:4px}
+  .ak-roadline{left:26px}
+  .ak-rdot{width:46px;height:46px;font-size:22px;box-shadow:0 4px 14px var(--cg),0 0 0 5px #0A0A10}
+  .ak-rcorn{width:54px;height:54px;box-shadow:0 0 20px var(--cg),0 0 0 3px #0A0A10}
+  .ak-rstep{gap:16px;padding:10px 0 22px}
+  .ak-rbody h3{font-size:15px}
+  .ak-rbody p{font-size:13px}
   .ak-igrid{grid-template-columns:repeat(2,1fr)}
   .ak-ipanel{grid-template-columns:1fr;gap:16px;padding:18px 16px}
   .ak-rgrid{grid-template-columns:1fr}
@@ -278,5 +313,4 @@
   .ak-cscore-row{flex-direction:column;align-items:center}
   .ak-sdetails{text-align:center}
   #ak-corn{bottom:120px}
-  #ak-ctip{bottom:198px}
 }

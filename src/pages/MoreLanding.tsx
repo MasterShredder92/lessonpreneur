@@ -2,17 +2,13 @@ import { useEffect } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { useLocationStats } from '../hooks/useLocationStats'
 import ReviewsSection from '../components/site/ReviewsSection'
 import SiteHeader from '../components/site/SiteHeader'
 import './adkins.css'
 import './more.css'
 
-const LOC_RANKINGS: Record<LocKey, string> = {
-  omaha: '#2',
-  gretna: '#1',
-  bellevue: '#3',
-  elkhorn: '#6',
-}
+// LOC_RANKINGS removed — now pulled live from Supabase via useLocationStats
 
 const VIOLIN_PAIN_POINTS = [
   { title: 'Feeling Overwhelmed as a Beginner', body: "Posture, bow hold, finger placement, intonation, tuning — all at once. Without clear guidance it's easy to feel lost.", solution: 'We break it down step by step. One thing at a time.' },
@@ -28,6 +24,7 @@ export default function MoreLanding() {
   const { pathname } = useRouterLocation()
   const loc = siteLoc.key as LocKey
   const LD = LOCATIONS[loc]
+  const locStats = useLocationStats(loc)
   const currentInstrument = pathname.split('/')[2] || 'more'
 
   useEffect(() => {
@@ -74,11 +71,13 @@ export default function MoreLanding() {
               Sign Up Now {'\u2192'}
             </button>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 28, flexWrap: 'wrap', fontSize: 13, color: '#777', marginTop: 8 }}>
-            <span><strong style={{ color: LD.accentColor }}>{LOC_RANKINGS[loc]}</strong> Ranked in Nebraska</span>
-            <span><strong style={{ color: LD.accentColor }}>650+</strong> Enrolled</span>
-            <span><strong style={{ color: LD.accentColor }}>2,200+</strong> Taught Overall</span>
-          </div>
+          {locStats && (
+            <div className="ak-stat-row" style={{ marginTop: 12 }}>
+              <div className="ak-stat-card"><div className="ak-stat-num">#{locStats.stateRank}</div><div className="ak-stat-lbl">Ranked in Nebraska</div></div>
+              <div className="ak-stat-card"><div className="ak-stat-num">{locStats.studentsEnrolled.toLocaleString()}+</div><div className="ak-stat-lbl">Enrolled</div></div>
+              <div className="ak-stat-card"><div className="ak-stat-num">{locStats.studentsTaughtTotal.toLocaleString()}+</div><div className="ak-stat-lbl">Taught Overall</div></div>
+            </div>
+          )}
         </div>
       </section>
 

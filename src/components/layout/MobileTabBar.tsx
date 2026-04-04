@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { LayoutDashboard, CalendarDays, Users, UserPlus, Menu, ShieldCheck, Guitar, BookOpen, Settings2, Plug, ChevronRight, X } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Users, UserPlus, Menu, ShieldCheck, Guitar, BookOpen, Settings2, Plug, ChevronRight, X, LogOut } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 
 const TABS = [
@@ -35,7 +35,7 @@ const DISMISS_THRESHOLD = 80
 export default function MobileTabBar() {
   const [moreOpen, setMoreOpen] = useState(false)
   const navigate = useNavigate()
-  const { profile, role } = useAuthContext()
+  const { profile, role, signOut } = useAuthContext()
 
   // Drag-to-dismiss state
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -218,6 +218,34 @@ export default function MobileTabBar() {
               </button>
             </div>
 
+            {/* User profile + Sign Out at top */}
+            {profile && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '8px 20px 16px', borderBottom: '0.5px solid rgba(255,255,255,0.08)',
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#E0E0F4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {profile.first_name} {profile.last_name}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#606088', textTransform: 'capitalize', marginTop: 2 }}>{role}</div>
+                </div>
+                <button
+                  onClick={() => { signOut(); setMoreOpen(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    minHeight: 44, padding: '0 16px', borderRadius: 10,
+                    background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
+                    color: '#D4226A', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    WebkitTapHighlightColor: 'transparent', flexShrink: 0,
+                  }}
+                >
+                  <LogOut size={15} />
+                  Sign Out
+                </button>
+              </div>
+            )}
+
             <div style={{ padding: '0 20px' }}>
               {MORE_SECTIONS.map(section => (
                 <div key={section.header}>
@@ -294,15 +322,6 @@ export default function MobileTabBar() {
               </div>
             </div>
 
-            {/* User info at bottom */}
-            {profile && (
-              <div style={{ padding: '16px 20px 0', borderTop: '0.5px solid rgba(255,255,255,0.04)', marginTop: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8' }}>
-                  {profile.first_name} {profile.last_name}
-                </div>
-                <div style={{ fontSize: 11, color: '#606088', textTransform: 'capitalize' }}>{role}</div>
-              </div>
-            )}
           </div>
         </div>,
         document.body
