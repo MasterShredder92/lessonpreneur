@@ -8,6 +8,7 @@ import MusicLoader from '../../components/shared/MusicLoader'
 import ShareableProgressCard from '../../components/shared/ShareableProgressCard'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { Music, Star, Share2 } from 'lucide-react'
+import MessageStudioButton from '../../components/parent/MessageStudioButton'
 
 const PROGRESS_DISPLAY: Record<string, { label: string; color: string }> = {
   struggling: { label: 'Working Through It', color: '#EF4444' },
@@ -70,13 +71,17 @@ export default function ParentDashboard() {
   return (
     <div style={{ maxWidth: 540, margin: '0 auto', padding: 16 }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#E0E0F4', margin: 0 }}>
           Hi, {profile.first_name ?? 'there'}
         </h1>
         <p style={{ fontSize: 13, color: '#8080A8', marginTop: 4 }}>
           Here's how your {students.length > 1 ? 'kids are' : 'child is'} doing.
         </p>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <MessageStudioButton />
       </div>
 
       {/* Student cards */}

@@ -6,6 +6,7 @@ import { useAvailableRescheduleSlots, useRescheduleSession } from '../../hooks/u
 import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { RefreshCw, Calendar } from 'lucide-react'
+import MessageStudioButton from '../../components/parent/MessageStudioButton'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -80,7 +81,10 @@ export default function ParentSchedule() {
 
   return (
     <div style={{ maxWidth: 540, margin: '0 auto', padding: 16 }}>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: '#E0E0F4', margin: '0 0 20px' }}>Schedule</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '0 0 20px' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#E0E0F4', margin: 0 }}>Schedule</h1>
+        <MessageStudioButton variant="compact" />
+      </div>
 
       {!sessions || sessions.length === 0 ? (
         <div style={{ padding: '40px 16px', textAlign: 'center', borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>

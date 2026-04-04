@@ -327,18 +327,21 @@ export default function VocalsLanding() {
         <div className="ak-hgrid" />
         <div className="ak-hcontent">
           <h1 className="ak-htitle">
-            <span className="ak-htitle-line1">THIS IS WHERE</span>
+            <span className="ak-htitle-line1">This Is Where</span>
             <span className="ak-htitle-born">SINGERS</span>
-            <span className="ak-htitle-line3">ARE MADE.</span>
+            <span className="ak-htitle-line3">Are Made.</span>
           </h1>
-          <p style={{ fontSize: 18, fontWeight: 400, color: 'rgba(255,255,255,0.75)', fontStyle: 'italic', textAlign: 'center', maxWidth: 560, margin: '16px auto' }}>You already sing. You just haven't had someone show you how good you actually are.</p>
           <p className="ak-hsub">Private one-on-one sessions for ages 5 to adult. 4 metro locations. Your teacher is already waiting.</p>
-          <div className="ak-hctas" style={{ marginTop: 32 }}>
+          <div className="ak-hctas" style={{ marginTop: 24 }}>
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 200, height: 60, borderRadius: '50%', background: 'var(--c)', filter: 'blur(40px)', animation: 'glowPulse 3.5s ease-in-out infinite', opacity: 0.35, pointerEvents: 'none', zIndex: 0 }} />
               <a className="ak-btnp" href={ENROLLMENT_URL} style={{ color: '#ffffff', position: 'relative', zIndex: 1 }}>Sign Up For Lessons Now {'\u{2192}'}</a>
             </div>
           </div>
+          <HeroTestimonial
+            instrumentTag="vocals"
+            seed={{ text: "The vocal instruction here completely changed how I perform. I didn't think I could sound like this after just a few months.", name: "Adkins Vocal Student" }}
+          />
           {locStats && (
             <div className="ak-stat-row">
               <div className="ak-stat-card"><div className="ak-stat-num">#{locStats.stateRank}</div><div className="ak-stat-lbl">Ranked in Nebraska</div></div>
