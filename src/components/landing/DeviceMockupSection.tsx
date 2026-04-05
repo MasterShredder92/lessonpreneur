@@ -6,22 +6,26 @@ const cssVars = `
   .lp-dm-section { padding: 80px 20px; }
   .lp-dm-heading { font-size: 36px; }
   .lp-dm-sub { font-size: 17px; margin-bottom: 48px; }
-  .lp-dm-devices { gap: 24px; }
+  .lp-dm-stage {
+    position: relative;
+    width: 100%;
+    max-width: 860px;
+    height: 360px;
+    margin: 0 auto;
+    transform: none;
+    transform-origin: top center;
+  }
   .lp-dm-labels { gap: 32px; margin-top: 32px; }
-  .lp-dm-scale-wrap { transform: none; margin-bottom: 0; }
   @media (max-width: 767px) {
     .lp-dm-section { padding: 48px 16px; }
     .lp-dm-heading { font-size: 26px; }
     .lp-dm-sub { font-size: 14px; margin-bottom: 32px; }
-    .lp-dm-devices { gap: 12px; }
-    .lp-dm-labels { gap: 16px; margin-top: 16px; }
-  }
-  @media (max-width: 479px) {
-    .lp-dm-scale-wrap {
-      transform: scale(0.62);
-      transform-origin: top center;
-      margin-bottom: -120px;
+    .lp-dm-stage {
+      height: 220px;
+      transform: scale(0.52);
+      margin-bottom: -160px;
     }
+    .lp-dm-labels { gap: 16px; margin-top: 16px; }
   }
 `
 
@@ -777,22 +781,43 @@ export default function DeviceMockupSection(): ReactNode {
           Manage your school from your phone, tablet, or laptop — everything syncs in real time.
         </p>
 
-        {/* Device container — scaled on very small screens */}
-        <div className="lp-dm-scale-wrap">
+        {/* Overlap composition — all devices absolutely positioned */}
+        <div className="lp-dm-stage" style={{ marginTop: '48px' }}>
+          {/* Laptop — background layer, right-center */}
           <div
-            className="lp-dm-devices"
             style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'flex-end',
-              flexWrap: 'wrap',
-              maxWidth: '900px',
-              margin: '48px auto 0 auto',
+              position: 'absolute',
+              bottom: 0,
+              left: '50%',
+              transform: 'translateX(-20%)',
+              zIndex: 1,
+            }}
+          >
+            <Laptop />
+          </div>
+          {/* Tablet — middle layer, center-left */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: '50%',
+              transform: 'translateX(-85%)',
+              zIndex: 2,
+            }}
+          >
+            <Tablet />
+          </div>
+          {/* Phone — front layer, left of center */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: '50%',
+              transform: 'translateX(-155%)',
+              zIndex: 3,
             }}
           >
             <Phone />
-            <Tablet />
-            <Laptop />
           </div>
         </div>
 
