@@ -12,16 +12,19 @@ type NodeDef = {
   angle: number // degrees from center, 0 = east, cw in screen coords
   dur: number // dash pulse duration in seconds
   Icon: ComponentType<SVGProps<SVGSVGElement>>
+  labelDx: number
+  labelDy: number
+  labelAnchor: 'start' | 'middle' | 'end'
 }
 
-// Nodes positioned at r=230 from center (300,300) at exact clock positions
+// Nodes positioned at r=190 from center (300,300) at exact clock positions
 const NODES: NodeDef[] = [
-  { key: 'leads',       label: 'Leads',       x: 300, y: 70,  angle: -90,  dur: 1.5, Icon: Users },
-  { key: 'students',    label: 'Students',    x: 494, y: 185, angle: -30,  dur: 1.8, Icon: GraduationCap },
-  { key: 'teachers',    label: 'Teachers',    x: 494, y: 415, angle: 30,   dur: 2.1, Icon: Music },
-  { key: 'billing',     label: 'Billing',     x: 300, y: 530, angle: 90,   dur: 1.6, Icon: CreditCard },
-  { key: 'sms',         label: 'SMS',         x: 106, y: 415, angle: 150,  dur: 1.9, Icon: MessageSquare },
-  { key: 'automations', label: 'Automations', x: 106, y: 185, angle: 210,  dur: 2.3, Icon: Zap },
+  { key: 'leads',       label: 'Leads',       x: 300, y: 110, angle: -90,  dur: 1.5, Icon: Users,         labelDx: 0,   labelDy: -46, labelAnchor: 'middle' },
+  { key: 'students',    label: 'Students',    x: 464, y: 205, angle: -30,  dur: 1.8, Icon: GraduationCap, labelDx: 38,  labelDy: 46,  labelAnchor: 'start' },
+  { key: 'teachers',    label: 'Teachers',    x: 464, y: 395, angle: 30,   dur: 2.1, Icon: Music,         labelDx: 38,  labelDy: 46,  labelAnchor: 'start' },
+  { key: 'billing',     label: 'Billing',     x: 300, y: 490, angle: 90,   dur: 1.6, Icon: CreditCard,    labelDx: 0,   labelDy: 46,  labelAnchor: 'middle' },
+  { key: 'sms',         label: 'SMS',         x: 136, y: 395, angle: 150,  dur: 1.9, Icon: MessageSquare, labelDx: -38, labelDy: 46,  labelAnchor: 'end' },
+  { key: 'automations', label: 'Automations', x: 136, y: 205, angle: 210,  dur: 2.3, Icon: Zap,           labelDx: -38, labelDy: 46,  labelAnchor: 'end' },
 ]
 
 // Arrowhead position on outer ring (r=80 from center) + rotation to point inward
@@ -48,9 +51,6 @@ const KEYFRAMES = `
 .lp-hub-ring-2 { animation-delay: 0.12s; }
 .lp-hub-ring-3 { animation-delay: 0.24s; }
 .lp-hub-logo-pulse { transform-origin: 300px 300px; animation: lp-hub-heartbeat 1.8s infinite ease-in-out; }
-@media (max-width: 480px) {
-  .lp-hub-node-label { display: none !important; }
-}
 `
 
 export default function LogoHubSection() {
@@ -253,12 +253,12 @@ export default function LogoHubSection() {
               </foreignObject>
               {/* Label */}
               <text
-                className="lp-hub-node-label"
-                x={n.x}
-                y={n.y + 48}
-                textAnchor="middle"
+                x={n.x + n.labelDx}
+                y={n.y + n.labelDy}
+                textAnchor={n.labelAnchor}
                 fill="#ffffff"
-                fontFamily={FONT}
+                opacity="0.90"
+                fontFamily="Plus Jakarta Sans, sans-serif"
                 fontSize="13"
                 fontWeight="700"
               >
