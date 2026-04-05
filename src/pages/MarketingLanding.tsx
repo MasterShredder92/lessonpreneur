@@ -50,6 +50,7 @@ export default function MarketingLanding() {
       <RetentionRoles />
       <AndreaTestimonial />
       <SectionBreak question="What would it be worth to stop the bleeding?" />
+      <IntegrationsSection />
       <PricingSection />
       <FinalClose />
       <Footer />
@@ -1348,6 +1349,94 @@ function RetentionRoles() {
 }
 
 /* ═══════════════════════════════════════════════════════
+   SECTION 8.5: INTEGRATIONS
+   ═══════════════════════════════════════════════════════ */
+
+function IntegrationsSection() {
+  const rowCore = [
+    { name: 'Square', dot: '#000000', note: 'payments + scheduling sync' },
+    { name: 'Google Calendar', dot: '#4285F4', note: 'Meet + schedule mirror' },
+    { name: 'QUO SMS', dot: '#D4226A', note: 'two-way texting' },
+    { name: 'n8n', dot: '#EA4B71', note: 'automation engine' },
+    { name: 'Stripe', dot: '#635BFF', note: 'white-label billing' },
+    { name: 'SignWell', dot: '#22C55E', note: 'enrollment agreements' },
+  ]
+  const rowMarketing = [
+    { name: 'Google Analytics', dot: '#F9AB00' },
+    { name: 'Meta Ads', dot: '#1877F2' },
+    { name: 'TikTok', dot: '#FF0050' },
+    { name: 'Mailchimp', dot: '#FFE01B' },
+    { name: 'Google Drive', dot: '#34A853' },
+    { name: 'Slack', dot: '#4A154B' },
+  ]
+  const rowSoon = [
+    { name: 'Zoom', dot: '#2D8CFF' },
+    { name: 'Outlook / M365', dot: '#0078D4' },
+    { name: 'Apple iCal', dot: '#A0A0B0' },
+    { name: 'Twilio', dot: '#F22F46' },
+    { name: 'Klaviyo', dot: '#FF6C4B' },
+  ]
+
+  return (
+    <Reveal>
+      <section className="lp2-section lp2-integrations">
+        <div className="lp2-int-header">
+          <div className="lp2-int-label">PLAYS WELL WITH OTHERS</div>
+          <h2 className="lp2-section-h2" style={{ textAlign: 'center' }}>Everything Connected. Nothing Scattered.</h2>
+          <p className="lp2-int-sub">Lessonpreneur plugs into the tools you already use — and automates the ones you don't.</p>
+        </div>
+
+        <div className="lp2-int-grid">
+          {rowCore.map((p) => (
+            <div key={p.name} className="lp2-int-pill">
+              <span className="lp2-int-dot" style={{ background: p.dot }} />
+              <span className="lp2-int-name">{p.name}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="lp2-int-grid">
+          {rowMarketing.map((p) => (
+            <div key={p.name} className="lp2-int-pill">
+              <span className="lp2-int-dot" style={{ background: p.dot }} />
+              <span className="lp2-int-name">{p.name}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="lp2-int-grid">
+          {rowSoon.map((p) => (
+            <div key={p.name} className="lp2-int-pill lp2-int-pill-soon">
+              <span className="lp2-int-dot" style={{ background: p.dot }} />
+              <span className="lp2-int-name">{p.name}</span>
+              <span className="lp2-int-badge">Coming Soon</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="lp2-int-callouts">
+          <div className="lp2-int-callout">
+            <div className="lp2-int-callout-icon">🔄</div>
+            <div className="lp2-int-callout-title">LP is always source of truth</div>
+            <div className="lp2-int-callout-body">Calendar apps mirror your schedule. Square runs your charges. Lessonpreneur runs everything.</div>
+          </div>
+          <div className="lp2-int-callout">
+            <div className="lp2-int-callout-icon">⚡</div>
+            <div className="lp2-int-callout-title">Automation that actually works</div>
+            <div className="lp2-int-callout-body">n8n handles the repetitive stuff — billing runs, reminder sequences, lead follow-up, enrollment agreements. Set it once. It runs forever.</div>
+          </div>
+          <div className="lp2-int-callout">
+            <div className="lp2-int-callout-icon">🔒</div>
+            <div className="lp2-int-callout-title">Your data. Your platform.</div>
+            <div className="lp2-int-callout-body">Every white-label customer gets their own isolated environment. No shared databases. No data mixing. Ever.</div>
+          </div>
+        </div>
+      </section>
+    </Reveal>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
    SECTION 9: PRICING + OBJECTIONS
    ═══════════════════════════════════════════════════════ */
 
@@ -2447,6 +2536,72 @@ function Styles() {
     }
     .lp2-final-snap-arrow { color: #D4226A; flex-shrink: 0; }
     @media (max-width: 639px) { .lp2-final-snap-arrow svg { transform: rotate(90deg); } }
+
+    /* ═══ SECTION 8.5: INTEGRATIONS ═══ */
+    .lp2-integrations {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .lp2-int-header { text-align: center; margin-bottom: 36px; }
+    .lp2-int-label {
+      font-size: 0.72rem; font-weight: 800; letter-spacing: 0.18em;
+      color: #6868A0; text-transform: uppercase; margin-bottom: 14px;
+    }
+    .lp2-int-sub {
+      font-size: 0.95rem; color: #A0A0B0; margin: 0 auto; max-width: 620px; line-height: 1.5;
+    }
+    .lp2-int-grid {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+      margin-bottom: 14px; max-width: 880px; margin-left: auto; margin-right: auto;
+    }
+    .lp2-int-pill {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px 16px; border-radius: 12px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+    .lp2-int-pill:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.04);
+    }
+    .lp2-int-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      box-shadow: 0 0 8px rgba(255,255,255,0.08);
+    }
+    .lp2-int-name {
+      font-size: 0.88rem; font-weight: 600; color: #E0E0F0; white-space: nowrap;
+    }
+    .lp2-int-pill-soon .lp2-int-name { color: #8080A0; }
+    .lp2-int-pill-soon { opacity: 0.65; }
+    .lp2-int-badge {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+      padding: 2px 7px; border-radius: 6px;
+      background: rgba(255,184,0,0.1); color: #FFB800;
+      border: 1px solid rgba(255,184,0,0.2); text-transform: uppercase;
+    }
+    .lp2-int-callouts {
+      display: grid; grid-template-columns: 1fr; gap: 14px;
+      margin-top: 44px; max-width: 880px; margin-left: auto; margin-right: auto;
+    }
+    @media (min-width: 768px) { .lp2-int-callouts { grid-template-columns: repeat(3, 1fr); } }
+    .lp2-int-callout {
+      padding: 20px; border-radius: 14px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .lp2-int-callout-icon { font-size: 1.4rem; margin-bottom: 10px; }
+    .lp2-int-callout-title {
+      font-size: 0.95rem; font-weight: 800; color: #fff; margin-bottom: 8px;
+    }
+    .lp2-int-callout-body {
+      font-size: 0.8125rem; color: #A0A0B0; line-height: 1.55;
+    }
 
     /* ── REDUCED MOTION ── */
     @media (prefers-reduced-motion: reduce) {
