@@ -25,6 +25,8 @@ function PageLoader() {
 
 // ── Lazy-loaded pages (code-split per route) ──
 const MarketingLanding = lazy(() => import('../pages/MarketingLanding'))
+const LandingPageV2 = lazy(() => import('../pages/LandingPage'))
+const TrialStartPageV2 = lazy(() => import('../pages/TrialStartPage'))
 const Login = lazy(() => import('../pages/Login'))
 const Signup = lazy(() => import('../pages/Signup'))
 const Intake = lazy(() => import('../pages/Intake'))
@@ -124,6 +126,8 @@ export default function App() {
           <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<MarketingLanding />} />
+            <Route path="/v2" element={<LandingPageV2 />} />
+            <Route path="/v2/start" element={<TrialStartPageV2 />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/intake/:slug" element={<Intake />} />
