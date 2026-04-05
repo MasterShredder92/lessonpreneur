@@ -1,66 +1,74 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const STORAGE_KEY = 'lp_first_visit'
-const LOSS_PER_SECOND = 50000 / 365 / 24 / 60 / 60 // ≈ 0.0015854
+const STORAGE_KEY = 'lp_bleed_start'
+const RATE_PER_SECOND = 200 / 3600 // $0.055556/sec
+const TICK_MS = 180 // one cent every 180ms
 
 function formatUsd(amount: number): string {
   return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function readStart(): { start: number; wasPreexisting: boolean } {
+  if (typeof window === 'undefined') {
+    return { start: Date.now(), wasPreexisting: false }
+  }
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      const parsed = parseInt(raw, 10)
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return { start: parsed, wasPreexisting: true }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  const now = Date.now()
+  try {
+    window.localStorage.setItem(STORAGE_KEY, String(now))
+  } catch {
+    /* ignore */
+  }
+  return { start: now, wasPreexisting: false }
+}
+
 export default function StopTheBleedingBar() {
   const navigate = useNavigate()
-  const [amount, setAmount] = useState(0)
-  const [isReturning, setIsReturning] = useState(false)
+
+  // Initialize synchronously so display opens at correct accumulated value
+  const initRef = useRef<{ start: number; wasPreexisting: boolean } | null>(null)
+  if (initRef.current === null) {
+    initRef.current = readStart()
+  }
+  const initial = initRef.current
+  const initialAmount = ((Date.now() - initial.start) / 1000) * RATE_PER_SECOND
+  const initialReturning = Date.now() - initial.start > 60_000
+
+  const [amount, setAmount] = useState<number>(initialAmount)
+  const [isReturning, setIsReturning] = useState<boolean>(initialReturning)
   const [flash, setFlash] = useState(false)
-  const startRef = useRef<number>(Date.now())
 
   useEffect(() => {
-    const existing =
-      typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null
-    if (existing) {
-      const parsed = parseInt(existing, 10)
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        startRef.current = parsed
-        setIsReturning(true)
-      } else {
-        const now = Date.now()
-        window.localStorage.setItem(STORAGE_KEY, String(now))
-        startRef.current = now
-        setIsReturning(false)
-      }
-    } else {
-      const now = Date.now()
-      try {
-        window.localStorage.setItem(STORAGE_KEY, String(now))
-      } catch {
-        /* ignore */
-      }
-      startRef.current = now
-      setIsReturning(false)
-    }
-
-    const tick = () => {
-      const elapsedSec = (Date.now() - startRef.current) / 1000
-      setAmount(elapsedSec * LOSS_PER_SECOND)
+    const id = window.setInterval(() => {
+      setAmount((prev) => prev + 0.01)
       setFlash(true)
-      window.setTimeout(() => setFlash(false), 90)
-    }
-    tick()
-    const id = window.setInterval(tick, 100)
+      window.setTimeout(() => setFlash(false), 80)
+    }, TICK_MS)
     return () => window.clearInterval(id)
   }, [])
 
   const handleReset = () => {
     const now = Date.now()
     try {
+      window.localStorage.removeItem(STORAGE_KEY)
       window.localStorage.setItem(STORAGE_KEY, String(now))
     } catch {
       /* ignore */
     }
-    startRef.current = now
-    setIsReturning(false)
+    initRef.current = { start: now, wasPreexisting: false }
     setAmount(0)
+    setIsReturning(false)
   }
 
   const subText = isReturning
@@ -160,8 +168,8 @@ export default function StopTheBleedingBar() {
             <div
               className="lp-bleed-amount"
               style={{
-                opacity: flash ? 0.7 : 1,
-                transition: 'opacity 100ms ease-out',
+                opacity: flash ? 0.6 : 1,
+                transition: 'opacity 160ms ease-out',
               }}
             >
               💸 {formatUsd(amount)}
