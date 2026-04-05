@@ -131,7 +131,10 @@ export default function FoldSection() {
           margin: 0,
         }}
       >
-        Run Your Music School <span style={{ color: COLORS.pink }}>Without</span> Running Yourself Into the Ground.
+        Run Your Music School<br />
+        <span style={{ color: '#D4226A' }}>WITHOUT</span><br />
+        Running Yourself<br />
+        Into the Ground.
       </h1>
 
       <p
