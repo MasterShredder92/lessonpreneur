@@ -63,7 +63,18 @@ const EDGE_COLORS: Record<string, { bg: string; shadow: string; glow: string }> 
 const COUNTS_AS_LESSON = new Set(['student_session', 'first_day', 'last_day', 'call_out', 'meet_greet', 'sub'])
 
 export default function Schedule() {
-  const { tenantId, profile, role } = useAuthContext()
+  const { tenantId, profile, role, teacherRecord } = useAuthContext()
+
+  // My Sessions toggle — only meaningful for dual-role studio directors
+  const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
+    if (typeof window === 'undefined') return 'all'
+    return window.localStorage.getItem('schedule_view_mode') === 'mine' ? 'mine' : 'all'
+  })
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('schedule_view_mode', viewMode)
+    } catch { /* noop */ }
+  }, [viewMode])
   const qc = useQueryClient()
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 900)
@@ -584,7 +595,10 @@ export default function Schedule() {
   fullTeacherList.sort((a, b) => a.name.localeCompare(b.name))
 
   let visibleTeachers = fullTeacherList
-  if (selectedTeacherFilter) {
+  const showMineOnly = viewMode === 'mine' && !!teacherRecord
+  if (showMineOnly) {
+    visibleTeachers = fullTeacherList.filter((t) => t.id === teacherRecord!.id)
+  } else if (selectedTeacherFilter) {
     visibleTeachers = fullTeacherList.filter((t) => t.id === selectedTeacherFilter)
   } else if (teacherVisibility === 'scheduled') {
     visibleTeachers = fullTeacherList.filter((t) => scheduledTeacherIds.has(t.id) || subTeacherIds.has(t.id))
@@ -597,7 +611,8 @@ export default function Schedule() {
   // Grid lookup
   const gridLookup = new Map<string, Map<string, GridBlock>>()
   for (const b of blocks) {
-    if (selectedTeacherFilter && b.teacher_id !== selectedTeacherFilter) continue
+    if (showMineOnly && b.teacher_id !== teacherRecord!.id) continue
+    if (!showMineOnly && selectedTeacherFilter && b.teacher_id !== selectedTeacherFilter) continue
     if (!gridLookup.has(b.start_time)) gridLookup.set(b.start_time, new Map())
     gridLookup.get(b.start_time)!.set(b.teacher_id, b)
   }
@@ -644,7 +659,7 @@ export default function Schedule() {
   }))
 
   // Secondary role check (primary is RouteGuard)
-  if (role !== 'owner' && role !== 'admin') {
+  if (role !== 'owner' && role !== 'admin' && role !== 'company_director' && role !== 'studio_director') {
     return <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Access restricted to owners and admins.</div>
   }
 
@@ -702,6 +717,20 @@ export default function Schedule() {
             {allGridTeachersFull.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
 
+          {teacherRecord && (
+            <div data-tour-id="my-sessions-toggle" style={{ display: 'flex', alignItems: 'center', height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden', background: 'rgba(255,255,255,0.04)' }}>
+              <button onClick={() => setViewMode('all')} style={{
+                padding: '0 12px', height: 32, fontSize: 12, fontWeight: viewMode === 'all' ? 800 : 500, cursor: 'pointer', border: 'none',
+                background: viewMode === 'all' ? '#FFFFFF' : 'transparent',
+                color: viewMode === 'all' ? '#141224' : '#A0A0C8', transition: 'all 150ms ease',
+              }}>All Sessions</button>
+              <button onClick={() => setViewMode('mine')} style={{
+                padding: '0 12px', height: 32, fontSize: 12, fontWeight: viewMode === 'mine' ? 800 : 500, cursor: 'pointer', border: 'none',
+                background: viewMode === 'mine' ? '#FFFFFF' : 'transparent',
+                color: viewMode === 'mine' ? '#141224' : '#A0A0C8', transition: 'all 150ms ease',
+              }}>My Sessions</button>
+            </div>
+          )}
           <ReportIssueButton />
           {/* Legend dropdown */}
           <div style={{ position: 'relative' }}>
@@ -736,6 +765,7 @@ export default function Schedule() {
 
       {lastDayResult && <div style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#EF4444' }}>{lastDayResult}</div>}
       {firstDayResult && <div style={{ padding: '8px 14px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#3B82F6' }}>{firstDayResult}</div>}
+      {showMineOnly && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6, paddingLeft: 4 }}>Showing your sessions only</div>}
 
       {/* Schedule Intelligence — utilization bar (desktop only) */}
       {!isMobile && scheduleIntel && scheduleIntel.utilization.length > 0 && (

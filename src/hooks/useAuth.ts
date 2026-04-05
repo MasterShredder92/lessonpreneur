@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Profile, AuthState } from '../lib/types'
+import type { Profile, Teacher, AuthState } from '../lib/types'
 
 interface MinimalSession {
   user: { id: string; email?: string }
@@ -12,6 +12,7 @@ export function useAuth(): AuthState & {
 } {
   const [session, setSession] = useState<MinimalSession | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [teacherRecord, setTeacherRecord] = useState<Teacher | null>(null)
   const [locationIds, setLocationIds] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -32,6 +33,17 @@ export function useAuth(): AuthState & {
           .eq('profile_id', userId)
 
         setLocationIds(locData?.map((l) => l.location_id) ?? [])
+
+        // Check for dual-role: fetch teacher record linked to this profile
+        const { data: teacherData } = await supabase
+          .from('teachers')
+          .select('*')
+          .eq('profile_id', userId)
+          .eq('tenant_id', (profileData as Profile).tenant_id)
+          .limit(1)
+          .maybeSingle()
+
+        setTeacherRecord((teacherData as Teacher) ?? null)
       }
     } catch (err) {
       console.error('Failed to load profile:', err)
@@ -53,6 +65,7 @@ export function useAuth(): AuthState & {
           await loadProfile(session.user.id)
         } else {
           setProfile(null)
+          setTeacherRecord(null)
           setLocationIds([])
           setIsLoading(false)
         }
@@ -80,6 +93,7 @@ export function useAuth(): AuthState & {
     // never leave the user stuck on a page they can't exit.
     try {
       setProfile(null)
+      setTeacherRecord(null)
       setLocationIds([])
       // Clear LP-prefixed keys from localStorage + sessionStorage
       const clearLpKeys = (storage: Storage) => {
@@ -106,6 +120,7 @@ export function useAuth(): AuthState & {
   return {
     user: session?.user ? { id: session.user.id, email: session.user.email ?? '' } : null,
     profile,
+    teacherRecord,
     locationIds,
     isLoading,
     signIn,

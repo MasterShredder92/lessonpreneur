@@ -62,6 +62,8 @@ export const RATE_TIERS = {
 export const ROLE_DEFAULT_ROUTES: Record<string, string> = {
   owner: '/admin/dashboard',
   admin: '/admin/dashboard',
+  company_director: '/admin/dashboard',
+  studio_director: '/admin/dashboard',
   teacher: '/teacher/schedule',
   parent: '/parent/dashboard',
   student: '/parent/dashboard',

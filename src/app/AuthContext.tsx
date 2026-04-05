@@ -1,10 +1,11 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import type { Profile, UserRole } from '../lib/types'
+import type { Profile, Teacher, UserRole } from '../lib/types'
 
 interface AuthContextValue {
   user: { id: string; email: string } | null
   profile: Profile | null
+  teacherRecord: Teacher | null
   role: UserRole | null
   tenantId: string | null
   locationIds: string[]

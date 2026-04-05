@@ -1,4 +1,4 @@
-export type UserRole = 'owner' | 'admin' | 'teacher' | 'parent' | 'student'
+export type UserRole = 'owner' | 'admin' | 'company_director' | 'studio_director' | 'teacher' | 'parent' | 'student'
 
 export interface Profile {
   id: string
@@ -10,6 +10,8 @@ export interface Profile {
   phone: string | null
   avatar_url: string | null
   is_active: boolean
+  onboarding_completed_at: string | null
+  onboarding_skipped: boolean
 }
 
 export interface Location {
@@ -80,6 +82,7 @@ export interface Student {
 export interface AuthState {
   user: { id: string; email: string } | null
   profile: Profile | null
+  teacherRecord: Teacher | null
   locationIds: string[]
   isLoading: boolean
 }

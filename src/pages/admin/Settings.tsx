@@ -19,6 +19,7 @@ import { useStripeConnectStatus, useStripeConnectOnboard } from '../../hooks/use
 import { getTierByKey, TRIAL_DAYS } from '../../lib/pricing'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import { useOnboarding } from '../../contexts/OnboardingContext'
 
 interface LocationFormData {
   name: string; address: string; city: string; state: string; zip: string
@@ -30,7 +31,7 @@ const emptyForm: LocationFormData = {
   phone: '', email: '', website: '', google_review_url: '',
 }
 
-type Tab = 'business' | 'locations' | 'access' | 'billing-config' | 'issues'
+type Tab = 'business' | 'locations' | 'access' | 'billing-config' | 'issues' | 'account'
 
 // Map old tab names to new ones for bookmark compatibility
 const TAB_REDIRECTS: Record<string, Tab> = {
@@ -41,7 +42,7 @@ const TAB_REDIRECTS: Record<string, Tab> = {
   integrations: 'business', // integrations removed from settings
 }
 
-const VALID_TABS: Tab[] = ['business', 'locations', 'access', 'billing-config', 'issues']
+const VALID_TABS: Tab[] = ['business', 'locations', 'access', 'billing-config', 'issues', 'account']
 
 export default function Settings() {
   const { role, tenantId } = useAuthContext()
@@ -86,6 +87,7 @@ export default function Settings() {
         {(role === 'owner' || role === 'admin' || role === 'company_director') && (
           <button className={`settings-tab ${tab === 'issues' ? 'active' : ''}`} onClick={() => setTab('issues')}>Issues</button>
         )}
+        <button className={`settings-tab ${tab === 'account' ? 'active' : ''}`} onClick={() => setTab('account')}>My Account</button>
       </div>
 
       {tab === 'business' && <BusinessTab tenantId={tenantId} isOwner={isOwner} />}
@@ -93,6 +95,7 @@ export default function Settings() {
       {tab === 'access' && isOwner && <AccessControlTab tenantId={tenantId} />}
       {tab === 'billing-config' && isOwner && <BillingConfigTab />}
       {tab === 'issues' && <IssuesTab />}
+      {tab === 'account' && <AccountTab />}
     </div>
     </IssueContextProvider>
   )
@@ -114,6 +117,32 @@ function CollapsibleSection({ title, defaultOpen = true, children }: { title: st
       <div style={{ overflow: 'hidden', maxHeight: open ? '9999px' : '0px', transition: 'max-height 0.2s ease', marginTop: open ? 16 : 0 }}>
         {children}
       </div>
+    </div>
+  )
+}
+
+// ─── Account / Preferences ───────────────────────────
+
+function AccountTab() {
+  const { role } = useAuthContext()
+  const { replayTour } = useOnboarding()
+  return (
+    <div>
+      <CollapsibleSection title="Preferences">
+        {role === 'studio_director' ? (
+          <button
+            onClick={() => { void replayTour() }}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              color: '#D4226A', fontSize: 13, fontWeight: 600, textDecoration: 'underline',
+            }}
+          >
+            Replay onboarding tour →
+          </button>
+        ) : (
+          <div style={{ fontSize: 12, color: '#8080A8' }}>No preferences available for your role yet.</div>
+        )}
+      </CollapsibleSection>
     </div>
   )
 }

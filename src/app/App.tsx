@@ -162,7 +162,7 @@ export default function App() {
             <Route
               path="/admin"
               element={
-                <RouteGuard allowedRoles={['owner', 'admin']}>
+                <RouteGuard allowedRoles={['owner', 'admin', 'company_director', 'studio_director']}>
                   <AdminShell />
                 </RouteGuard>
               }

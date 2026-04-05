@@ -12,6 +12,7 @@ import ChangePasswordModal from '../shared/ChangePasswordModal'
 import RoleSwitcher from '../shared/RoleSwitcher'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
 import StarModal from '../ai/StarModal'
+import { OnboardingProvider } from '../../contexts/OnboardingContext'
 
 const NAV_ICONS: Record<string, ReactNode> = {
   'dashboard': <LayoutDashboard size={18} />,
@@ -88,6 +89,7 @@ export default function AdminShell() {
   }, [])
 
   return (
+    <OnboardingProvider>
     <div className="admin-shell" style={preview.active ? { paddingTop: 40 } : undefined}>
       {/* ATMOSPHERIC BACKGROUND - required for V9 design */}
       <div className="lp-bg">
@@ -144,7 +146,7 @@ export default function AdminShell() {
         <nav className="sidebar-nav">
           {ADMIN_NAV_ITEMS.filter(item => {
             // Role-based nav filtering — uses effectiveRole from usePermissions (respects preview mode)
-            const HIDDEN_FOR_STUDIO_DIR = ['/admin/financials', '/admin/recruitment', '/admin/settings']
+            const HIDDEN_FOR_STUDIO_DIR = ['/admin/financials', '/admin/recruitment']
             const HIDDEN_FOR_COMPANY_DIR = ['/admin/financials'] // hide owner take-home from co. directors
             if (isStudioDirector) {
               if (item.path && HIDDEN_FOR_STUDIO_DIR.includes(item.path)) return false
@@ -198,6 +200,7 @@ export default function AdminShell() {
                               to={child.path}
                               onClick={(e) => e.stopPropagation()}
                               className={({ isActive }) => `nav-item nav-child${isActive ? ' active' : ''}`}
+                              data-tour-id={`nav-${child.path.replace('/admin/', '')}`}
                               style={{ paddingLeft: 42, fontSize: 13, fontWeight: 500 }}
                             >
                               <span className="nav-label">{child.label}</span>
@@ -213,6 +216,7 @@ export default function AdminShell() {
                       to={item.path}
                       onClick={(e) => e.stopPropagation()}
                       className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                      data-tour-id={item.path ? `nav-${item.path.replace('/admin/', '')}` : undefined}
                     >
                       {NAV_ICONS[item.icon]}
                       <span className="nav-label">{item.label}</span>
@@ -281,6 +285,7 @@ export default function AdminShell() {
 
       <StarModal open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
     </div>
+    </OnboardingProvider>
   )
 }
 

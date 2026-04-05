@@ -176,7 +176,7 @@ export default function HappeningTodayFeed({ userLocations }: HappeningTodayFeed
   }
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div data-tour-id="happening-today-feed" style={{ marginBottom: 16 }}>
       <div style={{
         fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.1em',
         color: 'rgba(255,255,255,0.4)', marginBottom: 10,
