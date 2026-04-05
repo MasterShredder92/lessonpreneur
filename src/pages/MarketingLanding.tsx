@@ -1466,6 +1466,57 @@ function IntegrationsSection() {
    SECTION 9: PRICING + OBJECTIONS
    ═══════════════════════════════════════════════════════ */
 
+function GuiltTripBanner() {
+  const THIRTY_MIN_MS = 30 * 60 * 1000
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const WEEK_MS = 7 * DAY_MS
+
+  const [elapsedMs, setElapsedMs] = useState<number | null>(null)
+
+  useEffect(() => {
+    const read = () => {
+      try {
+        const raw = localStorage.getItem('lp_first_visit')
+        if (!raw) { setElapsedMs(null); return }
+        const ts = parseInt(raw, 10)
+        if (isNaN(ts)) { setElapsedMs(null); return }
+        setElapsedMs(Date.now() - ts)
+      } catch { setElapsedMs(null) }
+    }
+    read()
+    const id = setInterval(read, 60 * 1000) // refresh every minute to cross thresholds
+    const onReset = () => read()
+    window.addEventListener('lp:firstvisitreset', onReset)
+    return () => { clearInterval(id); window.removeEventListener('lp:firstvisitreset', onReset) }
+  }, [])
+
+  if (elapsedMs === null || elapsedMs < THIRTY_MIN_MS) return null
+
+  let body: ReactNode
+  if (elapsedMs < DAY_MS) {
+    body = (
+      <>While you{'\u2019'}ve been reading this page, Lessonpreneur could have already been working for you. The 60-day free trial costs you nothing. Starting now costs you nothing.</>
+    )
+  } else if (elapsedMs < WEEK_MS) {
+    body = (
+      <>You came back. That means you already know. Every day without a system is revenue that doesn{'\u2019'}t come back. The free trial is still here. It{'\u2019}s still free. Start today.</>
+    )
+  } else {
+    const days = Math.floor(elapsedMs / DAY_MS)
+    body = (
+      <>It{'\u2019'}s been {days} day{days === 1 ? '' : 's'} since you first looked at this. In that time the counter above kept running. Lessonpreneur would have cost you nothing during that window — it{'\u2019}s a 60-day free trial. Luckily, that offer hasn{'\u2019'}t changed. You can still start for free right now.</>
+    )
+  }
+
+  return (
+    <div className="lp2-guilt-banner" role="note">
+      <p className="lp2-guilt-body">
+        <span className="lp2-guilt-lead">💸</span> {body}
+      </p>
+    </div>
+  )
+}
+
 function PricingSection() {
   const LAUNCH_PRICING_ENDS = '2026-07-03'
   const daysLeft = Math.max(0, Math.ceil((new Date(LAUNCH_PRICING_ENDS + 'T23:59:59').getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
@@ -1480,6 +1531,7 @@ function PricingSection() {
 
   return (
     <Reveal id="pricing">
+      <GuiltTripBanner />
       <section className="lp2-section lp2-pricing">
         <h2 className="lp2-section-h2" style={{ textAlign: 'center' }}>Pick Your Plan. Start in 60&nbsp;Seconds.</h2>
         <p className="lp2-pricing-sub">Every plan includes a 60-day free trial. No credit card required.</p>
@@ -2562,6 +2614,24 @@ function Styles() {
     }
     .lp2-final-snap-arrow { color: #D4226A; flex-shrink: 0; }
     @media (max-width: 639px) { .lp2-final-snap-arrow svg { transform: rotate(90deg); } }
+
+    /* ═══ GUILT-TRIP BANNER (above pricing) ═══ */
+    .lp2-guilt-banner {
+      width: 100%;
+      background: rgba(212, 34, 106, 0.08);
+      border-top: 1px solid rgba(212,34,106,0.2);
+      border-bottom: 1px solid rgba(212,34,106,0.2);
+      padding: 16px 24px;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+    .lp2-guilt-body {
+      max-width: 600px; margin: 0 auto;
+      font-size: 13px; line-height: 1.6;
+      color: rgba(255,255,255,0.85); font-weight: 500;
+    }
+    @media (min-width: 768px) { .lp2-guilt-body { font-size: 14px; } }
+    .lp2-guilt-lead { color: #FFB800; font-weight: 700; }
 
     /* ═══ SECTION 8.5: INTEGRATIONS ═══ */
     .lp2-integrations {
