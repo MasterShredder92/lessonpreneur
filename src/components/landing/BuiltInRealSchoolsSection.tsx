@@ -1,4 +1,5 @@
 import { COLORS, FONT, sectionStyle } from './shared'
+import DeviceMockupSection from './DeviceMockupSection'
 
 export default function BuiltInRealSchoolsSection() {
   return (
@@ -17,26 +18,24 @@ export default function BuiltInRealSchoolsSection() {
         This wasn't built in a <span style={{ color: COLORS.pink }}>conference room</span>.
       </h2>
 
-      <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {[
-          "My name is Zach Adkins. I own four music schools in Omaha. We have over 600 active students, 40+ teachers, and four locations. We've grown from zero to over a million dollars a year in revenue.",
-          'I built Lessonpreneur because I was the target customer — and nothing on the market actually understood how a music school runs. Every feature in this system was built to solve a real problem I had in my real schools. The lead pipeline. The SMS automation. The billing visibility. The teacher coordination tools. The AI briefing. All of it exists because I needed it — and none of it existed.',
-          'I am still running these schools while building this. LP is live in production right now. This is not a demo. It is the system I use every single day.',
-        ].map((para, i) => (
-          <p
-            key={i}
-            style={{
-              fontFamily: FONT,
-              fontSize: '18px',
-              lineHeight: 1.7,
-              color: 'rgba(255,255,255,0.75)',
-              margin: 0,
-            }}
-          >
-            {para}
-          </p>
-        ))}
+      <div style={{ marginTop: '32px' }}>
+        <p
+          style={{
+            fontFamily: FONT,
+            fontSize: '18px',
+            lineHeight: 1.7,
+            color: 'rgba(255,255,255,0.75)',
+            margin: 0,
+          }}
+        >
+          I'm Zach Adkins — I own four music schools in Omaha with 600+ students and 40+ teachers.
+          I built Lessonpreneur because nothing on the market actually understood how a music school
+          runs. Every feature exists because I needed it in my real schools, and LP is live in
+          production right now — not a demo, but the system I use every single day.
+        </p>
       </div>
+
+      <DeviceMockupSection />
 
       <div
         className="lp-founder-row"
