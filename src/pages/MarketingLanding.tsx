@@ -1494,18 +1494,12 @@ function GuiltTripBanner() {
 
   let body: ReactNode
   if (elapsedMs < DAY_MS) {
-    body = (
-      <>While you{'\u2019'}ve been reading this page, Lessonpreneur could have already been working for you. The 60-day free trial costs you nothing. Starting now costs you nothing.</>
-    )
+    body = <>While you’ve been reading this page, Lessonpreneur could have already been working for you. The 60-day free trial costs you nothing. Starting now costs you nothing.</>
   } else if (elapsedMs < WEEK_MS) {
-    body = (
-      <>You came back. That means you already know. Every day without a system is revenue that doesn{'\u2019'}t come back. The free trial is still here. It{'\u2019}s still free. Start today.</>
-    )
+    body = <>You came back. That means you already know. Every day without a system is revenue that doesn’t come back. The free trial is still here. It’s still free. Start today.</>
   } else {
     const days = Math.floor(elapsedMs / DAY_MS)
-    body = (
-      <>It{'\u2019'}s been {days} day{days === 1 ? '' : 's'} since you first looked at this. In that time the counter above kept running. Lessonpreneur would have cost you nothing during that window — it{'\u2019}s a 60-day free trial. Luckily, that offer hasn{'\u2019'}t changed. You can still start for free right now.</>
-    )
+    body = <>It’s been {days} day{days === 1 ? '' : 's'} since you first looked at this. In that time the counter above kept running. Lessonpreneur would have cost you nothing during that window — it’s a 60-day free trial. Luckily, that offer hasn’t changed. You can still start for free right now.</>
   }
 
   return (
