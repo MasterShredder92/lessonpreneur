@@ -13,10 +13,13 @@ const ITEMS = [
 export default function WhoItsForSection() {
   const [headingRef, inView] = useInView<HTMLHeadingElement>(0.3)
   return (
-    <section className="lp-section" style={{ ...sectionStyle, maxWidth: '720px' }}>
+    <section className="lp-section lp-who-section" style={{ ...sectionStyle, maxWidth: '720px' }}>
       <style>{`
         .lp-who-row { transition: background 200ms ease-out, border-radius 200ms ease-out; padding: 6px 10px; border-radius: 8px; }
         .lp-who-row:hover { background: rgba(212,34,106,0.06); }
+        @media (max-width: 768px) {
+          .lp-who-section { padding-top: 24px !important; }
+        }
         @keyframes lp-who-type-reveal {
           from { clip-path: inset(0 100% 0 0); }
           to   { clip-path: inset(0 0 0 0); }

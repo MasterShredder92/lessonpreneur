@@ -30,7 +30,7 @@ export default function FoldSection() {
         .lp-gauge-wrap { display: block; }
         @media (max-width: 768px) {
           .lp-gauge-wrap { display: none !important; }
-          .lp-fold-section { padding-top: 24px !important; padding-bottom: 40px !important; min-height: auto !important; justify-content: flex-start !important; }
+          .lp-fold-section { padding-top: 24px !important; padding-bottom: 0px !important; min-height: auto !important; justify-content: flex-start !important; }
           .lp-fold-sub { margin-top: 8px !important; }
           .lp-fold-video { margin-top: 16px !important; }
           .lp-fold-cta-wrap { margin-top: 16px !important; }
