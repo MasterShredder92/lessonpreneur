@@ -24,6 +24,7 @@ import { useStudentInstruments, useSaveStudentInstruments } from '../../hooks/us
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -277,6 +278,7 @@ export default function StudentDetail() {
       <button className="btn-ghost" onClick={() => navigate('/admin/students')} style={{ marginBottom: 12 }}>
         ← Back to Students
       </button>
+      <StudentsPageGuide mode="detail" />
 
       {/* === COMPRESSED STUDENT PROFILE === */}
       <div className="location-card" style={{ padding: '24px 28px', marginBottom: 14, cursor: 'default' }}>
@@ -284,7 +286,7 @@ export default function StudentDetail() {
         <div className="loc-card-glow" style={{ background: student.status === 'active' ? 'radial-gradient(circle, rgba(34,197,94,0.08) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(239,68,68,0.06) 0%, transparent 70%)' }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
           {/* ── Student Name Row ── */}
-          <div style={{ marginBottom: 4 }}>
+          <div data-tour-id="student-header" style={{ marginBottom: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', padding: '3px 12px', borderRadius: 8, border: '1px solid', flexShrink: 0, color: student.status === 'active' ? '#22C55E' : '#EF4444', borderColor: student.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)', background: student.status === 'active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }}>
                 {student.status}
@@ -300,6 +302,7 @@ export default function StudentDetail() {
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
                 {canEdit && (
                   <button
+                    data-tour-id="student-edit-btn"
                     onClick={() => setShowEditModal(true)}
                     title="Edit Student"
                     style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8080A8', transition: 'all 140ms ease', flexShrink: 0 }}
@@ -528,7 +531,7 @@ export default function StudentDetail() {
         </div>
 
         {/* Family Card */}
-        <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+        <div data-tour-id="student-family-card" className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #6366F1, #818CF8)', boxShadow: '0 0 12px rgba(99,102,241,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
@@ -602,7 +605,7 @@ export default function StudentDetail() {
           </div>
         </div>
 
-        <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+        <div data-tour-id="student-lesson-stats" className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 12px rgba(255,85,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
@@ -657,7 +660,7 @@ export default function StudentDetail() {
           { emoji: '📋', label: 'Call-Outs', value: String(sessionTracker.totalCallouts), sub: 'this year', color: '#E0E0F4' },
         ]
         return (
-          <div className="location-card" style={{ padding: 18, marginBottom: 14, cursor: 'default' }}>
+          <div data-tour-id="student-session-tracker" className="location-card" style={{ padding: 18, marginBottom: 14, cursor: 'default' }}>
             <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF6B6B, #E55353)', boxShadow: '0 0 12px rgba(255,107,107,0.4)' }} />
             <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,107,107,0.05) 0%, transparent 70%)' }} />
             <div style={{ position: 'relative', zIndex: 1 }}>
@@ -740,7 +743,7 @@ export default function StudentDetail() {
       {/* Row 3: Director Notes + Teacher Notes — side by side */}
       <div className="sd-row-2">
         {/* Director Notes */}
-        <div className="location-card" style={{ padding: 18, cursor: 'pointer' }} onClick={() => setShowDirectorNotes(true)}>
+        <div data-tour-id="student-director-notes" className="location-card" style={{ padding: 18, cursor: 'pointer' }} onClick={() => setShowDirectorNotes(true)}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 12px rgba(255,85,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
@@ -765,7 +768,7 @@ export default function StudentDetail() {
         </div>
 
         {/* Teacher Notes */}
-        <div className="location-card" style={{ padding: 18, cursor: 'pointer' }} onClick={() => setShowTeacherNotes(true)}>
+        <div data-tour-id="student-teacher-notes" className="location-card" style={{ padding: 18, cursor: 'pointer' }} onClick={() => setShowTeacherNotes(true)}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #D97706, #FFB800)', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
@@ -805,7 +808,7 @@ export default function StudentDetail() {
 
       {/* Row 4: Documents + Teacher Handoff — side by side */}
       <div className="sd-row-2">
-        <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+        <div data-tour-id="student-files" className="location-card" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #D97706, #FFB800)', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
@@ -865,6 +868,7 @@ export default function StudentDetail() {
 
             {!handoffReport ? (
               <button
+                data-tour-id="student-handoff-btn"
                 className="btn-outline"
                 disabled={handoffLoading}
                 onClick={async () => {
@@ -887,7 +891,7 @@ export default function StudentDetail() {
               </button>
             ) : (
               <>
-                <div style={{ padding: 12, background: 'rgba(255,184,0,0.03)', border: '1px solid rgba(255,184,0,0.1)', borderRadius: 10, fontSize: 12.5, color: '#C0C0E0', lineHeight: 1.6, whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto', marginBottom: 12 }}>
+                <div data-tour-id="student-handoff-report" style={{ padding: 12, background: 'rgba(255,184,0,0.03)', border: '1px solid rgba(255,184,0,0.1)', borderRadius: 10, fontSize: 12.5, color: '#C0C0E0', lineHeight: 1.6, whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto', marginBottom: 12 }}>
                   {handoffReport}
                 </div>
 

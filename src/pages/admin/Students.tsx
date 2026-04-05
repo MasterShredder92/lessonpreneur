@@ -22,6 +22,7 @@ import { useChurnRiskScores, RISK_TIERS } from '../../hooks/useChurnRisk'
 import { useScrollRestore } from '../../hooks/useScrollRestore'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
 
 const INSTRUMENT_ICON: Record<string, any> = {
   guitar: Guitar, bass: Guitar, ukulele: Guitar, banjo: Guitar,
@@ -249,6 +250,7 @@ export default function Students() {
           )}
         </div>
         <ReportIssueButton />
+        <StudentsPageGuide mode="list" />
       </div>
 
       {/* Tabs */}
@@ -264,7 +266,7 @@ export default function Students() {
       )}
 
       {/* Filters */}
-      <div className="schedule-filters" style={{ marginBottom: '16px' }}>
+      <div data-tour-id="students-search" className="schedule-filters" style={{ marginBottom: '16px' }}>
         <div className="student-filter-row-1">
           <input
             value={search}
@@ -391,14 +393,15 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
       {(isLoading || (!allStudents && isFetching)) ? (
         <div className="loading-screen" style={{ height: 200 }}><MusicLoader /></div>
       ) : (
-        <div className="lead-cards">
-          {filtered.map((s) => {
+        <div data-tour-id="students-list" className="lead-cards">
+          {filtered.map((s, studentIdx) => {
             const isFormer = s.status === 'former' || s.status === 'inactive'
             const loc = locations?.find((l: any) => l.id === s.location_id)
             const locColor = (loc as any)?.color ?? '#D4226A'
             return (
               <div
                 key={s.id}
+                data-tour-id={studentIdx === 0 ? 'first-student-row' : undefined}
                 className={`lead-card${isFormer ? ' lead-card-stale' : ''}`}
                 onClick={() => { saveScroll(); navigate(`/admin/students/${s.id}`) }}
               >
