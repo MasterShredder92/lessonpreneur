@@ -1,30 +1,736 @@
-import { sectionStyle } from './shared'
+import type { CSSProperties, ReactNode } from 'react'
 
 const FONT = 'Plus Jakarta Sans, system-ui, -apple-system, sans-serif'
 
-// Desktop SVG bar chart heights
-const BAR_HEIGHTS = [60, 80, 45, 90, 70, 110, 85, 95]
-const BAR_BASE_Y = 270
-const BAR_W = 12
-const BAR_GAP = 18
-const BAR_X0 = 315
+const cssVars = `
+  .lp-dm-section { padding: 80px 20px; }
+  .lp-dm-heading { font-size: 36px; }
+  .lp-dm-sub { font-size: 17px; margin-bottom: 48px; }
+  .lp-dm-devices { gap: 24px; }
+  .lp-dm-labels { gap: 32px; margin-top: 32px; }
+  .lp-dm-scale-wrap { transform: none; margin-bottom: 0; }
+  @media (max-width: 767px) {
+    .lp-dm-section { padding: 48px 16px; }
+    .lp-dm-heading { font-size: 26px; }
+    .lp-dm-sub { font-size: 14px; margin-bottom: 32px; }
+    .lp-dm-devices { gap: 12px; }
+    .lp-dm-labels { gap: 16px; margin-top: 16px; }
+  }
+  @media (max-width: 479px) {
+    .lp-dm-scale-wrap {
+      transform: scale(0.62);
+      transform-origin: top center;
+      margin-bottom: -120px;
+    }
+  }
+`
 
-// Mobile phone mini-chart bar heights
-const MOBILE_BARS = [24, 32, 20, 40, 30, 44, 36]
-
-export default function DeviceMockupSection() {
+// ─── Small presentational helpers ───────────────────────────────────────
+function Bars({
+  heights,
+  height,
+  gap,
+}: {
+  heights: number[]
+  height: number
+  gap: number
+}) {
   return (
-    <section className="lp-section" style={{ ...sectionStyle, position: 'relative' }}>
-      <style>{`
-        .lp-dev-desktop { display: block; }
-        .lp-dev-mobile { display: none; }
-        @media (max-width: 767px) {
-          .lp-dev-desktop { display: none !important; }
-          .lp-dev-mobile { display: block !important; }
-        }
-      `}</style>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        height: `${height}px`,
+        gap: `${gap}px`,
+      }}
+    >
+      {heights.map((h, i) => (
+        <div
+          key={i}
+          style={{
+            flex: 1,
+            height: `${h}px`,
+            borderRadius: '2px 2px 0 0',
+            background: i % 2 === 0 ? '#D4226A' : 'rgba(212,34,106,0.30)',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
 
-      {/* Ambient glow */}
+function StudentRow({
+  dotColor,
+  text,
+  rowHeight,
+  fontSize,
+}: {
+  dotColor: string
+  text: string
+  rowHeight: number
+  fontSize: number
+}) {
+  return (
+    <div
+      style={{
+        height: `${rowHeight}px`,
+        borderRadius: '3px',
+        background: 'rgba(255,255,255,0.04)',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 6px',
+      }}
+    >
+      <div
+        style={{
+          width: '6px',
+          height: '6px',
+          borderRadius: '50%',
+          background: dotColor,
+          flexShrink: 0,
+        }}
+      />
+      <span
+        style={{
+          fontFamily: FONT,
+          fontSize: `${fontSize}px`,
+          color: 'rgba(255,255,255,0.50)',
+          marginLeft: '5px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  )
+}
+
+function StatCell({
+  value,
+  label,
+  valueColor,
+  valueSize,
+  labelSize,
+  padding,
+  style,
+}: {
+  value: string
+  label: string
+  valueColor: string
+  valueSize: number
+  labelSize: number
+  padding: string
+  style?: CSSProperties
+}) {
+  return (
+    <div
+      style={{
+        padding,
+        borderRadius: '6px',
+        background: 'rgba(255,255,255,0.05)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        textAlign: 'center',
+        ...style,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: FONT,
+          fontSize: `${valueSize}px`,
+          fontWeight: 900,
+          color: valueColor,
+          lineHeight: 1.1,
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          fontFamily: FONT,
+          fontSize: `${labelSize}px`,
+          color: 'rgba(255,255,255,0.40)',
+          marginTop: '2px',
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  )
+}
+
+// ─── Phone ──────────────────────────────────────────────────────────────
+function Phone() {
+  return (
+    <div
+      style={{
+        width: '150px',
+        height: '300px',
+        borderRadius: '32px',
+        background: 'linear-gradient(160deg, #222, #111)',
+        border: '2px solid #333',
+        boxShadow: '0 0 40px rgba(212,34,106,0.12), 0 20px 40px rgba(0,0,0,0.6)',
+        position: 'relative',
+        flexShrink: 0,
+      }}
+    >
+      {/* Dynamic island */}
+      <div
+        style={{
+          width: '50px',
+          height: '14px',
+          borderRadius: '7px',
+          background: '#0a0a0a',
+          margin: '10px auto 0',
+        }}
+      />
+      {/* Screen */}
+      <div
+        style={{
+          margin: '6px 8px',
+          borderRadius: '20px',
+          background: '#06060f',
+          height: '248px',
+          overflow: 'hidden',
+          padding: '10px 8px',
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Top bar */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontFamily: FONT, fontSize: '9px', fontWeight: 800, color: '#D4226A' }}>
+            lessonpreneur
+          </span>
+          <span
+            style={{
+              fontFamily: FONT,
+              fontSize: '8px',
+              color: '#4ade80',
+              marginLeft: 'auto',
+            }}
+          >
+            ● Live
+          </span>
+        </div>
+
+        {/* Greeting card */}
+        <div
+          style={{
+            marginTop: '8px',
+            padding: '8px',
+            borderRadius: '8px',
+            background: 'rgba(212,34,106,0.10)',
+            border: '1px solid rgba(212,34,106,0.25)',
+          }}
+        >
+          <div style={{ fontFamily: FONT, fontSize: '9px', fontWeight: 800, color: '#fff' }}>
+            Good morning, Zach.
+          </div>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: '8px',
+              color: 'rgba(255,255,255,0.55)',
+              marginTop: '3px',
+            }}
+          >
+            3 leads need follow-up
+          </div>
+          <div style={{ fontFamily: FONT, fontSize: '8px', color: '#FFB800', marginTop: '2px' }}>
+            ↑ Revenue up 12%
+          </div>
+        </div>
+
+        {/* Stat chips */}
+        <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+          <StatCell
+            value="612"
+            label="Students"
+            valueColor="#fff"
+            valueSize={12}
+            labelSize={7}
+            padding="6px 2px"
+            style={{ flex: 1 }}
+          />
+          <StatCell
+            value="23"
+            label="Leads"
+            valueColor="#D4226A"
+            valueSize={12}
+            labelSize={7}
+            padding="6px 2px"
+            style={{ flex: 1 }}
+          />
+          <StatCell
+            value="$18k"
+            label="Revenue"
+            valueColor="#FFB800"
+            valueSize={11}
+            labelSize={7}
+            padding="6px 2px"
+            style={{ flex: 1 }}
+          />
+        </div>
+
+        {/* Bar chart */}
+        <div style={{ marginTop: '8px' }}>
+          <Bars heights={[14, 20, 12, 28, 18, 32, 24]} height={36} gap={3} />
+        </div>
+
+        {/* Student rows */}
+        <div
+          style={{
+            marginTop: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '3px',
+          }}
+        >
+          <StudentRow dotColor="#D4226A" text="Johnson Family" rowHeight={18} fontSize={8} />
+          <StudentRow dotColor="#FFB800" text="Martinez — Due" rowHeight={18} fontSize={8} />
+        </div>
+
+        {/* Bottom nav */}
+        <div
+          style={{
+            marginTop: 'auto',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            paddingTop: '6px',
+            display: 'flex',
+          }}
+        >
+          {['Home', 'Students', 'Schedule', 'Billing'].map((l) => (
+            <div
+              key={l}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontFamily: FONT,
+                fontSize: '7px',
+                color: l === 'Home' ? '#D4226A' : 'rgba(255,255,255,0.35)',
+                fontWeight: l === 'Home' ? 800 : 500,
+              }}
+            >
+              {l}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Tablet ─────────────────────────────────────────────────────────────
+function Tablet() {
+  return (
+    <div
+      style={{
+        width: '240px',
+        height: '320px',
+        borderRadius: '20px',
+        background: 'linear-gradient(160deg, #1e1e1e, #111)',
+        border: '2px solid #2a2a2a',
+        boxShadow: '0 0 50px rgba(212,34,106,0.10), 0 24px 50px rgba(0,0,0,0.55)',
+        flexShrink: 0,
+      }}
+    >
+      {/* Camera */}
+      <div
+        style={{
+          width: '6px',
+          height: '6px',
+          borderRadius: '50%',
+          background: '#222',
+          margin: '8px auto',
+        }}
+      />
+      {/* Screen */}
+      <div
+        style={{
+          margin: '8px 10px',
+          borderRadius: '12px',
+          background: '#06060f',
+          height: '280px',
+          overflow: 'hidden',
+          padding: '12px',
+          boxSizing: 'border-box',
+        }}
+      >
+        {/* Top bar */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontFamily: FONT, fontSize: '10px', fontWeight: 800, color: '#D4226A' }}>
+            lessonpreneur
+          </span>
+          <span
+            style={{
+              fontFamily: FONT,
+              fontSize: '9px',
+              color: '#D4226A',
+              marginLeft: 'auto',
+            }}
+          >
+            Star AI ✦
+          </span>
+        </div>
+
+        {/* Star AI card */}
+        <div
+          style={{
+            marginTop: '10px',
+            padding: '10px',
+            borderRadius: '8px',
+            background: 'rgba(212,34,106,0.08)',
+            border: '1px solid rgba(212,34,106,0.20)',
+          }}
+        >
+          <div style={{ fontFamily: FONT, fontSize: '11px', fontWeight: 800, color: '#fff' }}>
+            Good morning, Zach.
+          </div>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: '9px',
+              color: 'rgba(255,255,255,0.45)',
+              marginTop: '3px',
+            }}
+          >
+            Here's your school snapshot:
+          </div>
+          <div style={{ fontFamily: FONT, fontSize: '9px', color: '#4ade80', marginTop: '4px' }}>
+            ↑ 3 new leads today
+          </div>
+          <div style={{ fontFamily: FONT, fontSize: '9px', color: '#FFB800', marginTop: '2px' }}>
+            ⚠ 2 students at churn risk
+          </div>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: '9px',
+              color: 'rgba(255,255,255,0.55)',
+              marginTop: '2px',
+            }}
+          >
+            ● Revenue tracking +8% MoM
+          </div>
+        </div>
+
+        {/* 2×2 stat grid */}
+        <div
+          style={{
+            marginTop: '10px',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '6px',
+          }}
+        >
+          <StatCell
+            value="612"
+            label="Students"
+            valueColor="#fff"
+            valueSize={14}
+            labelSize={8}
+            padding="8px"
+          />
+          <StatCell
+            value="$18.4k"
+            label="Revenue"
+            valueColor="#FFB800"
+            valueSize={13}
+            labelSize={8}
+            padding="8px"
+          />
+          <StatCell
+            value="23"
+            label="Leads"
+            valueColor="#D4226A"
+            valueSize={14}
+            labelSize={8}
+            padding="8px"
+          />
+          <StatCell
+            value="94%"
+            label="Retention"
+            valueColor="#fff"
+            valueSize={14}
+            labelSize={8}
+            padding="8px"
+          />
+        </div>
+
+        {/* Bar chart */}
+        <div style={{ marginTop: '10px' }}>
+          <Bars heights={[20, 28, 18, 36, 24, 42, 32, 38]} height={48} gap={4} />
+        </div>
+
+        {/* Student rows */}
+        <div
+          style={{
+            marginTop: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '3px',
+          }}
+        >
+          <StudentRow
+            dotColor="#D4226A"
+            text="Johnson Family — Active"
+            rowHeight={22}
+            fontSize={9}
+          />
+          <StudentRow
+            dotColor="#FFB800"
+            text="Martinez — Due today"
+            rowHeight={22}
+            fontSize={9}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Laptop ─────────────────────────────────────────────────────────────
+function Laptop() {
+  return (
+    <div style={{ flexShrink: 0 }}>
+      {/* Lid + screen */}
+      <div
+        style={{
+          width: '380px',
+          height: '240px',
+          borderRadius: '12px 12px 0 0',
+          background: 'linear-gradient(160deg, #1c1c1c, #111)',
+          border: '2px solid #2a2a2a',
+          borderBottom: 'none',
+          boxShadow: '0 0 60px rgba(212,34,106,0.10)',
+        }}
+      >
+        {/* Camera */}
+        <div
+          style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: '#222',
+            margin: '6px auto',
+          }}
+        />
+        {/* Screen */}
+        <div
+          style={{
+            margin: '8px 10px',
+            borderRadius: '8px',
+            background: '#06060f',
+            height: '210px',
+            overflow: 'hidden',
+            padding: '12px',
+            boxSizing: 'border-box',
+          }}
+        >
+          {/* Top bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {['Dashboard', 'Students', 'Schedule', 'Billing'].map((l) => (
+              <span
+                key={l}
+                style={{
+                  fontFamily: FONT,
+                  fontSize: '9px',
+                  color: l === 'Dashboard' ? '#D4226A' : 'rgba(255,255,255,0.40)',
+                  fontWeight: l === 'Dashboard' ? 700 : 500,
+                }}
+              >
+                {l}
+              </span>
+            ))}
+            <span
+              style={{
+                fontFamily: FONT,
+                fontSize: '10px',
+                fontWeight: 800,
+                color: '#D4226A',
+                marginLeft: 'auto',
+              }}
+            >
+              lessonpreneur
+            </span>
+          </div>
+
+          {/* Three stat cards */}
+          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+            {[
+              { label: 'Active Students', value: '612', color: '#fff', size: 18 },
+              { label: 'Monthly Revenue', value: '$18,360', color: '#FFB800', size: 16 },
+              { label: 'Open Leads', value: '23', color: '#D4226A', size: 18 },
+            ].map((c) => (
+              <div
+                key={c.label}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: '8px',
+                    color: 'rgba(255,255,255,0.45)',
+                  }}
+                >
+                  {c.label}
+                </div>
+                <div
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: `${c.size}px`,
+                    fontWeight: 900,
+                    color: c.color,
+                    marginTop: '2px',
+                  }}
+                >
+                  {c.value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Bar chart */}
+          <div style={{ marginTop: '10px' }}>
+            <Bars
+              heights={[24, 32, 20, 40, 28, 48, 36, 44, 38, 52]}
+              height={56}
+              gap={5}
+            />
+          </div>
+
+          {/* Two-column layout */}
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            {/* Left: 3 student rows */}
+            <div
+              style={{
+                flex: 2,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+              }}
+            >
+              {['Johnson Family — Active', 'Martinez — Due today', 'Chen — Paid'].map(
+                (t) => (
+                  <div
+                    key={t}
+                    style={{
+                      height: '20px',
+                      borderRadius: '3px',
+                      background: 'rgba(255,255,255,0.03)',
+                      fontFamily: FONT,
+                      fontSize: '9px',
+                      color: 'rgba(255,255,255,0.45)',
+                      padding: '0 8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {t}
+                  </div>
+                )
+              )}
+            </div>
+            {/* Right: Star AI card */}
+            <div
+              style={{
+                flex: 1,
+                padding: '8px',
+                borderRadius: '6px',
+                background: 'rgba(212,34,106,0.08)',
+                border: '1px solid rgba(212,34,106,0.20)',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: FONT,
+                  fontSize: '8px',
+                  color: '#D4226A',
+                  fontWeight: 800,
+                }}
+              >
+                Star AI
+              </div>
+              <div
+                style={{
+                  fontFamily: FONT,
+                  fontSize: '8px',
+                  color: 'rgba(255,255,255,0.55)',
+                  marginTop: '4px',
+                }}
+              >
+                All systems running.
+              </div>
+              <div
+                style={{
+                  fontFamily: FONT,
+                  fontSize: '8px',
+                  color: 'rgba(255,255,255,0.40)',
+                  marginTop: '2px',
+                }}
+              >
+                Next: Send 4 reminders
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Laptop base */}
+      <div
+        style={{
+          width: '380px',
+          height: '16px',
+          background: 'linear-gradient(#222, #1a1a1a)',
+          borderRadius: '0 0 4px 4px',
+          border: '2px solid #2a2a2a',
+          borderTop: '1px solid #333',
+          boxSizing: 'border-box',
+        }}
+      >
+        {/* Trackpad */}
+        <div
+          style={{
+            width: '80px',
+            height: '10px',
+            borderRadius: '3px',
+            background: '#1a1a1a',
+            border: '1px solid #333',
+            margin: '0 auto',
+            position: 'relative',
+            top: '1px',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ─── Section wrapper ────────────────────────────────────────────────────
+export default function DeviceMockupSection(): ReactNode {
+  return (
+    <section
+      className="lp-dm-section"
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <style>{cssVars}</style>
+
+      {/* Background glow */}
       <div
         aria-hidden="true"
         style={{
@@ -32,27 +738,25 @@ export default function DeviceMockupSection() {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: '500px',
+          width: '600px',
           height: '300px',
-          background: 'radial-gradient(circle, #D4226A 0%, transparent 70%)',
-          opacity: 0.07,
-          filter: 'blur(80px)',
+          maxWidth: '100%',
+          background:
+            'radial-gradient(ellipse, rgba(212,34,106,0.08) 0%, transparent 70%)',
           pointerEvents: 'none',
           zIndex: 0,
-          maxWidth: '100%',
         }}
       />
 
       <div style={{ position: 'relative', zIndex: 1 }}>
         {/* Heading */}
         <h2
-          className="lp-h-device"
+          className="lp-dm-heading"
           style={{
             fontFamily: FONT,
             fontWeight: 800,
-            fontSize: '28px',
             lineHeight: 1.2,
-            color: '#ffffff',
+            color: '#fff',
             textAlign: 'center',
             margin: 0,
           }}
@@ -60,707 +764,61 @@ export default function DeviceMockupSection() {
           Built for every screen you already use.
         </h2>
         <p
-          className="lp-sub-device"
+          className="lp-dm-sub"
           style={{
             fontFamily: FONT,
-            fontSize: '15px',
             lineHeight: 1.5,
             color: 'rgba(255,255,255,0.60)',
             textAlign: 'center',
-            margin: '12px auto 40px auto',
+            margin: '12px auto 0 auto',
             maxWidth: '560px',
           }}
         >
-          Manage your school from your phone, tablet, or laptop — everything syncs.
+          Manage your school from your phone, tablet, or laptop — everything syncs in real time.
         </p>
-        <style>{`
-          @media (min-width: 768px) {
-            .lp-h-device { font-size: 38px !important; }
-            .lp-sub-device { font-size: 17px !important; }
-          }
-        `}</style>
 
-        {/* ══════════ MOBILE — HTML phone mockup ══════════ */}
-        <div className="lp-dev-mobile">
+        {/* Device container — scaled on very small screens */}
+        <div className="lp-dm-scale-wrap">
           <div
+            className="lp-dm-devices"
             style={{
-              width: '220px',
-              height: '420px',
-              borderRadius: '36px',
-              background: 'linear-gradient(160deg, #1c1c1c, #111)',
-              border: '2px solid #2a2a2a',
-              boxShadow: '0 0 60px rgba(212,34,106,0.15), 0 20px 60px rgba(0,0,0,0.5)',
-              margin: '0 auto',
-              position: 'relative',
-              overflow: 'hidden',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'flex-end',
+              flexWrap: 'wrap',
+              maxWidth: '900px',
+              margin: '48px auto 0 auto',
             }}
           >
-            {/* Dynamic island */}
-            <div
-              style={{
-                width: '80px',
-                height: '24px',
-                borderRadius: '12px',
-                background: '#0a0a0a',
-                margin: '12px auto 0',
-              }}
-            />
-            {/* Screen */}
-            <div
-              style={{
-                margin: '8px 10px',
-                borderRadius: '24px',
-                background: '#0a0a14',
-                height: '340px',
-                overflow: 'hidden',
-                padding: '12px',
-                position: 'relative',
-                boxSizing: 'border-box',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              {/* Top bar */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '0 4px',
-                }}
-              >
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#D4226A', fontFamily: FONT }}>
-                  lessonpreneur
-                </span>
-                <span style={{ fontSize: '9px', color: '#4ade80', fontFamily: FONT }}>● Live</span>
-              </div>
-
-              {/* Greeting card */}
-              <div
-                style={{
-                  marginTop: '10px',
-                  padding: '12px',
-                  borderRadius: '10px',
-                  background: 'rgba(212,34,106,0.1)',
-                  border: '1px solid rgba(212,34,106,0.25)',
-                }}
-              >
-                <div style={{ fontFamily: FONT, fontSize: '12px', fontWeight: 800, color: '#fff' }}>
-                  Good morning, Zach.
-                </div>
-                <div
-                  style={{
-                    fontFamily: FONT,
-                    fontSize: '11px',
-                    color: 'rgba(255,255,255,0.60)',
-                    marginTop: '4px',
-                  }}
-                >
-                  3 leads need follow-up
-                </div>
-                <div
-                  style={{
-                    fontFamily: FONT,
-                    fontSize: '11px',
-                    color: '#FFB800',
-                    marginTop: '2px',
-                  }}
-                >
-                  ↑ Revenue up 12% this week
-                </div>
-              </div>
-
-              {/* Stat chips */}
-              <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-                {[
-                  { v: '612', c: '#fff', fs: '16px', l: 'Students' },
-                  { v: '23', c: '#D4226A', fs: '16px', l: 'Leads' },
-                  { v: '$18.4k', c: '#FFB800', fs: '14px', l: 'Revenue' },
-                ].map((chip) => (
-                  <div
-                    key={chip.l}
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      padding: '8px 4px',
-                      borderRadius: '8px',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontFamily: FONT,
-                        fontSize: chip.fs,
-                        fontWeight: 900,
-                        color: chip.c,
-                        lineHeight: 1.1,
-                      }}
-                    >
-                      {chip.v}
-                    </div>
-                    <div
-                      style={{
-                        fontFamily: FONT,
-                        fontSize: '9px',
-                        color: 'rgba(255,255,255,0.45)',
-                        marginTop: '2px',
-                      }}
-                    >
-                      {chip.l}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Mini bar chart */}
-              <div style={{ marginTop: '12px' }}>
-                <div
-                  style={{
-                    fontFamily: FONT,
-                    fontSize: '9px',
-                    color: 'rgba(255,255,255,0.35)',
-                    marginBottom: '6px',
-                  }}
-                >
-                  This Month
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    height: '48px',
-                    gap: '4px',
-                  }}
-                >
-                  {MOBILE_BARS.map((h, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        flex: 1,
-                        height: `${h}px`,
-                        borderRadius: '3px 3px 0 0',
-                        background: i % 2 === 0 ? '#D4226A' : 'rgba(212,34,106,0.35)',
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Student list rows */}
-              <div style={{ marginTop: '10px' }}>
-                {[
-                  { c: '#D4226A', t: 'Johnson Family — Active' },
-                  { c: '#FFB800', t: 'Martinez Family — Due today' },
-                ].map((row, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      height: '22px',
-                      borderRadius: '4px',
-                      background: 'rgba(255,255,255,0.04)',
-                      marginBottom: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '0 8px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        background: row.c,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontFamily: FONT,
-                        fontSize: '10px',
-                        color: 'rgba(255,255,255,0.55)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {row.t}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Bottom nav */}
-              <div
-                style={{
-                  marginTop: 'auto',
-                  display: 'flex',
-                  padding: '8px 0',
-                  borderTop: '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                {[
-                  { l: 'Home', active: true },
-                  { l: 'Students', active: false },
-                  { l: 'Schedule', active: false },
-                  { l: 'Billing', active: false },
-                ].map((item) => (
-                  <div
-                    key={item.l}
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      fontFamily: FONT,
-                      fontSize: '9px',
-                      color: item.active ? '#D4226A' : 'rgba(255,255,255,0.40)',
-                      fontWeight: item.active ? 800 : 500,
-                    }}
-                  >
-                    {item.l}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Feature chips */}
-          <div
-            style={{
-              fontFamily: FONT,
-              fontSize: '12px',
-              color: 'rgba(255,255,255,0.50)',
-              textAlign: 'center',
-              marginTop: '24px',
-            }}
-          >
-            📱 Mobile-first · 💻 Works on laptop · 🖥️ Tablet ready
+            <Phone />
+            <Tablet />
+            <Laptop />
           </div>
         </div>
 
-        {/* ══════════ DESKTOP — SVG three-device composition ══════════ */}
-        <div className="lp-dev-desktop" style={{ width: '100%', maxWidth: '860px', margin: '0 auto' }}>
-          <svg
-            viewBox="0 0 900 520"
-            preserveAspectRatio="xMidYMid meet"
-            width="100%"
-            height="auto"
-            style={{ display: 'block' }}
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <linearGradient id="lp-laptop-body" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2a2a2a" />
-                <stop offset="100%" stopColor="#1a1a1a" />
-              </linearGradient>
-              <linearGradient id="lp-laptop-lid" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1c1c1c" />
-                <stop offset="100%" stopColor="#111111" />
-              </linearGradient>
-              <linearGradient id="lp-tablet-frame" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1a1a1a" />
-                <stop offset="100%" stopColor="#111111" />
-              </linearGradient>
-              <linearGradient id="lp-phone-frame" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1c1c1c" />
-                <stop offset="100%" stopColor="#111111" />
-              </linearGradient>
-              <filter id="deviceDropShadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur in="SourceAlpha" stdDeviation="6" />
-                <feOffset dx="0" dy="6" result="offsetblur" />
-                <feComponentTransfer>
-                  <feFuncA type="linear" slope="0.5" />
-                </feComponentTransfer>
-                <feMerge>
-                  <feMergeNode />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-              <filter id="deviceGlow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="8" />
-              </filter>
-              <clipPath id="lp-laptop-clip">
-                <rect x="302" y="45" width="476" height="290" rx="6" />
-              </clipPath>
-              <clipPath id="lp-tablet-clip">
-                <rect x="92" y="95" width="186" height="255" rx="6" />
-              </clipPath>
-              <clipPath id="lp-phone-clip">
-                <rect x="118" y="220" width="84" height="165" rx="12" />
-              </clipPath>
-            </defs>
-
-            {/* Background ellipse glow */}
-            <ellipse
-              cx="450"
-              cy="300"
-              rx="380"
-              ry="200"
-              fill="#D4226A"
-              opacity="0.06"
-              filter="url(#deviceGlow)"
-            />
-
-            {/* ─── TABLET ─── */}
-            <g filter="url(#deviceDropShadow)">
-              <rect
-                x="80"
-                y="80"
-                width="210"
-                height="290"
-                rx="14"
-                fill="url(#lp-tablet-frame)"
-                stroke="#2a2a2a"
-                strokeWidth="1.5"
-              />
-              <rect x="145" y="355" width="30" height="6" rx="3" fill="#222" />
-              <circle cx="185" cy="88" r="3" fill="#222" />
-              <rect x="92" y="95" width="186" height="255" rx="6" fill="#060610" />
-            </g>
-            <g clipPath="url(#lp-tablet-clip)">
-              <rect x="92" y="95" width="186" height="22" fill="rgba(212,34,106,0.12)" />
-              <text
-                x="185"
-                y="111"
-                fontSize="11"
-                fill="#D4226A"
-                textAnchor="middle"
-                fontWeight="900"
-                fontFamily={FONT}
-              >
-                Star AI
-              </text>
-              <rect
-                x="100"
-                y="124"
-                width="170"
-                height="78"
-                rx="4"
-                fill="rgba(255,255,255,0.04)"
-                stroke="rgba(212,34,106,0.25)"
-              />
-              <text x="110" y="142" fontSize="11" fontWeight="800" fill="#ffffff" fontFamily={FONT}>
-                Good morning, Zach.
-              </text>
-              <text
-                x="110"
-                y="158"
-                fontSize="11"
-                fill="rgba(255,255,255,0.60)"
-                fontFamily={FONT}
-              >
-                3 leads need follow-up
-              </text>
-              <text x="110" y="174" fontSize="11" fill="#FFB800" fontFamily={FONT}>
-                ↑ Rev up 12% this week
-              </text>
-              <rect
-                x="100"
-                y="212"
-                width="170"
-                height="14"
-                rx="3"
-                fill="rgba(255,255,255,0.04)"
-              />
-              <rect
-                x="100"
-                y="230"
-                width="150"
-                height="14"
-                rx="3"
-                fill="rgba(255,255,255,0.03)"
-              />
-              <rect
-                x="100"
-                y="248"
-                width="160"
-                height="14"
-                rx="3"
-                fill="rgba(255,255,255,0.04)"
-              />
-            </g>
-
-            {/* ─── LAPTOP ─── */}
-            <g filter="url(#deviceDropShadow)">
-              <rect
-                x="290"
-                y="30"
-                width="500"
-                height="310"
-                rx="10"
-                fill="url(#lp-laptop-lid)"
-                stroke="#333333"
-                strokeWidth="1.5"
-              />
-              <circle cx="540" cy="42" r="4" fill="#2a2a2a" stroke="#3a3a3a" />
-              <rect x="302" y="45" width="476" height="290" rx="6" fill="#060610" />
-            </g>
-            <g clipPath="url(#lp-laptop-clip)">
-              <rect x="302" y="45" width="476" height="32" fill="rgba(212,34,106,0.15)" />
-              <circle cx="320" cy="61" r="5" fill="#D4226A" />
-              <text
-                x="332"
-                y="66"
-                fontSize="13"
-                fill="#D4226A"
-                fontWeight="900"
-                fontFamily={FONT}
-              >
-                lessonpreneur
-              </text>
-
-              {/* Stat cards */}
-              <rect
-                x="310"
-                y="88"
-                width="140"
-                height="62"
-                rx="4"
-                fill="rgba(255,255,255,0.05)"
-                stroke="rgba(255,255,255,0.1)"
-              />
-              <text
-                x="318"
-                y="106"
-                fontSize="11"
-                fill="rgba(255,255,255,0.55)"
-                fontFamily={FONT}
-              >
-                Active Students
-              </text>
-              <text
-                x="318"
-                y="136"
-                fontSize="20"
-                fontWeight="900"
-                fill="#ffffff"
-                fontFamily={FONT}
-              >
-                612
-              </text>
-
-              <rect
-                x="460"
-                y="88"
-                width="140"
-                height="62"
-                rx="4"
-                fill="rgba(255,255,255,0.05)"
-                stroke="rgba(255,255,255,0.1)"
-              />
-              <text
-                x="468"
-                y="106"
-                fontSize="11"
-                fill="rgba(255,255,255,0.55)"
-                fontFamily={FONT}
-              >
-                Open Leads
-              </text>
-              <text
-                x="468"
-                y="136"
-                fontSize="20"
-                fontWeight="900"
-                fill="#D4226A"
-                fontFamily={FONT}
-              >
-                23
-              </text>
-
-              <rect
-                x="610"
-                y="88"
-                width="140"
-                height="62"
-                rx="4"
-                fill="rgba(255,255,255,0.05)"
-                stroke="rgba(255,255,255,0.1)"
-              />
-              <text
-                x="618"
-                y="106"
-                fontSize="11"
-                fill="rgba(255,255,255,0.55)"
-                fontFamily={FONT}
-              >
-                Monthly Revenue
-              </text>
-              <text
-                x="618"
-                y="136"
-                fontSize="20"
-                fontWeight="900"
-                fill="#FFB800"
-                fontFamily={FONT}
-              >
-                $18.4k
-              </text>
-
-              {/* Chart */}
-              {BAR_HEIGHTS.map((h, i) => (
-                <rect
-                  key={`bar-${i}`}
-                  x={BAR_X0 + i * (BAR_W + BAR_GAP)}
-                  y={BAR_BASE_Y - h}
-                  width={BAR_W}
-                  height={h}
-                  fill={i % 2 === 0 ? '#D4226A' : 'rgba(212,34,106,0.3)'}
-                  rx="1.5"
-                />
-              ))}
-
-              {/* List rows */}
-              <rect
-                x="310"
-                y="285"
-                width="460"
-                height="16"
-                rx="3"
-                fill="rgba(255,255,255,0.04)"
-              />
-              <rect
-                x="310"
-                y="305"
-                width="420"
-                height="16"
-                rx="3"
-                fill="rgba(255,255,255,0.03)"
-              />
-            </g>
-            {/* Pink edge glow on laptop screen */}
-            <rect
-              x="302"
-              y="45"
-              width="476"
-              height="290"
-              rx="6"
-              fill="none"
-              stroke="#D4226A"
-              strokeWidth="1"
-              opacity="0.4"
-            />
-
-            {/* Laptop base */}
-            <g filter="url(#deviceDropShadow)">
-              <rect x="280" y="120" width="520" height="320" rx="12" fill="url(#lp-laptop-body)" />
-            </g>
-            <rect x="280" y="434" width="520" height="3" fill="#111111" />
-            <rect x="280" y="438" width="520" height="4" rx="2" fill="#3a3a3a" />
-
-            {/* Keyboard */}
-            {Array.from({ length: 6 }).map((_, row) =>
-              Array.from({ length: 13 }).map((_, col) => (
-                <rect
-                  key={`key-${row}-${col}`}
-                  x={310 + col * (22 + 3)}
-                  y={370 + row * (16 + 3)}
-                  width="22"
-                  height="16"
-                  rx="2"
-                  fill="#1a1a1a"
-                  stroke="#333333"
-                  strokeWidth="0.5"
-                />
-              ))
-            )}
-
-            {/* Trackpad */}
-            <rect
-              x="390"
-              y="478"
-              width="120"
-              height="30"
-              rx="6"
-              fill="#222222"
-              stroke="#333333"
-              strokeWidth="1"
-            />
-
-            {/* ─── PHONE ─── */}
-            <g filter="url(#deviceDropShadow)">
-              <rect
-                x="110"
-                y="200"
-                width="100"
-                height="195"
-                rx="18"
-                fill="url(#lp-phone-frame)"
-                stroke="#2a2a2a"
-                strokeWidth="1.5"
-              />
-              <rect x="145" y="212" width="30" height="8" rx="4" fill="#111" />
-              <rect x="118" y="220" width="84" height="165" rx="12" fill="#060610" />
-            </g>
-            <g clipPath="url(#lp-phone-clip)">
-              <rect x="118" y="220" width="84" height="18" fill="rgba(212,34,106,0.1)" />
-              <text
-                x="160"
-                y="233"
-                fontSize="11"
-                fill="#D4226A"
-                textAnchor="middle"
-                fontWeight="900"
-                fontFamily={FONT}
-              >
-                15 min
-              </text>
-              <rect
-                x="124"
-                y="244"
-                width="72"
-                height="56"
-                rx="6"
-                fill="rgba(255,255,255,0.05)"
-                stroke="rgba(212,34,106,0.25)"
-              />
-              <text
-                x="160"
-                y="268"
-                fontSize="14"
-                fontWeight="900"
-                fill="#D4226A"
-                textAnchor="middle"
-                fontFamily={FONT}
-              >
-                $18,360
-              </text>
-              <text
-                x="160"
-                y="286"
-                fontSize="11"
-                fill="rgba(255,255,255,0.55)"
-                textAnchor="middle"
-                fontFamily={FONT}
-              >
-                this month
-              </text>
-              <rect
-                x="124"
-                y="308"
-                width="72"
-                height="15"
-                rx="3"
-                fill="rgba(255,255,255,0.04)"
-              />
-              <rect
-                x="124"
-                y="327"
-                width="72"
-                height="15"
-                rx="3"
-                fill="rgba(255,255,255,0.04)"
-              />
-              <rect
-                x="124"
-                y="346"
-                width="72"
-                height="15"
-                rx="3"
-                fill="rgba(255,255,255,0.04)"
-              />
-            </g>
-          </svg>
+        {/* Labels */}
+        <div
+          className="lp-dm-labels"
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          {['📱 iPhone / Android', '🖥️ Tablet', '💻 Laptop / Desktop'].map((l) => (
+            <span
+              key={l}
+              style={{
+                fontFamily: FONT,
+                fontSize: '13px',
+                color: 'rgba(255,255,255,0.40)',
+                fontWeight: 600,
+                textAlign: 'center',
+              }}
+            >
+              {l}
+            </span>
+          ))}
         </div>
       </div>
     </section>
