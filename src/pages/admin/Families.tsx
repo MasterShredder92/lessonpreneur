@@ -19,6 +19,7 @@ import { DEFAULT_SESSIONS_PER_MONTH } from '../../lib/constants'
 import { supabase, getCurrentBillingCycleId } from '../../lib/supabase'
 import { calculatePreviewRate } from '../../hooks/useFamilyRate'
 import { IssueContextProvider } from '../../contexts/IssueContext'
+import { logAudit } from '../../lib/auditLog'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 // ═══════════════════════════════════════
@@ -82,7 +83,7 @@ const sectionLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, 
 
 export default function Families() {
   const { role } = useAuthContext()
-  const { isAtLeast } = usePermissions()
+  const { isAtLeast, isStudioDirector, locationIds } = usePermissions()
   const navigate = useNavigate()
   const { data: families, isLoading, error } = useFamiliesPage()
   const { data: locations } = useLocations()
@@ -90,8 +91,14 @@ export default function Families() {
   // URL-persisted filters
   const { getParam, setParam, searchParams } = useUrlFilters()
   const search = getParam('q')
-  const familyTab = (getParam('tab') || 'active') as 'active' | 'inactive' | 'all'
-  const locationFilter = getParam('location')
+  const familyTab = (isStudioDirector ? 'active' : (getParam('tab') || 'active')) as 'active' | 'inactive' | 'all'
+  // For studio_director, resolve their location name and force it as the filter
+  const sdLocationName = useMemo(() => {
+    if (!isStudioDirector || !locationIds?.length) return null
+    const loc = (locations ?? []).find((l: any) => l.id === locationIds[0])
+    return loc ? (loc.name as string).replace(' Music Lessons', '') : null
+  }, [isStudioDirector, locationIds, locations])
+  const locationFilter = isStudioDirector ? (sdLocationName ?? '') : getParam('location')
   const rateFilter = Number(getParam('rate') || '0')
   const sortBy = (getParam('sort') || 'az') as 'az' | 'za' | 'newest' | 'oldest'
   const showNeedsAttention = getParam('needs_attention') === '1'
@@ -194,17 +201,21 @@ export default function Families() {
           />
         </div>
         <div className="student-filter-row-2">
-          <select value={familyTab} onChange={e => setFamilyTab(e.target.value as any)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="all">All</option>
-          </select>
-          <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value="">Locations</option>
-            {locations?.filter((l: any) => l.is_active).map((loc: any) => (
-              <option key={loc.id} value={loc.name.replace(' Music Lessons', '')}>{loc.name.replace(' Music Lessons', '')}</option>
-            ))}
-          </select>
+          {!isStudioDirector && (
+            <select value={familyTab} onChange={e => setFamilyTab(e.target.value as any)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="all">All</option>
+            </select>
+          )}
+          {!isStudioDirector && (
+            <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+              <option value="">Locations</option>
+              {locations?.filter((l: any) => l.is_active).map((loc: any) => (
+                <option key={loc.id} value={loc.name.replace(' Music Lessons', '')}>{loc.name.replace(' Music Lessons', '')}</option>
+              ))}
+            </select>
+          )}
           <select value={rateFilter} onChange={e => setRateFilter(Number(e.target.value))} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
             <option value={0}>All Rates</option>
             {RATE_OPTIONS.filter(r => r.value).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
@@ -567,7 +578,8 @@ function MobileNotificationPrefs({ family, toggleStyle, thumbStyle }: {
 function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   familyId: string; canEdit: boolean; onClose: () => void; onNavigateStudent: (studentId: string) => void
 }) {
-  const { role, tenantId } = useAuthContext()
+  const { role, tenantId, profile } = useAuthContext()
+  const { isStudioDirector: sdFromPerm } = usePermissions()
   const { data: family, isLoading } = useFamilyDetail(familyId)
   const { data: files } = useFamilyFiles(familyId)
   const updateFamily = useUpdateFamilyInfo()
@@ -632,6 +644,17 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
     if (Object.keys(updates).length === 0) { setEditing(false); return }
     try {
       await updateFamily.mutateAsync({ id: family.id, ...updates })
+      if (sdFromPerm && tenantId && profile?.id) {
+        logAudit({
+          tenantId, performedBy: profile.id,
+          userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
+          userRole: 'studio_director', action: 'FAMILY_UPDATE_CONTACT',
+          tableName: 'families', recordId: family.id,
+          entityName: family.name ?? null,
+          locationId: family.primary_location_id ?? null,
+          newValue: updates,
+        })
+      }
       toast('Saved', 'success')
       setEditing(false)
     } catch (err: any) { toast(err.message ?? 'Failed to save', 'error') }
@@ -647,6 +670,17 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
     if (!family) return
     try {
       await changeBillingStatus.mutateAsync({ familyId: family.id, oldStatus: family.billing_status, newStatus })
+      if (sdFromPerm && tenantId && profile?.id) {
+        logAudit({
+          tenantId, performedBy: profile.id,
+          userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
+          userRole: 'studio_director', action: 'FAMILY_BILLING_STATUS_CHANGE',
+          tableName: 'families', recordId: family.id,
+          entityName: family.name ?? null,
+          locationId: family.primary_location_id ?? null,
+          oldValue: { billing_status: family.billing_status }, newValue: { billing_status: newStatus },
+        })
+      }
       toast(`Status changed to ${newStatus}`, 'success')
       setConfirmAction(null)
     } catch (err: any) { toast(err.message ?? 'Failed', 'error') }

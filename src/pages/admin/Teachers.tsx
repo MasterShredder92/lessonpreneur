@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
+import { usePermissions } from '../../hooks/usePermissions'
 import { useTeachers } from '../../hooks/useTeachers'
 import { useLocations } from '../../hooks/useLocations'
 import { useTeachersMonthlyTally } from '../../hooks/usePayTally'
@@ -40,7 +41,8 @@ export default function Teachers() {
   const { data: locations } = useLocations()
   const { data: monthlyTally } = useTeachersMonthlyTally()
   const navigate = useNavigate()
-  const canEdit = role === 'owner' || role === 'admin'
+  const { isStudioDirector } = usePermissions()
+  const canEdit = (role === 'owner' || role === 'admin') && !isStudioDirector
   const { saveScroll } = useScrollRestore('teachers')
 
   const [showForm, setShowForm] = useState(false)
@@ -50,7 +52,7 @@ export default function Teachers() {
   // URL-persisted filters
   const { getParam, setParam } = useUrlFilters()
   const filterNeedsReview = getParam('needs_review') === '1'
-  const teacherTab = (getParam('status') || 'active') as 'active' | 'inactive'
+  const teacherTab = (isStudioDirector ? 'active' : (getParam('status') || 'active')) as 'active' | 'inactive'
   const locationFilter = getParam('location')
   const instrumentFilter = getParam('instrument')
   const search = getParam('q')
@@ -155,9 +157,11 @@ export default function Teachers() {
           <button className={`lead-view-tab${teacherTab === 'active' ? ' active' : ''}`} onClick={() => setTeacherTab('active')}>
             Active <span className="tab-count">{allActive.length}</span>
           </button>
-          <button className={`lead-view-tab${teacherTab === 'inactive' ? ' active' : ''}`} onClick={() => setTeacherTab('inactive')}>
-            Inactive <span className="tab-count">{inactiveTeachers.length}</span>
-          </button>
+          {!isStudioDirector && (
+            <button className={`lead-view-tab${teacherTab === 'inactive' ? ' active' : ''}`} onClick={() => setTeacherTab('inactive')}>
+              Inactive <span className="tab-count">{inactiveTeachers.length}</span>
+            </button>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 3 }}>
           <button

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthContext } from '../../app/AuthContext'
+import { usePermissions } from '../../hooks/usePermissions'
 import { useDashboard } from '../../hooks/useDashboard'
 import { useBillingHeroStats } from '../../hooks/useBillingPage'
 import { useUserLocations } from '../../hooks/useUserLocations'
@@ -18,6 +19,7 @@ import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
 export default function Dashboard() {
   const { tenantId } = useAuthContext()
+  const { isStudioDirector, locationIds: allowedLocationIds } = usePermissions()
   const { data: userLocations } = useUserLocations()
   const { data, isLoading } = useDashboard(userLocations)
   const navigate = useNavigate()
@@ -171,12 +173,14 @@ export default function Dashboard() {
         <div className="location-grid">
           {data.locationSummary.map((loc) => {
             const c = getLocationColor(loc.locationId)
+            const locked = isStudioDirector && !!loc.locationId && !allowedLocationIds.includes(loc.locationId)
             return (
             <div
               key={loc.name}
-              className="location-card card-hover"
-              style={{ borderColor: `${c}30` }}
+              className={locked ? 'location-card' : 'location-card card-hover'}
+              style={{ borderColor: `${c}30`, opacity: locked ? 0.4 : 1, cursor: locked ? 'default' : 'pointer', pointerEvents: locked ? 'none' : 'auto' }}
               onClick={() => {
+                if (locked) return
                 if (loc.locationId) navigate(`/admin/students?location=${loc.locationId}`)
                 else navigate('/admin/schedule')
               }}

@@ -56,7 +56,9 @@ export default function Settings() {
     return 'business'
   }, [searchParams])
 
-  const tab = resolveTab()
+  const isStudioDirector = role === 'studio_director'
+  const tabRaw = resolveTab()
+  const tab: Tab = isStudioDirector ? 'account' : tabRaw
   const setTab = (t: Tab) => setSearchParams({ tab: t }, { replace: true })
 
   // Redirect old tab names in URL
@@ -76,8 +78,8 @@ export default function Settings() {
       </div>
 
       <div className="settings-tabs">
-        <button className={`settings-tab ${tab === 'business' ? 'active' : ''}`} onClick={() => setTab('business')}>Business</button>
-        <button className={`settings-tab ${tab === 'locations' ? 'active' : ''}`} onClick={() => setTab('locations')}>Locations</button>
+        {!isStudioDirector && <button className={`settings-tab ${tab === 'business' ? 'active' : ''}`} onClick={() => setTab('business')}>Business</button>}
+        {!isStudioDirector && <button className={`settings-tab ${tab === 'locations' ? 'active' : ''}`} onClick={() => setTab('locations')}>Locations</button>}
         {isOwner && (
           <button className={`settings-tab ${tab === 'access' ? 'active' : ''}`} onClick={() => setTab('access')}>Access & Control</button>
         )}
@@ -124,12 +126,85 @@ function CollapsibleSection({ title, defaultOpen = true, children }: { title: st
 // ─── Account / Preferences ───────────────────────────
 
 function AccountTab() {
-  const { role } = useAuthContext()
+  const { role, profile } = useAuthContext()
   const { replayTour } = useOnboarding()
+
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async () => {
+    setError(null)
+    if (!currentPassword.trim()) { setError('Current password is required'); return }
+    if (newPassword.length < 8) { setError('New password must be at least 8 characters'); return }
+    if (newPassword !== confirmPassword) { setError('New passwords do not match'); return }
+    setSubmitting(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.email) { setError('Could not verify account'); setSubmitting(false); return }
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword })
+      if (signInErr) { setError('Current password is incorrect'); setSubmitting(false); return }
+      const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
+      if (updateErr) throw updateErr
+      toast('Password updated successfully', 'success')
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to update password')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 12px', borderRadius: 8,
+    border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)',
+    color: '#E8E8FC', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+  }
+
   return (
     <div>
-      <CollapsibleSection title="Preferences">
-        {role === 'studio_director' ? (
+      <CollapsibleSection title="Profile">
+        <div style={{ fontSize: 13, color: '#A0A0C8' }}>
+          <div style={{ marginBottom: 6 }}><span style={{ color: '#606088', fontWeight: 600 }}>Name:</span> {profile?.first_name} {profile?.last_name}</div>
+          <div style={{ marginBottom: 6 }}><span style={{ color: '#606088', fontWeight: 600 }}>Email:</span> {profile?.email}</div>
+          <div><span style={{ color: '#606088', fontWeight: 600 }}>Role:</span> <span style={{ textTransform: 'capitalize' }}>{(role ?? '').replace('_', ' ')}</span></div>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Change Password">
+        <div style={{ display: 'grid', gap: 12, maxWidth: 420 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: '#A0A0C8', fontWeight: 600, marginBottom: 6 }}>Current Password</label>
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: '#A0A0C8', fontWeight: 600, marginBottom: 6 }}>New Password</label>
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: '#A0A0C8', fontWeight: 600, marginBottom: 6 }}>Confirm Password</label>
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={inputStyle} />
+          </div>
+          {error && <div style={{ color: '#EF4444', fontSize: 12 }}>{error}</div>}
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            style={{
+              padding: '10px 18px', borderRadius: 10, border: 'none',
+              background: 'linear-gradient(135deg, #D4226A, #FF5500)', color: '#FFFFFF',
+              fontSize: 13, fontWeight: 800, cursor: submitting ? 'wait' : 'pointer',
+              justifySelf: 'start',
+            }}
+          >
+            {submitting ? 'Updating...' : 'Update Password'}
+          </button>
+        </div>
+      </CollapsibleSection>
+
+      {role === 'studio_director' && (
+        <CollapsibleSection title="Preferences">
           <button
             onClick={() => { void replayTour() }}
             style={{
@@ -137,12 +212,10 @@ function AccountTab() {
               color: '#D4226A', fontSize: 13, fontWeight: 600, textDecoration: 'underline',
             }}
           >
-            Replay onboarding tour →
+            Reset & Log Out to Replay Tour →
           </button>
-        ) : (
-          <div style={{ fontSize: 12, color: '#8080A8' }}>No preferences available for your role yet.</div>
-        )}
-      </CollapsibleSection>
+        </CollapsibleSection>
+      )}
     </div>
   )
 }

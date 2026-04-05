@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { LayoutDashboard, CalendarDays, Users, UserPlus, Menu, ShieldCheck, Guitar, BookOpen, Settings2, Plug, ChevronRight, X, LogOut } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
+import StudioDirectorIssueButton from '../shared/StudioDirectorIssueButton'
 
 const TABS = [
   { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Studio' },
@@ -249,12 +250,18 @@ export default function MobileTabBar() {
             )}
 
             <div style={{ padding: '0 20px' }}>
-              {MORE_SECTIONS.map(section => (
+              {MORE_SECTIONS.map(section => {
+                const HIDDEN_FOR_STUDIO_DIR = ['/admin/recruitment', '/admin/payroll', '/admin/financials']
+                const items = role === 'studio_director'
+                  ? section.items.filter(i => !HIDDEN_FOR_STUDIO_DIR.includes(i.path))
+                  : section.items
+                if (items.length === 0) return null
+                return (
                 <div key={section.header}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em', padding: '14px 0 6px' }}>
                     {section.header}
                   </div>
-                  {section.items.map(item => (
+                  {items.map(item => (
                     <button
                       key={item.path}
                       onClick={() => goTo(item.path)}
@@ -278,11 +285,12 @@ export default function MobileTabBar() {
                     </button>
                   ))}
                 </div>
-              ))}
+                )
+              })}
 
               {/* Divider + Integrations + Settings */}
               <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.08)', marginTop: 8 }}>
-                <button
+                {role !== 'studio_director' && <button
                   onClick={() => goTo('/admin/integrations')}
                   style={{
                     display: 'flex',
@@ -301,7 +309,7 @@ export default function MobileTabBar() {
                   <Plug size={20} style={{ color: '#8080A8', flexShrink: 0 }} />
                   <span style={{ fontSize: 15, fontWeight: 600, flex: 1, textAlign: 'left' }}>Integrations</span>
                   <ChevronRight size={16} style={{ color: '#363656' }} />
-                </button>
+                </button>}
                 <button
                   onClick={() => goTo('/admin/settings')}
                   style={{
@@ -321,6 +329,9 @@ export default function MobileTabBar() {
                   <span style={{ fontSize: 15, fontWeight: 600, flex: 1, textAlign: 'left' }}>Settings</span>
                   <ChevronRight size={16} style={{ color: '#363656' }} />
                 </button>
+                {role === 'studio_director' && (
+                  <StudioDirectorIssueButton variant="mobile" onClose={closeSheet} />
+                )}
               </div>
             </div>
 

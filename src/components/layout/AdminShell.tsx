@@ -13,6 +13,7 @@ import RoleSwitcher from '../shared/RoleSwitcher'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
 import StarModal from '../ai/StarModal'
 import { OnboardingProvider } from '../../contexts/OnboardingContext'
+import StudioDirectorIssueButton from '../shared/StudioDirectorIssueButton'
 
 const NAV_ICONS: Record<string, ReactNode> = {
   'dashboard': <LayoutDashboard size={18} />,
@@ -146,7 +147,7 @@ export default function AdminShell() {
         <nav className="sidebar-nav">
           {ADMIN_NAV_ITEMS.filter(item => {
             // Role-based nav filtering — uses effectiveRole from usePermissions (respects preview mode)
-            const HIDDEN_FOR_STUDIO_DIR = ['/admin/financials', '/admin/recruitment']
+            const HIDDEN_FOR_STUDIO_DIR = ['/admin/financials', '/admin/recruitment', '/admin/payroll', '/admin/integrations']
             const HIDDEN_FOR_COMPANY_DIR = ['/admin/financials'] // hide owner take-home from co. directors
             if (isStudioDirector) {
               if (item.path && HIDDEN_FOR_STUDIO_DIR.includes(item.path)) return false
@@ -194,13 +195,18 @@ export default function AdminShell() {
                     </NavTooltipTrigger>
                     {isGroupOpen && sidebarOpen && (
                       <div>
-                        {item.children!.map((child) => (
+                        {item.children!.filter(c => {
+                          const HIDDEN = ['/admin/financials', '/admin/recruitment', '/admin/payroll']
+                          if (isStudioDirector && HIDDEN.includes(c.path)) return false
+                          if (isCompanyDirector && !isOwner && c.path === '/admin/financials') return false
+                          return true
+                        }).map((child) => (
                           <NavTooltipTrigger key={child.path} label={child.label} show={false}>
                             <NavLink
                               to={child.path}
                               onClick={(e) => e.stopPropagation()}
                               className={({ isActive }) => `nav-item nav-child${isActive ? ' active' : ''}`}
-                              data-tour-id={`nav-${child.path.replace('/admin/', '')}`}
+                              data-tour-id={`${child.path.replace('/admin/', '')}-nav`}
                               style={{ paddingLeft: 42, fontSize: 13, fontWeight: 500 }}
                             >
                               <span className="nav-label">{child.label}</span>
@@ -216,7 +222,7 @@ export default function AdminShell() {
                       to={item.path}
                       onClick={(e) => e.stopPropagation()}
                       className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-                      data-tour-id={item.path ? `nav-${item.path.replace('/admin/', '')}` : undefined}
+                      data-tour-id={item.path ? `${item.path.replace('/admin/', '')}-nav` : undefined}
                     >
                       {NAV_ICONS[item.icon]}
                       <span className="nav-label">{item.label}</span>
@@ -239,10 +245,16 @@ export default function AdminShell() {
             <span className="nav-label">Star</span>
           </button>
 
-<NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+<NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={isStudioDirector ? { display: 'none' } : undefined}>
             <Plug size={15} />
             <span className="nav-label">Integrations</span>
           </NavLink>
+
+          {isStudioDirector && sidebarOpen && (
+            <div style={{ padding: '4px 10px' }}>
+              <StudioDirectorIssueButton variant="sidebar" />
+            </div>
+          )}
 
           <NavLink to="/admin/settings" title={!sidebarOpen ? 'Settings' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Settings2 size={15} />

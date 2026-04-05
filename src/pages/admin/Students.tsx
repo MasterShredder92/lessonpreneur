@@ -56,7 +56,8 @@ export default function Students() {
   const { data: familyList } = useFamilies()
   const canEdit = role === 'owner' || role === 'admin'
   const canExport = role === 'owner' || role === 'admin' || role === 'company_director'
-  const { canDo } = usePermissions()
+  const { canDo, isStudioDirector, locationIds: scopedLocationIds } = usePermissions()
+  const lockedLocationId = isStudioDirector ? scopedLocationIds[0] ?? '' : null
   const canViewContact = canDo('students.view_contact')
   const canViewBilling = canDo('students.view_billing')
   const { saveScroll } = useScrollRestore('students')
@@ -101,8 +102,8 @@ export default function Students() {
   const [showAddStudent, setShowAddStudent] = useState(false)
 
   // Fetch all students for counts, then filter client-side for tab
-  const statusFilter = activeTab === 'former' ? 'former' : 'active'
-  const locId = locationFilter || undefined
+  const statusFilter = isStudioDirector ? 'active' : (activeTab === 'former' ? 'former' : 'active')
+  const locId = lockedLocationId || locationFilter || undefined
   const teachId = teacherFilter || undefined
   const filters = useMemo(() => ({ status: statusFilter, locationId: locId, teacherId: teachId }), [statusFilter, locId, teachId])
   const { data: allStudents, isLoading, isFetching } = useStudents(filters)
@@ -251,14 +252,16 @@ export default function Students() {
       </div>
 
       {/* Tabs */}
-      <div className="lead-view-tabs">
-        <button className={`lead-view-tab${activeTab === 'active' ? ' active' : ''}`} onClick={() => setActiveTab('active')}>
-          Active <span className="tab-count">{activeCt}</span>
-        </button>
-        <button className={`lead-view-tab${activeTab === 'former' ? ' active' : ''}`} onClick={() => setActiveTab('former')}>
-          Former <span className="tab-count">{formerCt}</span>
-        </button>
-      </div>
+      {!isStudioDirector && (
+        <div className="lead-view-tabs">
+          <button className={`lead-view-tab${activeTab === 'active' ? ' active' : ''}`} onClick={() => setActiveTab('active')}>
+            Active <span className="tab-count">{activeCt}</span>
+          </button>
+          <button className={`lead-view-tab${activeTab === 'former' ? ' active' : ''}`} onClick={() => setActiveTab('former')}>
+            Former <span className="tab-count">{formerCt}</span>
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="schedule-filters" style={{ marginBottom: '16px' }}>
@@ -331,12 +334,14 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
               <option key={t.id} value={t.id}>{t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}</option>
             ))}
           </select>
-          <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value="">Locations</option>
-            {locations?.map((l) => (
-              <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>
-            ))}
-          </select>
+          {!isStudioDirector && (
+            <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+              <option value="">Locations</option>
+              {locations?.map((l) => (
+                <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="student-filter-row-2" style={{ marginTop: 6 }}>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>

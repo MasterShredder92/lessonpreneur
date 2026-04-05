@@ -2,8 +2,10 @@ import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
+import { logAudit } from '../../lib/auditLog'
 import { useLeads, useUpdateLeadStage, useUpdateLead, useCreateLead, type LeadRow } from '../../hooks/useLeads'
 import { useLocations } from '../../hooks/useLocations'
+import { usePermissions } from '../../hooks/usePermissions'
 import { useAIMatch, type TeacherMatch } from '../../hooks/useAIMatch'
 import { Star, Clock, MapPin, Music, UserPlus, X, ChevronLeft } from 'lucide-react'
 import ConvertLeadModal from '../../components/leads/ConvertLeadModal'
@@ -124,14 +126,15 @@ function getActionPrompt(lead: LeadRow): { text: string; color: string; urgent: 
 }
 
 export default function Leads() {
-  const { role, tenantId } = useAuthContext()
+  const { role, tenantId, profile } = useAuthContext()
   const navigate = useNavigate()
   const { data: locations } = useLocations()
-  const canEdit = role === 'owner' || role === 'admin'
+  const { isStudioDirector, locationIds } = usePermissions()
+  const canEdit = role === 'owner' || role === 'admin' || isStudioDirector
 
   // URL-persisted filters
   const { getParam, setParam } = useUrlFilters()
-  const locationFilter = getParam('location')
+  const locationFilter = isStudioDirector ? (locationIds?.[0] ?? '') : getParam('location')
   const instrumentFilter = getParam('instrument')
   const stageFilter = getParam('stage')
   const leadView = (getParam('view') || 'active') as 'active' | 'enrolled' | 'lost'
@@ -204,6 +207,18 @@ export default function Leads() {
     const next = NEXT_STAGE[lead.stage]; if (!next) return
     try {
       await updateStage.mutateAsync({ id: lead.id, stage: next, familyId: lead.family_id })
+      if (isStudioDirector && tenantId && profile?.id) {
+        logAudit({
+          tenantId, performedBy: profile.id,
+          userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
+          userRole: 'studio_director',
+          action: 'LEAD_STAGE_UPDATE',
+          tableName: 'leads', recordId: lead.id,
+          entityName: `${lead.first_name ?? ''} ${lead.last_name ?? ''}`.trim() || null,
+          locationId: lead.location_id ?? null,
+          oldValue: { stage: lead.stage }, newValue: { stage: next },
+        })
+      }
       setDetailLead({ ...lead, stage: next as any })
     } catch (err: any) {
       toast(err.message ?? 'Failed to advance stage', 'error')
@@ -220,6 +235,17 @@ export default function Leads() {
     if (!lostCategoryLead) return
     try {
       await updateStage.mutateAsync({ id: lostCategoryLead.id, stage: 'lost', familyId: lostCategoryLead.family_id })
+      if (isStudioDirector && tenantId && profile?.id) {
+        logAudit({
+          tenantId, performedBy: profile.id,
+          userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
+          userRole: 'studio_director', action: 'LEAD_MARK_LOST',
+          tableName: 'leads', recordId: lostCategoryLead.id,
+          entityName: `${lostCategoryLead.first_name ?? ''} ${lostCategoryLead.last_name ?? ''}`.trim() || null,
+          locationId: lostCategoryLead.location_id ?? null,
+          newValue: { stage: 'lost', lost_category: lostCategory, lost_reason: lostReason || null },
+        })
+      }
       if (lostCategory) {
         // Update lost category on each lead in the family
         if (lostCategoryLead.family_id) {
@@ -277,8 +303,8 @@ export default function Leads() {
   }
 
   // Secondary role check (primary is RouteGuard)
-  if (role !== 'owner' && role !== 'admin') {
-    return <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Access restricted to owners and admins.</div>
+  if (role !== 'owner' && role !== 'admin' && !isStudioDirector) {
+    return <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Access restricted.</div>
   }
 
   if (isLoading) {
@@ -367,12 +393,14 @@ export default function Leads() {
               <option key={s} value={s}>{STAGE_LABELS[s]} ({stageCounts[s] ?? 0})</option>
             ))}
           </select>
-          <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="filter-select lead-filter">
-            <option value="">Locations ({activeCount})</option>
-            {locations?.map((l) => (
-              <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')} ({locationCounts[l.id] ?? 0})</option>
-            ))}
-          </select>
+          {!isStudioDirector && (
+            <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="filter-select lead-filter">
+              <option value="">Locations ({activeCount})</option>
+              {locations?.map((l) => (
+                <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')} ({locationCounts[l.id] ?? 0})</option>
+              ))}
+            </select>
+          )}
           <select value={instrumentFilter} onChange={(e) => setInstrumentFilter(e.target.value)} className="filter-select lead-filter">
             <option value="">Instruments ({activeCount})</option>
             {instruments.map((i) => (
@@ -624,6 +652,7 @@ export default function Leads() {
         <AddLeadModal
           tenantId={tenantId}
           locations={locations ?? []}
+          forcedLocationId={isStudioDirector ? (locationIds?.[0] ?? null) : null}
           onClose={() => setShowAddLead(false)}
         />
       )}
@@ -1337,7 +1366,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
 
 const SOURCES = ['walk-in', 'google', 'referral', 'facebook', 'instagram', 'website', 'phone-call', 'event', 'flyer', 'other'] as const
 
-function AddLeadModal({ tenantId, locations, onClose }: { tenantId: string; locations: any[]; onClose: () => void }) {
+function AddLeadModal({ tenantId, locations, forcedLocationId, onClose }: { tenantId: string; locations: any[]; forcedLocationId?: string | null; onClose: () => void }) {
   const createLead = useCreateLead()
 
   const [firstName, setFirstName] = useState('')
@@ -1346,7 +1375,7 @@ function AddLeadModal({ tenantId, locations, onClose }: { tenantId: string; loca
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [instrument, setInstrument] = useState('')
-  const [locationId, setLocationId] = useState(locations.find(l => l.is_active)?.id ?? '')
+  const [locationId, setLocationId] = useState(forcedLocationId || locations.find(l => l.is_active)?.id || '')
   const [stage, setStage] = useState<string>('inquiry')
   const [source, setSource] = useState<string>('walk-in')
   const [isMilitary, setIsMilitary] = useState(false)
@@ -1487,7 +1516,7 @@ function AddLeadModal({ tenantId, locations, onClose }: { tenantId: string; loca
             </div>
             <div>
               <label style={labelStyle}>Location</label>
-              <select value={locationId} onChange={e => setLocationId(e.target.value)} style={selectStyle}>
+              <select value={locationId} onChange={e => setLocationId(e.target.value)} style={selectStyle} disabled={!!forcedLocationId}>
                 <option value="">— Select —</option>
                 {locations.filter(l => l.is_active).map(l => (
                   <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>

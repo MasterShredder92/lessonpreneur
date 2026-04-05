@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useLocations } from '../../hooks/useLocations'
+import { usePermissions } from '../../hooks/usePermissions'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import {
   useBillingHeroStats,
@@ -164,9 +165,10 @@ const utilBtn: React.CSSProperties = {
 
 function BillingInner() {
   const { data: locations } = useLocations()
+  const { isStudioDirector, locationIds } = usePermissions()
 
   const { getParam, setParam } = useUrlFilters()
-  const locationFilter = getParam('location')
+  const locationFilter = isStudioDirector ? (locationIds?.[0] ?? '') : getParam('location')
   const setLocationFilter = (v: string) => setParam('location', v)
   const activeSection = (getParam('tab') || 'invoices') as SectionKey
   const setActiveSection = (v: SectionKey) => setParam('tab', v === 'invoices' ? '' : v)
@@ -288,7 +290,7 @@ function BillingInner() {
       </div>
 
       {/* LOCATION FILTER — Desktop pills */}
-      <div className="billing-loc-pills" style={{
+      {!isStudioDirector && <div className="billing-loc-pills" style={{
         display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16,
       }}>
         <button
@@ -322,10 +324,10 @@ function BillingInner() {
             </button>
           )
         })}
-      </div>
+      </div>}
 
       {/* LOCATION FILTER — Mobile dropdown */}
-      <div className="billing-loc-dropdown" style={{ display: 'none', marginBottom: 16 }}>
+      {!isStudioDirector && <div className="billing-loc-dropdown" style={{ display: 'none', marginBottom: 16 }}>
         <div style={{ position: 'relative' }}>
           <select
             value={locationFilter}
@@ -344,7 +346,7 @@ function BillingInner() {
           </select>
           <ChevronDown size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#606088', pointerEvents: 'none' as const }} />
         </div>
-      </div>
+      </div>}
 
       {/* SNAPSHOT CARDS */}
       {heroLoading ? (
@@ -458,9 +460,11 @@ function BillingInner() {
         <button onClick={() => setShowOneOff(true)} style={utilBtn}>
           <Plus size={13} /> One-Off Invoice
         </button>
-        <button onClick={() => setShowSquareSync(true)} style={utilBtn}>
-          <RefreshCw size={13} /> Square Sync
-        </button>
+        {!isStudioDirector && (
+          <button onClick={() => setShowSquareSync(true)} style={utilBtn}>
+            <RefreshCw size={13} /> Square Sync
+          </button>
+        )}
       </div>
 
       {/* SECTION TABS */}

@@ -244,7 +244,7 @@ export default function DirectorCloseoutSection() {
       ) : (
         <>
           <button
-            data-tour-id="close-out-button"
+            data-tour-id="closeout-btn"
             onClick={handleClick}
             disabled={complete.isPending}
             style={{
