@@ -4,23 +4,23 @@ import Reveal from './Reveal'
 const CARDS = [
   {
     label: 'The Dropped Lead',
-    body: "A parent fills out your contact form on a Tuesday night. By Thursday, nobody has followed up. They went with the school that texted them Wednesday morning. That family was worth $185 a month. Every month. You'll never know they were there.",
+    body: "A parent fills out your form Tuesday night. By Thursday nobody followed up. They enrolled somewhere else. You'll never know they were there.",
   },
   {
     label: 'The Billing Guesswork',
-    body: "Your billing is technically handled. But you're not totally sure what everyone is paying, who's behind, or why last month's number doesn't match what you expected. You'll figure it out later. You've been saying that for three months.",
+    body: "You think billing is handled. But you're not sure what everyone's paying or why last month's number looks off. You'll figure it out later. You always say that.",
   },
   {
     label: 'The Teacher Callout Tax',
-    body: 'A teacher calls out. You text seven people. Two respond. You manually update the schedule somewhere. A parent shows up anyway. You apologize. Again.',
+    body: 'Teacher calls out. You text seven people. Two respond. Parent shows up anyway. You apologize. Again.',
   },
   {
     label: 'The Spreadsheet Graveyard',
-    body: 'Somewhere there is a spreadsheet that was accurate six months ago. You know it. It lives in Google Drive next to the other three spreadsheets that were also accurate — at some point.',
+    body: "Somewhere there's a spreadsheet that was accurate once. It's in Google Drive next to the other three that were also accurate. Once.",
   },
   {
     label: 'The Phone That Never Stops',
-    body: "It's 9:30pm. A parent is texting you from your personal number about their kid's makeup lesson. You answer because if you don't, who will? You are the system.",
+    body: '9:30pm. Parent texting your personal number about a makeup lesson. You answer it. Because you are the system.',
   },
 ]
 

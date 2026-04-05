@@ -27,22 +27,54 @@ export default function WhoItsForSection() {
         .lp-who-heading--reveal {
           animation: lp-who-type-reveal 1.2s steps(40, end) forwards;
         }
+        .lp-who-subline { font-size: 16px; }
+        @media (max-width: 768px) {
+          .lp-who-subline { font-size: 14px !important; }
+        }
       `}</style>
+      <div
+        style={{
+          fontFamily: FONT,
+          fontSize: '11px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.14em',
+          fontWeight: 800,
+          color: '#D4226A',
+          textAlign: 'center',
+          marginBottom: '12px',
+        }}
+      >
+        Who This Is For
+      </div>
       <h2
         ref={headingRef}
         className={`lp-h2 ${inView ? 'lp-who-heading--reveal' : ''}`}
         style={{
           fontFamily: FONT,
-          fontWeight: 800,
+          fontWeight: 900,
           fontSize: '36px',
           lineHeight: 1.2,
           color: COLORS.textPrimary,
           margin: 0,
+          marginBottom: '8px',
+          textAlign: 'center',
           clipPath: inView ? undefined : 'inset(0 100% 0 0)',
         }}
       >
-        Lessonpreneur is built for <span style={{ color: COLORS.pink }}>music school owners</span> who...
+        Sound Like Your Week?
       </h2>
+      <p
+        className="lp-who-subline"
+        style={{
+          fontFamily: FONT,
+          color: 'rgba(255,255,255,0.55)',
+          textAlign: 'center',
+          margin: 0,
+          marginBottom: '32px',
+        }}
+      >
+        Lessonpreneur was built for exactly this kind of owner.
+      </p>
 
       <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {ITEMS.map((item) => (
