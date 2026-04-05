@@ -2,6 +2,7 @@ import AtmosphericBackground from '../components/landing/AtmosphericBackground'
 import FoldSection from '../components/landing/FoldSection'
 import WhoItsForSection from '../components/landing/WhoItsForSection'
 import ChaosStackSection from '../components/landing/ChaosStackSection'
+import RevenueLeakSection from '../components/landing/RevenueLeakSection'
 import WhatChangesSection from '../components/landing/WhatChangesSection'
 import BuiltInRealSchoolsSection from '../components/landing/BuiltInRealSchoolsSection'
 import ProofSection from '../components/landing/ProofSection'
@@ -49,6 +50,7 @@ export default function LandingPage() {
         <FoldSection />
         <Reveal><WhoItsForSection /></Reveal>
         <Reveal><ChaosStackSection /></Reveal>
+        <Reveal><RevenueLeakSection /></Reveal>
         <Reveal><WhatChangesSection /></Reveal>
         <Reveal><BuiltInRealSchoolsSection /></Reveal>
         <Reveal><ProofSection /></Reveal>

@@ -145,15 +145,18 @@ export function GlassCard({
   children,
   style,
   accent = false,
+  className,
 }: {
   children: ReactNode
   style?: CSSProperties
   accent?: boolean
+  className?: string
 }) {
   const [hover, setHover] = useState(false)
   const borderColor = accent && hover ? 'rgba(212,34,106,0.5)' : COLORS.cardBorder
   return (
     <div
+      className={className}
       onMouseEnter={() => accent && setHover(true)}
       onMouseLeave={() => accent && setHover(false)}
       style={{
