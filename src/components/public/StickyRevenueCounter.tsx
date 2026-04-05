@@ -18,7 +18,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
    ═══════════════════════════════════════════════════════ */
 
 const STORAGE_KEY = 'lp_first_visit'
-const DEFAULT_RATE = 0.000694
+// $200/hr average cost of doing nothing → $/sec
+const DEFAULT_RATE = 200 / 3600
 const THIRTY_MIN_MS = 30 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
@@ -47,11 +48,12 @@ function rateForStudents(count: number | null): number {
 }
 
 function formatUSD(n: number): string {
+  // 4 decimals so sub-cent motion is visible — ticker/gas-pump style
   return n.toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
   })
 }
 
@@ -85,13 +87,16 @@ export default function StickyRevenueCounter() {
     return () => window.removeEventListener('lp:studentcount', handler)
   }, [])
 
-  // Tick every second off the persisted start time
+  // rAF-driven tick off the persisted start time — smooth, not batched
   useEffect(() => {
     if (frozen) return
-    const tick = () => setElapsedMs(Date.now() - startTime.current)
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
+    let rafId = 0
+    const loop = () => {
+      setElapsedMs(Date.now() - startTime.current)
+      rafId = requestAnimationFrame(loop)
+    }
+    rafId = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(rafId)
   }, [frozen])
 
   const liveAmount = (elapsedMs / 1000) * rate
