@@ -6,6 +6,7 @@ import RevenueLeakSection from '../components/landing/RevenueLeakSection'
 import WhatChangesSection from '../components/landing/WhatChangesSection'
 import BuiltInRealSchoolsSection from '../components/landing/BuiltInRealSchoolsSection'
 import ProofSection from '../components/landing/ProofSection'
+import LogoHubSection from '../components/landing/LogoHubSection'
 import OfferSection from '../components/landing/OfferSection'
 import FAQSection from '../components/landing/FAQSection'
 import FinalCTASection from '../components/landing/FinalCTASection'
@@ -54,6 +55,7 @@ export default function LandingPage() {
         <Reveal><WhatChangesSection /></Reveal>
         <Reveal><BuiltInRealSchoolsSection /></Reveal>
         <Reveal><ProofSection /></Reveal>
+        <Reveal><LogoHubSection /></Reveal>
         <Reveal><OfferSection /></Reveal>
         <Reveal><FAQSection /></Reveal>
         <Reveal><FinalCTASection /></Reveal>
