@@ -43,7 +43,11 @@ export default function LandingPage() {
             fontFamily: FONT,
             fontWeight: 800,
             fontSize: '20px',
-            color: COLORS.pink,
+            display: 'inline-block',
+            background: 'linear-gradient(90deg, #D4226A, #FF5500, #FFB800)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
           }}
         >
           lessonpreneur

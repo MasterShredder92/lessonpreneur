@@ -48,6 +48,7 @@ export default function StopTheBleedingBar() {
   const [amount, setAmount] = useState<number>(initialAmount)
   const [isReturning, setIsReturning] = useState<boolean>(initialReturning)
   const [flash, setFlash] = useState(false)
+  const [visible, setVisible] = useState(false)
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -56,6 +57,11 @@ export default function StopTheBleedingBar() {
       window.setTimeout(() => setFlash(false), 80)
     }, TICK_MS)
     return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setVisible(true), 15000)
+    return () => window.clearTimeout(timeoutId)
   }, [])
 
   const handleReset = () => {
@@ -162,7 +168,17 @@ export default function StopTheBleedingBar() {
         }
       `}</style>
 
-      <div className="lp-bleed-bar" role="region" aria-label="Revenue loss counter">
+      <div
+        className="lp-bleed-bar"
+        role="region"
+        aria-label="Revenue loss counter"
+        style={{
+          opacity: visible ? 1 : 0,
+          pointerEvents: visible ? 'all' : 'none',
+          transform: visible ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'opacity 600ms ease-out, transform 600ms ease-out',
+        }}
+      >
         <div className="lp-bleed-inner">
           <div style={{ minWidth: 0 }}>
             <div

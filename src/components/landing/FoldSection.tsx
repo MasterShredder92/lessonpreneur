@@ -5,7 +5,7 @@ export default function FoldSection() {
   const navigate = useNavigate()
   return (
     <section
-      className="lp-section"
+      className="lp-section lp-fold-section"
       style={{
         ...sectionStyle,
         minHeight: '100vh',
@@ -30,6 +30,11 @@ export default function FoldSection() {
         .lp-gauge-wrap { display: block; }
         @media (max-width: 768px) {
           .lp-gauge-wrap { display: none !important; }
+          .lp-fold-section { padding-top: 24px !important; padding-bottom: 40px !important; min-height: auto !important; justify-content: flex-start !important; }
+          .lp-fold-sub { margin-top: 8px !important; }
+          .lp-fold-video { margin-top: 16px !important; }
+          .lp-fold-cta-wrap { margin-top: 16px !important; }
+          .lp-fold-chips-wrap { margin-top: 10px !important; }
         }
       `}</style>
 
@@ -130,7 +135,7 @@ export default function FoldSection() {
       </h1>
 
       <p
-        className="lp-sub"
+        className="lp-sub lp-fold-sub"
         style={{
           fontFamily: FONT,
           fontWeight: 400,
@@ -155,7 +160,7 @@ export default function FoldSection() {
         }
       `}</style>
       <div
-        className="lp-video-frame"
+        className="lp-video-frame lp-fold-video"
         style={{
           marginTop: '32px',
           width: '100%',
@@ -219,13 +224,13 @@ export default function FoldSection() {
         </div>
       </div>
 
-      <div style={{ marginTop: '32px' }}>
+      <div className="lp-fold-cta-wrap" style={{ marginTop: '32px' }}>
         <PrimaryButton onClick={() => navigate('/start')} pulse>
           Start My Free 60-Day Trial
         </PrimaryButton>
       </div>
 
-      <div style={{ marginTop: '16px', width: '100%' }}>
+      <div className="lp-fold-chips-wrap" style={{ marginTop: '16px', width: '100%' }}>
         <TrustChips />
       </div>
     </section>
