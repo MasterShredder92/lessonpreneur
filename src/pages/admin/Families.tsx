@@ -21,6 +21,7 @@ import { calculatePreviewRate } from '../../hooks/useFamilyRate'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import { logAudit } from '../../lib/auditLog'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import FamiliesPageGuide from '../../components/admin/FamiliesPageGuide'
 
 // ═══════════════════════════════════════
 // DISPLAY HELPERS
@@ -183,10 +184,13 @@ export default function Families() {
           <span style={{ margin: '0 6px', color: '#363656' }}>&middot;</span>
           <strong style={{ color: '#E0E0F4' }}>{allFamilies.length}</strong> Total
         </span>
-        {canExport && (
-          <button className="btn-ghost" onClick={() => setShowExport(true)} style={{ fontSize: 11, marginLeft: 'auto' }}>Export CSV</button>
-        )}
-        <ReportIssueButton />
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {canExport && (
+            <button className="btn-ghost" onClick={() => setShowExport(true)} style={{ fontSize: 11 }}>Export CSV</button>
+          )}
+          <FamiliesPageGuide />
+          <ReportIssueButton />
+        </div>
       </div>
 
       {/* FILTERS — matches Students page layout */}
@@ -249,15 +253,15 @@ export default function Families() {
       </div>
 
       {/* Family Cards */}
-      <div className="lead-cards">
+      <div className="lead-cards" data-guide-id="families-list">
         {filtered.length > 0 ? (() => {
           if (sortBy !== 'az') {
-            return filtered.map((f) => (
-              <FamilyCard key={f.id} family={f} onClick={() => setSelectedFamilyId(f.id)} />
+            return filtered.map((f, i) => (
+              <FamilyCard key={f.id} family={f} onClick={() => setSelectedFamilyId(f.id)} guideId={i === 0 ? 'family-card-first' : undefined} />
             ))
           }
           let lastLetter = ''
-          return filtered.map((f) => {
+          return filtered.map((f, i) => {
             const letter = stripFamily(f.name).charAt(0).toUpperCase() || '#'
             const showHeader = letter !== lastLetter
             lastLetter = letter
@@ -266,7 +270,7 @@ export default function Families() {
                 {showHeader && (
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#606088', padding: '12px 0 4px 16px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{letter}</div>
                 )}
-                <FamilyCard family={f} onClick={() => setSelectedFamilyId(f.id)} />
+                <FamilyCard family={f} onClick={() => setSelectedFamilyId(f.id)} guideId={i === 0 ? 'family-card-first' : undefined} />
               </div>
             )
           })
@@ -337,7 +341,7 @@ export default function Families() {
 // FAMILY CARD (inline card pattern)
 // ═══════════════════════════════════════
 
-function FamilyCard({ family: f, onClick }: { family: Family; onClick: () => void }) {
+function FamilyCard({ family: f, onClick, guideId }: { family: Family; onClick: () => void; guideId?: string }) {
   const rateEdge = getRateEdge(f.rate_tier)
   const locColor = f.locationColor ?? '#606088'
   const isInactive = (f.billing_status ?? 'active') === 'cancelled'
@@ -348,7 +352,7 @@ function FamilyCard({ family: f, onClick }: { family: Family; onClick: () => voi
   const studentInstruments = [...new Set(activeStudents.map(s => s.instrument).filter(Boolean))].slice(0, 2).map(i => i.charAt(0).toUpperCase() + i.slice(1)).join(', ')
 
   return (
-    <div className="lead-card" onClick={onClick} style={{ position: 'relative' }}>
+    <div className="lead-card" onClick={onClick} style={{ position: 'relative' }} data-guide-id={guideId}>
       <div className="lead-card-edge" style={{
         background: isInactive ? '#606088' : locColor,
         boxShadow: isInactive ? 'none' : `0 0 12px ${locColor}80`,
@@ -819,7 +823,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
             {/* ── MOBILE TABS ── */}
             <div style={{ display: 'flex', gap: 6, padding: '10px 16px', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               {(['account', 'contact', 'billing', 'notifications'] as MobileTab[]).map((t) => (
-                <button key={t} onClick={() => switchTab(t)} style={{
+                <button key={t} data-guide-id={`family-tab-${t}`} onClick={() => switchTab(t)} style={{
                   padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0,
                   background: mobileTab === t ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.04)',
                   color: mobileTab === t ? '#E8488A' : '#8080A8',
@@ -847,6 +851,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 )}
 
                 {/* Students */}
+                <div data-guide-id="family-students-list">
                 <div style={{ ...sectionLabelStyle, marginTop: 16 }}>Students ({family.activeStudentCount ?? 0} active)</div>
                 {activeStudents.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -869,6 +874,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                     ))}
                   </div>
                 ) : <div style={{ fontSize: 13, color: '#606088', padding: '12px 0' }}>No students linked.</div>}
+                </div>
 
                 {/* Activity log */}
                 {canEdit && activityLog && activityLog.length > 0 && (
@@ -886,6 +892,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
 
               {/* ── MOBILE: CONTACT ── */}
               {mobileTab === 'contact' && (<>
+                <div data-guide-id="family-parent-contact">
                 <div style={sectionLabelStyle}>Primary Contact</div>
                 {inp('parent_first_name', 'First Name')}
                 {inp('parent_last_name', 'Last Name')}
@@ -901,7 +908,9 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                     <div style={valueStyle}>{family.primary_phone ? <a href={`tel:${family.primary_phone}`} style={{ color: '#D0D0E8', textDecoration: 'none' }}>{family.primary_phone}</a> : <span style={{ color: '#363656' }}>—</span>}</div>
                   </div>
                 )}
+                </div>
 
+                <div data-guide-id="family-emergency-contact">
                 <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Emergency Contact</div>
                 {inp('emergency_contact_name', 'Name')}
                 {editing ? inp('emergency_contact_phone', 'Phone') : (
@@ -911,6 +920,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   </div>
                 )}
                 {inp('emergency_contact_relationship', 'Relationship')}
+                </div>
               </>)}
 
               {/* ── MOBILE: BILLING ── */}
@@ -925,9 +935,11 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                     {family.rate_tier_override && <Lock size={11} />}
                   </span>
                 </div>
+                <div data-guide-id="family-card-on-file">
                 {fld('Card on File', family.card_last_four ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#22C55E' }}><CreditCard size={13} /> {family.card_brand ?? 'Card'} ····{family.card_last_four}</span>
                 ) : <span style={{ color: '#EF4444', fontWeight: 700 }}>No Card</span>)}
+                </div>
                 <div style={{ marginBottom: 12 }}>
                   <span style={labelStyle}>Balance</span>
                   <div style={{ marginTop: 3, fontSize: 18, fontWeight: 800, color: (family.balance ?? 0) > 0 ? '#22C55E' : (family.balance ?? 0) < 0 ? '#EF4444' : '#A0A0C8' }}>
@@ -936,6 +948,15 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 </div>
                 {fld('Lifetime Paid', <span style={{ fontWeight: 700, color: '#A0A0C8' }}>{formatDollars(family.lifetime_paid_cents)}</span>)}
                 {(family.overdue_balance_cents ?? 0) > 0 && fld('Overdue', <span style={{ fontWeight: 700, color: '#EF4444' }}>{formatDollars(family.overdue_balance_cents)}</span>)}
+
+                <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Notes</div>
+                <div data-guide-id="family-scheduling-notes">
+                  {txt('scheduling_notes', 'Scheduling Notes', 'e.g. No Mondays after 6pm, prefers same teacher for siblings...')}
+                </div>
+                <div data-guide-id="family-billing-notes">
+                  {txt('billing_notes', 'Billing Notes', 'Billing-related notes...')}
+                </div>
+
                 {canEdit && (
                   <button onClick={() => setShowCreateInvoice(true)} style={{
                     marginTop: 8, width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 13, fontWeight: 700,
@@ -1329,6 +1350,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   {txt('billing_notes', 'Billing Notes', 'Billing-related notes...')}
                   {txt('scheduling_notes', 'Scheduling Notes', 'e.g. No Mondays after 6pm, prefers same teacher for siblings...')}
 
+                  <div data-guide-id="family-files-section">
                   <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Files</div>
                   <FileSection label="Contract" fileType="contract" files={files ?? []} canUpload={canUpload} onUpload={() => { setUploadType('contract'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />
                   <FileSection label="Enrollment Form" fileType="enrollment_form" files={files ?? []} canUpload={canUpload} onUpload={() => { setUploadType('enrollment_form'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />
@@ -1342,6 +1364,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                       color: '#22C55E', fontSize: 11, fontWeight: 600, cursor: 'pointer',
                     }}><Upload size={12} /> Add Document</button>
                   )}
+                  </div>
                 </div>
               </div>
 
