@@ -53,6 +53,7 @@ export default function MarketingLanding() {
       <SectionBreak question="What would it be worth to stop the bleeding?" />
       <PricingSection />
       <FinalClose />
+      <StumblerTestimonial />
       <Footer />
       <StickyRevenueCounter />
     </div>
@@ -1639,6 +1640,22 @@ function FinalClose() {
   )
 }
 
+function StumblerTestimonial() {
+  return (
+    <Reveal>
+      <section className="lp2-section lp2-stumbler">
+        <figure className="lp2-stumbler-card">
+          <blockquote className="lp2-stumbler-quote">
+            “I don{'\u2019'}t run a school or business of any kind — but that tally at the bottom freaks me the f*** out.”
+          </blockquote>
+          <figcaption className="lp2-stumbler-attr">— A non-music-school-owner who stumbled onto the page</figcaption>
+          <p className="lp2-stumbler-note">Imagine what it does to someone who actually runs a studio.</p>
+        </figure>
+      </section>
+    </Reveal>
+  )
+}
+
 function Footer() {
   const nav = useNavigate()
   return (
@@ -2608,6 +2625,33 @@ function Styles() {
     }
     .lp2-final-snap-arrow { color: #D4226A; flex-shrink: 0; }
     @media (max-width: 639px) { .lp2-final-snap-arrow svg { transform: rotate(90deg); } }
+
+    /* ═══ STUMBLER TESTIMONIAL (above footer) ═══ */
+    .lp2-stumbler { padding-top: 40px; padding-bottom: 40px; max-width: 720px; }
+    .lp2-stumbler-card {
+      max-width: 600px; margin: 0 auto; padding: 28px 28px 24px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(212,34,106,0.18);
+      border-left: 3px solid #D4226A;
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 0 48px rgba(212,34,106,0.12), inset 0 1px 0 rgba(255,255,255,0.04);
+      text-align: center;
+    }
+    .lp2-stumbler-quote {
+      margin: 0 0 14px; padding: 0;
+      font-size: 1.05rem; line-height: 1.55; font-style: italic;
+      color: #fff; font-weight: 500; letter-spacing: -0.005em;
+    }
+    @media (min-width: 640px) { .lp2-stumbler-quote { font-size: 1.15rem; } }
+    .lp2-stumbler-attr {
+      display: block; font-size: 0.8rem; color: #A0A0B0;
+      font-weight: 600; font-style: normal; margin-bottom: 14px;
+    }
+    .lp2-stumbler-note {
+      margin: 0; font-size: 0.78rem; color: #6868A0;
+      font-style: italic; line-height: 1.5;
+    }
 
     /* ═══ GUILT-TRIP BANNER (above pricing) ═══ */
     .lp2-guilt-banner {
