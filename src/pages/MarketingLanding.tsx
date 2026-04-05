@@ -1354,12 +1354,12 @@ function RetentionRoles() {
 
 function IntegrationsSection() {
   const rowCore = [
-    { name: 'Square', dot: '#000000', note: 'payments + scheduling sync' },
-    { name: 'Google Calendar', dot: '#4285F4', note: 'Meet + schedule mirror' },
-    { name: 'QUO SMS', dot: '#D4226A', note: 'two-way texting' },
-    { name: 'n8n', dot: '#EA4B71', note: 'automation engine' },
-    { name: 'Stripe', dot: '#635BFF', note: 'white-label billing' },
-    { name: 'SignWell', dot: '#22C55E', note: 'enrollment agreements' },
+    { name: 'Square', dot: '#000000' },
+    { name: 'Google Calendar', dot: '#4285F4' },
+    { name: 'QUO SMS', dot: '#D4226A' },
+    { name: 'n8n', dot: '#EA4B71' },
+    { name: 'Stripe', dot: '#635BFF' },
+    { name: 'SignWell', dot: '#22C55E' },
   ]
   const rowMarketing = [
     { name: 'Google Analytics', dot: '#F9AB00' },
@@ -1368,6 +1368,12 @@ function IntegrationsSection() {
     { name: 'Mailchimp', dot: '#FFE01B' },
     { name: 'Google Drive', dot: '#34A853' },
     { name: 'Slack', dot: '#4A154B' },
+  ]
+  const rowApi = [
+    { name: 'REST API', dot: '#D4226A' },
+    { name: 'Webhooks', dot: '#FFB800' },
+    { name: 'HTTP Requests', dot: '#22C55E' },
+    { name: 'Custom Integrations', dot: '#A333FF' },
   ]
   const rowSoon = [
     { name: 'Zoom', dot: '#2D8CFF' },
@@ -1383,7 +1389,16 @@ function IntegrationsSection() {
         <div className="lp2-int-header">
           <div className="lp2-int-label">PLAYS WELL WITH OTHERS</div>
           <h2 className="lp2-section-h2" style={{ textAlign: 'center' }}>Everything Connected. Nothing Scattered.</h2>
-          <p className="lp2-int-sub">Lessonpreneur plugs into the tools you already use — and automates the ones you don't.</p>
+          <p className="lp2-int-sub">Lessonpreneur connects directly to the tools you already use. And with open REST API, webhooks, and custom HTTP requests — if it has an API, Lessonpreneur can talk to it.</p>
+        </div>
+
+        <div className="lp2-int-diagram" aria-hidden="true">
+          <div className="lp2-int-diagram-node lp2-int-diagram-lp">Lessonpreneur</div>
+          <div className="lp2-int-diagram-conn">
+            <div className="lp2-int-diagram-label">API / Webhook</div>
+            <div className="lp2-int-diagram-line" />
+          </div>
+          <div className="lp2-int-diagram-node lp2-int-diagram-any">Any Platform</div>
         </div>
 
         <div className="lp2-int-grid">
@@ -1397,6 +1412,17 @@ function IntegrationsSection() {
 
         <div className="lp2-int-grid">
           {rowMarketing.map((p) => (
+            <div key={p.name} className="lp2-int-pill">
+              <span className="lp2-int-dot" style={{ background: p.dot }} />
+              <span className="lp2-int-name">{p.name}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="lp2-int-divider">— or connect anything with —</div>
+
+        <div className="lp2-int-grid">
+          {rowApi.map((p) => (
             <div key={p.name} className="lp2-int-pill">
               <span className="lp2-int-dot" style={{ background: p.dot }} />
               <span className="lp2-int-name">{p.name}</span>
@@ -2539,10 +2565,11 @@ function Styles() {
 
     /* ═══ SECTION 8.5: INTEGRATIONS ═══ */
     .lp2-integrations {
+      padding-top: 46px; padding-bottom: 46px;
       border-top: 1px solid rgba(255,255,255,0.06);
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
-    .lp2-int-header { text-align: center; margin-bottom: 36px; }
+    .lp2-int-header { text-align: center; margin-bottom: 20px; }
     .lp2-int-label {
       font-size: 0.72rem; font-weight: 800; letter-spacing: 0.18em;
       color: #6868A0; text-transform: uppercase; margin-bottom: 14px;
@@ -2550,13 +2577,44 @@ function Styles() {
     .lp2-int-sub {
       font-size: 0.95rem; color: #A0A0B0; margin: 0 auto; max-width: 620px; line-height: 1.5;
     }
+    .lp2-int-diagram {
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px; max-width: 340px; margin: 0 auto 28px;
+      font-size: 11px;
+    }
+    .lp2-int-diagram-node {
+      padding: 6px 12px; border-radius: 999px; white-space: nowrap;
+      font-weight: 700; border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.025);
+    }
+    .lp2-int-diagram-lp { color: #D4226A; border-color: rgba(212,34,106,0.3); }
+    .lp2-int-diagram-any { color: #E0E0F0; }
+    .lp2-int-diagram-conn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+      min-width: 0;
+    }
+    .lp2-int-diagram-label {
+      color: #FFB800; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .lp2-int-diagram-line {
+      width: 100%; height: 1px;
+      background: repeating-linear-gradient(to right, rgba(255,184,0,0.5) 0, rgba(255,184,0,0.5) 4px, transparent 4px, transparent 8px);
+    }
+    @media (max-width: 480px) {
+      .lp2-int-diagram { font-size: 10px; gap: 6px; }
+      .lp2-int-diagram-node { padding: 5px 9px; }
+    }
     .lp2-int-grid {
       display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
-      margin-bottom: 14px; max-width: 880px; margin-left: auto; margin-right: auto;
+      margin-bottom: 10px; max-width: 880px; margin-left: auto; margin-right: auto;
+    }
+    .lp2-int-divider {
+      text-align: center; font-size: 11px; color: rgba(255,255,255,0.3);
+      margin: 8px 0; letter-spacing: 0.04em;
     }
     .lp2-int-pill {
       display: inline-flex; align-items: center; gap: 10px;
-      padding: 10px 16px; border-radius: 12px;
+      padding: 8px 12px; border-radius: 12px;
       background: rgba(255,255,255,0.025);
       border: 1px solid rgba(255,255,255,0.08);
       backdrop-filter: blur(8px);
@@ -2573,7 +2631,7 @@ function Styles() {
       box-shadow: 0 0 8px rgba(255,255,255,0.08);
     }
     .lp2-int-name {
-      font-size: 0.88rem; font-weight: 600; color: #E0E0F0; white-space: nowrap;
+      font-size: 0.78rem; font-weight: 600; color: #E0E0F0; white-space: nowrap;
     }
     .lp2-int-pill-soon .lp2-int-name { color: #8080A0; }
     .lp2-int-pill-soon { opacity: 0.65; }
@@ -2585,11 +2643,11 @@ function Styles() {
     }
     .lp2-int-callouts {
       display: grid; grid-template-columns: 1fr; gap: 14px;
-      margin-top: 44px; max-width: 880px; margin-left: auto; margin-right: auto;
+      margin-top: 32px; max-width: 880px; margin-left: auto; margin-right: auto;
     }
     @media (min-width: 768px) { .lp2-int-callouts { grid-template-columns: repeat(3, 1fr); } }
     .lp2-int-callout {
-      padding: 20px; border-radius: 14px;
+      padding: 14px; border-radius: 14px;
       background: rgba(255,255,255,0.025);
       border: 1px solid rgba(255,255,255,0.08);
       backdrop-filter: blur(8px);
@@ -2597,10 +2655,10 @@ function Styles() {
     }
     .lp2-int-callout-icon { font-size: 1.4rem; margin-bottom: 10px; }
     .lp2-int-callout-title {
-      font-size: 0.95rem; font-weight: 800; color: #fff; margin-bottom: 8px;
+      font-size: 0.85rem; font-weight: 800; color: #fff; margin-bottom: 8px;
     }
     .lp2-int-callout-body {
-      font-size: 0.8125rem; color: #A0A0B0; line-height: 1.55;
+      font-size: 0.75rem; color: #A0A0B0; line-height: 1.55;
     }
 
     /* ── REDUCED MOTION ── */
