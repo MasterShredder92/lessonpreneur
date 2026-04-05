@@ -48,12 +48,11 @@ function rateForStudents(count: number | null): number {
 }
 
 function formatUSD(n: number): string {
-  // 3 decimals so every 1-sec tick shows visible motion at $200/hr
   return n.toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
 }
 
