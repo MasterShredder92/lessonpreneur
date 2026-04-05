@@ -42,7 +42,7 @@ export default function WhatChangesSection() {
           margin: 0,
         }}
       >
-        Here's what running a school on LP actually looks like.
+        Here's what running a school on LP <span style={{ color: COLORS.pink }}>actually</span> looks like.
       </h2>
 
       <div
@@ -56,7 +56,7 @@ export default function WhatChangesSection() {
       >
         {CARDS.map((card, idx) => (
           <Reveal key={card.title} delay={idx * 100}>
-          <GlassCard>
+          <GlassCard accent>
             {idx === 5 ? (
               <img
                 src="/lp-logo.png"

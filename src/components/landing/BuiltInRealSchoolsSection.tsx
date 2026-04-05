@@ -14,7 +14,7 @@ export default function BuiltInRealSchoolsSection() {
           margin: 0,
         }}
       >
-        This wasn't built in a conference room.
+        This wasn't built in a <span style={{ color: COLORS.pink }}>conference room</span>.
       </h2>
 
       <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>

@@ -44,7 +44,7 @@ export default function FAQSection() {
           margin: 0,
         }}
       >
-        Questions we hear a lot.
+        Questions we hear <span style={{ color: COLORS.pink }}>a lot</span>.
       </h2>
 
       <div

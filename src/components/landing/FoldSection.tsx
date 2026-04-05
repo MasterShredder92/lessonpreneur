@@ -126,7 +126,7 @@ export default function FoldSection() {
           margin: 0,
         }}
       >
-        Run Your Music School Without Running Yourself Into the Ground.
+        Run Your Music School <span style={{ color: COLORS.pink }}>Without</span> Running Yourself Into the Ground.
       </h1>
 
       <p
@@ -148,19 +148,31 @@ export default function FoldSection() {
       </p>
 
       {/* REPLACE WITH ACTUAL VSL EMBED */}
+      <style>{`
+        @keyframes lp-video-border-shift {
+          0%   { background-position: 0% 0%, 0% 0%; }
+          100% { background-position: 0% 0%, 200% 0%; }
+        }
+      `}</style>
       <div
+        className="lp-video-frame"
         style={{
           marginTop: '32px',
           width: '100%',
           maxWidth: '720px',
           aspectRatio: '16 / 9',
-          background: '#000',
           borderRadius: '12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           position: 'relative',
-          border: '1px solid rgba(255,255,255,0.08)',
+          border: '1px solid transparent',
+          backgroundImage:
+            'linear-gradient(#000,#000), linear-gradient(90deg, #D4226A, #FF5500, #D4226A, #FF5500)',
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box',
+          backgroundSize: '100% 100%, 200% 100%',
+          animation: 'lp-video-border-shift 3s linear infinite',
         }}
       >
         <div

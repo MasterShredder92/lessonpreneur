@@ -141,19 +141,28 @@ export function TrustChips() {
 export function GlassCard({
   children,
   style,
+  accent = false,
 }: {
   children: ReactNode
   style?: CSSProperties
+  accent?: boolean
 }) {
+  const [hover, setHover] = useState(false)
+  const borderColor = accent && hover ? 'rgba(212,34,106,0.5)' : COLORS.cardBorder
   return (
     <div
+      onMouseEnter={() => accent && setHover(true)}
+      onMouseLeave={() => accent && setHover(false)}
       style={{
         background: COLORS.cardBg,
-        border: `1px solid ${COLORS.cardBorder}`,
+        border: `1px solid ${borderColor}`,
+        borderLeft: accent ? '3px solid #D4226A' : `1px solid ${borderColor}`,
         borderRadius: '16px',
         padding: '32px',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
+        transition: 'border-color 250ms ease-out, box-shadow 250ms ease-out',
+        boxShadow: accent && hover ? '0 0 30px rgba(212,34,106,0.12)' : 'none',
         ...style,
       }}
     >

@@ -23,7 +23,7 @@ export default function FinalCTASection() {
           margin: 0,
         }}
       >
-        Stop being the system. Build one.
+        Stop being the system. <span style={{ color: COLORS.pink }}>Build one.</span>
       </h2>
 
       <p

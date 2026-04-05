@@ -12,6 +12,10 @@ const ITEMS = [
 export default function WhoItsForSection() {
   return (
     <section className="lp-section" style={{ ...sectionStyle, maxWidth: '720px' }}>
+      <style>{`
+        .lp-who-row { transition: background 200ms ease-out, border-radius 200ms ease-out; padding: 6px 10px; border-radius: 8px; }
+        .lp-who-row:hover { background: rgba(212,34,106,0.06); }
+      `}</style>
       <h2
         className="lp-h2"
         style={{
@@ -23,14 +27,14 @@ export default function WhoItsForSection() {
           margin: 0,
         }}
       >
-        Lessonpreneur is built for music school owners who...
+        Lessonpreneur is built for <span style={{ color: COLORS.pink }}>music school owners</span> who...
       </h2>
 
-      <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {ITEMS.map((item) => (
           <div
             key={item}
-            className="lp-row-item"
+            className="lp-row-item lp-who-row"
             style={{
               fontFamily: FONT,
               fontSize: '18px',

@@ -54,7 +54,7 @@ export default function OfferSection() {
             margin: 0,
           }}
         >
-          What you get when you start today.
+          What you get when you start <span style={{ color: COLORS.pink }}>today</span>.
         </h2>
 
         <div

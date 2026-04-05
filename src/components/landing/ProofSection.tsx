@@ -15,7 +15,7 @@ export default function ProofSection() {
           textAlign: 'center',
         }}
       >
-        Already running in real schools.
+        Already running in <span style={{ color: COLORS.pink }}>real schools</span>.
       </h2>
 
       <div style={{ marginTop: '40px', maxWidth: '720px', marginLeft: 'auto', marginRight: 'auto' }}>

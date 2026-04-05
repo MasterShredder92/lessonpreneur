@@ -38,7 +38,7 @@ export default function ChaosStackSection() {
           margin: 0,
         }}
       >
-        Here's the week you're probably having.
+        Here's the week you're <span style={{ color: COLORS.pink }}>probably</span> having.
       </h2>
 
       <div
@@ -52,7 +52,7 @@ export default function ChaosStackSection() {
       >
         {CARDS.map((card, idx) => (
           <Reveal key={card.label} delay={idx * 100}>
-          <GlassCard>
+          <GlassCard accent>
             <div
               style={{
                 fontFamily: FONT,
