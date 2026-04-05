@@ -14,6 +14,7 @@ import { CORE_INSTRUMENTS, OTHER_INSTRUMENTS } from '../../lib/constants'
 import { toast } from '../../components/shared/Toast'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import LeadsPageGuide from '../../components/admin/LeadsPageGuide'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
@@ -338,9 +339,11 @@ export default function Leads() {
             </span>
           )}
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          <LeadsPageGuide />
           {canEdit && (
             <button
+              data-guide-id="lead-add-new"
               onClick={() => setShowAddLead(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px',
@@ -387,7 +390,7 @@ export default function Leads() {
       {/* Filters — only on active tab */}
       {leadView === 'active' && <div className="schedule-filters" style={{ marginBottom: '16px' }}>
         <div className="filter-group">
-          <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className="filter-select lead-filter">
+          <select data-guide-id="leads-stages" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className="filter-select lead-filter">
             <option value="">Stages ({activeCount})</option>
             {STAGES.filter(s => s !== 'enrolled' && s !== 'lost').map((s) => (
               <option key={s} value={s}>{STAGE_LABELS[s]} ({stageCounts[s] ?? 0})</option>
@@ -419,8 +422,8 @@ export default function Leads() {
       )}
 
       {/* LIST VIEW (default) — premium lead cards with family grouping */}
-      <div className="lead-cards">
-          {pipelineItems.map((item) => {
+      <div className="lead-cards" data-guide-id="leads-list">
+          {pipelineItems.map((item, itemIdx) => {
             if (item.type === 'family') {
               const fg = item
               const stageColor = STAGE_COLORS[fg.stage] ?? 'var(--text-muted)'
@@ -429,6 +432,7 @@ export default function Leads() {
               return (
                 <div
                   key={`fam-${fg.familyId}`}
+                  data-guide-id={itemIdx === 0 ? 'leads-first-card' : undefined}
                   className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
                   onClick={() => { setDetailLead(primaryLead); aiMatch.clearMatch() }}
                 >
@@ -499,6 +503,7 @@ export default function Leads() {
             return (
               <div
                 key={lead.id}
+                data-guide-id={itemIdx === 0 ? 'leads-first-card' : undefined}
                 className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
                 onClick={() => { setDetailLead(lead); aiMatch.clearMatch() }}
               >
@@ -801,21 +806,21 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                 {lead.parent_name ?? lead.first_name} Family
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(212,34,106,0.12)', color: '#D4226A' }}>{allFamilyLeads.length} students</span>
               </h2>
-              <div className="lead-detail-sub">
+              <div className="lead-detail-sub" data-guide-id="lead-contact">
                 {lead.email && <span>{lead.email}</span>}
                 {lead.email && lead.phone && <span style={{ color: '#606088' }}>·</span>}
-                {lead.phone && <span>{lead.phone}</span>}
+                {lead.phone && <a data-guide-id="lead-sms" href={`sms:${lead.phone}`} style={{ color: 'inherit', textDecoration: 'none' }}>{lead.phone}</a>}
               </div>
             </>
           ) : (
             <>
               <h2 className="lead-detail-name">{studentName}</h2>
-              <div className="lead-detail-sub">
+              <div className="lead-detail-sub" data-guide-id="lead-contact">
                 {parentName && <span>Parent: {parentName}</span>}
                 {parentName && (lead.email || lead.phone) && <span style={{ color: '#606088' }}>·</span>}
                 {lead.email && <span>{lead.email}</span>}
                 {lead.email && lead.phone && <span style={{ color: '#606088' }}>·</span>}
-                {lead.phone && <span>{lead.phone}</span>}
+                {lead.phone && <a data-guide-id="lead-sms" href={`sms:${lead.phone}`} style={{ color: 'inherit', textDecoration: 'none' }}>{lead.phone}</a>}
               </div>
             </>
           )}
@@ -1097,7 +1102,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
               {/* Preferred days removed — moved above chips */}
 
               {/* Notes */}
-              <div className="lead-section-label">Director Notes</div>
+              <div className="lead-section-label" data-guide-id="lead-notes">Director Notes</div>
               {showNoteInput ? (
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                   <input
@@ -1172,7 +1177,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     </>
                   ) : (
                     <>
-                      <div className="lead-section-label">Move to Stage</div>
+                      <div className="lead-section-label" data-guide-id="lead-stage-controls">Move to Stage</div>
                       {(() => {
                         const stageOrder = ['inquiry', 'contacted', 'scheduled'] as const
                         const currentIdx = stageOrder.indexOf(lead.stage as any)
@@ -1198,7 +1203,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       })()}
                       {!['enrolled', 'lost'].includes(lead.stage) && (
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={onEnroll} disabled={updateStage.isPending}
+                          <button data-guide-id="lead-convert" onClick={onEnroll} disabled={updateStage.isPending}
                             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 140ms ease', fontFamily: 'var(--font-body)' }}>
                             {isFamily ? 'Enroll Family' : 'Enroll Student'}
                           </button>
