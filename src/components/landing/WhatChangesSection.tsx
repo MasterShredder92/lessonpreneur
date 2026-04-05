@@ -53,26 +53,34 @@ export default function WhatChangesSection() {
           gap: '20px',
         }}
       >
-        {CARDS.map((card) => (
+        {CARDS.map((card, idx) => (
           <GlassCard key={card.title}>
-            {/* REPLACE WITH LUCIDE ICON */}
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                background: 'rgba(212,34,106,0.15)',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: COLORS.pink,
-                fontFamily: FONT,
-                fontWeight: 900,
-                fontSize: '20px',
-              }}
-            >
-              #
-            </div>
+            {idx === 5 ? (
+              <img
+                src="/lp-logo.png"
+                alt="Lessonpreneur"
+                style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+              />
+            ) : (
+              /* REPLACE WITH LUCIDE ICON */
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  background: 'rgba(212,34,106,0.15)',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: COLORS.pink,
+                  fontFamily: FONT,
+                  fontWeight: 900,
+                  fontSize: '20px',
+                }}
+              >
+                #
+              </div>
+            )}
             <h3
               style={{
                 fontFamily: FONT,
