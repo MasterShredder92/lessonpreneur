@@ -15,6 +15,7 @@ import { Shield, Star, AlertTriangle, Send, X, UserX, Clock, ExternalLink, Heart
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import { RetentionGuide } from '../../components/admin/RetentionGuide'
 
 const LOC_COLORS: Record<string, string> = {
   Omaha: '#D41113', Bellevue: '#A333FF', Elkhorn: '#00A5E8', Gretna: '#00A651',
@@ -114,15 +115,34 @@ export default function Retention() {
   const activeTab = (getParam('tab') || 'active') as TabKey
   const setActiveTab = (v: TabKey) => setParam('tab', v === 'active' ? '' : v)
   const { data: userLocations } = useUserLocations()
+  const { role } = useAuthContext()
+  const [guideOpen, setGuideOpen] = useState(false)
+  const isStudioDirector = role === 'studio_director'
 
   return (
     <IssueContextProvider page="Backstage — Retention">
     <div className="page">
-      <div className="page-header">
+      <div className="page-header" data-guide-id="retention-header">
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Shield size={22} /> Retention
         </h1>
-        <ReportIssueButton />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isStudioDirector && (
+            <button
+              onClick={() => setGuideOpen(true)}
+              style={{
+                padding: '6px 12px', borderRadius: 8,
+                background: 'rgba(255,184,0,0.08)',
+                border: '1px solid rgba(255,184,0,0.22)',
+                color: '#FFB800', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                minHeight: 36, whiteSpace: 'nowrap',
+              }}
+            >
+              📖 Guide
+            </button>
+          )}
+          <ReportIssueButton />
+        </div>
       </div>
 
       {/* Tab bar */}
@@ -130,7 +150,7 @@ export default function Retention() {
         {TABS.map(tab => {
           const isActive = activeTab === tab.key
           return (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ flex: 1, minWidth: 120, padding: '10px 16px', borderRadius: 10, border: 'none', background: isActive ? 'rgba(212,34,106,0.12)' : 'transparent', color: isActive ? '#E0E0F4' : '#8080A8', fontWeight: isActive ? 700 : 500, fontSize: 13, cursor: 'pointer', transition: 'all 150ms', position: 'relative', whiteSpace: 'nowrap' }}>
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)} data-guide-id={`tab-${tab.key}`} style={{ flex: 1, minWidth: 120, padding: '10px 16px', borderRadius: 10, border: 'none', background: isActive ? 'rgba(212,34,106,0.12)' : 'transparent', color: isActive ? '#E0E0F4' : '#8080A8', fontWeight: isActive ? 700 : 500, fontSize: 13, cursor: 'pointer', transition: 'all 150ms', position: 'relative', whiteSpace: 'nowrap' }}>
               {tab.label}
               {isActive && <div style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: 2, borderRadius: 1, background: '#D4226A' }} />}
             </button>
@@ -142,6 +162,15 @@ export default function Retention() {
       {activeTab === 'at-risk' && <AtRiskTab locationIds={userLocations} />}
       {activeTab === 'win-back' && <WinBackTab locationIds={userLocations} />}
       {activeTab === 'campaigns' && <CampaignsTab locationIds={userLocations} />}
+
+      {isStudioDirector && (
+        <RetentionGuide
+          open={guideOpen}
+          onClose={() => setGuideOpen(false)}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+        />
+      )}
     </div>
     </IssueContextProvider>
   )
@@ -281,8 +310,8 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
             </div>
           )}
 
-          {visibleQueue.map(s => (
-            <div key={s.id} className="ret-card" style={{
+          {visibleQueue.map((s, idx) => (
+            <div key={s.id} className="ret-card" data-guide-id={idx === 0 ? 'progress-card' : undefined} style={{
               padding: '10px 14px', borderRadius: 10,
               background: selectedIds.has(s.id) ? 'rgba(212,34,106,0.06)' : 'rgba(255,255,255,0.02)',
               border: `1px solid ${selectedIds.has(s.id) ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.05)'}`,
@@ -306,6 +335,7 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
               </div>
               <div className="ret-card-actions">
                 <button
+                  data-guide-id={idx === 0 ? 'generate-card-btn' : undefined}
                   disabled={generatingFor === s.id || generateCard.isPending}
                   onClick={async () => {
                     setGeneratingFor(s.id)
@@ -568,7 +598,7 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
           <div className="section-line" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {(reviewQueue ?? []).slice(0, 10).map(f => (
+          {(reviewQueue ?? []).slice(0, 10).map((f, idx) => (
             <div key={f.id} style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 140 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{f.name}</span>
@@ -579,6 +609,7 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
                 {f.lastRequestDate ? `Last: ${new Date(f.lastRequestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Never asked'}
               </span>
               <button
+                data-guide-id={idx === 0 ? 'review-request-btn' : undefined}
                 onClick={async () => {
                   try {
                     await sendReview.mutateAsync({ familyId: f.id, locationId: f.locationId })

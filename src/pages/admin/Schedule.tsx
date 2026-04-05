@@ -26,6 +26,7 @@ import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instru
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import PageGuide, { type GuideStep } from '../../components/shared/PageGuide'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -658,6 +659,64 @@ export default function Schedule() {
     taken: takenRoomNames.has(r.name),
   }))
 
+  const scheduleGuideSteps: GuideStep[] = useMemo(() => ([
+    {
+      id: 'location',
+      targetSelector: '[data-guide-id="location-selector"]',
+      title: 'Your Location',
+      body: "This shows your studio location. As a studio director, you're locked to your assigned location — this keeps your schedule focused on what matters to you. You'll always see your studio's full teaching grid here.",
+    },
+    {
+      id: 'date-nav',
+      targetSelector: '[data-guide-id="date-nav"]',
+      title: 'Navigating the Week',
+      body: "Tap the arrows to move forward or backward by week. The schedule always shows 7 days at a time. Use this to look ahead at upcoming sessions or review what happened earlier in the week.",
+    },
+    {
+      id: 'my-sessions',
+      targetSelector: '[data-tour-id="my-sessions-toggle"]',
+      title: 'Your Personal Sessions',
+      body: "Since you're also a teacher, this toggle filters the entire schedule down to only the sessions you're personally teaching. Tap 'My Sessions' to see just your week, tap 'All Sessions' to see the full studio grid.",
+      skipIf: !teacherRecord,
+    },
+    {
+      id: 'grid',
+      targetSelector: '[data-guide-id="schedule-grid"]',
+      title: 'The Teaching Grid',
+      body: "Each column is a day, each row is a teacher. Colored blocks are booked sessions — tap any block to see details. Yellow blocks are open time slots available for new students. Coral blocks are makeup sessions. Gray blocks are not available.",
+    },
+    {
+      id: 'legend',
+      targetSelector: '[data-guide-id="legend-button"]',
+      title: 'Reading the Schedule',
+      body: "Tap the legend to see what every color means. Pink/red = active student session. Yellow = open slot. Coral = makeup session. Gray = not bookable. Orange with family icon = family called out. Knowing these at a glance lets you read the day in seconds.",
+    },
+    {
+      id: 'tap-session',
+      targetSelector: '[data-guide-block-type="student_session"]',
+      title: 'Tap Any Session',
+      body: "Tap a session block to open its details. From here you can check the student in when they arrive, mark a call-out if the family contacts you directly, or see teacher and student info. Everything that happens in a session starts with this tap.",
+    },
+    {
+      id: 'check-in',
+      targetSelector: '[data-guide-block-type="student_session"]',
+      title: 'Checking Students In',
+      body: "When a student arrives, tap their block then tap Check In. This logs the session as completed and notifies the teacher to complete their session recap afterward. Never skip check-in — it's how teacher pay and attendance are tracked.",
+    },
+    {
+      id: 'call-out',
+      targetSelector: '[data-guide-family-callout="true"], [data-guide-block-type="call_out"], [data-guide-id="legend-button"]',
+      title: 'When a Family Calls Out',
+      body: "When a family cancels through the parent app, their block automatically flips to a call-out and appears in your dashboard feed. A coral makeup block auto-books on their next fifth week. You don't have to do anything — the system handles it. Just acknowledge it in the dashboard feed.",
+    },
+    {
+      id: 'open-slots',
+      targetSelector: '[data-guide-block-type="open_time"]',
+      title: 'Open Slots = Opportunity',
+      body: "Yellow blocks are open teaching slots with no student assigned yet. These are your growth opportunities. When a lead converts and picks a time, it fills one of these yellow blocks and turns it into a session.",
+    },
+  ]), [teacherRecord])
+
   // Secondary role check (primary is RouteGuard)
   if (role !== 'owner' && role !== 'admin' && role !== 'company_director' && role !== 'studio_director') {
     return <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Access restricted to owners and admins.</div>
@@ -669,7 +728,7 @@ export default function Schedule() {
       {/* Unified toolbar — locations | date nav | actions (desktop only) */}
       {!isMobile && <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${locColor}25`, borderRadius: 12, marginBottom: 8, position: 'relative', overflow: 'visible', zIndex: 50, gap: 8, flexWrap: 'wrap' }}>
         {/* Location tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div data-guide-id="location-selector" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {locations?.filter((l: any) => l.is_active).map((loc: any) => {
             const c = (loc as any).color ?? '#D4226A'
             const active = loc.id === effectiveLocation
@@ -693,7 +752,7 @@ export default function Schedule() {
         <button onClick={() => setBulkVirtualOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(0,188,212,0.4)', background: 'rgba(0,188,212,0.1)', color: '#00BCD4', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><DoorOpen size={12} /> Go Virtual</button>
 
         {/* Center — date nav + calendar (absolutely centered in the row) */}
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div data-guide-id="date-nav" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => navigateDate(-1)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}><ChevronLeft size={16} /></button>
           <button onClick={() => setSelectedDate(toDateString(new Date()))} style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: isToday ? locColor : 'rgba(255,255,255,0.06)', color: isToday ? '#fff' : '#A0A0C8', border: isToday ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>Today</button>
           <button onClick={() => navigateDate(1)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}><ChevronRight size={16} /></button>
@@ -732,9 +791,15 @@ export default function Schedule() {
             </div>
           )}
           <ReportIssueButton />
+          {role === 'studio_director' && (
+            <PageGuide
+              steps={scheduleGuideSteps}
+              completionMessage="Schedule guide complete. Tap 📖 Guide anytime to replay."
+            />
+          )}
           {/* Legend dropdown */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowLegend(!showLegend)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.08)', background: showLegend ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', color: '#A0A0C8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+            <button data-guide-id="legend-button" onClick={() => setShowLegend(!showLegend)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.08)', background: showLegend ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', color: '#A0A0C8', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
               <span style={{ fontSize: 10, fontWeight: 600, color: '#8080A8' }}>Legend:</span>
               <div style={{ display: 'flex', gap: 3 }}>
                 {['#FACC15','#38BDF8','#DC0000','#FF5500','#FF6B6B','#FF1493','#22C55E','#818CF8'].map(c => (
@@ -868,7 +933,7 @@ export default function Schedule() {
           <p style={{ fontSize: 12, color: '#606088', marginTop: 4 }}>Add teachers in Settings to see them here.</p>
         </div>
       ) : (
-        <div ref={gridWrapperRef} style={{ overflowX: 'auto', borderRadius: 16, border: `1px solid ${locColor}20`, background: 'rgba(12,11,22,0.95)', position: 'relative' }}>
+        <div ref={gridWrapperRef} data-guide-id="schedule-grid" style={{ overflowX: 'auto', borderRadius: 16, border: `1px solid ${locColor}20`, background: 'rgba(12,11,22,0.95)', position: 'relative' }}>
           {/* Current time indicator line — only shows today, measures real DOM positions */}
           {isToday && timeSlots.length > 0 && gridWrapperRef.current && (() => {
             const nowParts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date())
@@ -1063,6 +1128,7 @@ export default function Schedule() {
                     return (
                       <div
                         key={`${time}-${t.id}`}
+                        data-guide-block-type="open_time"
                         onClick={() => { setAssignModal(block); setRecurring(true); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null) }}
                         onDragOver={(e) => { e.preventDefault(); setDragOverTarget(block.block_id) }}
                         onDragLeave={() => setDragOverTarget(null)}
@@ -1136,6 +1202,8 @@ export default function Schedule() {
                   return (
                     <div
                       key={`${time}-${t.id}`}
+                      data-guide-block-type={bt}
+                      data-guide-family-callout={isFamilyCallout ? 'true' : undefined}
                       draggable
                       onDragStart={(e) => { setDragBlock(block); e.dataTransfer.effectAllowed = 'move' }}
                       onDragEnd={() => { setDragBlock(null); setDragOverTarget(null) }}
