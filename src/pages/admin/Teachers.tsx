@@ -16,6 +16,7 @@ import { useScrollRestore } from '../../hooks/useScrollRestore'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import TeachersPageGuide from '../../components/admin/TeachersPageGuide'
 
 const INSTRUMENT_ICON: Record<string, any> = {
   guitar: Guitar, bass: Guitar, ukulele: Guitar, banjo: Guitar,
@@ -132,6 +133,7 @@ export default function Teachers() {
             <button className="btn-primary" onClick={() => setShowForm(true)}>+ Add Teacher</button>
           </div>
         )}
+        <TeachersPageGuide />
         <ReportIssueButton />
       </div>
 
@@ -223,8 +225,8 @@ export default function Teachers() {
       </div>
 
       {/* Teacher cards */}
-      <div className="lead-cards">
-        {displayList.map((t: any) => {
+      <div className="lead-cards" data-tour-id="teachers-list">
+        {displayList.map((t: any, __idx: number) => {
           const isInactive = !t.is_active
           const status = t.status ?? (t.is_active ? 'active' : 'inactive')
           const primaryInstrument = (t.instruments ?? [])[0] ?? ''
@@ -247,6 +249,7 @@ export default function Teachers() {
           return (
             <div
               key={t.id}
+              data-tour-id={__idx === 0 ? 'teacher-card-first' : undefined}
               className={`lead-card${isInactive ? ' lead-card-stale' : ''}`}
               onClick={() => { saveScroll(); navigate(`/admin/teachers/${t.id}`) }}
             >

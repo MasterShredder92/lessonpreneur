@@ -16,6 +16,7 @@ import TeacherDocumentsModal from '../../components/teachers/TeacherDocumentsMod
 import { toast } from '../../components/shared/Toast'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import TeachersPageGuide from '../../components/admin/TeachersPageGuide'
 
 const DAYS_ORDERED = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
 const DAY_LABELS: Record<string, string> = {
@@ -235,6 +236,7 @@ export default function TeacherDetail() {
           ← Back to Teachers
         </button>
         <ReportIssueButton />
+        <TeachersPageGuide />
       </div>
 
       {/* ── Mobile tab bar ── */}
@@ -449,7 +451,7 @@ export default function TeacherDetail() {
 
       {/* Star AI Profile + Quick Actions — side by side (desktop) / stacked (mobile overview) */}
       <div className={`td-section td-star-actions-grid td-tab-overview${mobileTab !== 'overview' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 14 }}>
-        <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+        <div className="location-card" data-tour-id="star-ai-profile" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FFB800, #FF8C00)', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
@@ -511,7 +513,7 @@ export default function TeacherDetail() {
         if (active.length === 0) return null
         return (
           <div className={`td-section td-tab-overview${mobileTab !== 'overview' ? ' td-tab-hidden' : ''}`} style={{ marginBottom: 14 }}>
-            <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+            <div className="location-card" data-tour-id="teacher-students-list" style={{ padding: 18, cursor: 'default' }}>
               <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #3b82f6, #6366f1)', boxShadow: '0 0 12px rgba(59,130,246,0.4)' }} />
               <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)' }} />
               <div style={{ position: 'relative', zIndex: 1 }}>
@@ -559,7 +561,7 @@ export default function TeacherDetail() {
       {/* ══════════════════════════════════════════════════ */}
       <div className={`td-section td-profile-grid td-tab-profile${mobileTab !== 'profile' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         {/* Teaching Profile */}
-        <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+        <div className="location-card" data-tour-id="teaching-profile" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 12px rgba(255,85,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
@@ -721,9 +723,30 @@ export default function TeacherDetail() {
       {/* (Availability moved above Internal Notes) */}
 
       {/* Private Documents + Pay Summary — side by side (desktop) / stacked (mobile documents tab) */}
+      {!canEdit && (
+        <div className={`td-section td-tab-documents${mobileTab !== 'documents' ? ' td-tab-hidden' : ''}`} style={{ marginBottom: 14 }}>
+          <div className="location-card" data-tour-id="private-documents" style={{ padding: 18, cursor: 'default' }}>
+            <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #606088, #363656)', boxShadow: 'none' }} />
+            <div className="loc-card-glow" style={{ background: 'none' }} />
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={sectionLabelStyle}>Private Documents</span>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 100,
+                  background: 'rgba(255,255,255,0.05)', color: '#8080A8',
+                  border: '1px solid rgba(255,255,255,0.1)', letterSpacing: '0.05em',
+                }}>RESTRICTED</span>
+              </div>
+              <p style={{ fontSize: 12, color: '#8080A8', lineHeight: 1.55, margin: 0 }}>
+                W-9s, contracts, and personal uploaded documents are between the teacher and the company. Studio directors don't have access to these files.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {canEdit && (
         <div className={`td-section td-docs-grid td-tab-documents${mobileTab !== 'documents' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-        <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+        <div className="location-card" data-tour-id="private-documents" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #606088, #363656)', boxShadow: 'none' }} />
           <div className="loc-card-glow" style={{ background: 'none' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
