@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { COLORS, FONT, GlassCard, PrimaryButton, sectionStyle } from './shared'
 
 const GREEN = '#22C55E'
+const RED = '#EF4444'
 const CHURN_RATE = 0.05 // 5% monthly churn assumption
 const PER_STUDENT = 160
 const HOURLY_VALUE = 50
+const LP_PRICE_MONTHLY = 297 // placeholder — update with real price
+const MAX_STUDENTS = 500
 
-function useAnimatedNumber(target: number, duration = 150) {
+function useAnimatedNumber(target: number, duration = 200) {
   const [display, setDisplay] = useState(target)
   const fromRef = useRef(target)
   const rafRef = useRef<number | null>(null)
@@ -79,13 +82,16 @@ const sliderCss = `
   cursor: pointer;
 }
 .lp-slider-wrap { padding: 10px 0; }
+.lp-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 768px) {
   .lp-slider { height: 10px; }
   .lp-slider::-webkit-slider-thumb { width: 32px; height: 32px; }
   .lp-slider::-moz-range-thumb { width: 32px; height: 32px; }
   .lp-slider-wrap { padding: 12px 0; }
   .lp-leak-card { padding: 24px !important; }
-  .lp-leak-total { font-size: 44px !important; }
+  .lp-compare-grid { grid-template-columns: 1fr !important; }
+  .lp-compare-big { font-size: 30px !important; }
+  .lp-compare-small { font-size: 15px !important; }
 }
 `
 
@@ -146,15 +152,22 @@ function Slider({ label, min, max, step = 1, value, display, onChange }: SliderP
 
 export default function RevenueLeakSection() {
   const navigate = useNavigate()
-  const [students, setStudents] = useState(100)
+  const [students, setStudents] = useState(40)
   const [hours, setHours] = useState(6)
 
+  const atMax = students >= MAX_STUDENTS
   const droppedStudents = Math.round(students * CHURN_RATE)
   const churnLoss = droppedStudents * PER_STUDENT
   const adminCost = hours * 4 * HOURLY_VALUE
-  const total = churnLoss + adminCost
+  const monthlyLoss = churnLoss + adminCost
+  const yearlyLoss = monthlyLoss * 12
+  const monthlySaved = Math.max(0, monthlyLoss - LP_PRICE_MONTHLY)
+  const yearlySaved = monthlySaved * 12
 
-  const animatedTotal = useAnimatedNumber(total)
+  const animMonthlySaved = useAnimatedNumber(monthlySaved)
+  const animYearlySaved = useAnimatedNumber(yearlySaved)
+  const animMonthlyLoss = useAnimatedNumber(monthlyLoss)
+  const animYearlyLoss = useAnimatedNumber(yearlyLoss)
 
   return (
     <section className="lp-section" style={sectionStyle}>
@@ -185,7 +198,7 @@ export default function RevenueLeakSection() {
           textAlign: 'center',
         }}
       >
-        Here's what operational chaos is actually costing you every month.
+        Here's what operational chaos is actually costing you — and what LP would plug.
       </p>
 
       <div style={{ marginTop: '40px', maxWidth: '720px', marginLeft: 'auto', marginRight: 'auto' }}>
@@ -193,11 +206,11 @@ export default function RevenueLeakSection() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
             <Slider
               label="How many students do you have?"
-              min={10}
-              max={500}
-              step={5}
+              min={20}
+              max={MAX_STUDENTS}
+              step={10}
               value={students}
-              display={fmt(students)}
+              display={atMax ? '500+' : fmt(students)}
               onChange={setStudents}
             />
 
@@ -210,67 +223,198 @@ export default function RevenueLeakSection() {
               onChange={setHours}
             />
 
-            <div
-              style={{
-                fontFamily: FONT,
-                fontSize: '14px',
-                color: 'rgba(255,255,255,0.60)',
-                lineHeight: 1.6,
-                textAlign: 'center',
-                padding: '0 4px',
-              }}
-            >
-              At an average 5% monthly churn, you're likely losing{' '}
-              <span style={{ color: '#fff', fontWeight: 800 }}>~{droppedStudents} students</span>{' '}
-              every month. At <span style={{ color: '#fff', fontWeight: 800 }}>${PER_STUDENT}</span>{' '}
-              per student, that's{' '}
-              <span style={{ color: GREEN, fontWeight: 900 }}>${fmt(churnLoss)}</span> walking out
-              the door. Plus{' '}
-              <span style={{ color: GREEN, fontWeight: 900 }}>${fmt(adminCost)}</span> in admin
-              hours LP automates.
-            </div>
+            {atMax ? (
+              <div
+                style={{
+                  background: 'rgba(212,34,106,0.08)',
+                  border: '1px solid rgba(212,34,106,0.35)',
+                  borderRadius: '12px',
+                  padding: '28px 24px',
+                  textAlign: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: '22px',
+                    fontWeight: 900,
+                    color: COLORS.pink,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  At 500+ students, you need the full playbook.
+                </div>
+                <div
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: '15px',
+                    color: 'rgba(255,255,255,0.70)',
+                    lineHeight: 1.6,
+                    marginTop: '10px',
+                  }}
+                >
+                  A school your size is losing six figures a year to operational drag. Let's get on
+                  a call and figure out what LP looks like for you specifically.
+                </div>
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: '14px',
+                    color: 'rgba(255,255,255,0.60)',
+                    lineHeight: 1.6,
+                    textAlign: 'center',
+                    padding: '0 4px',
+                  }}
+                >
+                  At 5% monthly churn, you're likely losing{' '}
+                  <span style={{ color: '#fff', fontWeight: 800 }}>
+                    ~{droppedStudents} students
+                  </span>
+                  /month. At ${PER_STUDENT}/student + admin hours, here's the picture:
+                </div>
 
-            <div
-              style={{
-                background: 'rgba(34,197,94,0.10)',
-                border: '1px solid rgba(34,197,94,0.35)',
-                borderRadius: '12px',
-                padding: '24px',
-                textAlign: 'center',
-              }}
-            >
-              <div
-                className="lp-leak-total"
-                style={{
-                  fontFamily: FONT,
-                  fontSize: '56px',
-                  fontWeight: 900,
-                  color: GREEN,
-                  lineHeight: 1,
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                ${fmt(animatedTotal)}
-              </div>
-              <div
-                style={{
-                  fontFamily: FONT,
-                  fontSize: '14px',
-                  color: GREEN,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  marginTop: '10px',
-                  fontWeight: 700,
-                  opacity: 0.85,
-                }}
-              >
-                estimated monthly revenue leak
-              </div>
-            </div>
+                <div className="lp-compare-grid">
+                  {/* WITH LP — green */}
+                  <div
+                    style={{
+                      background: 'rgba(34,197,94,0.10)',
+                      border: '1px solid rgba(34,197,94,0.35)',
+                      borderRadius: '12px',
+                      padding: '20px 18px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: GREEN,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                        opacity: 0.9,
+                      }}
+                    >
+                      With Lessonpreneur
+                    </div>
+                    <div
+                      className="lp-compare-big"
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: '34px',
+                        fontWeight: 900,
+                        color: GREEN,
+                        lineHeight: 1,
+                        marginTop: '10px',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      +${fmt(animMonthlySaved)}
+                      <span style={{ fontSize: '14px', fontWeight: 700, opacity: 0.75 }}> /mo</span>
+                    </div>
+                    <div
+                      className="lp-compare-small"
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: '17px',
+                        fontWeight: 800,
+                        color: GREEN,
+                        marginTop: '6px',
+                        opacity: 0.9,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      +${fmt(animYearlySaved)} <span style={{ opacity: 0.75 }}>/yr</span>
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: '12px',
+                        color: 'rgba(255,255,255,0.55)',
+                        marginTop: '10px',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      net after ${LP_PRICE_MONTHLY}/mo LP
+                    </div>
+                  </div>
+
+                  {/* WITHOUT LP — red */}
+                  <div
+                    style={{
+                      background: 'rgba(239,68,68,0.10)',
+                      border: '1px solid rgba(239,68,68,0.35)',
+                      borderRadius: '12px',
+                      padding: '20px 18px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: RED,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                        opacity: 0.9,
+                      }}
+                    >
+                      Without Lessonpreneur
+                    </div>
+                    <div
+                      className="lp-compare-big"
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: '34px',
+                        fontWeight: 900,
+                        color: RED,
+                        lineHeight: 1,
+                        marginTop: '10px',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      −${fmt(animMonthlyLoss)}
+                      <span style={{ fontSize: '14px', fontWeight: 700, opacity: 0.75 }}> /mo</span>
+                    </div>
+                    <div
+                      className="lp-compare-small"
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: '17px',
+                        fontWeight: 800,
+                        color: RED,
+                        marginTop: '6px',
+                        opacity: 0.9,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      −${fmt(animYearlyLoss)} <span style={{ opacity: 0.75 }}>/yr</span>
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: '12px',
+                        color: 'rgba(255,255,255,0.55)',
+                        marginTop: '10px',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      churn + admin drag
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <PrimaryButton onClick={() => navigate('/start')} pulse>
-                Start My Free 60-Day Trial — Let's Fix This
+                {atMax
+                  ? 'Book a Call — Let\'s Talk'
+                  : 'Start My Free 60-Day Trial — Let\'s Fix This'}
               </PrimaryButton>
             </div>
           </div>
