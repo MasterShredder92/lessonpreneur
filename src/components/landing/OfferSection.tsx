@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { COLORS, FONT, PrimaryButton, TrustChips } from './shared'
+import { useInView } from './useInView'
 
 const ROWS = [
   { title: '60 Days Free — No Card. No Risk.', body: null, large: true },
@@ -23,6 +24,7 @@ const ROWS = [
 
 export default function OfferSection() {
   const navigate = useNavigate()
+  const [listRef, inView] = useInView<HTMLDivElement>(0.2)
   return (
     <section
       style={{
@@ -57,7 +59,15 @@ export default function OfferSection() {
           What you get when you start <span style={{ color: COLORS.pink }}>today</span>.
         </h2>
 
+        <style>{`
+          @keyframes lp-check-pop {
+            0%   { transform: scale(0); }
+            60%  { transform: scale(1.2); }
+            100% { transform: scale(1); }
+          }
+        `}</style>
         <div
+          ref={listRef}
           style={{
             marginTop: '48px',
             maxWidth: '720px',
@@ -68,7 +78,7 @@ export default function OfferSection() {
             gap: '20px',
           }}
         >
-          {ROWS.map((row) => (
+          {ROWS.map((row, idx) => (
             <div
               key={row.title}
               style={{
@@ -92,6 +102,10 @@ export default function OfferSection() {
                   fontFamily: FONT,
                   fontSize: '16px',
                   fontWeight: 900,
+                  transform: inView ? 'scale(1)' : 'scale(0)',
+                  animation: inView
+                    ? `lp-check-pop 420ms ${idx * 150}ms cubic-bezier(0.34,1.56,0.64,1) both`
+                    : 'none',
                 }}
               >
                 ✓

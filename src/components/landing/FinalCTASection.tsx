@@ -10,8 +10,26 @@ export default function FinalCTASection() {
         ...sectionStyle,
         maxWidth: '720px',
         textAlign: 'center',
+        position: 'relative',
       }}
     >
+      {/* Spotlight radial gradient behind heading */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: '50%',
+          transform: 'translate(-50%, -20%)',
+          width: '400px',
+          height: '400px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(212,34,106,0.15) 0%, rgba(212,34,106,0) 70%)',
+          filter: 'blur(40px)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
       <h2
         className="lp-h-final"
         style={{
@@ -21,6 +39,8 @@ export default function FinalCTASection() {
           lineHeight: 1.1,
           color: COLORS.textPrimary,
           margin: 0,
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         Stop being the system. <span style={{ color: COLORS.pink }}>Build one.</span>

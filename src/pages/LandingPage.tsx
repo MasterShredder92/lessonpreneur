@@ -12,6 +12,7 @@ import FAQSection from '../components/landing/FAQSection'
 import FinalCTASection from '../components/landing/FinalCTASection'
 import Reveal from '../components/landing/Reveal'
 import { COLORS, FONT, mobileSectionCss } from '../components/landing/shared'
+import StopTheBleedingBar from '../components/landing/StopTheBleedingBar'
 
 export default function LandingPage() {
   return (
@@ -60,6 +61,7 @@ export default function LandingPage() {
         <Reveal><FAQSection /></Reveal>
         <Reveal><FinalCTASection /></Reveal>
       </main>
+      <StopTheBleedingBar />
     </div>
   )
 }

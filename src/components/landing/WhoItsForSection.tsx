@@ -1,4 +1,5 @@
 import { COLORS, FONT, sectionStyle } from './shared'
+import { useInView } from './useInView'
 
 const ITEMS = [
   'Are losing leads because nobody followed up fast enough',
@@ -10,14 +11,23 @@ const ITEMS = [
 ]
 
 export default function WhoItsForSection() {
+  const [headingRef, inView] = useInView<HTMLHeadingElement>(0.3)
   return (
     <section className="lp-section" style={{ ...sectionStyle, maxWidth: '720px' }}>
       <style>{`
         .lp-who-row { transition: background 200ms ease-out, border-radius 200ms ease-out; padding: 6px 10px; border-radius: 8px; }
         .lp-who-row:hover { background: rgba(212,34,106,0.06); }
+        @keyframes lp-who-type-reveal {
+          from { clip-path: inset(0 100% 0 0); }
+          to   { clip-path: inset(0 0 0 0); }
+        }
+        .lp-who-heading--reveal {
+          animation: lp-who-type-reveal 1.2s steps(40, end) forwards;
+        }
       `}</style>
       <h2
-        className="lp-h2"
+        ref={headingRef}
+        className={`lp-h2 ${inView ? 'lp-who-heading--reveal' : ''}`}
         style={{
           fontFamily: FONT,
           fontWeight: 800,
@@ -25,6 +35,7 @@ export default function WhoItsForSection() {
           lineHeight: 1.2,
           color: COLORS.textPrimary,
           margin: 0,
+          clipPath: inView ? undefined : 'inset(0 100% 0 0)',
         }}
       >
         Lessonpreneur is built for <span style={{ color: COLORS.pink }}>music school owners</span> who...

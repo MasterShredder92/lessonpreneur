@@ -51,7 +51,7 @@ export function PrimaryButton({
   type = 'button',
   fullWidth = false,
   disabled = false,
-  pulse = false,
+  pulse = true,
 }: {
   children: ReactNode
   onClick?: () => void
@@ -66,8 +66,8 @@ export function PrimaryButton({
       {pulse && (
         <style>{`
           @keyframes lp-cta-pulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(212,34,106,0.4); }
-            50%      { box-shadow: 0 0 40px rgba(212,34,106,0.7); }
+            0%, 100% { box-shadow: 0 0 20px rgba(212,34,106,0.35); }
+            50%      { box-shadow: 0 0 45px rgba(212,34,106,0.75); }
           }
         `}</style>
       )}
@@ -93,7 +93,7 @@ export function PrimaryButton({
           transform: hover ? 'scale(1.02)' : 'scale(1)',
           width: fullWidth ? '100%' : 'auto',
           opacity: disabled ? 0.6 : 1,
-          animation: pulse ? 'lp-cta-pulse 2s ease-in-out infinite' : undefined,
+          animation: pulse && !disabled ? 'lp-cta-pulse 2s ease-in-out infinite' : undefined,
         }}
       >
         {children}
