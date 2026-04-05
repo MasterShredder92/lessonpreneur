@@ -1,9 +1,10 @@
 import { COLORS, FONT, sectionStyle } from './shared'
 
 const CENTER_X = 350
-const CENTER_Y = 210
-const NODE_RADIUS = 170
-const NODE_SIZE = 22 // circle r (44px diameter)
+const CENTER_Y = 230
+const NODE_RADIUS = 185
+const ARROW_END_RADIUS = 118 // where line ends (just outside outer ring)
+const NODE_SIZE = 24
 
 const NODES = [
   { label: 'Leads', color: '#D4226A', angle: -90 },
@@ -14,32 +15,61 @@ const NODES = [
   { label: 'Automations', color: '#FFB800', angle: 210 },
 ]
 
+const UNIQUE_COLORS = ['#D4226A', '#FF5500', '#FFB800']
+
 const KEYFRAMES = `
-@keyframes lp-hub-pulse {
+@keyframes lp-heartbeat {
+  0%   { transform: translate(-50%, -50%) scale(1); }
+  14%  { transform: translate(-50%, -50%) scale(1.09); }
+  28%  { transform: translate(-50%, -50%) scale(1); }
+  42%  { transform: translate(-50%, -50%) scale(1.05); }
+  70%  { transform: translate(-50%, -50%) scale(1); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes lp-heartbeat-glow {
+  0%, 28%, 70%, 100% { opacity: 0.4; }
+  14%                 { opacity: 0.9; }
+  42%                 { opacity: 0.65; }
+}
+@keyframes lp-ring-pulse {
   0%, 100% { transform: scale(1); opacity: 0.6; }
   50%      { transform: scale(1.05); opacity: 0.9; }
 }
-@keyframes lp-hub-pulse-outer {
+@keyframes lp-ring-pulse-outer {
   0%, 100% { transform: scale(1); opacity: 0.2; }
-  50%      { transform: scale(1.05); opacity: 0.35; }
+  50%      { transform: scale(1.08); opacity: 0.35; }
 }
 @keyframes lp-hub-flow {
   from { stroke-dashoffset: 0; }
-  to   { stroke-dashoffset: -10; }
+  to   { stroke-dashoffset: -18; }
 }
-.lp-hub-svg { display: block; }
+.lp-hub-svg-wrap { display: block; }
 .lp-hub-mobile { display: none; }
 @media (max-width: 768px) {
-  .lp-hub-svg { display: none !important; }
+  .lp-hub-svg-wrap { display: none !important; }
   .lp-hub-mobile { display: block !important; }
 }
 `
 
-function nodePos(angleDeg: number) {
+function nodePos(angleDeg: number, r: number = NODE_RADIUS) {
   const rad = (angleDeg * Math.PI) / 180
   return {
-    x: CENTER_X + NODE_RADIUS * Math.cos(rad),
-    y: CENTER_Y + NODE_RADIUS * Math.sin(rad),
+    x: CENTER_X + r * Math.cos(rad),
+    y: CENTER_Y + r * Math.sin(rad),
+  }
+}
+
+// Compute line start/end so line originates from node edge and ends just outside the center ring
+function lineEndpoints(angleDeg: number) {
+  const nodeEdgeR = NODE_RADIUS - NODE_SIZE - 2 // start at node inner edge
+  const endR = ARROW_END_RADIUS
+  const rad = (angleDeg * Math.PI) / 180
+  // Going FROM node TOWARD center: start at nodeEdge, end at endR
+  return {
+    x1: CENTER_X + nodeEdgeR * Math.cos(rad),
+    y1: CENTER_Y + nodeEdgeR * Math.sin(rad),
+    x2: CENTER_X + endR * Math.cos(rad),
+    y2: CENTER_Y + endR * Math.sin(rad),
   }
 }
 
@@ -78,103 +108,154 @@ export default function LogoHubSection() {
 
       {/* Desktop SVG diagram */}
       <div
-        className="lp-hub-svg"
+        className="lp-hub-svg-wrap"
         style={{
-          marginTop: '40px',
-          maxWidth: '700px',
+          marginTop: '48px',
+          maxWidth: '720px',
           marginLeft: 'auto',
           marginRight: 'auto',
           position: 'relative',
         }}
       >
         <svg
-          viewBox="0 0 700 420"
+          viewBox="0 0 700 460"
           width="100%"
-          height="420"
-          style={{ overflow: 'visible' }}
+          style={{ overflow: 'visible', display: 'block' }}
         >
-          {/* Connector lines — node → center, animated flow toward center */}
+          <defs>
+            {UNIQUE_COLORS.map((c) => (
+              <marker
+                key={c}
+                id={`arrow-${c.replace('#', '')}`}
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill={c} />
+              </marker>
+            ))}
+            <radialGradient id="lp-center-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#D4226A" stopOpacity="0.45" />
+              <stop offset="60%" stopColor="#D4226A" stopOpacity="0.10" />
+              <stop offset="100%" stopColor="#D4226A" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+
+          {/* Heartbeat glow behind logo */}
+          <circle
+            cx={CENTER_X}
+            cy={CENTER_Y}
+            r="140"
+            fill="url(#lp-center-glow)"
+            style={{
+              transformOrigin: `${CENTER_X}px ${CENTER_Y}px`,
+              animation: 'lp-heartbeat-glow 1.5s ease-in-out infinite',
+            }}
+          />
+
+          {/* Flowing dashed energy lines (behind arrows) */}
           {NODES.map((n, i) => {
-            const p = nodePos(n.angle)
+            const p = lineEndpoints(n.angle)
             return (
               <line
-                key={`line-${i}`}
-                x1={p.x}
-                y1={p.y}
-                x2={CENTER_X}
-                y2={CENTER_Y}
-                stroke="rgba(212,34,106,0.4)"
-                strokeWidth="1.5"
-                strokeDasharray="6 4"
+                key={`flow-${i}`}
+                x1={p.x1}
+                y1={p.y1}
+                x2={p.x2}
+                y2={p.y2}
+                stroke={n.color}
+                strokeWidth="1"
+                strokeDasharray="4 6"
+                opacity="0.35"
                 style={{
-                  animation: 'lp-hub-flow 2s linear infinite',
+                  animation: 'lp-hub-flow 1.8s linear infinite',
                 }}
               />
             )
           })}
 
-          {/* Outer pulsing ring */}
+          {/* Solid colored arrows pointing IN to center */}
+          {NODES.map((n, i) => {
+            const p = lineEndpoints(n.angle)
+            return (
+              <line
+                key={`arrow-${i}`}
+                x1={p.x1}
+                y1={p.y1}
+                x2={p.x2}
+                y2={p.y2}
+                stroke={n.color}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                opacity="0.75"
+                markerEnd={`url(#arrow-${n.color.replace('#', '')})`}
+              />
+            )
+          })}
+
+          {/* Pulsing outer ring */}
           <circle
             cx={CENTER_X}
             cy={CENTER_Y}
-            r="80"
+            r="108"
             fill="none"
             stroke="#D4226A"
             strokeWidth="1"
             style={{
               transformOrigin: `${CENTER_X}px ${CENTER_Y}px`,
-              animation: 'lp-hub-pulse-outer 3s ease-in-out infinite',
+              animation: 'lp-ring-pulse-outer 2.4s ease-in-out infinite',
             }}
           />
-          {/* Inner pulsing ring */}
+          {/* Pulsing inner ring */}
           <circle
             cx={CENTER_X}
             cy={CENTER_Y}
-            r="60"
+            r="92"
             fill="none"
             stroke="#D4226A"
             strokeWidth="2"
             style={{
               transformOrigin: `${CENTER_X}px ${CENTER_Y}px`,
-              animation: 'lp-hub-pulse 3s ease-in-out infinite',
+              animation: 'lp-ring-pulse 2.4s ease-in-out infinite',
             }}
           />
 
-          {/* Center logo background disc */}
-          <circle cx={CENTER_X} cy={CENTER_Y} r="48" fill="#020209" stroke="rgba(212,34,106,0.3)" strokeWidth="1" />
+          {/* Center disc for logo background */}
+          <circle
+            cx={CENTER_X}
+            cy={CENTER_Y}
+            r="78"
+            fill="#020209"
+            stroke="rgba(212,34,106,0.5)"
+            strokeWidth="1.5"
+          />
 
           {/* Node circles + labels */}
           {NODES.map((n, i) => {
             const p = nodePos(n.angle)
             return (
               <g key={`node-${i}`}>
-                {/* Glow */}
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={NODE_SIZE + 6}
-                  fill={n.color}
-                  opacity="0.15"
-                />
-                {/* Main node */}
+                <circle cx={p.x} cy={p.y} r={NODE_SIZE + 8} fill={n.color} opacity="0.12" />
                 <circle
                   cx={p.x}
                   cy={p.y}
                   r={NODE_SIZE}
-                  fill="rgba(255,255,255,0.04)"
-                  stroke="rgba(255,255,255,0.15)"
-                  strokeWidth="1"
+                  fill="rgba(2,2,9,0.9)"
+                  stroke={n.color}
+                  strokeWidth="1.5"
+                  opacity="0.95"
                 />
-                {/* Colored dot inside */}
-                <circle cx={p.x} cy={p.y} r="7" fill={n.color} />
-                {/* Label */}
+                <circle cx={p.x} cy={p.y} r="8" fill={n.color} />
                 <text
                   x={p.x}
-                  y={p.y + NODE_SIZE + 20}
+                  y={p.y + NODE_SIZE + 22}
                   textAnchor="middle"
                   fontFamily={FONT}
-                  fontSize="12"
-                  fontWeight="700"
+                  fontSize="13"
+                  fontWeight="800"
                   fill="#fff"
                 >
                   {n.label}
@@ -184,19 +265,21 @@ export default function LogoHubSection() {
           })}
         </svg>
 
-        {/* Center LP logo img (positioned absolute over SVG) */}
+        {/* Center LP logo — heartbeat */}
         <img
           src="/lp-logo.png"
           alt="Lessonpreneur"
           style={{
             position: 'absolute',
-            top: '50%',
-            left: '50%',
+            top: `${(CENTER_Y / 460) * 100}%`,
+            left: `${(CENTER_X / 700) * 100}%`,
             transform: 'translate(-50%, -50%)',
-            width: '64px',
-            height: '64px',
+            width: '120px',
+            height: '120px',
             objectFit: 'contain',
             pointerEvents: 'none',
+            animation: 'lp-heartbeat 1.5s ease-in-out infinite',
+            filter: 'drop-shadow(0 0 16px rgba(212,34,106,0.4))',
           }}
         />
       </div>
@@ -211,55 +294,55 @@ export default function LogoHubSection() {
           marginRight: 'auto',
         }}
       >
-        {/* Center logo */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            marginBottom: '24px',
+            marginBottom: '28px',
+            position: 'relative',
           }}
         >
           <div
             style={{
-              width: '88px',
-              height: '88px',
+              width: '120px',
+              height: '120px',
               borderRadius: '50%',
               background: '#020209',
               border: '2px solid rgba(212,34,106,0.5)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 24px rgba(212,34,106,0.25)',
+              boxShadow: '0 0 32px rgba(212,34,106,0.35)',
+              animation: 'lp-heartbeat 1.5s ease-in-out infinite',
             }}
           >
             <img
               src="/lp-logo.png"
               alt="Lessonpreneur"
-              style={{ width: '56px', height: '56px', objectFit: 'contain' }}
+              style={{ width: '80px', height: '80px', objectFit: 'contain' }}
             />
           </div>
           <div
             style={{
-              marginTop: '10px',
+              marginTop: '12px',
               fontFamily: FONT,
-              fontSize: '12px',
-              fontWeight: 700,
+              fontSize: '11px',
+              fontWeight: 800,
               color: 'rgba(255,255,255,0.55)',
               textTransform: 'uppercase',
-              letterSpacing: '0.1em',
+              letterSpacing: '0.12em',
             }}
           >
             all roads lead here
           </div>
         </div>
 
-        {/* 3-column icon grid */}
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '16px',
+            gap: '12px',
           }}
         >
           {NODES.map((n) => (
@@ -269,10 +352,11 @@ export default function LogoHubSection() {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                padding: '16px 8px',
+                padding: '14px 6px',
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.10)',
                 borderRadius: '12px',
+                position: 'relative',
               }}
             >
               <div
@@ -280,11 +364,12 @@ export default function LogoHubSection() {
                   width: '44px',
                   height: '44px',
                   borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'rgba(2,2,9,0.9)',
+                  border: `1.5px solid ${n.color}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  boxShadow: `0 0 12px ${n.color}33`,
                 }}
               >
                 <div
@@ -298,7 +383,18 @@ export default function LogoHubSection() {
               </div>
               <div
                 style={{
-                  marginTop: '10px',
+                  marginTop: '4px',
+                  fontSize: '14px',
+                  color: n.color,
+                  fontWeight: 900,
+                  lineHeight: 1,
+                }}
+              >
+                ↑
+              </div>
+              <div
+                style={{
+                  marginTop: '4px',
                   fontFamily: FONT,
                   fontSize: '12px',
                   fontWeight: 700,
