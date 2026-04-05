@@ -35,32 +35,17 @@ export default function ProofSection() {
             a real music school before it was ever offered to anyone else.
           </p>
 
-          {/* REPLACE WITH REAL TESTIMONIALS */}
           <div
-            className="lp-grid-3"
             style={{
-              marginTop: '32px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '16px',
+              fontFamily: FONT,
+              fontSize: '15px',
+              color: 'rgba(255,255,255,0.35)',
+              fontStyle: 'italic',
+              textAlign: 'center',
+              padding: '32px 0 0 0',
             }}
           >
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                style={{
-                  border: '1px dashed rgba(255,255,255,0.15)',
-                  borderRadius: '12px',
-                  padding: '24px',
-                  textAlign: 'center',
-                  color: 'rgba(255,255,255,0.25)',
-                  fontFamily: FONT,
-                  fontSize: '14px',
-                }}
-              >
-                [ Testimonial quote — coming soon ]
-              </div>
-            ))}
+            Real feedback from real operators. More coming as beta grows.
           </div>
         </GlassCard>
       </div>
