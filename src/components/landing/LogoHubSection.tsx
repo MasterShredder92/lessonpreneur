@@ -1,286 +1,499 @@
-import { Users, GraduationCap, Music, CreditCard, MessageSquare, Zap } from 'lucide-react'
-import type { ComponentType, SVGProps } from 'react'
-import { COLORS, FONT, sectionStyle } from './shared'
+import { useNavigate } from 'react-router-dom'
+import { PrimaryButton, sectionStyle } from './shared'
+import { useInView } from './useInView'
 
-const PINK = '#D4226A'
+const FONT = 'Plus Jakarta Sans, system-ui, -apple-system, sans-serif'
 
-type NodeDef = {
-  key: string
-  label: string
-  x: number
-  y: number
-  angle: number // degrees from center, 0 = east, cw in screen coords
-  dur: number // dash pulse duration in seconds
-  Icon: ComponentType<SVGProps<SVGSVGElement>>
-  labelDx: number
-  labelDy: number
-  labelAnchor: 'start' | 'middle' | 'end'
-}
-
-// Nodes positioned at r=190 from center (300,300) at exact clock positions
-const NODES: NodeDef[] = [
-  { key: 'leads',       label: 'Leads',       x: 300, y: 110, angle: -90,  dur: 1.5, Icon: Users,         labelDx: 0,   labelDy: -46, labelAnchor: 'middle' },
-  { key: 'students',    label: 'Students',    x: 464, y: 205, angle: -30,  dur: 1.8, Icon: GraduationCap, labelDx: 38,  labelDy: 46,  labelAnchor: 'start' },
-  { key: 'teachers',    label: 'Teachers',    x: 464, y: 395, angle: 30,   dur: 2.1, Icon: Music,         labelDx: 38,  labelDy: 46,  labelAnchor: 'start' },
-  { key: 'billing',     label: 'Billing',     x: 300, y: 490, angle: 90,   dur: 1.6, Icon: CreditCard,    labelDx: 0,   labelDy: 46,  labelAnchor: 'middle' },
-  { key: 'sms',         label: 'SMS',         x: 136, y: 395, angle: 150,  dur: 1.9, Icon: MessageSquare, labelDx: -38, labelDy: 46,  labelAnchor: 'end' },
-  { key: 'automations', label: 'Automations', x: 136, y: 205, angle: 210,  dur: 2.3, Icon: Zap,           labelDx: -38, labelDy: 46,  labelAnchor: 'end' },
+const CHAOS_ITEMS = [
+  '😤 Dropped leads',
+  '📊 Billing confusion',
+  '📱 Parent texts at 9pm',
+  '📅 Scheduling chaos',
+  '👩‍🏫 Teacher coordination',
+  '📋 Spreadsheet graveyard',
 ]
 
-// Arrowhead position on outer ring (r=80 from center) + rotation to point inward
-function arrowTransform(angleDeg: number): { x: number; y: number; rot: number } {
-  const rad = (angleDeg * Math.PI) / 180
-  return {
-    x: 300 + 80 * Math.cos(rad),
-    y: 300 + 80 * Math.sin(rad),
-    rot: angleDeg + 180, // point toward center
-  }
-}
+const OUTPUT_ITEMS = [
+  '💰 Revenue recovered',
+  '⏰ Hours back per week',
+  '📈 Leads that convert',
+  '😌 No more 9pm texts',
+  '✅ Billing that makes sense',
+  '🧘 Control of your school',
+]
 
 const KEYFRAMES = `
-@keyframes lp-hub-heartbeat {
-  0%   { transform: scale(1); }
-  14%  { transform: scale(1.09); }
-  28%  { transform: scale(1); }
-  42%  { transform: scale(1.05); }
-  56%  { transform: scale(1); }
-  100% { transform: scale(1); }
+@keyframes lp-chaos-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-2px); }
+  40%      { transform: translateX(2px); }
+  60%      { transform: translateX(-1px); }
+  80%      { transform: translateX(1px); }
 }
-.lp-hub-ring { transform-origin: 300px 300px; animation: lp-hub-heartbeat 1.8s infinite ease-in-out; }
-.lp-hub-ring-1 { animation-delay: 0s; }
-.lp-hub-ring-2 { animation-delay: 0.12s; }
-.lp-hub-ring-3 { animation-delay: 0.24s; }
-.lp-hub-logo-pulse { transform-origin: 300px 300px; animation: lp-hub-heartbeat 1.8s infinite ease-in-out; }
+@keyframes lp-stress-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+@keyframes lp-ring-cycle {
+  0%       { stroke: #FF3B3B; transform: scale(1); }
+  14%      { stroke: #FF3B3B; transform: scale(1.08); }
+  28%      { stroke: #FF3B3B; transform: scale(1); }
+  50%      { stroke: #a07040; transform: scale(1.04); }
+  64%      { stroke: #00C853; transform: scale(1.08); }
+  78%      { stroke: #00C853; transform: scale(1); }
+  100%     { stroke: #FF3B3B; transform: scale(1); }
+}
+@keyframes lp-flow-dash {
+  from { stroke-dashoffset: 60; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes lp-label-cycle {
+  0%, 42%   { opacity: 1; content: 'processing...'; }
+  50%       { opacity: 0.3; }
+  58%, 92%  { opacity: 1; }
+  100%      { opacity: 1; }
+}
+@keyframes lp-output-fly {
+  0%   { transform: translateX(20px) scale(0.8); opacity: 0; }
+  100% { transform: translateX(0) scale(1); opacity: 1; }
+}
+.lp-hub-grid { display: flex; flex-direction: row; align-items: center; gap: 0; max-width: 900px; margin: 0 auto; }
+.lp-hub-col-chaos  { flex: 0 0 35%; }
+.lp-hub-col-center { flex: 0 0 30%; }
+.lp-hub-col-output { flex: 0 0 35%; }
+.lp-hub-arrow-down { display: none; }
+.lp-hub-arrow-right { display: inline; }
+@media (max-width: 767px) {
+  .lp-hub-grid { flex-direction: column; gap: 24px; }
+  .lp-hub-col-chaos, .lp-hub-col-center, .lp-hub-col-output { flex: 0 0 auto; width: 100%; }
+  .lp-hub-arrow-down { display: inline; }
+  .lp-hub-arrow-right { display: none; }
+  .lp-hub-chip { font-size: 12px !important; padding: 6px 12px !important; }
+}
 `
 
-export default function LogoHubSection() {
+function ChaosChip({ text, shakeDelay }: { text: string; shakeDelay: number }) {
   return (
-    <section className="lp-section" style={sectionStyle}>
+    <div
+      className="lp-hub-chip"
+      style={{
+        background: 'rgba(255,59,59,0.10)',
+        border: '1px solid rgba(255,59,59,0.25)',
+        borderRadius: '999px',
+        padding: '8px 14px',
+        fontSize: '13px',
+        color: 'rgba(255,255,255,0.70)',
+        fontWeight: 600,
+        fontFamily: FONT,
+        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        justifyContent: 'center',
+        animation: `lp-chaos-shake 0.3s ease-in-out ${shakeDelay}s infinite`,
+      }}
+    >
+      <span
+        style={{
+          width: '6px',
+          height: '6px',
+          borderRadius: '50%',
+          background: '#FF3B3B',
+          flexShrink: 0,
+        }}
+      />
+      <span>{text}</span>
+    </div>
+  )
+}
+
+function OutputChip({
+  text,
+  index,
+  visible,
+}: {
+  text: string
+  index: number
+  visible: boolean
+}) {
+  return (
+    <div
+      className="lp-hub-chip"
+      style={{
+        background: 'rgba(0,200,83,0.10)',
+        border: '1px solid rgba(0,200,83,0.25)',
+        borderRadius: '999px',
+        padding: '8px 14px',
+        fontSize: '13px',
+        color: 'rgba(255,255,255,0.80)',
+        fontWeight: 600,
+        fontFamily: FONT,
+        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        justifyContent: 'center',
+        opacity: 0,
+        animation: visible
+          ? `lp-output-fly 300ms ${index * 100}ms ease-out both`
+          : 'none',
+      }}
+    >
+      <span
+        style={{
+          width: '6px',
+          height: '6px',
+          borderRadius: '50%',
+          background: '#00C853',
+          flexShrink: 0,
+        }}
+      />
+      <span>{text}</span>
+    </div>
+  )
+}
+
+function FlowArrow({
+  color,
+  arrowColor,
+  delay,
+  rotateForMobile,
+}: {
+  color: string
+  arrowColor: string
+  delay: number
+  rotateForMobile?: boolean
+}) {
+  const className = rotateForMobile ? 'lp-hub-arrow-wrap' : 'lp-hub-arrow-wrap'
+  return (
+    <div className={className} style={{ display: 'flex', justifyContent: 'center' }}>
+      {/* Horizontal (desktop) */}
+      <svg
+        className="lp-hub-arrow-right"
+        width="60"
+        height="20"
+        viewBox="0 0 60 20"
+        style={{ display: 'block' }}
+      >
+        <line
+          x1="0"
+          y1="10"
+          x2="52"
+          y2="10"
+          stroke={color}
+          strokeWidth="2"
+          strokeDasharray="6 4"
+          strokeLinecap="round"
+          style={{ animation: `lp-flow-dash 1.2s linear infinite ${delay}s` }}
+        />
+        <polygon points="52,4 60,10 52,16" fill={arrowColor} />
+      </svg>
+      {/* Vertical (mobile) */}
+      <svg
+        className="lp-hub-arrow-down"
+        width="20"
+        height="60"
+        viewBox="0 0 20 60"
+        style={{ display: 'block' }}
+      >
+        <line
+          x1="10"
+          y1="0"
+          x2="10"
+          y2="52"
+          stroke={color}
+          strokeWidth="2"
+          strokeDasharray="6 4"
+          strokeLinecap="round"
+          style={{ animation: `lp-flow-dash 1.2s linear infinite ${delay}s` }}
+        />
+        <polygon points="4,52 10,60 16,52" fill={arrowColor} />
+      </svg>
+    </div>
+  )
+}
+
+export default function LogoHubSection() {
+  const navigate = useNavigate()
+  const [outputRef, outputInView] = useInView<HTMLDivElement>(0.2)
+
+  return (
+    <section className="lp-section" style={{ ...sectionStyle, position: 'relative', overflow: 'hidden' }}>
       <style>{KEYFRAMES}</style>
 
-      <h2
-        className="lp-h2"
-        style={{
-          fontFamily: FONT,
-          fontWeight: 900,
-          fontSize: '36px',
-          lineHeight: 1.15,
-          color: COLORS.textPrimary,
-          margin: 0,
-          textAlign: 'center',
-        }}
-      >
-        Everything flows into <span style={{ color: PINK }}>one place</span>.
-      </h2>
-      <p
-        className="lp-sub"
-        style={{
-          fontFamily: FONT,
-          fontSize: '17px',
-          lineHeight: 1.5,
-          color: 'rgba(255,255,255,0.65)',
-          margin: '16px auto 40px auto',
-          maxWidth: '560px',
-          textAlign: 'center',
-        }}
-      >
-        Every part of your school feeding into one living system.
-      </p>
-
+      {/* Ambient red→green gradient */}
       <div
+        aria-hidden="true"
         style={{
-          width: '100%',
-          maxWidth: '680px',
-          margin: '0 auto',
+          position: 'absolute',
+          top: '50%',
+          left: 0,
+          transform: 'translateY(-50%)',
+          width: '300px',
+          height: '300px',
+          maxWidth: '100%',
+          background: 'radial-gradient(circle, #FF3B3B 0%, transparent 70%)',
+          opacity: 0.06,
+          filter: 'blur(80px)',
+          pointerEvents: 'none',
+          zIndex: 0,
         }}
-      >
-        <svg
-          viewBox="0 0 600 600"
-          width="100%"
-          height="auto"
-          preserveAspectRatio="xMidYMid meet"
-          style={{ display: 'block', overflow: 'visible' }}
+      />
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          right: 0,
+          transform: 'translateY(-50%)',
+          width: '300px',
+          height: '300px',
+          maxWidth: '100%',
+          background: 'radial-gradient(circle, #00C853 0%, transparent 70%)',
+          opacity: 0.06,
+          filter: 'blur(80px)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        {/* Heading */}
+        <h2
+          className="lp-h2"
+          style={{
+            fontFamily: FONT,
+            fontWeight: 900,
+            fontSize: '36px',
+            lineHeight: 1.15,
+            color: '#ffffff',
+            textAlign: 'center',
+            margin: 0,
+          }}
         >
-          <defs>
-            <filter id="lp-hub-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
-          </defs>
+          Put the chaos in. <span style={{ color: '#D4226A' }}>Get your life back.</span>
+        </h2>
+        <p
+          className="lp-sub"
+          style={{
+            fontFamily: FONT,
+            fontSize: '16px',
+            lineHeight: 1.5,
+            color: 'rgba(255,255,255,0.60)',
+            textAlign: 'center',
+            margin: '16px auto 48px auto',
+            maxWidth: '600px',
+          }}
+        >
+          Lessonpreneur takes everything running your school manually costs you — and turns it
+          into revenue, time, and control.
+        </p>
 
-          {/* Three concentric rings — heartbeat pulse */}
-          <circle
-            className="lp-hub-ring lp-hub-ring-1"
-            cx="300"
-            cy="300"
-            r="80"
-            fill="none"
-            stroke={PINK}
-            strokeWidth="3"
-            opacity="0.9"
-          />
-          <circle
-            className="lp-hub-ring lp-hub-ring-2"
-            cx="300"
-            cy="300"
-            r="100"
-            fill="none"
-            stroke={PINK}
-            strokeWidth="1.5"
-            opacity="0.45"
-          />
-          <circle
-            className="lp-hub-ring lp-hub-ring-3"
-            cx="300"
-            cy="300"
-            r="120"
-            fill="none"
-            stroke={PINK}
-            strokeWidth="1"
-            opacity="0.2"
-          />
+        {/* Three columns */}
+        <div className="lp-hub-grid">
+          {/* LEFT — CHAOS */}
+          <div className="lp-hub-col-chaos">
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: '11px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
+                color: 'rgba(255,255,255,0.35)',
+                textAlign: 'center',
+                marginBottom: '16px',
+              }}
+            >
+              What you're dealing with
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {CHAOS_ITEMS.map((item, i) => (
+                <ChaosChip key={item} text={item} shakeDelay={i * 0.9} />
+              ))}
+            </div>
+            <div
+              style={{
+                fontSize: '18px',
+                color: '#FF3B3B',
+                textAlign: 'center',
+                marginTop: '16px',
+                animation: 'lp-stress-pulse 1.2s ease-in-out infinite',
+              }}
+            >
+              ⚡⚡⚡
+            </div>
+          </div>
 
-          {/* Connection lines — base track + animated dash pulse per node */}
-          {NODES.map((n) => (
-            <g key={`line-${n.key}`}>
-              {/* Layer 1: base track */}
-              <line
-                x1={n.x}
-                y1={n.y}
-                x2={300}
-                y2={300}
-                stroke="rgba(255,255,255,0.12)"
-                strokeWidth="1.5"
-              />
-              {/* Layer 2: animated data pulse with glow */}
-              <line
-                x1={n.x}
-                y1={n.y}
-                x2={300}
-                y2={300}
-                stroke={PINK}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeDasharray="10 20"
-                filter="url(#lp-hub-glow)"
+          {/* CENTER — PROCESSOR */}
+          <div
+            className="lp-hub-col-center"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FlowArrow
+              color="rgba(255,59,59,0.40)"
+              arrowColor="rgba(255,59,59,0.60)"
+              delay={0}
+            />
+
+            {/* LP logo + rings */}
+            <div
+              style={{
+                position: 'relative',
+                width: '150px',
+                height: '150px',
+                margin: '12px 0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg
+                width="150"
+                height="150"
+                viewBox="0 0 150 150"
+                style={{ position: 'absolute', inset: 0, overflow: 'visible' }}
               >
-                <animate
-                  attributeName="stroke-dashoffset"
-                  from="90"
-                  to="0"
-                  dur={`${n.dur}s`}
-                  repeatCount="indefinite"
-                  calcMode="linear"
-                />
-              </line>
-            </g>
-          ))}
-
-          {/* Layer 3: arrowheads at outer ring, pointing inward */}
-          {NODES.map((n) => {
-            const a = arrowTransform(n.angle)
-            return (
-              <polygon
-                key={`arrow-${n.key}`}
-                points="8,0 -4,-4 -4,4"
-                fill={PINK}
-                transform={`translate(${a.x},${a.y}) rotate(${a.rot})`}
-              />
-            )
-          })}
-
-          {/* Center LP logo + pulse group (logo inherits heartbeat via container) */}
-          <g className="lp-hub-logo-pulse">
-            <foreignObject x="240" y="240" width="120" height="120">
-              <div
+                {[48, 60, 72].map((r, i) => (
+                  <circle
+                    key={i}
+                    cx="75"
+                    cy="75"
+                    r={r}
+                    fill="none"
+                    strokeWidth={3 - i}
+                    opacity={0.9 - i * 0.3}
+                    style={{
+                      transformOrigin: '75px 75px',
+                      animation: `lp-ring-cycle 3.6s ease-in-out infinite ${i * 0.12}s`,
+                    }}
+                  />
+                ))}
+              </svg>
+              <img
+                src="/lp-logo.png"
+                alt="Lessonpreneur"
+                className="lp-hub-center-logo"
                 style={{
-                  width: '120px',
-                  height: '120px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  position: 'relative',
+                  width: '90px',
+                  height: '90px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 0 18px rgba(212,34,106,0.45))',
                 }}
-              >
-                <img
-                  src="/lp-logo.png"
-                  alt="Lessonpreneur"
-                  style={{
-                    width: '120px',
-                    height: '120px',
-                    objectFit: 'contain',
-                    filter: 'drop-shadow(0 0 20px rgba(212,34,106,0.55))',
-                  }}
-                />
-              </div>
-            </foreignObject>
-          </g>
+              />
+              <style>{`
+                @media (max-width: 767px) {
+                  .lp-hub-center-logo { width: 70px !important; height: 70px !important; }
+                }
+              `}</style>
+            </div>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: '10px',
+                color: 'rgba(255,255,255,0.30)',
+                fontStyle: 'italic',
+                textAlign: 'center',
+                marginTop: '8px',
+                animation: 'lp-stress-pulse 3.6s ease-in-out infinite',
+              }}
+            >
+              processing...
+            </div>
 
-          {/* Six nodes */}
-          {NODES.map((n) => (
-            <g key={`node-${n.key}`}>
-              {/* Outer glow ring */}
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r="34"
-                fill="none"
-                stroke={PINK}
-                strokeWidth="1"
-                opacity="0.3"
+            <div style={{ marginTop: '16px' }}>
+              <FlowArrow
+                color="rgba(0,200,83,0.50)"
+                arrowColor="rgba(0,200,83,0.80)"
+                delay={0.6}
               />
-              {/* Inner glass circle */}
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r="26"
-                fill="rgba(255,255,255,0.07)"
-                stroke="rgba(255,255,255,0.2)"
-                strokeWidth="1"
-              />
-              {/* Icon via foreignObject, 22px, pink */}
-              <foreignObject x={n.x - 11} y={n.y - 11} width="22" height="22">
-                <div
-                  style={{
-                    width: '22px',
-                    height: '22px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <n.Icon size={22} color={PINK} strokeWidth={2.25} />
-                </div>
-              </foreignObject>
-              {/* Label */}
-              <text
-                x={n.x + n.labelDx}
-                y={n.y + n.labelDy}
-                textAnchor={n.labelAnchor}
-                fill="#ffffff"
-                opacity="0.90"
-                fontFamily="Plus Jakarta Sans, sans-serif"
-                fontSize="16"
-                fontWeight="700"
-              >
-                {n.label}
-              </text>
-            </g>
-          ))}
-        </svg>
+            </div>
+          </div>
+
+          {/* RIGHT — OUTPUT */}
+          <div className="lp-hub-col-output" ref={outputRef}>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: '11px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
+                color: 'rgba(255,255,255,0.35)',
+                textAlign: 'center',
+                marginBottom: '16px',
+              }}
+            >
+              What you get back
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {OUTPUT_ITEMS.map((item, i) => (
+                <OutputChip key={item} text={item} index={i} visible={outputInView} />
+              ))}
+            </div>
+            <div
+              style={{
+                fontSize: '22px',
+                textAlign: 'center',
+                marginTop: '16px',
+                letterSpacing: '4px',
+              }}
+            >
+              💸 → 🕐 → 😮‍💨
+            </div>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: '10px',
+                color: 'rgba(255,255,255,0.30)',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                textAlign: 'center',
+                marginTop: '6px',
+              }}
+            >
+              revenue · time · relief
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            fontFamily: FONT,
+            fontSize: '13px',
+            color: 'rgba(255,255,255,0.30)',
+            fontStyle: 'italic',
+            textAlign: 'center',
+            marginTop: '48px',
+          }}
+        >
+          The average music school owner reclaims 6–10 hours per week after switching.
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            marginTop: '20px',
+          }}
+        >
+          <PrimaryButton onClick={() => navigate('/start')}>
+            See How It Works — Start Free for 60 Days
+          </PrimaryButton>
+        </div>
       </div>
 
-      <div
-        style={{
-          fontFamily: FONT,
-          fontSize: '13px',
-          fontStyle: 'italic',
-          color: 'rgba(255,255,255,0.35)',
-          textAlign: 'center',
-          marginTop: '24px',
-        }}
-      >
-        Lessonpreneur — always learning, always running.
-      </div>
+      {/* Responsive h2 sizing */}
+      <style>{`
+        @media (max-width: 767px) {
+          .lp-section .lp-h2 { font-size: 26px !important; }
+          .lp-section .lp-sub { font-size: 14px !important; margin-bottom: 32px !important; }
+        }
+      `}</style>
     </section>
   )
 }
