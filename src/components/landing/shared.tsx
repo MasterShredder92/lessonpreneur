@@ -104,7 +104,7 @@ export function PrimaryButton({
 
 export function TrustChips() {
   const chips = [
-    'No credit card required',
+    'Cancel before 60 days — never charged',
     '60-day free trial',
     'Cancel anytime',
     'Works with Square',
