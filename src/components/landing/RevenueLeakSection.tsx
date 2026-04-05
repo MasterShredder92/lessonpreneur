@@ -153,7 +153,7 @@ function Slider({ label, min, max, step = 1, value, display, onChange }: SliderP
 export default function RevenueLeakSection() {
   const navigate = useNavigate()
   const [students, setStudents] = useState(40)
-  const [hours, setHours] = useState(6)
+  const [hours, setHours] = useState(20)
 
   const atMax = students >= MAX_STUDENTS
   const droppedStudents = Math.round(students * CHURN_RATE)
@@ -216,8 +216,8 @@ export default function RevenueLeakSection() {
 
             <Slider
               label="Hours per week you spend on manual admin"
-              min={0}
-              max={20}
+              min={20}
+              max={80}
               value={hours}
               display={`${hours} hrs`}
               onChange={setHours}
