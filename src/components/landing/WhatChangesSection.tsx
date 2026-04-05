@@ -1,4 +1,5 @@
 import { COLORS, FONT, GlassCard, sectionStyle } from './shared'
+import Reveal from './Reveal'
 
 const CARDS = [
   {
@@ -54,7 +55,8 @@ export default function WhatChangesSection() {
         }}
       >
         {CARDS.map((card, idx) => (
-          <GlassCard key={card.title}>
+          <Reveal key={card.title} delay={idx * 100}>
+          <GlassCard>
             {idx === 5 ? (
               <img
                 src="/lp-logo.png"
@@ -106,6 +108,7 @@ export default function WhatChangesSection() {
               {card.body}
             </p>
           </GlassCard>
+          </Reveal>
         ))}
       </div>
     </section>

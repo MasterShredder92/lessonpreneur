@@ -8,6 +8,7 @@ import ProofSection from '../components/landing/ProofSection'
 import OfferSection from '../components/landing/OfferSection'
 import FAQSection from '../components/landing/FAQSection'
 import FinalCTASection from '../components/landing/FinalCTASection'
+import Reveal from '../components/landing/Reveal'
 import { COLORS, FONT, mobileSectionCss } from '../components/landing/shared'
 
 export default function LandingPage() {
@@ -46,14 +47,14 @@ export default function LandingPage() {
 
       <main style={{ position: 'relative', zIndex: 1 }}>
         <FoldSection />
-        <WhoItsForSection />
-        <ChaosStackSection />
-        <WhatChangesSection />
-        <BuiltInRealSchoolsSection />
-        <ProofSection />
-        <OfferSection />
-        <FAQSection />
-        <FinalCTASection />
+        <Reveal><WhoItsForSection /></Reveal>
+        <Reveal><ChaosStackSection /></Reveal>
+        <Reveal><WhatChangesSection /></Reveal>
+        <Reveal><BuiltInRealSchoolsSection /></Reveal>
+        <Reveal><ProofSection /></Reveal>
+        <Reveal><OfferSection /></Reveal>
+        <Reveal><FAQSection /></Reveal>
+        <Reveal><FinalCTASection /></Reveal>
       </main>
     </div>
   )

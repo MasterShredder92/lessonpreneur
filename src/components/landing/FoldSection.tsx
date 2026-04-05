@@ -207,7 +207,7 @@ export default function FoldSection() {
       </div>
 
       <div style={{ marginTop: '32px' }}>
-        <PrimaryButton onClick={() => navigate('/start')}>
+        <PrimaryButton onClick={() => navigate('/start')} pulse>
           Start My Free 60-Day Trial
         </PrimaryButton>
       </div>

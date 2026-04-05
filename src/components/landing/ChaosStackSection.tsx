@@ -1,4 +1,5 @@
 import { COLORS, FONT, GlassCard, sectionStyle } from './shared'
+import Reveal from './Reveal'
 
 const CARDS = [
   {
@@ -49,8 +50,9 @@ export default function ChaosStackSection() {
           gap: '20px',
         }}
       >
-        {CARDS.map((card) => (
-          <GlassCard key={card.label}>
+        {CARDS.map((card, idx) => (
+          <Reveal key={card.label} delay={idx * 100}>
+          <GlassCard>
             <div
               style={{
                 fontFamily: FONT,
@@ -76,6 +78,7 @@ export default function ChaosStackSection() {
               {card.body}
             </p>
           </GlassCard>
+          </Reveal>
         ))}
       </div>
 

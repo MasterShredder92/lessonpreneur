@@ -51,7 +51,7 @@ export default function FinalCTASection() {
           gap: '16px',
         }}
       >
-        <PrimaryButton onClick={() => navigate('/start')}>
+        <PrimaryButton onClick={() => navigate('/start')} pulse>
           Start My Free 60-Day Trial
         </PrimaryButton>
         <TrustChips />

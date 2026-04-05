@@ -48,41 +48,54 @@ export function PrimaryButton({
   type = 'button',
   fullWidth = false,
   disabled = false,
+  pulse = false,
 }: {
   children: ReactNode
   onClick?: () => void
   type?: 'button' | 'submit'
   fullWidth?: boolean
   disabled?: boolean
+  pulse?: boolean
 }) {
   const [hover, setHover] = useState(false)
   return (
-    <button
-      type={type}
-      disabled={disabled}
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="lp-cta-btn"
-      style={{
-        background: COLORS.pink,
-        color: '#fff',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '16px 32px',
-        fontWeight: 800,
-        fontSize: '18px',
-        fontFamily: FONT,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'transform 200ms, filter 200ms',
-        filter: hover ? 'brightness(1.1)' : 'brightness(1)',
-        transform: hover ? 'scale(1.02)' : 'scale(1)',
-        width: fullWidth ? '100%' : 'auto',
-        opacity: disabled ? 0.6 : 1,
-      }}
-    >
-      {children}
-    </button>
+    <>
+      {pulse && (
+        <style>{`
+          @keyframes lp-cta-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(212,34,106,0.4); }
+            50%      { box-shadow: 0 0 40px rgba(212,34,106,0.7); }
+          }
+        `}</style>
+      )}
+      <button
+        type={type}
+        disabled={disabled}
+        onClick={onClick}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="lp-cta-btn"
+        style={{
+          background: COLORS.pink,
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '16px 32px',
+          fontWeight: 800,
+          fontSize: '18px',
+          fontFamily: FONT,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          transition: 'transform 200ms, filter 200ms',
+          filter: hover ? 'brightness(1.1)' : 'brightness(1)',
+          transform: hover ? 'scale(1.02)' : 'scale(1)',
+          width: fullWidth ? '100%' : 'auto',
+          opacity: disabled ? 0.6 : 1,
+          animation: pulse ? 'lp-cta-pulse 2s ease-in-out infinite' : undefined,
+        }}
+      >
+        {children}
+      </button>
+    </>
   )
 }
 
