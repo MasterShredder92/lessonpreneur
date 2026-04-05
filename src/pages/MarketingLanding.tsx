@@ -41,6 +41,7 @@ export default function MarketingLanding() {
       <SectionBreak question="How much is your current system actually costing you?" />
       <StatusQuoKill />
       <SectionBreak question="What if one system handled all of it?" />
+      <IntegrationsSection />
       <CategoryReposition />
       <SectionBreak question="What would your business look like with real infrastructure?" />
       <TransformationCards />
@@ -50,7 +51,6 @@ export default function MarketingLanding() {
       <RetentionRoles />
       <AndreaTestimonial />
       <SectionBreak question="What would it be worth to stop the bleeding?" />
-      <IntegrationsSection />
       <PricingSection />
       <FinalClose />
       <Footer />
