@@ -211,7 +211,8 @@ export default function FoldSection() {
             fontFamily: FONT,
             fontSize: '13px',
             fontWeight: 500,
-            whiteSpace: 'nowrap',
+            textAlign: 'center',
+            width: '90%',
           }}
         >
           VSL Video 1 — 30 to 90 seconds — Upload here

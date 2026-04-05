@@ -25,20 +25,23 @@ export const sectionStyle: CSSProperties = {
 
 export const mobileSectionCss = `
 @media (max-width: 768px) {
-  .lp-section { padding: 64px 20px !important; }
-  .lp-h1 { font-size: 36px !important; line-height: 1.1 !important; }
+  .lp-section { padding: 48px 20px !important; }
+  .lp-h1 { font-size: 32px !important; line-height: 1.1 !important; }
   .lp-h2 { font-size: 28px !important; line-height: 1.2 !important; }
-  .lp-h3 { font-size: 30px !important; line-height: 1.2 !important; }
-  .lp-h-final { font-size: 32px !important; line-height: 1.1 !important; }
+  .lp-h3 { font-size: 28px !important; line-height: 1.2 !important; }
+  .lp-h-final { font-size: 30px !important; line-height: 1.1 !important; }
   .lp-sub { font-size: 17px !important; }
-  .lp-body { font-size: 16px !important; }
+  .lp-body { font-size: 15px !important; }
   .lp-grid-2 { grid-template-columns: 1fr !important; }
   .lp-grid-3 { grid-template-columns: 1fr !important; }
   .lp-trust-row { justify-content: flex-start !important; }
   .lp-founder-row { flex-direction: column !important; align-items: flex-start !important; }
   .lp-steps-row { flex-direction: column !important; gap: 32px !important; }
-  .lp-cta-btn { width: 100% !important; max-width: 400px !important; }
+  .lp-cta-btn { width: 100% !important; max-width: 400px !important; min-height: 56px !important; padding: 18px 32px !important; }
   .lp-row-item { font-size: 16px !important; }
+  .lp-mobile-pad { padding: 48px 20px !important; }
+  .lp-faq-btn { min-height: 44px !important; }
+  .lp-count-pill { min-height: 44px !important; flex: 1 1 calc(50% - 4px) !important; }
 }
 `
 

@@ -30,7 +30,7 @@ export default function LandingPage() {
         style={{
           position: 'relative',
           zIndex: 2,
-          padding: '24px 32px',
+          padding: '20px',
         }}
       >
         <span

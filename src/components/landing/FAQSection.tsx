@@ -69,8 +69,10 @@ export default function FAQSection() {
                 type="button"
                 onClick={() => setOpen(isOpen ? -1 : i)}
                 aria-expanded={isOpen}
+                className="lp-faq-btn"
                 style={{
                   width: '100%',
+                  minHeight: '44px',
                   background: 'transparent',
                   border: 'none',
                   padding: 0,

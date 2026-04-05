@@ -72,7 +72,7 @@ export default function AtmosphericBackground() {
     }
     resize()
 
-    const PARTICLE_COUNT = 50
+    const PARTICLE_COUNT = width < 768 ? 25 : 50
     const particles: Particle[] = Array.from({ length: PARTICLE_COUNT }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
@@ -158,10 +158,14 @@ export default function AtmosphericBackground() {
         <circle cx="250" cy="250" r="250" fill="#FF5500" />
       </svg>
 
-      {/* Floating musical notes */}
+      {/* Floating musical notes (desktop only) */}
+      <style>{`
+        @media (max-width: 768px) { .lp-note { display: none !important; } }
+      `}</style>
       {FLOATING_NOTES.map((n, i) => (
         <span
           key={i}
+          className="lp-note"
           style={{
             position: 'absolute',
             top: n.top,

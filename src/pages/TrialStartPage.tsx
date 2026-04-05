@@ -84,7 +84,7 @@ export default function TrialStartPage() {
       <AtmosphericBackground />
 
       {/* Wordmark (non-clickable) */}
-      <div style={{ position: 'relative', zIndex: 2, padding: '24px 32px' }}>
+      <div style={{ position: 'relative', zIndex: 2, padding: '20px' }}>
         <span
           style={{
             fontFamily: FONT,
@@ -98,12 +98,13 @@ export default function TrialStartPage() {
       </div>
 
       <main
+        className="lp-mobile-pad"
         style={{
           position: 'relative',
           zIndex: 1,
           maxWidth: '520px',
           margin: '0 auto',
-          padding: '80px 24px 64px',
+          padding: '80px 24px 48px',
           boxSizing: 'border-box',
         }}
       >
@@ -187,9 +188,11 @@ export default function TrialStartPage() {
                       key={c}
                       type="button"
                       onClick={() => setCount(c)}
+                      className="lp-count-pill"
                       style={{
                         flex: '1 1 calc(50% - 4px)',
                         minWidth: '120px',
+                        minHeight: '44px',
                         padding: '12px 16px',
                         borderRadius: '999px',
                         border: selected
@@ -252,12 +255,13 @@ export default function TrialStartPage() {
 
       {/* Video section */}
       <section
+        className="lp-mobile-pad"
         style={{
           position: 'relative',
           zIndex: 1,
           maxWidth: '900px',
           margin: '0 auto',
-          padding: '32px 24px 80px',
+          padding: '32px 24px 64px',
           boxSizing: 'border-box',
         }}
       >
@@ -329,7 +333,8 @@ export default function TrialStartPage() {
               fontFamily: FONT,
               fontSize: '13px',
               fontWeight: 500,
-              whiteSpace: 'nowrap',
+              textAlign: 'center',
+              width: '90%',
             }}
           >
             Deep Dive Walkthrough — 5 to 10 minutes — Upload here
