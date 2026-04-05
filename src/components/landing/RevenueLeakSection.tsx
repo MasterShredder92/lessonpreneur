@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { COLORS, FONT, GlassCard, PrimaryButton, sectionStyle } from './shared'
 
-function useAnimatedNumber(target: number, duration = 100) {
+const GREEN = '#22C55E'
+const CHURN_RATE = 0.05 // 5% monthly churn assumption
+const PER_STUDENT = 160
+const HOURLY_VALUE = 50
+
+function useAnimatedNumber(target: number, duration = 150) {
   const [display, setDisplay] = useState(target)
   const fromRef = useRef(target)
   const rafRef = useRef<number | null>(null)
@@ -88,16 +93,21 @@ type SliderProps = {
   label: string
   min: number
   max: number
+  step?: number
   value: number
+  display: string
   onChange: (v: number) => void
 }
 
-function Slider({ label, min, max, value, onChange }: SliderProps) {
+function Slider({ label, min, max, step = 1, value, display, onChange }: SliderProps) {
   return (
     <div>
       <label
         style={{
-          display: 'block',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          gap: '12px',
           fontFamily: FONT,
           fontWeight: 700,
           fontSize: '15px',
@@ -106,17 +116,17 @@ function Slider({ label, min, max, value, onChange }: SliderProps) {
           lineHeight: 1.4,
         }}
       >
-        {label}
+        <span>{label}</span>
         <span
           style={{
-            float: 'right',
             color: COLORS.pink,
-            fontWeight: 800,
-            fontSize: '17px',
+            fontWeight: 900,
+            fontSize: '20px',
             fontVariantNumeric: 'tabular-nums',
+            flexShrink: 0,
           }}
         >
-          {value}
+          {display}
         </span>
       </label>
       <div className="lp-slider-wrap">
@@ -125,7 +135,7 @@ function Slider({ label, min, max, value, onChange }: SliderProps) {
           className="lp-slider"
           min={min}
           max={max}
-          step={1}
+          step={step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
         />
@@ -136,16 +146,15 @@ function Slider({ label, min, max, value, onChange }: SliderProps) {
 
 export default function RevenueLeakSection() {
   const navigate = useNavigate()
-  const [leads, setLeads] = useState(8)
+  const [students, setStudents] = useState(100)
   const [hours, setHours] = useState(6)
-  const [drops, setDrops] = useState(5)
 
-  const leadsLoss = leads * 160
-  const hoursLoss = hours * 4 * 50
-  const dropsLoss = drops * 160
-  const total = leadsLoss + hoursLoss + dropsLoss
+  const droppedStudents = Math.round(students * CHURN_RATE)
+  const churnLoss = droppedStudents * PER_STUDENT
+  const adminCost = hours * 4 * HOURLY_VALUE
+  const total = churnLoss + adminCost
 
-  const animatedTotal = useAnimatedNumber(total, 100)
+  const animatedTotal = useAnimatedNumber(total)
 
   return (
     <section className="lp-section" style={sectionStyle}>
@@ -182,83 +191,52 @@ export default function RevenueLeakSection() {
       <div style={{ marginTop: '40px', maxWidth: '720px', marginLeft: 'auto', marginRight: 'auto' }}>
         <GlassCard style={{ padding: '40px' }} className="lp-leak-card">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-            <div>
-              <Slider
-                label="Leads that don't get followed up each month"
-                min={0}
-                max={30}
-                value={leads}
-                onChange={setLeads}
-              />
-              <div
-                style={{
-                  fontFamily: FONT,
-                  fontSize: '14px',
-                  color: 'rgba(255,255,255,0.65)',
-                  marginTop: '10px',
-                  lineHeight: 1.5,
-                }}
-              >
-                At $160/month average, that's{' '}
-                <span style={{ color: COLORS.pink, fontWeight: 900 }}>${fmt(leadsLoss)}</span> lost
-                in potential monthly revenue
-              </div>
-            </div>
+            <Slider
+              label="How many students do you have?"
+              min={10}
+              max={500}
+              step={5}
+              value={students}
+              display={fmt(students)}
+              onChange={setStudents}
+            />
 
-            <div>
-              <Slider
-                label="Hours per week spent on manual admin"
-                min={0}
-                max={20}
-                value={hours}
-                onChange={setHours}
-              />
-              <div
-                style={{
-                  fontFamily: FONT,
-                  fontSize: '14px',
-                  color: 'rgba(255,255,255,0.65)',
-                  marginTop: '10px',
-                  lineHeight: 1.5,
-                }}
-              >
-                At $50/hour owner value, that's{' '}
-                <span style={{ color: COLORS.pink, fontWeight: 900 }}>${fmt(hoursLoss)}</span> per
-                month you're spending on things LP automates
-              </div>
-            </div>
+            <Slider
+              label="Hours per week you spend on manual admin"
+              min={0}
+              max={20}
+              value={hours}
+              display={`${hours} hrs`}
+              onChange={setHours}
+            />
 
-            <div>
-              <Slider
-                label="Students who dropped in the last 3 months with no win-back attempt"
-                min={0}
-                max={20}
-                value={drops}
-                onChange={setDrops}
-              />
-              <div
-                style={{
-                  fontFamily: FONT,
-                  fontSize: '14px',
-                  color: 'rgba(255,255,255,0.65)',
-                  marginTop: '10px',
-                  lineHeight: 1.5,
-                }}
-              >
-                At $160/month, that's{' '}
-                <span style={{ color: COLORS.pink, fontWeight: 900 }}>${fmt(dropsLoss)}</span>{' '}
-                walking out the door quietly
-              </div>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: '14px',
+                color: 'rgba(255,255,255,0.60)',
+                lineHeight: 1.6,
+                textAlign: 'center',
+                padding: '0 4px',
+              }}
+            >
+              At an average 5% monthly churn, you're likely losing{' '}
+              <span style={{ color: '#fff', fontWeight: 800 }}>~{droppedStudents} students</span>{' '}
+              every month. At <span style={{ color: '#fff', fontWeight: 800 }}>${PER_STUDENT}</span>{' '}
+              per student, that's{' '}
+              <span style={{ color: GREEN, fontWeight: 900 }}>${fmt(churnLoss)}</span> walking out
+              the door. Plus{' '}
+              <span style={{ color: GREEN, fontWeight: 900 }}>${fmt(adminCost)}</span> in admin
+              hours LP automates.
             </div>
 
             <div
               style={{
-                background: 'rgba(212,34,106,0.1)',
-                border: '1px solid rgba(212,34,106,0.3)',
+                background: 'rgba(34,197,94,0.10)',
+                border: '1px solid rgba(34,197,94,0.35)',
                 borderRadius: '12px',
                 padding: '24px',
                 textAlign: 'center',
-                marginTop: '8px',
               }}
             >
               <div
@@ -267,7 +245,7 @@ export default function RevenueLeakSection() {
                   fontFamily: FONT,
                   fontSize: '56px',
                   fontWeight: 900,
-                  color: COLORS.pink,
+                  color: GREEN,
                   lineHeight: 1,
                   fontVariantNumeric: 'tabular-nums',
                 }}
@@ -278,11 +256,12 @@ export default function RevenueLeakSection() {
                 style={{
                   fontFamily: FONT,
                   fontSize: '14px',
-                  color: 'rgba(255,255,255,0.55)',
+                  color: GREEN,
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
                   marginTop: '10px',
                   fontWeight: 700,
+                  opacity: 0.85,
                 }}
               >
                 estimated monthly revenue leak
