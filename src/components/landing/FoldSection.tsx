@@ -18,6 +18,102 @@ export default function FoldSection() {
         paddingBottom: '80px',
       }}
     >
+      <style>{`
+        @keyframes lp-gauge-fill {
+          from { stroke-dashoffset: 376.991; }
+          to { stroke-dashoffset: 82.94; }
+        }
+        @keyframes lp-gauge-rotate {
+          from { transform: rotate(-90deg); }
+          to { transform: rotate(270deg); }
+        }
+        .lp-gauge-wrap { display: block; }
+        @media (max-width: 768px) {
+          .lp-gauge-wrap { display: none !important; }
+        }
+      `}</style>
+
+      <div
+        className="lp-gauge-wrap"
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: '120px',
+          right: '40px',
+          width: '140px',
+          height: '140px',
+          pointerEvents: 'none',
+        }}
+      >
+        <svg
+          width="140"
+          height="140"
+          viewBox="0 0 140 140"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            transformOrigin: '70px 70px',
+            animation: 'lp-gauge-rotate 60s linear infinite',
+          }}
+        >
+          <circle
+            cx="70"
+            cy="70"
+            r="60"
+            fill="none"
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth="3"
+          />
+          <circle
+            cx="70"
+            cy="70"
+            r="60"
+            fill="none"
+            stroke="#D4226A"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray="376.991"
+            strokeDashoffset="376.991"
+            style={{
+              animation: 'lp-gauge-fill 2s ease-out 0.5s forwards',
+            }}
+          />
+        </svg>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: FONT,
+              fontWeight: 800,
+              fontSize: '11px',
+              color: '#fff',
+              letterSpacing: '0.02em',
+            }}
+          >
+            15 min/day
+          </div>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: '9px',
+              color: 'rgba(255,255,255,0.45)',
+              marginTop: '2px',
+            }}
+          >
+            to run your school
+          </div>
+        </div>
+      </div>
+
       <h1
         className="lp-h1"
         style={{
