@@ -1,5 +1,4 @@
 import { COLORS, FONT, sectionStyle } from './shared'
-import DeviceMockupSection from './DeviceMockupSection'
 
 export default function BuiltInRealSchoolsSection() {
   return (
@@ -34,8 +33,6 @@ export default function BuiltInRealSchoolsSection() {
           production right now — not a demo, but the system I use every single day.
         </p>
       </div>
-
-      <DeviceMockupSection />
 
       <div
         className="lp-founder-row"

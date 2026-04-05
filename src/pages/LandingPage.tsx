@@ -5,6 +5,7 @@ import ChaosStackSection from '../components/landing/ChaosStackSection'
 import RevenueLeakSection from '../components/landing/RevenueLeakSection'
 import WhatChangesSection from '../components/landing/WhatChangesSection'
 import BuiltInRealSchoolsSection from '../components/landing/BuiltInRealSchoolsSection'
+import DeviceMockupSection from '../components/landing/DeviceMockupSection'
 import ProofSection from '../components/landing/ProofSection'
 import LogoHubSection from '../components/landing/LogoHubSection'
 import OfferSection from '../components/landing/OfferSection'
@@ -54,6 +55,7 @@ export default function LandingPage() {
         <Reveal><ChaosStackSection /></Reveal>
         <Reveal><RevenueLeakSection /></Reveal>
         <Reveal><WhatChangesSection /></Reveal>
+        <Reveal><DeviceMockupSection /></Reveal>
         <Reveal><BuiltInRealSchoolsSection /></Reveal>
         <Reveal><ProofSection /></Reveal>
         <Reveal><LogoHubSection /></Reveal>
