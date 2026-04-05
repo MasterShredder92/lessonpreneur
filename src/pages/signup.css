@@ -9,6 +9,66 @@
   color: #fff;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   overflow-x: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+/* ── Animated premium background: aurora blobs + grid + noise ── */
+.signup-page::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  z-index: -2;
+  background:
+    radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--c) 28%, transparent) 0%, transparent 40%),
+    radial-gradient(circle at 80% 30%, color-mix(in srgb, var(--c) 18%, transparent) 0%, transparent 35%),
+    radial-gradient(circle at 50% 85%, color-mix(in srgb, var(--c) 22%, transparent) 0%, transparent 45%);
+  filter: blur(60px);
+  animation: auroraDrift 22s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.signup-page::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--c) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--c) 6%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 75%);
+  pointer-events: none;
+  opacity: 0.55;
+}
+@keyframes auroraDrift {
+  0%   { transform: translate(0, 0) rotate(0deg)   scale(1); }
+  50%  { transform: translate(3%, -2%) rotate(8deg) scale(1.05); }
+  100% { transform: translate(-2%, 3%) rotate(-6deg) scale(1.08); }
+}
+
+/* ── Floating music notes (subtle, slow) ── */
+.signup-bgnotes {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.signup-bgnote {
+  position: absolute;
+  bottom: -40px;
+  font-size: 20px;
+  color: color-mix(in srgb, var(--c) 50%, transparent);
+  animation: noteRise linear infinite;
+  opacity: 0;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c) 60%, transparent));
+}
+@keyframes noteRise {
+  0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.55; }
+  90%  { opacity: 0.45; }
+  100% { transform: translateY(-110vh) translateX(var(--drift, 40px)) rotate(20deg); opacity: 0; }
 }
 
 /* ── Progress bar ── */
@@ -23,8 +83,31 @@
 }
 .signup-progress-fill {
   height: 100%;
-  background: var(--c);
-  transition: width 0.3s ease;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--c) 70%, transparent) 0%,
+    var(--c) 50%,
+    color-mix(in srgb, var(--c) 70%, transparent) 100%);
+  background-size: 200% 100%;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 70%, transparent),
+              0 0 24px color-mix(in srgb, var(--c) 40%, transparent);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: progressShimmer 2.4s linear infinite;
+  position: relative;
+}
+.signup-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 10px #fff, 0 0 20px var(--c), 0 0 30px var(--c);
+}
+@keyframes progressShimmer {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
 }
 
 @media (max-width: 640px) {
@@ -136,11 +219,21 @@
 
 /* ── Typography ── */
 .signup-title {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   line-height: 1.2;
+  background: linear-gradient(180deg, #fff 0%, color-mix(in srgb, var(--c) 35%, #fff) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px color-mix(in srgb, var(--c) 20%, transparent);
+  animation: titleFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes titleFadeIn {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 .signup-subtitle {
   font-size: 13px;
@@ -158,19 +251,49 @@
   width: 100%;
 }
 .signup-who-card {
-  background: #111;
+  background: linear-gradient(180deg, #131313 0%, #0e0e0e 100%);
   border: 2px solid #222;
-  border-radius: 14px;
-  padding: 20px 20px;
+  border-radius: 16px;
+  padding: 22px 20px;
   text-align: center;
   cursor: pointer;
-  transition: all 200ms ease;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 200ms ease,
+              box-shadow 200ms ease,
+              background 200ms ease;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset,
+              0 4px 20px rgba(0,0,0,0.4);
 }
-.signup-who-card:hover,
-.signup-who-card:active {
+.signup-who-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: radial-gradient(circle at 50% 0%,
+    color-mix(in srgb, var(--c) 18%, transparent) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.signup-who-card:hover {
+  transform: translateY(-2px);
   border-color: var(--c);
-  background: #141414;
+  background: linear-gradient(180deg, #181818 0%, #101010 100%);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset,
+              0 10px 32px color-mix(in srgb, var(--c) 25%, transparent),
+              0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent);
+}
+.signup-who-card:hover::before { opacity: 1; }
+.signup-who-card:active {
+  transform: translateY(0) scale(0.985);
+  animation: cardTap 0.5s ease;
+}
+@keyframes cardTap {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 70%, transparent); }
+  100% { box-shadow: 0 0 0 24px color-mix(in srgb, var(--c) 0%, transparent); }
 }
 .signup-who-card-title {
   font-size: 18px;
@@ -223,6 +346,8 @@
 }
 .signup-input:focus {
   border-color: var(--c);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent),
+              0 0 24px color-mix(in srgb, var(--c) 12%, transparent);
 }
 .signup-input::placeholder {
   color: #555;
@@ -269,12 +394,29 @@
   text-align: center;
 }
 .signup-pill:hover {
-  border-color: #444;
+  border-color: color-mix(in srgb, var(--c) 40%, #444);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--c) 15%, transparent);
 }
 .signup-pill.selected {
-  background: color-mix(in srgb, var(--c) 15%, #111);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--c) 22%, #111) 0%,
+    color-mix(in srgb, var(--c) 12%, #111) 100%);
   border-color: var(--c);
   color: #fff;
+  box-shadow: 0 0 0 1px var(--c),
+              0 8px 24px color-mix(in srgb, var(--c) 28%, transparent),
+              0 0 20px color-mix(in srgb, var(--c) 20%, transparent) inset;
+  animation: pillPop 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes pillPop {
+  0%   { transform: scale(0.96); }
+  60%  { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+.signup-pill:active {
+  transform: scale(0.97);
 }
 
 /* ── Instrument icon cards ── */
@@ -291,24 +433,70 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 72px;
-  background: #111;
+  min-height: 84px;
+  background: linear-gradient(180deg, #141414 0%, #0d0d0d 100%);
   border: 1.5px solid #2a2a2a;
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
-  transition: all 180ms ease;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 180ms ease,
+              box-shadow 180ms ease,
+              background 180ms ease;
   -webkit-tap-highlight-color: transparent;
-  padding: 10px 6px;
+  padding: 12px 6px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset,
+              0 2px 10px rgba(0,0,0,0.3);
+}
+.signup-inst-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: radial-gradient(circle at 50% 0%,
+    color-mix(in srgb, var(--c) 25%, transparent) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
 }
 .signup-inst-card:hover {
-  border-color: #444;
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--c) 55%, #444);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset,
+              0 10px 28px color-mix(in srgb, var(--c) 22%, transparent);
 }
+.signup-inst-card:hover::before { opacity: 0.7; }
+.signup-inst-card:active { transform: translateY(-1px) scale(0.97); }
 .signup-inst-card.selected {
-  background: color-mix(in srgb, var(--c) 15%, #111);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--c) 22%, #111) 0%,
+    color-mix(in srgb, var(--c) 10%, #0d0d0d) 100%);
   border-color: var(--c);
+  box-shadow: 0 0 0 1px var(--c),
+              0 0 24px color-mix(in srgb, var(--c) 35%, transparent),
+              0 0 40px color-mix(in srgb, var(--c) 18%, transparent),
+              inset 0 0 20px color-mix(in srgb, var(--c) 15%, transparent);
+  animation: instBurst 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.signup-inst-card.selected::before { opacity: 1; }
+@keyframes instBurst {
+  0%   { transform: scale(0.94); box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 80%, transparent); }
+  50%  { transform: scale(1.04); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 1px var(--c),
+               0 0 24px color-mix(in srgb, var(--c) 35%, transparent),
+               0 0 40px color-mix(in srgb, var(--c) 18%, transparent),
+               inset 0 0 20px color-mix(in srgb, var(--c) 15%, transparent); }
 }
 .signup-inst-emoji {
-  font-size: 26px;
+  font-size: 30px;
+  transition: transform 200ms ease;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+.signup-inst-card:hover .signup-inst-emoji { transform: scale(1.08) rotate(-3deg); }
+.signup-inst-card.selected .signup-inst-emoji {
+  transform: scale(1.12);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c) 70%, transparent));
 }
 .signup-inst-label {
   font-size: 13px;
@@ -332,28 +520,64 @@
 
 .signup-next {
   width: 100%;
-  height: 52px;
+  height: 54px;
   border: none;
   border-radius: 14px;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   font-family: inherit;
   color: #fff;
-  background: var(--c);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--c) 115%, #fff) 0%,
+    var(--c) 55%,
+    color-mix(in srgb, var(--c) 85%, #000) 100%);
   cursor: pointer;
   margin-top: 12px;
-  transition: all 200ms ease;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 180ms ease,
+              filter 180ms ease;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset,
+              0 -1px 0 rgba(0,0,0,0.2) inset,
+              0 8px 24px color-mix(in srgb, var(--c) 35%, transparent),
+              0 0 0 1px color-mix(in srgb, var(--c) 50%, transparent);
+}
+.signup-next::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent);
+  transform: skewX(-20deg);
+  animation: ctaShimmer 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes ctaShimmer {
+  0%, 55% { left: -100%; }
+  75%     { left: 160%; }
+  100%    { left: 160%; }
 }
 .signup-next:disabled {
   opacity: 0.35;
   cursor: default;
+  box-shadow: none;
+  background: #2a2a2a;
 }
+.signup-next:disabled::before { display: none; }
 .signup-next:not(:disabled):hover {
-  filter: brightness(1.1);
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset,
+              0 12px 32px color-mix(in srgb, var(--c) 50%, transparent),
+              0 0 0 1px var(--c);
 }
 .signup-next:not(:disabled):active {
-  transform: scale(0.98);
+  transform: translateY(0) scale(0.985);
 }
 
 /* ── Skip link ── */
@@ -469,18 +693,35 @@
   -webkit-tap-highlight-color: transparent;
 }
 .signup-action-btn.primary {
-  background: var(--c);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--c) 115%, #fff) 0%,
+    var(--c) 55%,
+    color-mix(in srgb, var(--c) 85%, #000) 100%);
   border: none;
   color: #fff;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.22) inset,
+              0 6px 20px color-mix(in srgb, var(--c) 30%, transparent),
+              0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent);
 }
+.signup-action-btn.primary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.28) inset,
+              0 10px 26px color-mix(in srgb, var(--c) 45%, transparent),
+              0 0 0 1px var(--c);
+}
+.signup-action-btn.primary:active { transform: translateY(0) scale(0.985); }
 .signup-action-btn.secondary {
-  background: #111;
+  background: linear-gradient(180deg, #141414 0%, #0d0d0d 100%);
   border: 1.5px solid #2a2a2a;
   color: #ccc;
 }
 .signup-action-btn.secondary:hover {
   border-color: var(--c);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--c) 18%, transparent);
 }
+.signup-action-btn.secondary:active { transform: translateY(0) scale(0.985); }
 
 /* ── Added students list ── */
 .signup-added-students {
@@ -552,11 +793,15 @@
 }
 .signup-score-number {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 96px;
-  color: var(--c);
+  font-size: 112px;
+  background: linear-gradient(180deg, #fff 0%, var(--c) 55%, color-mix(in srgb, var(--c) 70%, #000) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   line-height: 1;
   margin-bottom: 4px;
-  animation: scorePop 0.5s ease;
+  animation: scorePop 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 0 24px color-mix(in srgb, var(--c) 45%, transparent));
 }
 @keyframes scorePop {
   0%   { transform: scale(0.5); opacity: 0; }
@@ -593,26 +838,55 @@
 /* ── CTA pulsing button ── */
 .signup-cta {
   width: 100%;
-  height: 60px;
+  height: 64px;
   border: none;
   border-radius: 16px;
   font-size: 18px;
   font-weight: 800;
+  letter-spacing: 0.01em;
   font-family: inherit;
   color: #fff;
-  background: var(--c);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--c) 115%, #fff) 0%,
+    var(--c) 55%,
+    color-mix(in srgb, var(--c) 85%, #000) 100%);
   cursor: pointer;
   position: relative;
-  transition: transform 200ms ease;
+  overflow: hidden;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), filter 200ms ease;
   -webkit-tap-highlight-color: transparent;
   animation: ctaPulse 2s ease-in-out infinite;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset,
+              0 -1px 0 rgba(0,0,0,0.2) inset,
+              0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent);
 }
-.signup-cta:active {
-  transform: scale(0.97);
+.signup-cta::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-20deg);
+  animation: ctaShimmer 2.8s ease-in-out infinite;
+  pointer-events: none;
 }
+.signup-cta:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.signup-cta:active { transform: translateY(0) scale(0.97); }
+.signup-cta:disabled { opacity: 0.6; cursor: default; animation: none; }
+.signup-cta:disabled::before { display: none; }
 @keyframes ctaPulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 40%, transparent); }
-  50%      { box-shadow: 0 0 0 12px color-mix(in srgb, var(--c) 0%, transparent); }
+  0%, 100% { box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset,
+                        0 -1px 0 rgba(0,0,0,0.2) inset,
+                        0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent),
+                        0 0 0 0 color-mix(in srgb, var(--c) 50%, transparent),
+                        0 8px 28px color-mix(in srgb, var(--c) 40%, transparent); }
+  50%      { box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset,
+                        0 -1px 0 rgba(0,0,0,0.2) inset,
+                        0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent),
+                        0 0 0 16px color-mix(in srgb, var(--c) 0%, transparent),
+                        0 8px 28px color-mix(in srgb, var(--c) 55%, transparent); }
 }
 
 /* ── Confetti ── */

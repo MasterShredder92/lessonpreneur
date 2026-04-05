@@ -19,6 +19,56 @@ const INSTRUMENTS = [
   { id: 'other', emoji: '🎵', label: 'Other' },
 ]
 
+// ── Instrument selection sounds (preloaded on mount) ──
+const SOUND_CACHE_V = '20260404s'
+const INST_SOUND: Record<string, string> = {
+  piano: `/audio/piano/C.wav?v=${SOUND_CACHE_V}`,
+  guitar: `/audio/guitar/E2/0.wav?v=${SOUND_CACHE_V}`,
+  vocals: `/audio/piano/E.wav?v=${SOUND_CACHE_V}`,
+  drums: `/audio/drums/snare.wav?v=${SOUND_CACHE_V}`,
+  violin: `/audio/piano/G.wav?v=${SOUND_CACHE_V}`,
+  other: `/audio/piano/C2.wav?v=${SOUND_CACHE_V}`,
+}
+
+let _audioCtx: AudioContext | null = null
+const _bufferCache: Record<string, AudioBuffer> = {}
+function getAudioCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)() }
+    catch { return null }
+  }
+  if (_audioCtx && _audioCtx.state === 'suspended') _audioCtx.resume()
+  return _audioCtx
+}
+async function preloadSound(url: string): Promise<AudioBuffer | null> {
+  if (_bufferCache[url]) return _bufferCache[url]
+  const ctx = getAudioCtx()
+  if (!ctx) return null
+  try {
+    const res = await fetch(url)
+    const arr = await res.arrayBuffer()
+    const buf = await ctx.decodeAudioData(arr)
+    _bufferCache[url] = buf
+    return buf
+  } catch { return null }
+}
+function playSoundNow(url: string) {
+  const ctx = getAudioCtx()
+  const buf = _bufferCache[url]
+  if (!ctx || !buf) { preloadSound(url).then(b => { if (b) playSoundNow(url) }); return }
+  const src = ctx.createBufferSource()
+  const gain = ctx.createGain()
+  gain.gain.value = 0.55
+  src.buffer = buf
+  src.connect(gain)
+  gain.connect(ctx.destination)
+  src.start(0)
+}
+function haptic(ms = 10) {
+  try { navigator.vibrate?.(ms) } catch {}
+}
+
 const DAYS = [
   'Monday 3:30-9p',
   'Tuesday 3:30-9p',
@@ -69,6 +119,12 @@ export default function SignupLanding() {
   useEffect(() => {
     document.documentElement.style.setProperty('--c', locColor)
   }, [locColor])
+
+  // Preload instrument selection sounds on mount (no tap lag)
+  useEffect(() => {
+    getAudioCtx()
+    Object.values(INST_SOUND).forEach(url => { preloadSound(url) })
+  }, [])
 
   // ── State ──
   const [step, setStep] = useState(0)
@@ -191,13 +247,21 @@ export default function SignupLanding() {
 
   // ── Instrument toggle ──
   const toggleInstrument = (id: string) => {
-    setSelectedInstruments(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    )
+    setSelectedInstruments(prev => {
+      const isAdding = !prev.includes(id)
+      if (isAdding) {
+        // Play a cool instrument-specific sound on select
+        const url = INST_SOUND[id]
+        if (url) playSoundNow(url)
+        haptic(12)
+      }
+      return isAdding ? [...prev, id] : prev.filter(i => i !== id)
+    })
   }
 
   // ── Day toggle ──
   const toggleDay = (day: string) => {
+    haptic(8)
     if (day === 'Any of These Work') {
       setSelectedDays(['Any of These Work'])
       return
@@ -214,6 +278,7 @@ export default function SignupLanding() {
 
   // ── Secondary location toggle ──
   const toggleSecondaryLoc = (key: LocKey) => {
+    haptic(8)
     setSecondaryLocs(prev =>
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     )
@@ -1070,8 +1135,37 @@ export default function SignupLanding() {
     )
   }
 
+  const bgNotes = useMemo(() => {
+    const glyphs = ['♪', '♫', '♩', '♬', '𝅘𝅥𝅮']
+    return Array.from({ length: 9 }, (_, i) => ({
+      glyph: glyphs[i % glyphs.length],
+      left: `${(i * 11 + Math.random() * 8) % 100}%`,
+      delay: `${Math.random() * 14}s`,
+      dur: `${18 + Math.random() * 10}s`,
+      size: 16 + Math.random() * 14,
+      drift: `${(Math.random() * 80 - 40).toFixed(0)}px`,
+    }))
+  }, [])
+
   return (
     <div className="signup-page">
+      {/* Floating music notes background */}
+      <div className="signup-bgnotes" aria-hidden="true">
+        {bgNotes.map((n, i) => (
+          <span
+            key={i}
+            className="signup-bgnote"
+            style={{
+              left: n.left,
+              animationDelay: n.delay,
+              animationDuration: n.dur,
+              fontSize: n.size,
+              ['--drift' as any]: n.drift,
+            }}
+          >{n.glyph}</span>
+        ))}
+      </div>
+
       <SiteHeader activeInstrument={detectedInstrument ?? undefined} />
 
       {/* Progress bar */}
