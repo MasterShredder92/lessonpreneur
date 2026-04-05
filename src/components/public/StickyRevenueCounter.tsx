@@ -48,12 +48,12 @@ function rateForStudents(count: number | null): number {
 }
 
 function formatUSD(n: number): string {
-  // 4 decimals so sub-cent motion is visible — ticker/gas-pump style
+  // 3 decimals so every 1-sec tick shows visible motion at $200/hr
   return n.toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   })
 }
 
@@ -87,16 +87,13 @@ export default function StickyRevenueCounter() {
     return () => window.removeEventListener('lp:studentcount', handler)
   }, [])
 
-  // rAF-driven tick off the persisted start time — smooth, not batched
+  // Tick once per second off the persisted start time
   useEffect(() => {
     if (frozen) return
-    let rafId = 0
-    const loop = () => {
-      setElapsedMs(Date.now() - startTime.current)
-      rafId = requestAnimationFrame(loop)
-    }
-    rafId = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(rafId)
+    const tick = () => setElapsedMs(Date.now() - startTime.current)
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
   }, [frozen])
 
   const liveAmount = (elapsedMs / 1000) * rate
