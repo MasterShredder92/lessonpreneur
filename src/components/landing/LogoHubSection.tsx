@@ -259,7 +259,7 @@ export default function LogoHubSection() {
                 fill="#ffffff"
                 opacity="0.90"
                 fontFamily="Plus Jakarta Sans, sans-serif"
-                fontSize="13"
+                fontSize="16"
                 fontWeight="700"
               >
                 {n.label}
