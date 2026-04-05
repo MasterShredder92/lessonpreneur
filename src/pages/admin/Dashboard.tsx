@@ -16,6 +16,7 @@ import DirectorCloseoutSection from '../../components/admin/DirectorCloseoutSect
 import { getLocationColor } from '../../utils/locationColor'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import DashboardPageGuide from '../../components/admin/DashboardPageGuide'
 
 export default function Dashboard() {
   const { tenantId } = useAuthContext()
@@ -156,13 +157,16 @@ export default function Dashboard() {
           <span className="ai-ask-badge">Star</span>
         </div>
         <ReportIssueButton />
+        <DashboardPageGuide />
       </div>
 
       {/* Things Happening Today — live feed of today's call-outs */}
       <HappeningTodayFeed userLocations={userLocations} />
 
       {/* 1. What's Important Now — AI Insight Cards (FIRST after header) */}
-      <WhatsImportantNow data={data} heroStats={heroStats} />
+      <div data-tour-id="whats-important">
+        <WhatsImportantNow data={data} heroStats={heroStats} />
+      </div>
 
       {/* 2. Today's Snapshot — Location Cards */}
       <div style={{ marginBottom: 16 }}>
@@ -170,10 +174,15 @@ export default function Dashboard() {
           <span className="section-label">Today's Snapshot</span>
           <div className="section-line" />
         </div>
-        <div className="location-grid">
-          {data.locationSummary.map((loc) => {
+        <div className="location-grid" data-tour-id="dash-location-grid">
+          {(() => {
+            const firstOwnIdx = data.locationSummary.findIndex(
+              (l) => !isStudioDirector || (!!l.locationId && allowedLocationIds.includes(l.locationId))
+            )
+            return data.locationSummary.map((loc, locIdx) => {
             const c = getLocationColor(loc.locationId)
             const locked = isStudioDirector && !!loc.locationId && !allowedLocationIds.includes(loc.locationId)
+            const tagOwn = locIdx === firstOwnIdx
             return (
             <div
               key={loc.name}
@@ -191,23 +200,24 @@ export default function Dashboard() {
                 <span className="location-name">{loc.name}</span>
               </div>
               <div className="location-metrics">
-                <div className="location-metric-row">
+                <div className="location-metric-row" data-tour-id={tagOwn ? 'active-students-metric' : undefined}>
                   <span className="location-metric-key">Active Students</span>
                   <span className="location-metric-value">{loc.students}</span>
                 </div>
                 <div className="location-divider" />
-                <div className="location-metric-row">
+                <div className="location-metric-row" data-tour-id={tagOwn ? 'schedule-utilization' : undefined}>
                   <span className="location-metric-key">Teachers Scheduled</span>
                   <span className="location-metric-value">{loc.teachersToday}</span>
                 </div>
-                <div className="location-metric-row">
+                <div className="location-metric-row" data-tour-id={tagOwn ? 'open-slots' : undefined}>
                   <span className="location-metric-key">Open Slots</span>
                   <span className="location-metric-value">{loc.openSlotsToday}</span>
                 </div>
               </div>
             </div>
             )
-          })}
+            })
+          })()}
         </div>
       </div>
 
