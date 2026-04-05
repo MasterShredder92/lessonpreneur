@@ -8,6 +8,12 @@ export interface GuideStep {
   body: string
   skipIf?: boolean
   tooltipAbove?: boolean
+  /** Click this selector before spotlighting (e.g. switch a tab). */
+  clickBeforeShow?: string
+  /** Shown as a hint in the card; clicking the target advances the guide. */
+  interactivePrompt?: string
+  /** If true and the target cannot be found, skip this step instead of showing "Nothing to highlight". */
+  skipIfMissing?: boolean
 }
 
 interface PageGuideProps {
@@ -118,10 +124,20 @@ function StepOverlay({
     setRect(null)
     let cancelled = false
     let tries = 0
+    let boundEl: HTMLElement | null = null
+    let clickHandler: (() => void) | null = null
+
+    // Fire a tab-switch click first if requested
+    if (step.clickBeforeShow) {
+      const tabEl = document.querySelector(step.clickBeforeShow) as HTMLElement | null
+      if (tabEl) tabEl.click()
+    }
+
     const tick = () => {
       if (cancelled) return
       const el = document.querySelector(step.targetSelector) as HTMLElement | null
       if (el) {
+        boundEl = el
         el.dataset.guideOriginalBoxShadow = el.style.boxShadow
         el.dataset.guideOriginalZIndex = el.style.zIndex
         el.dataset.guideOriginalPosition = el.style.position
@@ -130,6 +146,12 @@ function StepOverlay({
         if (!el.style.position || el.style.position === 'static') el.style.position = 'relative'
         el.style.zIndex = '10001'
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+        if (step.interactivePrompt) {
+          clickHandler = () => { setTimeout(() => onNext(), 50) }
+          el.addEventListener('click', clickHandler)
+        }
+
         setTimeout(() => {
           if (cancelled) return
           setRect(el.getBoundingClientRect())
@@ -139,15 +161,20 @@ function StepOverlay({
       }
       if (tries++ < 20) {
         setTimeout(tick, 100)
+      } else if (step.skipIfMissing) {
+        if (!cancelled) onNext()
       } else {
         setNotFound(true)
         setReady(true)
       }
     }
-    tick()
+    const startDelay = step.clickBeforeShow ? 200 : 0
+    const handle = setTimeout(tick, startDelay)
     return () => {
       cancelled = true
-      const el = document.querySelector(step.targetSelector) as HTMLElement | null
+      clearTimeout(handle)
+      if (boundEl && clickHandler) boundEl.removeEventListener('click', clickHandler)
+      const el = boundEl ?? (document.querySelector(step.targetSelector) as HTMLElement | null)
       if (el) {
         el.style.animation = el.dataset.guideOriginalAnimation ?? ''
         el.style.boxShadow = el.dataset.guideOriginalBoxShadow ?? ''
@@ -159,6 +186,7 @@ function StepOverlay({
         delete el.dataset.guideOriginalAnimation
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.targetSelector])
 
   useEffect(() => {
@@ -220,6 +248,11 @@ function StepOverlay({
         </div>
         <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', marginBottom: 6 }}>{step.title}</div>
         <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 14 }}>{step.body}</div>
+        {step.interactivePrompt && !notFound && (
+          <div style={{ fontSize: 11, color: '#FFB800', marginBottom: 10, padding: '6px 8px', background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)', borderRadius: 6, fontWeight: 600 }}>
+            {step.interactivePrompt}
+          </div>
+        )}
         {notFound && (
           <div style={{ fontSize: 11, color: '#FFB800', marginBottom: 10, padding: '6px 8px', background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)', borderRadius: 6 }}>
             Nothing to highlight for this step right now — keep going.
