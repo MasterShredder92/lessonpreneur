@@ -125,8 +125,8 @@ export default function App() {
         <PreviewBanner />
           <Suspense fallback={<PageLoader />}>
           <Routes>
-            <Route path="/" element={<MarketingLanding />} />
-            <Route path="/v2" element={<LandingPageV2 />} />
+            <Route path="/" element={<LandingPageV2 />} />
+            <Route path="/v2" element={<MarketingLanding />} />
             <Route path="/v2/start" element={<TrialStartPageV2 />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
