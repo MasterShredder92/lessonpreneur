@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import BillingPageGuide from '../../components/admin/BillingPageGuide'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 // ══════════════════════════════════════════
@@ -281,12 +282,15 @@ function BillingInner() {
   return (
     <div style={{ minHeight: '100vh', background: '#020209', padding: '0 16px 40px' }}>
       {/* HEADER */}
-      <div style={{
+      <div data-tour-id="billing-header" style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '20px 0 12px', flexWrap: 'wrap', gap: 8,
       }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#E0E0F4', margin: 0 }}>Billing</h1>
-        <ReportIssueButton context="billing" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ReportIssueButton context="billing" />
+          {isStudioDirector && <BillingPageGuide />}
+        </div>
       </div>
 
       {/* LOCATION FILTER — Desktop pills */}
@@ -352,13 +356,13 @@ function BillingInner() {
       {heroLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={28} /></div>
       ) : heroStats ? (
-        <>
+        <div data-tour-id="billing-hero-cards">
           {/* Desktop: 4 cards in a row */}
           <div className="billing-snapshot-desktop" style={{
             display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10,
           }}>
             {snapshotCards.map(card => (
-              <div key={card.key} style={{
+              <div key={card.key} data-tour-id={`billing-card-${card.key}`} style={{
                 position: 'relative', overflow: 'hidden', borderRadius: 14,
                 background: card.bg, border: `1px solid ${card.border}`,
                 boxShadow: `0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 ${card.border}`,
@@ -391,7 +395,7 @@ function BillingInner() {
             {snapshotCards.map(card => {
               const isExpanded = expandedCard === card.key
               return (
-                <div key={card.key} style={{
+                <div key={card.key} data-tour-id={`billing-card-${card.key}-m`} style={{
                   position: 'relative', overflow: 'hidden', borderRadius: 12,
                   background: card.bg, border: `1px solid ${card.border}`,
                   cursor: 'pointer',
@@ -437,7 +441,7 @@ function BillingInner() {
 
           {/* Past Due Alert */}
           {heroStats.pastDueCents > 0 && (
-            <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div data-tour-id="billing-overdue-alert" style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: 4, background: '#EF4444', boxShadow: '0 0 8px rgba(239,68,68,0.6)', flexShrink: 0 }} />
               <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 700 }}>
                 {dollars(heroStats.pastDueCents)} past due
@@ -447,17 +451,17 @@ function BillingInner() {
               </span>
             </div>
           )}
-        </>
+        </div>
       ) : null}
 
       {/* UTILITY STRIP */}
-      <div style={{
+      <div data-tour-id="billing-utility-strip" style={{
         display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap',
       }}>
-        <button onClick={() => setShowCreditsLedger(true)} style={utilBtn}>
+        <button data-tour-id="billing-credits-btn" onClick={() => setShowCreditsLedger(true)} style={utilBtn}>
           <FileText size={13} /> Credits Ledger
         </button>
-        <button onClick={() => setShowOneOff(true)} style={utilBtn}>
+        <button data-tour-id="billing-oneoff-btn" onClick={() => setShowOneOff(true)} style={utilBtn}>
           <Plus size={13} /> One-Off Invoice
         </button>
         {!isStudioDirector && (
@@ -478,6 +482,7 @@ function BillingInner() {
         ]).map(tab => (
           <button
             key={tab.key}
+            data-tour-id={`billing-tab-${tab.key}`}
             onClick={() => setActiveSection(tab.key)}
             style={{
               padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
@@ -494,6 +499,7 @@ function BillingInner() {
 
       {/* SECTION CONTENT */}
       {activeSection === 'invoices' && (
+        <div data-tour-id="billing-families-section">
         <SectionInvoices
           families={filteredFamilies}
           loading={familiesLoading}
@@ -503,6 +509,7 @@ function BillingInner() {
           setSortBy={setSortBy}
           locColorMap={locColorMap}
         />
+        </div>
       )}
       {activeSection === 'next' && (
         <SectionNextCycle
