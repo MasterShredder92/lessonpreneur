@@ -7,6 +7,7 @@ import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
 import SiteHeader from '../components/site/SiteHeader'
 import VSLSection from '../components/site/VSLSection'
+import InstrumentAtmosphere from '../components/site/InstrumentAtmosphere'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { useLocationStats } from '../hooks/useLocationStats'
 import { trackInstrumentView } from '../lib/tracking'
@@ -256,6 +257,7 @@ export default function PianoLanding() {
 
   return (
     <div className="ak-page" onClick={ensurePreloaded}>
+      <InstrumentAtmosphere theme="piano" />
       {/* ─── INTRO OVERLAY ─── */}
       {showIntro && (
         <div className={`pn-overlay${overlayDone ? ' done' : ''}`}>
