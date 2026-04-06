@@ -54,7 +54,7 @@ export default function Intake() {
       const { data: t, error: tErr } = await supabase
         .from('tenants')
         .select('id, name, primary_color, accent_color, logo_url')
-        .eq('slug', slug)
+        .eq('slug', slug ?? 'adkins-music-lessons')
         .single()
 
       if (tErr || !t) {

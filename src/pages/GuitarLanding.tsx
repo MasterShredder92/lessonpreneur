@@ -647,7 +647,7 @@ export default function GuitarLanding() {
               <div className="ak-pcard" key={i} style={{ cursor: 'pointer', textAlign: 'center' }}>
                 <h3>{t.name}</h3>
                 <p>{t.desc}</p>
-                <a href={`/${loc}/signup`} style={{ display: 'inline-block', marginTop: 14, fontSize: 13, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>{'\u2192'} This sounds like me</a>
+                <a href={ENROLLMENT_URL} style={{ display: 'inline-block', marginTop: 14, fontSize: 13, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>{'\u2192'} This sounds like me</a>
               </div>
             ))}
           </div>
@@ -739,7 +739,7 @@ export default function GuitarLanding() {
               </button>
               <div className={`gt-faq-a${openFaq === i ? ' open' : ''}`}>
                 <p>{f.a}</p>
-                {f.link && <a href={`/${loc}/signup`} style={{ display: 'inline-block', marginTop: 8, fontSize: 13, fontWeight: 600, color: LD.accentColor, textDecoration: 'none' }}>Fill out the form {'\u2192'}</a>}
+                {f.link && <a href={ENROLLMENT_URL} style={{ display: 'inline-block', marginTop: 8, fontSize: 13, fontWeight: 600, color: LD.accentColor, textDecoration: 'none' }}>Fill out the form {'\u2192'}</a>}
               </div>
             </div>
           ))}

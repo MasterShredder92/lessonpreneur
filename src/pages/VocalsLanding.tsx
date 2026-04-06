@@ -554,7 +554,7 @@ export default function VocalsLanding() {
               <div className="ak-pcard" key={i} style={{ cursor: 'pointer', textAlign: 'center' }}>
                 <h3>{t.name}</h3>
                 <p>{t.desc}</p>
-                <a href={`/${loc}/signup`} style={{ display: 'inline-block', marginTop: 14, fontSize: 13, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>{'\u{2192}'} This sounds like me</a>
+                <a href={ENROLLMENT_URL} style={{ display: 'inline-block', marginTop: 14, fontSize: 13, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>{'\u{2192}'} This sounds like me</a>
               </div>
             ))}
           </div>
