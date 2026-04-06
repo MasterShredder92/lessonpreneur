@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
+import {
+  getCardPosition, getArrowStyle, guideCardWidth,
+  GUIDE_CARD_STYLE, GUIDE_PRIMARY_BTN, GUIDE_GHOST_BTN, GUIDE_LINK_BTN, GUIDE_PULSE_KEYFRAMES,
+} from '../shared/guidePosition'
 
 type GuidePage = 'list' | 'detail'
 
@@ -120,14 +124,16 @@ export default function StudentsPageGuide({ mode }: { mode: GuidePage }) {
   const [ready, setReady] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [showCompletionCard, setShowCompletionCard] = useState(false)
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
   const interactiveHandlerRef = useRef<(() => void) | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [cardDims, setCardDims] = useState({ w: guideCardWidth(), h: 200 })
 
+  // Measure card after render
   useEffect(() => {
-    const h = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', h)
-    return () => window.removeEventListener('resize', h)
-  }, [])
+    if (!ready || !cardRef.current) return
+    const r = cardRef.current.getBoundingClientRect()
+    setCardDims({ w: r.width, h: r.height })
+  }, [ready, idx])
 
   // Persist to sessionStorage
   useEffect(() => { writeState({ active, idx }) }, [active, idx])
@@ -153,7 +159,7 @@ export default function StudentsPageGuide({ mode }: { mode: GuidePage }) {
         el.dataset.guideOrigZIndex = el.style.zIndex
         el.dataset.guideOrigPosition = el.style.position
         el.dataset.guideOrigAnimation = el.style.animation
-        el.style.animation = 'studentsGuidePulse 1.5s ease-in-out infinite'
+        el.style.animation = 'guidePulse 1.5s ease-in-out infinite'
         if (!el.style.position || el.style.position === 'static') el.style.position = 'relative'
         el.style.zIndex = '10001'
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -161,7 +167,7 @@ export default function StudentsPageGuide({ mode }: { mode: GuidePage }) {
           if (cancelled) return
           setRect(el.getBoundingClientRect())
           setReady(true)
-        }, 320)
+        }, 400)
         return
       }
       if (tries++ < 30) setTimeout(tick, 120)
@@ -198,13 +204,12 @@ export default function StudentsPageGuide({ mode }: { mode: GuidePage }) {
     }
   }, [active, step, stepVisibleHere])
 
-  // For interactive "tap the student" step — advance when the target gets clicked
+  // Interactive click handler — advance when the target gets clicked
   useEffect(() => {
     if (!active || !step || !stepVisibleHere || !step.interactive) return
     const el = document.querySelector(step.selector) as HTMLElement | null
     if (!el) return
     const onClick = () => {
-      // Advance to next step before navigation occurs
       const nextIdx = idx + 1
       if (nextIdx >= STEPS.length) {
         setActive(false)
@@ -222,12 +227,11 @@ export default function StudentsPageGuide({ mode }: { mode: GuidePage }) {
     }
   }, [active, step, stepVisibleHere, idx])
 
-  // Watch for handoff report completion — show completion card after last interactive step
+  // Watch for handoff report completion
   useEffect(() => {
     if (!active) return
     if (idx !== STEPS.length - 1) return
     if (!stepVisibleHere) return
-    // Look for the handoff report textarea to appear
     const check = () => {
       const reportBox = document.querySelector('[data-tour-id="student-handoff-report"]')
       if (reportBox) {
@@ -279,209 +283,60 @@ export default function StudentsPageGuide({ mode }: { mode: GuidePage }) {
     setTimeout(() => setShowToast(false), 3500)
   }
 
-  const cardW = 260
+  // Smart positioning
+  const cardW = guideCardWidth()
   let cardPos: React.CSSProperties
-  let arrow: React.CSSProperties | null = null
-  if (isMobile || !rect) {
-    cardPos = { position: 'fixed', bottom: 80, left: 12, right: 12, zIndex: 10002 }
+  let arrowStyle: React.CSSProperties | null = null
+
+  if (!rect) {
+    cardPos = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: cardW, zIndex: 10002 }
   } else {
-    const placeAbove = step?.tooltipAbove || (window.innerHeight - rect.bottom < 240)
-    const gap = 16
-    const top = placeAbove ? rect.top - gap : rect.bottom + gap
-    const transform = placeAbove ? 'translateY(-100%)' : 'none'
-    let left = rect.left + rect.width / 2 - cardW / 2
-    left = Math.max(12, Math.min(left, window.innerWidth - cardW - 12))
-    cardPos = { position: 'fixed', top, left, transform, width: cardW, zIndex: 10002 }
-    const arrowLeft = rect.left + rect.width / 2 - left - 8
-    arrow = {
-      position: 'absolute',
-      left: Math.max(12, Math.min(arrowLeft, cardW - 24)),
-      width: 14, height: 14,
-      background: 'rgba(15,15,30,0.95)',
-      borderLeft: '1px solid rgba(255,255,255,0.12)',
-      borderTop: '1px solid rgba(255,255,255,0.12)',
-      ...(placeAbove
-        ? { bottom: -7, transform: 'rotate(225deg)' }
-        : { top: -7, transform: 'rotate(45deg)' }),
-    }
+    const pos = getCardPosition(rect, cardW, cardDims.h)
+    cardPos = { position: 'fixed', top: pos.top, left: pos.left, width: cardW, zIndex: 10002 }
+    arrowStyle = getArrowStyle(pos.placement, rect, pos.left, pos.top, cardW, cardDims.h)
   }
 
   return (
     <>
-      <style>{`
-        @keyframes studentsGuidePulse {
-          0%, 100% { box-shadow: 0 0 0 3px rgba(255,184,0,0.5); }
-          50% { box-shadow: 0 0 0 7px rgba(255,184,0,0.15); }
-        }
-        @keyframes studentsGuideToast {
-          from { opacity: 0; transform: translate(-50%, 10px); }
-          to { opacity: 1; transform: translate(-50%, 0); }
-        }
-      `}</style>
+      <style>{GUIDE_PULSE_KEYFRAMES}</style>
 
       {mode === 'list' && (
-        <button
-          onClick={start}
-          title="Page Guide"
-          style={{
-            padding: '4px 10px',
-            borderRadius: 999,
-            cursor: 'pointer',
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.3)',
-            color: '#A0A0C8',
-            fontSize: 12,
-            fontWeight: 600,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            flexShrink: 0,
-            fontFamily: 'inherit',
-            lineHeight: 1.4,
-          }}
-        >
+        <button onClick={start} title="Page Guide" style={{
+          padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.3)',
+          color: '#A0A0C8', fontSize: 12, fontWeight: 600,
+          display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+          fontFamily: 'inherit', lineHeight: 1.4,
+        }}>
           📖 Guide
         </button>
       )}
 
       {active && step && stepVisibleHere && ready && !showCompletionCard && (
         <>
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.5)',
-              zIndex: 10000,
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            style={{
-              ...cardPos,
-              maxWidth: cardW,
-              background: 'rgba(15,15,30,0.95)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 12,
-              padding: '14px 16px',
-              boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-            }}
-          >
-            {arrow && !isMobile && <div style={arrow} />}
-
-            <button
-              onClick={exit}
-              title="Exit Guide"
-              style={{
-                position: 'absolute',
-                top: 6,
-                right: 6,
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#8080A8',
-                padding: 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                lineHeight: 1,
-                fontFamily: 'inherit',
-              }}
-            >
-              ✕
-            </button>
-
-            <div
-              style={{
-                fontSize: 10,
-                color: '#8080A8',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                marginBottom: 6,
-                paddingRight: 24,
-                textAlign: 'right',
-              }}
-            >
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, pointerEvents: 'none' }} />
+          <div ref={cardRef} style={{ ...GUIDE_CARD_STYLE, ...cardPos, padding: '14px 16px' }}>
+            {arrowStyle && <div style={arrowStyle} />}
+            <button onClick={exit} title="Exit Guide" style={{
+              position: 'absolute', top: 6, right: 6, background: 'none', border: 'none',
+              cursor: 'pointer', color: '#8080A8', padding: 4, fontSize: 12, lineHeight: 1, fontFamily: 'inherit',
+            }}>✕</button>
+            <div style={{ fontSize: 10, color: '#8080A8', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6, paddingRight: 24, textAlign: 'right' }}>
               {idx + 1} / {STEPS.length}
             </div>
-
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#FFFFFF', marginBottom: 6 }}>
-              {step.title}
-            </div>
-            <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.55, marginBottom: 12 }}>
-              {step.body}
-            </div>
-
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#FFFFFF', marginBottom: 4 }}>{step.title}</div>
+            <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.55, marginBottom: 12 }}>{step.body}</div>
             {step.interactive && step.interactivePrompt && (
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#FFB800',
-                  background: 'rgba(255,184,0,0.08)',
-                  border: '1px solid rgba(255,184,0,0.25)',
-                  borderRadius: 8,
-                  padding: '8px 10px',
-                  marginBottom: 10,
-                  lineHeight: 1.4,
-                }}
-              >
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#FFB800', background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)', borderRadius: 8, padding: '8px 10px', marginBottom: 10, lineHeight: 1.4 }}>
                 👉 {step.interactivePrompt}
               </div>
             )}
-
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-              <button
-                onClick={exit}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#8080A8',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: 0,
-                  fontFamily: 'inherit',
-                }}
-              >
-                ✕ Exit Guide
-              </button>
+              <button onClick={exit} style={GUIDE_LINK_BTN}>Skip</button>
               <div style={{ display: 'flex', gap: 6 }}>
-                {idx > 0 && (
-                  <button
-                    onClick={back}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      background: 'transparent',
-                      color: '#A0A0C8',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    ← Back
-                  </button>
-                )}
+                {idx > 0 && <button onClick={back} style={GUIDE_GHOST_BTN}>← Back</button>}
                 {!step.interactive && (
-                  <button
-                    onClick={next}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      background: '#D4226A',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      fontSize: 12,
-                      fontWeight: 800,
-                      fontFamily: 'inherit',
-                    }}
-                  >
+                  <button onClick={next} style={GUIDE_PRIMARY_BTN}>
                     {idx >= STEPS.length - 1 ? 'Finish' : 'Next →'}
                   </button>
                 )}
@@ -493,80 +348,29 @@ export default function StudentsPageGuide({ mode }: { mode: GuidePage }) {
 
       {showCompletionCard && (
         <>
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.5)',
-              zIndex: 10000,
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            style={{
-              position: 'fixed',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 'min(320px, calc(100vw - 24px))',
-              background: 'rgba(15,15,30,0.96)',
-              border: '1px solid rgba(255,184,0,0.3)',
-              borderRadius: 14,
-              padding: '18px 20px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-              zIndex: 10002,
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-            }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#FFB800', marginBottom: 8 }}>
-              Handoff Report Generated ✨
-            </div>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, pointerEvents: 'none' }} />
+          <div style={{
+            position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+            width: 'min(320px, calc(100vw - 24px))',
+            ...GUIDE_CARD_STYLE, padding: '18px 20px', zIndex: 10002,
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#FFB800', marginBottom: 8 }}>Handoff Report Generated</div>
             <div style={{ fontSize: 12.5, color: '#C0C0E0', lineHeight: 1.55, marginBottom: 14 }}>
               That's the handoff report. It captures everything a new teacher needs to know — no verbal briefing required.
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                onClick={finishCompletion}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  background: '#D4226A',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 800,
-                  fontFamily: 'inherit',
-                }}
-              >
-                Finish Guide
-              </button>
+              <button onClick={finishCompletion} style={GUIDE_PRIMARY_BTN}>Finish Guide</button>
             </div>
           </div>
         </>
       )}
 
       {showToast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 100,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(15,15,30,0.95)',
-            border: '1px solid rgba(255,184,0,0.3)',
-            borderRadius: 10,
-            padding: '10px 16px',
-            fontSize: 12,
-            color: '#E0E0F4',
-            fontWeight: 600,
-            zIndex: 10003,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-            animation: 'studentsGuideToast 220ms ease',
-            whiteSpace: 'nowrap',
-          }}
-        >
+        <div style={{
+          position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
+          ...GUIDE_CARD_STYLE, padding: '10px 16px', fontSize: 12, color: '#E0E0F4', fontWeight: 600,
+          zIndex: 10003, whiteSpace: 'nowrap',
+        }}>
           Students guide complete. Tap 📖 Guide anytime to replay.
         </div>
       )}

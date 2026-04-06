@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  getCardPosition, getArrowStyle, guideCardWidth,
+  GUIDE_CARD_STYLE, GUIDE_PRIMARY_BTN, GUIDE_GHOST_BTN, GUIDE_LINK_BTN, GUIDE_PULSE_KEYFRAMES,
+} from '../shared/guidePosition'
 
 type TabKey = 'active' | 'at-risk' | 'win-back' | 'campaigns'
 
@@ -125,7 +129,6 @@ export function RetentionGuide({
     const handler = (e: MouseEvent) => {
       const targetEl = (e.target as HTMLElement)?.closest(step.target)
       if (targetEl) {
-        // Give the user's click time to process, then advance
         setTimeout(() => setStepIdx((i) => i + 1), 200)
       }
     }
@@ -141,7 +144,6 @@ export function RetentionGuide({
 
   if (!step) return null
 
-  // Wait for tab switch to settle before spotlighting
   const tabMatches = activeTab === step.requireTab
 
   return (
@@ -159,16 +161,8 @@ export function RetentionGuide({
   )
 }
 
-// ───────── Step Overlay (mirrors OnboardingContext style) ─────────
 function StepOverlay({
-  step,
-  stepNumber,
-  total,
-  onNext,
-  onBack,
-  onSkip,
-  canGoBack,
-  waitingForTab,
+  step, stepNumber, total, onNext, onBack, onSkip, canGoBack, waitingForTab,
 }: {
   step: GuideStep
   stepNumber: number
@@ -181,14 +175,16 @@ function StepOverlay({
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null)
   const [ready, setReady] = useState(false)
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
   const elRef = useRef<HTMLElement | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [cardDims, setCardDims] = useState({ w: guideCardWidth(), h: 200 })
 
+  // Measure card after render
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
-  }, [])
+    if (!ready || !cardRef.current) return
+    const r = cardRef.current.getBoundingClientRect()
+    setCardDims({ w: r.width, h: r.height })
+  }, [ready, step.id])
 
   useEffect(() => {
     setReady(false)
@@ -215,7 +211,7 @@ function StepOverlay({
             if (cancelled) return
             setRect(el.getBoundingClientRect())
             setReady(true)
-          }, 300)
+          }, 400)
           return
         }
         if (tries++ < 30) setTimeout(tick, 100)
@@ -250,59 +246,52 @@ function StepOverlay({
     }
   }, [step.target])
 
-  const cardW = 300
-
+  // Smart positioning
+  const cardW = guideCardWidth()
   let cardPos: React.CSSProperties
-  if (isMobile || !rect) {
-    cardPos = { position: 'fixed', bottom: 80, left: 12, right: 12, zIndex: 10002 }
-  } else {
-    const placeAbove = window.innerHeight - rect.bottom < 240
-    const verticalGap = 16
-    const top = placeAbove ? rect.top - verticalGap : rect.bottom + verticalGap
-    const transform = placeAbove ? 'translateY(-100%)' : 'none'
-    let left = rect.left + rect.width / 2 - cardW / 2
-    left = Math.max(12, Math.min(left, window.innerWidth - cardW - 12))
-    cardPos = { position: 'fixed', top, left, transform, width: cardW, zIndex: 10002 }
-  }
+  let arrowStyle: React.CSSProperties | null = null
 
-  if (!ready) {
-    return (
-      <>
-        <style>{pulseKeyframes}</style>
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, pointerEvents: 'none' }} />
-      </>
-    )
+  if (!rect) {
+    cardPos = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: cardW, zIndex: 10002 }
+  } else {
+    const pos = getCardPosition(rect, cardW, cardDims.h)
+    cardPos = { position: 'fixed', top: pos.top, left: pos.left, width: cardW, zIndex: 10002 }
+    arrowStyle = getArrowStyle(pos.placement, rect, pos.left, pos.top, cardW, cardDims.h)
   }
 
   const isInteractive = step.waitForClick
 
+  if (!ready) {
+    return (
+      <>
+        <style>{GUIDE_PULSE_KEYFRAMES}</style>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, pointerEvents: 'none' }} />
+      </>
+    )
+  }
+
   return (
     <>
-      <style>{pulseKeyframes}</style>
-      <div
-        style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-          zIndex: 10000,
-          pointerEvents: isInteractive ? 'none' : 'none',
-        }}
-      />
-      <div style={{ ...cardStyle, ...cardPos, padding: 16 }}>
-        <div style={{ fontSize: 10, color: '#8080A8', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>
+      <style>{GUIDE_PULSE_KEYFRAMES}</style>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, pointerEvents: 'none' }} />
+      <div ref={cardRef} style={{ ...GUIDE_CARD_STYLE, ...cardPos, padding: 14 }}>
+        {arrowStyle && <div style={arrowStyle} />}
+        <div style={{ fontSize: 10, color: '#8080A8', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 4 }}>
           {stepNumber} / {total}
         </div>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', marginBottom: 6 }}>{step.title}</div>
-        <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 14 }}>{step.body}</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#FFFFFF', marginBottom: 4 }}>{step.title}</div>
+        <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 12 }}>{step.body}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={onSkip} style={linkBtn}>Close Guide</button>
+          <button onClick={onSkip} style={GUIDE_LINK_BTN}>Skip</button>
           <div style={{ display: 'flex', gap: 6 }}>
-            {canGoBack && <button onClick={onBack} style={ghostBtn}>Back</button>}
+            {canGoBack && <button onClick={onBack} style={GUIDE_GHOST_BTN}>Back</button>}
             {!isInteractive && (
-              <button onClick={onNext} style={primaryBtn}>
+              <button onClick={onNext} style={GUIDE_PRIMARY_BTN}>
                 {stepNumber === total ? 'Finish' : 'Next →'}
               </button>
             )}
             {isInteractive && (
-              <button onClick={onNext} style={ghostBtn}>Skip →</button>
+              <button onClick={onNext} style={GUIDE_GHOST_BTN}>Skip →</button>
             )}
           </div>
         </div>
@@ -311,7 +300,6 @@ function StepOverlay({
   )
 }
 
-// ───────── Completion Toast ─────────
 function CompletionToast({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     const t = setTimeout(onDone, 3200)
@@ -320,44 +308,10 @@ function CompletionToast({ onDone }: { onDone: () => void }) {
   return (
     <div style={{
       position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 10003, padding: '14px 20px', borderRadius: 12,
-      background: 'rgba(15,15,30,0.96)',
-      border: '1px solid rgba(34,197,94,0.3)',
-      boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
-      fontSize: 13, fontWeight: 600, color: '#E0E0F4',
-      maxWidth: 360, textAlign: 'center',
+      zIndex: 10003, ...GUIDE_CARD_STYLE, padding: '14px 20px',
+      fontSize: 13, fontWeight: 600, color: '#E0E0F4', maxWidth: 360, textAlign: 'center',
     }}>
       Retention guide complete. Tap 📖 Guide anytime to replay.
     </div>
   )
-}
-
-const pulseKeyframes = `@keyframes guidePulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(255,184,0,0.6); }
-  50% { box-shadow: 0 0 0 7px rgba(255,184,0,0.15); }
-}`
-
-const cardStyle: React.CSSProperties = {
-  background: 'rgba(15,15,30,0.92)',
-  backdropFilter: 'blur(12px)',
-  WebkitBackdropFilter: 'blur(12px)',
-  border: '1px solid rgba(255,255,255,0.08)',
-  borderRadius: 14,
-  boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
-}
-
-const primaryBtn: React.CSSProperties = {
-  padding: '8px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-  background: '#D4226A', color: '#FFFFFF', fontSize: 13, fontWeight: 800,
-}
-
-const ghostBtn: React.CSSProperties = {
-  padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
-  background: 'transparent', color: '#A0A0C8',
-  border: '1px solid rgba(255,255,255,0.12)', fontSize: 13, fontWeight: 600,
-}
-
-const linkBtn: React.CSSProperties = {
-  background: 'none', border: 'none', cursor: 'pointer',
-  color: '#8080A8', fontSize: 12, fontWeight: 500, padding: 0,
 }

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { getCardPosition, getArrowStyle, guideCardWidth } from '../components/shared/guidePosition'
 
 export interface TourStep {
   id: string
@@ -361,33 +362,17 @@ function StepOverlay({
     }
   }, [step.targetSelector])
 
-  const cardW = 280
+  const cardW = guideCardWidth()
+  const cardH = 200 // estimated
 
   let cardPos: React.CSSProperties
   let arrow: React.CSSProperties | null = null
-  if (isMobile || !rect) {
-    cardPos = { position: 'fixed', bottom: 80, left: 12, right: 12, zIndex: 10002 }
+  if (!rect) {
+    cardPos = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: cardW, zIndex: 10002 }
   } else {
-    const placeAbove = step.tooltipAbove || (window.innerHeight - rect.bottom < 200)
-    const verticalGap = 16
-    const top = placeAbove ? rect.top - verticalGap : rect.bottom + verticalGap
-    const transform = placeAbove ? 'translateY(-100%)' : 'none'
-    let left = rect.left + rect.width / 2 - cardW / 2
-    left = Math.max(12, Math.min(left, window.innerWidth - cardW - 12))
-    cardPos = { position: 'fixed', top, left, transform, width: cardW, zIndex: 10002 }
-
-    const arrowLeft = rect.left + rect.width / 2 - left - 8
-    arrow = {
-      position: 'absolute',
-      left: Math.max(12, Math.min(arrowLeft, cardW - 24)),
-      width: 16, height: 16,
-      background: 'rgba(15,15,30,0.92)',
-      borderLeft: '1px solid rgba(255,255,255,0.08)',
-      borderTop: '1px solid rgba(255,255,255,0.08)',
-      ...(placeAbove
-        ? { bottom: -8, transform: 'rotate(225deg)' }
-        : { top: -8, transform: 'rotate(45deg)' }),
-    }
+    const pos = getCardPosition(rect, cardW, cardH)
+    cardPos = { position: 'fixed', top: pos.top, left: pos.left, width: cardW, zIndex: 10002 }
+    arrow = getArrowStyle(pos.placement, rect, pos.left, pos.top, cardW, cardH) as any
   }
 
   if (!ready) return <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, pointerEvents: 'none' }} />
@@ -396,7 +381,7 @@ function StepOverlay({
     <>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, pointerEvents: 'none' }} />
       <div style={{ ...cardStyle, ...cardPos, padding: 16 }}>
-        {arrow && !isMobile && <div style={arrow} />}
+        {arrow && <div style={arrow} />}
         <div style={{ fontSize: 10, color: '#8080A8', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>
           {stepNumber} / {total}
         </div>
