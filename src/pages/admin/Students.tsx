@@ -56,6 +56,7 @@ export default function Students() {
   const { data: teacherList } = useTeachers()
   const { data: familyList } = useFamilies()
   const canEdit = role === 'owner' || role === 'admin'
+  const canCreate = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
   const canExport = role === 'owner' || role === 'admin' || role === 'company_director'
   const { canDo, isStudioDirector, locationIds: scopedLocationIds } = usePermissions()
   const lockedLocationId = isStudioDirector ? scopedLocationIds[0] ?? '' : null
@@ -243,7 +244,7 @@ export default function Students() {
             )}
           </div>
 
-          {canEdit && (
+          {canCreate && (
             <button className="btn-primary" onClick={() => setShowAddStudent(true)}>
               + Add Student
             </button>
