@@ -18,7 +18,6 @@ import './drums.css'
 // DATA
 // ═══════════════════════════════════════
 
-const ENROLLMENT_URL = '/intake/adkins-music-lessons'
 
 // Drum pad config
 const CACHE_V = '20260331b'
@@ -132,6 +131,7 @@ export default function DrumsLanding() {
   const { pathname } = useRouterLocation()
   const loc = siteLoc.key as LocKey
   const LD = LOCATIONS[loc]
+  const enrollmentUrl = `/${loc}/signup`
   const currentInstrument = pathname.split('/')[2] || 'drums'
 
   useLocationTracking(LD)
@@ -268,7 +268,7 @@ export default function DrumsLanding() {
           <div className="ak-hctas" style={{ marginTop: 24 }}>
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 200, height: 60, borderRadius: '50%', background: 'var(--c)', filter: 'blur(40px)', animation: 'glowPulse 3.5s ease-in-out infinite', opacity: 0.35, pointerEvents: 'none', zIndex: 0 }} />
-              <a className="ak-btnp" href={ENROLLMENT_URL} style={{ color: '#ffffff', position: 'relative', zIndex: 1 }}>Sign Up For Lessons Now {'\u{2192}'}</a>
+              <a className="ak-btnp" href={enrollmentUrl} style={{ color: '#ffffff', position: 'relative', zIndex: 1 }}>Sign Up For Lessons Now {'\u{2192}'}</a>
             </div>
           </div>
           <HeroTestimonial
@@ -408,7 +408,7 @@ export default function DrumsLanding() {
               <div className="ak-pcard" key={i} style={{ cursor: 'pointer', textAlign: 'center' }}>
                 <h3>{t.name}</h3>
                 <p>{t.desc}</p>
-                <a href={ENROLLMENT_URL} style={{ display: 'inline-block', marginTop: 14, fontSize: 13, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>{'\u{2192}'} This sounds like me</a>
+                <a href={enrollmentUrl} style={{ display: 'inline-block', marginTop: 14, fontSize: 13, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>{'\u{2192}'} This sounds like me</a>
               </div>
             ))}
           </div>
@@ -440,7 +440,7 @@ export default function DrumsLanding() {
         <div style={{ textAlign: 'center', marginTop: 36 }}>
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 280, height: 80, borderRadius: '50%', background: 'var(--c)', filter: 'blur(40px)', animation: 'glowPulse 3.2s ease-in-out infinite', opacity: 0.45, pointerEvents: 'none', zIndex: 0 }} />
-            <a className="ak-btnp" href={ENROLLMENT_URL} style={{ color: '#ffffff', background: LD.accentColor, position: 'relative', zIndex: 1 }}>Sign Up Now {'\u{2192}'}</a>
+            <a className="ak-btnp" href={enrollmentUrl} style={{ color: '#ffffff', background: LD.accentColor, position: 'relative', zIndex: 1 }}>Sign Up Now {'\u{2192}'}</a>
           </div>
         </div>
       </section>
@@ -500,7 +500,7 @@ export default function DrumsLanding() {
               </button>
               <div className={`dr-faq-a${openFaq === i ? ' open' : ''}`}>
                 <p>{f.a}</p>
-                {f.link && <a href={ENROLLMENT_URL} style={{ display: 'inline-block', marginTop: 8, fontSize: 13, fontWeight: 600, color: LD.accentColor, textDecoration: 'none' }}>Fill out the form {'\u{2192}'}</a>}
+                {f.link && <a href={enrollmentUrl} style={{ display: 'inline-block', marginTop: 8, fontSize: 13, fontWeight: 600, color: LD.accentColor, textDecoration: 'none' }}>Fill out the form {'\u{2192}'}</a>}
               </div>
             </div>
           ))}
@@ -655,7 +655,7 @@ export default function DrumsLanding() {
         <div className="ak-fbtns">
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 380, height: 100, borderRadius: '50%', background: 'var(--c)', filter: 'blur(40px)', animation: 'glowPulse 3s ease-in-out infinite', opacity: 0.55, pointerEvents: 'none', zIndex: 0 }} />
-            <a className="ak-btnp" style={{ fontSize: 16, padding: '16px 34px', color: '#ffffff', background: LD.accentColor, position: 'relative', zIndex: 1 }} href={ENROLLMENT_URL}>Get Signed Up Now {'\u{2192}'}</a>
+            <a className="ak-btnp" style={{ fontSize: 16, padding: '16px 34px', color: '#ffffff', background: LD.accentColor, position: 'relative', zIndex: 1 }} href={enrollmentUrl}>Get Signed Up Now {'\u{2192}'}</a>
           </div>
         </div>
       </section>
