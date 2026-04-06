@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { usePermissions } from './usePermissions'
 
 interface MonthTally {
   month: string // 'YYYY-MM'
@@ -18,9 +19,10 @@ interface PaySummary {
 }
 
 export function useTeacherPaySummary(teacherId: string | undefined) {
+  const { canViewTeacherCompensation } = usePermissions()
   return useQuery({
     queryKey: ['teacher-pay-summary', teacherId],
-    enabled: !!teacherId,
+    enabled: !!teacherId && canViewTeacherCompensation,
     queryFn: async (): Promise<PaySummary> => {
       // Get all completed sessions for this teacher
       const { data: sessions, error } = await supabase
@@ -80,8 +82,10 @@ export function useTeacherPaySummary(teacherId: string | undefined) {
 
 // For the teachers list — current month blocks × rate per teacher
 export function useTeachersMonthlyTally() {
+  const { canViewTeacherCompensation } = usePermissions()
   return useQuery({
     queryKey: ['teachers-monthly-tally'],
+    enabled: canViewTeacherCompensation,
     queryFn: async () => {
       const now = new Date()
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`

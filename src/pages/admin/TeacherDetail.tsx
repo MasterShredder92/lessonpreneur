@@ -18,6 +18,7 @@ import { toast } from '../../components/shared/Toast'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import TeachersPageGuide from '../../components/admin/TeachersPageGuide'
+import { usePermissions } from '../../hooks/usePermissions'
 
 const DAYS_ORDERED = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
 const DAY_LABELS: Record<string, string> = {
@@ -49,6 +50,7 @@ export default function TeacherDetail() {
   const { data: blocks } = useTeacherBlocks(id)
   const { data: locations } = useLocations()
   const updateTeacher = useUpdateTeacher()
+  const { canViewTeacherCompensation, canViewTeacherDocuments, isStudioDirector: isSD, locationIds: sdLocationIds } = usePermissions()
   const { data: paySummary } = useTeacherPaySummary(id)
   const { data: calloutTally } = useTeacherCalloutTally(id)
   const { data: calloutHistory } = useTeacherCalloutHistory(id)
@@ -75,10 +77,10 @@ export default function TeacherDetail() {
 
   // ─── Availability editor (shared modal) ───
 
-  // ─── Teacher Notes query ───
+  // ─── Teacher Notes query (gated to canEdit — owner/admin only) ───
   const { data: teacherNotes, refetch: refetchNotes } = useQuery({
     queryKey: ['teacher-notes', id],
-    enabled: !!id,
+    enabled: !!id && canEdit,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('teacher_notes')
@@ -102,10 +104,10 @@ export default function TeacherDetail() {
     },
   })
 
-  // ─── Teacher Documents query ───
+  // ─── Teacher Documents query (restricted — never fetched for studio directors) ───
   const { data: teacherDocs, refetch: refetchDocs } = useQuery({
     queryKey: ['teacher-documents', id],
-    enabled: !!id,
+    enabled: !!id && canViewTeacherDocuments,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('teacher_documents')
@@ -247,7 +249,9 @@ export default function TeacherDetail() {
       <div className="td-mobile-tabs">
         <button className={`td-mobile-tab${mobileTab === 'overview' ? ' active' : ''}`} onClick={() => setMobileTab('overview')}>Overview</button>
         <button className={`td-mobile-tab${mobileTab === 'profile' ? ' active' : ''}`} onClick={() => setMobileTab('profile')}>Profile</button>
-        <button className={`td-mobile-tab${mobileTab === 'documents' ? ' active' : ''}`} onClick={() => setMobileTab('documents')}>Documents</button>
+        {canViewTeacherDocuments && (
+          <button className={`td-mobile-tab${mobileTab === 'documents' ? ' active' : ''}`} onClick={() => setMobileTab('documents')}>Documents</button>
+        )}
       </div>
 
       {/* ══════════════════════════════════════════════════ */}
@@ -337,10 +341,12 @@ export default function TeacherDetail() {
                 <div style={fieldLabelStyle}>Phone</div>
                 <span style={{ fontSize: 13, color: '#E0E0F4', fontWeight: 700 }}>{teacherPhone ?? '—'}</span>
               </div>
-              <div>
-                <div style={fieldLabelStyle}>Pay Rate</div>
-                <span style={{ fontSize: 16, color: '#22C55E', fontWeight: 800 }}>${payRate.toFixed(2)}<span style={{ fontSize: 11, color: '#8080A8', fontWeight: 500 }}>/30 min</span></span>
-              </div>
+              {canViewTeacherCompensation && (
+                <div>
+                  <div style={fieldLabelStyle}>Pay Rate</div>
+                  <span style={{ fontSize: 16, color: '#22C55E', fontWeight: 800 }}>${payRate.toFixed(2)}<span style={{ fontSize: 11, color: '#8080A8', fontWeight: 500 }}>/30 min</span></span>
+                </div>
+              )}
             </div>
             <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 12, paddingTop: 10, display: 'flex', gap: 16 }}>
               <div style={{ textAlign: 'center' }}>
@@ -427,10 +433,12 @@ export default function TeacherDetail() {
               <div style={fieldLabelStyle}>Phone</div>
               <span style={{ fontSize: 12, color: '#E0E0F4', fontWeight: 700 }}>{teacherPhone ?? '—'}</span>
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={fieldLabelStyle}>Pay Rate</div>
-              <span style={{ fontSize: 14, color: '#22C55E', fontWeight: 800 }}>${payRate.toFixed(2)}<span style={{ fontSize: 10, color: '#8080A8', fontWeight: 500 }}>/30m</span></span>
-            </div>
+            {canViewTeacherCompensation && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={fieldLabelStyle}>Pay Rate</div>
+                <span style={{ fontSize: 14, color: '#22C55E', fontWeight: 800 }}>${payRate.toFixed(2)}<span style={{ fontSize: 10, color: '#8080A8', fontWeight: 500 }}>/30m</span></span>
+              </div>
+            )}
           </div>
 
           {/* Stats row */}
@@ -513,7 +521,11 @@ export default function TeacherDetail() {
       {/* 2b. STUDENT ROSTER (Overview tab)                   */}
       {/* ══════════════════════════════════════════════════ */}
       {(() => {
-        const active = students?.filter((s: any) => s.status === 'active') ?? []
+        const allActive = students?.filter((s: any) => s.status === 'active') ?? []
+        // Studio directors: only see students at their assigned location(s)
+        const active = isSD
+          ? allActive.filter((s: any) => sdLocationIds.includes(s.location_id))
+          : allActive
         if (active.length === 0) return null
         return (
           <div className={`td-section td-tab-overview${mobileTab !== 'overview' ? ' td-tab-hidden' : ''}`} style={{ marginBottom: 14 }}>
@@ -807,28 +819,8 @@ export default function TeacherDetail() {
       {/* (Availability moved above Internal Notes) */}
 
       {/* Private Documents + Pay Summary — side by side (desktop) / stacked (mobile documents tab) */}
-      {!canEdit && (
-        <div className={`td-section td-tab-documents${mobileTab !== 'documents' ? ' td-tab-hidden' : ''}`} style={{ marginBottom: 14 }}>
-          <div className="location-card" data-tour-id="private-documents" style={{ padding: 18, cursor: 'default' }}>
-            <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #606088, #363656)', boxShadow: 'none' }} />
-            <div className="loc-card-glow" style={{ background: 'none' }} />
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span style={sectionLabelStyle}>Private Documents</span>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 100,
-                  background: 'rgba(255,255,255,0.05)', color: '#8080A8',
-                  border: '1px solid rgba(255,255,255,0.1)', letterSpacing: '0.05em',
-                }}>RESTRICTED</span>
-              </div>
-              <p style={{ fontSize: 12, color: '#8080A8', lineHeight: 1.55, margin: 0 }}>
-                W-9s, contracts, and personal uploaded documents are between the teacher and the company. Studio directors don't have access to these files.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-      {canEdit && (
+      {/* Studio directors: this entire section does not render — no placeholder, no restricted label */}
+      {canViewTeacherDocuments && canEdit && (
         <div className={`td-section td-docs-grid td-tab-documents${mobileTab !== 'documents' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div className="location-card" data-tour-id="private-documents" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #606088, #363656)', boxShadow: 'none' }} />

@@ -242,7 +242,7 @@ export function useFamilyDetail(familyId: string | undefined) {
 
       const { data: students } = await supabase
         .from('students')
-        .select('id, first_name, last_name, instrument, status, teacher_id, sessions_per_month, pause_reason, deactivated_at')
+        .select('id, first_name, last_name, instrument, status, teacher_id, sessions_per_month, pause_reason, deactivated_at, created_at')
         .eq('family_id', familyId!)
         .order('status')
         .order('last_name')

@@ -1,10 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Teacher, TeacherAvailability, Student } from '../lib/types'
+import { usePermissions } from './usePermissions'
+
+// Columns that studio directors must never see
+const COMPENSATION_FIELDS = ['pay_rate_per_half_hour', 'rate_per_block', 'needs_1099'] as const
+
+function stripCompensation(teacher: any): any {
+  const stripped = { ...teacher }
+  for (const field of COMPENSATION_FIELDS) {
+    delete stripped[field]
+  }
+  return stripped
+}
 
 export function useTeachers() {
+  const { canViewTeacherCompensation, canViewTeacherDocuments } = usePermissions()
   return useQuery({
-    queryKey: ['teachers'],
+    queryKey: ['teachers', canViewTeacherCompensation],
     queryFn: async () => {
       const { data: teachers, error } = await supabase
         .from('teachers')
@@ -94,21 +107,28 @@ export function useTeachers() {
 
         const tLocIds = [...(locsByTeacher.get(t.id) ?? [])]
 
-        return {
+        const base = {
           ...t,
           location_ids: tLocIds,
           location_names: tLocIds.map((id: string) => locMap.get(id) ?? 'Unknown'),
           student_count: studentCounts.get(t.id) ?? 0,
           blocks_this_week: blockCounts.get(t.id) ?? 0,
         }
+
+        // Strip compensation + compliance fields for studio directors
+        if (!canViewTeacherCompensation) {
+          return stripCompensation({ ...base, w9_status: undefined, w9_completed_at: undefined, contract_status: undefined, contract_signed_at: undefined, contract_pdf_url: undefined })
+        }
+        return base
       }) as (Teacher & { location_names: string[] })[]
     },
   })
 }
 
 export function useTeacher(id: string | undefined) {
+  const { canViewTeacherCompensation } = usePermissions()
   return useQuery({
-    queryKey: ['teacher', id],
+    queryKey: ['teacher', id, canViewTeacherCompensation],
     enabled: !!id,
     queryFn: async () => {
       const { data: teacher, error } = await supabase
@@ -121,6 +141,11 @@ export function useTeacher(id: string | undefined) {
         .single()
 
       if (error) throw error
+
+      // Strip compensation fields for studio directors
+      if (!canViewTeacherCompensation) {
+        return stripCompensation({ ...teacher, w9_status: undefined, w9_completed_at: undefined, contract_status: undefined, contract_signed_at: undefined, contract_pdf_url: undefined }) as Teacher & { profile: any }
+      }
       return teacher as Teacher & { profile: any }
     },
   })

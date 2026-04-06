@@ -107,6 +107,10 @@ export function usePermissions() {
   const isTeacher = effectiveRole === 'teacher'
   const isParent = effectiveRole === 'parent'
 
+  // Teacher compensation + documents — owner, company_director, admin only
+  const canViewTeacherCompensation = isOwner || isCompanyDirector
+  const canViewTeacherDocuments = isOwner || isCompanyDirector
+
   return {
     canDo, isAtLeast,
     role: effectiveRole, // exposed role is always the effective one
@@ -117,6 +121,8 @@ export function usePermissions() {
     canAccessLocation,
     isOwner, isCompanyDirector, isStudioDirector, isTeacher, isParent,
     isPreviewActive: preview.active,
+    canViewTeacherCompensation,
+    canViewTeacherDocuments,
   }
 }
 

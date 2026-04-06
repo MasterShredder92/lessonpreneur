@@ -25,6 +25,9 @@ import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instru
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
+import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
+import { useLastReviewRequest } from '../../hooks/useReviewRequest'
+import LinkFamilyModal from '../../components/students/LinkFamilyModal'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -77,6 +80,8 @@ export default function StudentDetail() {
   const addCreditMutation = useAddSessionCredit()
   const churnRisk = useStudentChurnRisk(id)
   const { data: studentInstruments } = useStudentInstruments(id)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [showLinkFamily, setShowLinkFamily] = useState(false)
 
   // Load student with family + teacher + location
   const { data: student, isLoading, error } = useQuery({
@@ -98,7 +103,7 @@ export default function StudentDetail() {
       const { data: loc } = await supabase.from('locations').select('name').eq('id', data.location_id).single()
 
       // Get siblings (other students in same family)
-      const { data: siblings } = await supabase.from('students').select('id, first_name, last_name, instrument, status').eq('family_id', data.family_id).neq('id', data.id)
+      const { data: siblings } = await supabase.from('students').select('id, first_name, last_name, instrument, status, created_at').eq('family_id', data.family_id).neq('id', data.id)
 
       const activeStudentCount = (siblings ?? []).filter((s: any) => s.status === 'active').length + (data.status === 'active' ? 1 : 0)
 
@@ -597,7 +602,13 @@ export default function StudentDetail() {
                 })()}
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                   <span style={{ fontSize: 11, color: '#8080A8' }}>{(student as any).family_student_count ?? 1} student{((student as any).family_student_count ?? 1) !== 1 ? 's' : ''} in family</span>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => setShowReviewModal(true)}
+                      style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'rgba(212,34,106,0.08)', border: '1px solid rgba(212,34,106,0.2)', color: '#D4226A', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                    >
+                      <Star size={10} /> Generate Review Request
+                    </button>
                     {(canDo('teachers.edit_pay_rate') || role === 'owner') && (
                       <button className="btn-ghost" onClick={() => setShowRateOverrideModal(true)} style={{ fontSize: 10, color: '#6366F1', padding: '3px 8px' }}>
                         Override Rate
@@ -622,7 +633,7 @@ export default function StudentDetail() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#D97706', marginBottom: 4 }}>No family linked</div>
                 <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 14 }}>This student is not connected to a family record.</div>
                 <button
-                  onClick={() => navigate(`/admin/families`)}
+                  onClick={() => setShowLinkFamily(true)}
                   style={{
                     padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)', color: '#D97706',
@@ -1326,6 +1337,36 @@ export default function StudentDetail() {
           onClose={() => setShowSessionCreditModal(false)}
           addCreditMutation={addCreditMutation}
           onSuccess={() => { setShowSessionCreditModal(false); toast('Session credit added', 'success') }}
+        />
+      )}
+
+      {showReviewModal && student.family_id && (
+        <ReviewRequestModal
+          familyId={student.family_id}
+          familyName={student.family_name ?? ''}
+          parentName={student.family_parent_name ?? student.family_contact ?? ''}
+          locationId={student.location_id}
+          students={[
+            { name: `${student.first_name ?? ''} ${student.last_name ?? ''}`.trim(), instrument: student.instrument ?? 'music', createdAt: student.created_at ?? new Date().toISOString() },
+            ...((student.siblings ?? []).filter((s: any) => s.status === 'active').map((s: any) => ({
+              name: `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim(),
+              instrument: s.instrument ?? 'music',
+              createdAt: s.created_at ?? new Date().toISOString(),
+            }))),
+          ]}
+          onClose={() => setShowReviewModal(false)}
+        />
+      )}
+
+      {showLinkFamily && student && (
+        <LinkFamilyModal
+          studentId={student.id}
+          studentName={`${student.first_name ?? ''} ${student.last_name ?? ''}`.trim()}
+          onClose={() => setShowLinkFamily(false)}
+          onLinked={(familyId) => {
+            setShowLinkFamily(false)
+            qc.invalidateQueries({ queryKey: ['student-detail', id] })
+          }}
         />
       )}
     </div>

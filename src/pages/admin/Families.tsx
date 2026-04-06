@@ -10,7 +10,7 @@ import { formatRate, getRateTierColor } from '../../hooks/useFamilyRate'
 import { useAI } from '../../hooks/useAI'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
-import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send } from 'lucide-react'
+import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send, Plus } from 'lucide-react'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { useReactivateStudent } from '../../hooks/useRetention'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
@@ -22,6 +22,9 @@ import { IssueContextProvider } from '../../contexts/IssueContext'
 import { logAudit } from '../../lib/auditLog'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import FamiliesPageGuide from '../../components/admin/FamiliesPageGuide'
+import AddFamilyModal from '../../components/admin/AddFamilyModal'
+import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
+import { useLastReviewRequest } from '../../hooks/useReviewRequest'
 
 // ═══════════════════════════════════════
 // DISPLAY HELPERS
@@ -114,8 +117,10 @@ export default function Families() {
 
   const canEdit = role === 'owner' || role === 'admin'
   const canExport = role === 'owner' || role === 'admin' || role === 'company_director'
+  const canCreate = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
   const canView = isAtLeast('studio_director')
   const [showExport, setShowExport] = useState(false)
+  const [showAddFamily, setShowAddFamily] = useState(false)
 
   if (!canView && !isLoading) {
     navigate('/login', { replace: true })
@@ -185,6 +190,11 @@ export default function Families() {
           <strong style={{ color: '#E0E0F4' }}>{allFamilies.length}</strong> Total
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {canCreate && (
+            <button className="btn-primary" onClick={() => setShowAddFamily(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '8px 14px' }}>
+              <Plus size={14} /> Add New Family
+            </button>
+          )}
           {canExport && (
             <button className="btn-ghost" onClick={() => setShowExport(true)} style={{ fontSize: 11 }}>Export CSV</button>
           )}
@@ -285,6 +295,17 @@ export default function Families() {
           canEdit={canEdit}
           onClose={() => setSelectedFamilyId(null)}
           onNavigateStudent={(id) => { setSelectedFamilyId(null); navigate(`/admin/students/${id}`) }}
+        />
+      )}
+
+      {/* Add Family Modal */}
+      {showAddFamily && (
+        <AddFamilyModal
+          onClose={() => setShowAddFamily(false)}
+          onCreated={(familyId) => {
+            setShowAddFamily(false)
+            setSelectedFamilyId(familyId)
+          }}
         />
       )}
 
@@ -608,7 +629,14 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   const [deleteConfirm, setDeleteConfirm] = useState<FamilyFile | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showCreateInvoice, setShowCreateInvoice] = useState(false)
-  const [reviewRequested, setReviewRequested] = useState(false)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const { data: lastReviewReq } = useLastReviewRequest(familyId)
+  const reviewRecentlySent = lastReviewReq?.sent_at
+    ? (Date.now() - new Date(lastReviewReq.sent_at).getTime()) < 90 * 24 * 60 * 60 * 1000
+    : false
+  const reviewSentDate = lastReviewReq?.sent_at
+    ? new Date(lastReviewReq.sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
 
   // Edit form — one form for all editable fields, toggled by single Edit button
   const [form, setForm] = useState<Record<string, string>>({})
@@ -1044,31 +1072,18 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </span>
               <button
-                disabled={reviewRequested}
-                onClick={async () => {
-                  if (!family || reviewRequested) return
-                  try {
-                    await supabase.from('review_requests').insert({
-                      tenant_id: family.tenant_id ?? '00000000-0000-0000-0000-000000000001',
-                      family_id: family.id,
-                      location_id: family.location_id ?? family.students?.[0]?.location_id,
-                      sent_at: new Date().toISOString(),
-                      trigger_reason: 'manual_family_profile',
-                    })
-                    setReviewRequested(true)
-                    toast(`Review request sent to ${stripFamily(family.name)}`, 'success')
-                  } catch { toast('Failed to send review request', 'error') }
-                }}
+                disabled={reviewRecentlySent}
+                onClick={() => { if (!reviewRecentlySent) setShowReviewModal(true) }}
                 style={{
                   fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: 8,
-                  background: reviewRequested ? 'rgba(34,197,94,0.08)' : 'rgba(212,34,106,0.08)',
-                  border: `1px solid ${reviewRequested ? 'rgba(34,197,94,0.2)' : 'rgba(212,34,106,0.2)'}`,
-                  color: reviewRequested ? '#22C55E' : '#D4226A',
-                  cursor: reviewRequested ? 'default' : 'pointer',
+                  background: reviewRecentlySent ? 'rgba(34,197,94,0.08)' : 'rgba(212,34,106,0.08)',
+                  border: `1px solid ${reviewRecentlySent ? 'rgba(34,197,94,0.2)' : 'rgba(212,34,106,0.2)'}`,
+                  color: reviewRecentlySent ? '#22C55E' : '#D4226A',
+                  cursor: reviewRecentlySent ? 'default' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 4,
                 }}
               >
-                <Star size={10} /> {reviewRequested ? 'Review Requested' : 'Request Review'}
+                <Star size={10} /> {reviewRecentlySent ? `Review Requested ${reviewSentDate}` : 'Generate Review Request'}
               </button>
               <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#8080A8' }}><X size={16} /></button>
             </div>
@@ -1433,6 +1448,21 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
       {/* Create Invoice from Family */}
       {showCreateInvoice && family && (
         <CreateInvoiceFromFamily family={family} onClose={() => setShowCreateInvoice(false)} />
+      )}
+
+      {showReviewModal && family && (
+        <ReviewRequestModal
+          familyId={family.id}
+          familyName={family.name}
+          parentName={family.parent_name ?? family.primary_contact_name ?? ''}
+          locationId={family.primary_location_id ?? family.students?.[0]?.location_id ?? ''}
+          students={(family.students ?? []).filter((s: any) => s.status === 'active').map((s: any) => ({
+            name: `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim(),
+            instrument: s.instrument ?? 'music',
+            createdAt: s.created_at ?? new Date().toISOString(),
+          }))}
+          onClose={() => setShowReviewModal(false)}
+        />
       )}
     </div>,
     document.body

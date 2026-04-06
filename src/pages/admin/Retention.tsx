@@ -6,7 +6,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { useUserLocations } from '../../hooks/useUserLocations'
 import {
   useValueCardQueue, useGenerateValueCard, useSendValueCard,
-  useReviewQueue, useSendReviewRequest, useRetentionMetrics,
+  useReviewQueue, useRetentionMetrics,
   useAtRiskStudents, useDismissAtRisk,
   useFormerStudents, useLostLeads, useWinBackMetrics,
 } from '../../hooks/useRetentionData'
@@ -16,6 +16,8 @@ import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instru
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import { RetentionGuide } from '../../components/admin/RetentionGuide'
+import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
+import { supabase } from '../../lib/supabase'
 
 const LOC_COLORS: Record<string, string> = {
   Omaha: '#D41113', Bellevue: '#A333FF', Elkhorn: '#00A5E8', Gretna: '#00A651',
@@ -185,8 +187,9 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
   const generateCard = useGenerateValueCard()
   const sendCard = useSendValueCard()
   const { data: reviewQueue } = useReviewQueue(locationIds)
-  const sendReview = useSendReviewRequest()
   const [generatingFor, setGeneratingFor] = useState<string | null>(null)
+  const [reviewModalData, setReviewModalData] = useState<{ familyId: string; familyName: string; parentName: string; locationId: string; students: { name: string; instrument: string; createdAt: string }[] } | null>(null)
+  const [loadingReviewFor, setLoadingReviewFor] = useState<string | null>(null)
   const [previewCard, setPreviewCard] = useState<any>(null)
 
   // ── Bulk selection state ──
@@ -611,16 +614,29 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
               <button
                 data-guide-id={idx === 0 ? 'review-request-btn' : undefined}
                 onClick={async () => {
+                  setLoadingReviewFor(f.id)
                   try {
-                    await sendReview.mutateAsync({ familyId: f.id, locationId: f.locationId })
-                    toast(`Review request sent to ${f.name}`, 'success')
-                  } catch { toast('Failed to send request', 'error') }
+                    const { data: fam } = await supabase.from('families').select('parent_name, primary_contact_name').eq('id', f.id).single()
+                    const { data: studs } = await supabase.from('students').select('first_name, last_name, instrument, created_at').eq('family_id', f.id).eq('status', 'active')
+                    setReviewModalData({
+                      familyId: f.id,
+                      familyName: f.name,
+                      parentName: fam?.parent_name ?? fam?.primary_contact_name ?? '',
+                      locationId: f.locationId,
+                      students: (studs ?? []).map((s: any) => ({
+                        name: `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim(),
+                        instrument: s.instrument ?? 'music',
+                        createdAt: s.created_at ?? new Date().toISOString(),
+                      })),
+                    })
+                  } catch { toast('Failed to load family data', 'error') }
+                  setLoadingReviewFor(null)
                 }}
-                disabled={sendReview.isPending}
+                disabled={loadingReviewFor === f.id}
                 style={{ padding: '6px 14px', borderRadius: 8, background: 'rgba(212,34,106,0.08)', border: '1px solid rgba(212,34,106,0.2)', color: '#D4226A', fontSize: 11, fontWeight: 700, cursor: 'pointer', minHeight: 36, whiteSpace: 'nowrap' }}
               >
                 <Star size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                Request Review
+                {loadingReviewFor === f.id ? 'Loading...' : 'Generate Review Request'}
               </button>
             </div>
           ))}
@@ -629,6 +645,17 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
           )}
         </div>
       </div>
+
+      {reviewModalData && (
+        <ReviewRequestModal
+          familyId={reviewModalData.familyId}
+          familyName={reviewModalData.familyName}
+          parentName={reviewModalData.parentName}
+          locationId={reviewModalData.locationId}
+          students={reviewModalData.students}
+          onClose={() => setReviewModalData(null)}
+        />
+      )}
     </div>
   )
 }

@@ -42,7 +42,7 @@ export default function Teachers() {
   const { data: locations } = useLocations()
   const { data: monthlyTally } = useTeachersMonthlyTally()
   const navigate = useNavigate()
-  const { isStudioDirector } = usePermissions()
+  const { isStudioDirector, canViewTeacherCompensation, canViewTeacherDocuments } = usePermissions()
   const canEdit = (role === 'owner' || role === 'admin') && !isStudioDirector
   const { saveScroll } = useScrollRestore('teachers')
 
@@ -352,15 +352,18 @@ export default function Teachers() {
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>{t.student_count ?? 0}</span>
                 </div>
 
-                <div className="student-card-divider" />
-
-                {/* Pay Rate */}
-                <div className="student-card-zone student-card-col" style={{ gap: 2 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Rate</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>
-                    {payRate != null ? `$${Number(payRate).toFixed(0)}/30 min` : '—'}
-                  </span>
-                </div>
+                {canViewTeacherCompensation && (
+                  <>
+                    <div className="student-card-divider" />
+                    {/* Pay Rate */}
+                    <div className="student-card-zone student-card-col" style={{ gap: 2 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Rate</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>
+                        {payRate != null ? `$${Number(payRate).toFixed(0)}/30 min` : '—'}
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 <div className="student-card-divider" />
 
@@ -377,20 +380,22 @@ export default function Teachers() {
                   }}>
                     {status === 'at_capacity' ? 'At Capacity' : status.charAt(0).toUpperCase() + status.slice(1)}
                   </span>
-                  <div style={{ display: 'flex', gap: 3, marginTop: 3 }}>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-                      ...(w9Done
-                        ? { background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.2)' }
-                        : { background: 'rgba(255,184,0,0.1)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }),
-                    }}>{w9Done ? 'W-9 \u2713' : 'W-9'}</span>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-                      ...(contractDone
-                        ? { background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.2)' }
-                        : { background: 'rgba(255,184,0,0.1)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }),
-                    }}>{contractDone ? 'Contract \u2713' : 'Contract'}</span>
-                  </div>
+                  {canViewTeacherDocuments && (
+                    <div style={{ display: 'flex', gap: 3, marginTop: 3 }}>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                        ...(w9Done
+                          ? { background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.2)' }
+                          : { background: 'rgba(255,184,0,0.1)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }),
+                      }}>{w9Done ? 'W-9 \u2713' : 'W-9'}</span>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                        ...(contractDone
+                          ? { background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.2)' }
+                          : { background: 'rgba(255,184,0,0.1)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }),
+                      }}>{contractDone ? 'Contract \u2713' : 'Contract'}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
