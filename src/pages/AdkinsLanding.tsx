@@ -7,6 +7,7 @@ import { LOCATIONS, type LocKey } from '../config/locations'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { useLocationStats } from '../hooks/useLocationStats'
 import SiteHeader from '../components/site/SiteHeader'
+import { setLocColors } from '../lib/setLocColors'
 import './adkins.css'
 
 // ═══════════════════════════════════════
@@ -73,6 +74,11 @@ function playNote() {
 export default function AdkinsLanding() {
   const routeLocKey = useRouteLocationKey()
   const [loc, setLoc] = useState<LocKey>(routeLocKey ?? 'omaha')
+  useEffect(() => {
+    if (routeLocKey && routeLocKey !== loc) {
+      setLoc(routeLocKey)
+    }
+  }, [routeLocKey])
   const [logos, setLogos] = useState<Record<string, string>>({})
   const [enrollOpen, setEnrollOpen] = useState(false)
   const [expandedInst, setExpandedInst] = useState<number | null>(null)
@@ -173,8 +179,7 @@ export default function AdkinsLanding() {
 
   // Set CSS vars on location change
   useEffect(() => {
-    const r = document.documentElement.style
-    r.setProperty('--c', LD.c); r.setProperty('--cg', LD.cg); r.setProperty('--cl', LD.cl)
+    setLocColors({ '--c': LD.c, '--cg': LD.cg, '--cl': LD.cl })
   }, [loc])
 
   const goEnroll = useCallback(() => setEnrollOpen(true), [])

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
+import { setLocColors } from '../lib/setLocColors'
 import PianoWidget from '../components/instruments/PianoWidget'
 import GuitarWidget from '../components/instruments/GuitarWidget'
 import DrumsWidget from '../components/instruments/DrumsWidget'
@@ -23,7 +24,7 @@ export default function ThankYou() {
   const afterHours = useMemo(() => isAfterHoursCST(), [])
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--c', accent)
+    setLocColors({ '--c': accent })
   }, [accent])
 
   return (

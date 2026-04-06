@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import SiteHeader from '../components/site/SiteHeader'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { setLocColors } from '../lib/setLocColors'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { trackLead, trackEnrollmentStarted, trackStudentNameEntered, trackInstrumentSelected, trackAdditionalStudentAdded } from '../lib/tracking'
 import { LOCATIONS, type LocKey } from '../config/locations'
@@ -117,7 +118,7 @@ export default function SignupLanding() {
 
   // Set CSS variable
   useEffect(() => {
-    document.documentElement.style.setProperty('--c', locColor)
+    setLocColors({ '--c': locColor })
   }, [locColor])
 
   // Preload instrument selection sounds on mount (no tap lag)

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { setLocColors } from '../lib/setLocColors'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
 import SiteHeader from '../components/site/SiteHeader'
@@ -140,11 +141,7 @@ export default function GuitarLanding() {
 
   // Set CSS vars on location change
   useEffect(() => {
-    const r = document.documentElement.style
-    r.setProperty('--c', LD.accentColor)
-    r.setProperty('--cg', LD.accentGlow)
-    r.setProperty('--cl', LD.accentLight)
-    r.setProperty('--loc-color', LD.accentColor)
+    setLocColors({ '--c': LD.accentColor, '--cg': LD.accentGlow, '--cl': LD.accentLight, '--loc-color': LD.accentColor })
   }, [loc])
 
   // Intro overlay

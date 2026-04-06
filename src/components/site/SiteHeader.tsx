@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSiteLocation } from '../../hooks/useSiteLocation'
+import { setLocColors } from '../../lib/setLocColors'
 
 const LOCATIONS = [
   { id: 'omaha', name: 'Omaha' },
@@ -33,7 +34,7 @@ export default function SiteHeader({ activeInstrument }: SiteHeaderProps) {
   const currentInstrument = activeInstrument ?? segments[1] ?? ''
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--loc-color', locColor)
+    setLocColors({ '--loc-color': locColor })
   }, [locColor])
 
   const switchLocation = useCallback((newLocId: string) => {

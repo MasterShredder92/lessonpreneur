@@ -60,3 +60,14 @@ input, select, textarea { font-family: var(--font-body); }
   height: 1px;
   background: rgba(255,255,255,0.05);
 }
+
+/* Location color transition — smooth blend on location switch */
+.loc-transitioning * {
+  transition:
+    color 500ms ease,
+    background-color 500ms ease,
+    border-color 500ms ease,
+    box-shadow 500ms ease,
+    stroke 500ms ease,
+    fill 500ms ease !important;
+}
