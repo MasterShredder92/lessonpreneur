@@ -5,6 +5,7 @@ import { usePracticeStats, usePracticeHistory, useLogPractice, useLogPracticeMan
 import MusicLoader from '../../components/shared/MusicLoader'
 import { toast } from '../../components/shared/Toast'
 import { Music, Plus, X, Mic, Square, Play } from 'lucide-react'
+import DrumsWidget from '../../components/instruments/DrumsWidget'
 
 const audioCache = new Map<string, HTMLAudioElement>()
 function playSound(src: string) {
@@ -117,6 +118,16 @@ function PracticeSession({ studentId, studentName, instrument, familyId, onOpenM
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current) }, [])
 
+  const logDrumsSession = useCallback(() => {
+    logPractice.mutate(
+      { studentId, familyId, instrument: 'drums', toolUsed: 'drums_widget', durationSeconds: 0 },
+      {
+        onSuccess: () => toast('Practice session logged! 🥁', 'success'),
+        onError: (err: any) => toast(err.message ?? 'Failed to log practice', 'error'),
+      }
+    )
+  }, [logPractice, studentId, familyId])
+
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
   const inst = instrument?.toLowerCase() ?? 'piano'
 
@@ -165,10 +176,10 @@ function PracticeSession({ studentId, studentName, instrument, familyId, onOpenM
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Their Instrument</div>
-        <ToolCard tool={inst} primary onStart={startTimer} isActive={activeTool === inst} />
+        <ToolCard tool={inst} primary onStart={startTimer} isActive={activeTool === inst} onLogDrums={inst === 'drums' ? logDrumsSession : undefined} />
         <div style={{ fontSize: 11, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 8 }}>Try Something New</div>
         {['piano', 'drums', 'guitar', 'voice'].filter(t => t !== inst).map(tool => (
-          <ToolCard key={tool} tool={tool} onStart={startTimer} isActive={activeTool === tool} />
+          <ToolCard key={tool} tool={tool} onStart={startTimer} isActive={activeTool === tool} onLogDrums={tool === 'drums' ? logDrumsSession : undefined} />
         ))}
       </div>
 
@@ -298,13 +309,25 @@ function StatBox({ value, label, color }: { value: number; label: string; color:
   )
 }
 
-function ToolCard({ tool, primary, onStart, isActive }: { tool: string; primary?: boolean; onStart: (t: string) => void; isActive: boolean }) {
+function ToolCard({ tool, primary, onStart, isActive, onLogDrums }: {
+  tool: string; primary?: boolean; onStart: (t: string) => void; isActive: boolean; onLogDrums?: () => void
+}) {
   const colors: Record<string, string> = { piano: '#3b82f6', drums: '#EF4444', guitar: '#FFB800', voice: '#22C55E' }
   const color = colors[tool] ?? '#D4226A'
   const showInstrument = primary || isActive
+  const isDrums = tool === 'drums'
   return (
-    <div style={{ padding: 16, borderRadius: 12, background: isActive ? `${color}10` : 'rgba(255,255,255,0.02)', border: `1px solid ${isActive ? `${color}30` : 'rgba(255,255,255,0.06)'}`, borderLeft: primary ? `3px solid ${color}` : undefined }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showInstrument ? 12 : 0 }}>
+    <div style={{
+      padding: isDrums && showInstrument ? 0 : 16, borderRadius: 12, overflow: 'hidden',
+      background: isActive ? `${color}10` : 'rgba(255,255,255,0.02)',
+      border: `1px solid ${isActive ? `${color}30` : 'rgba(255,255,255,0.06)'}`,
+      borderLeft: primary ? `3px solid ${color}` : undefined,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: showInstrument ? 12 : 0,
+        padding: isDrums && showInstrument ? '16px 16px 0' : undefined,
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Music size={16} style={{ color }} />
           <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>{tool.charAt(0).toUpperCase() + tool.slice(1)}</span>
@@ -312,7 +335,25 @@ function ToolCard({ tool, primary, onStart, isActive }: { tool: string; primary?
         {!isActive && <button onClick={() => onStart(tool)} style={{ padding: '6px 16px', borderRadius: 6, fontSize: 12, fontWeight: 700, background: `${color}15`, color, border: `1px solid ${color}30`, cursor: 'pointer' }}>Practice</button>}
       </div>
       {showInstrument && tool === 'piano' && <FullPiano />}
-      {showInstrument && tool === 'drums' && <FullDrums />}
+      {showInstrument && isDrums && (
+        <div>
+          <div style={{ margin: '0 -0px' }}><DrumsWidget /></div>
+          {onLogDrums && (
+            <div style={{ padding: '0 16px 16px', textAlign: 'center' }}>
+              <button
+                onClick={onLogDrums}
+                style={{
+                  width: '100%', maxWidth: 320, padding: '12px 24px', borderRadius: 10,
+                  fontSize: 14, fontWeight: 800, cursor: 'pointer',
+                  background: '#D4226A', color: '#fff', border: 'none',
+                }}
+              >
+                Log This Session
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {showInstrument && tool === 'guitar' && <GuitarChords />}
       {showInstrument && tool === 'voice' && <VocalsRecorder />}
     </div>
@@ -356,32 +397,6 @@ function FullPiano() {
   )
 }
 
-function FullDrums() {
-  const pads = [
-    { name: 'Crash', file: 'crash', c: '#22C55E' },
-    { name: 'Hi-Hat', file: 'hihat', c: '#FFB800' },
-    { name: 'Ride', file: 'ride', c: '#38BDF8' },
-    { name: 'Hi Tom', file: 'hitom', c: '#A855F7' },
-    { name: 'Lo Tom', file: 'lotom', c: '#EC4899' },
-    { name: 'Snare', file: 'snare', c: '#fb923c' },
-    { name: 'Kick', file: 'kick', c: '#EF4444' },
-  ]
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-      {pads.map(p => (
-        <button key={p.name} onClick={() => playSound(`/audio/drums/${p.file}.wav`)} style={{
-          padding: '18px 8px', borderRadius: 10, background: `${p.c}15`, border: `2px solid ${p.c}30`,
-          color: p.c, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-        }}>{p.name}</button>
-      ))}
-      <button onClick={() => playSound(`/audio/drums/kick.wav`)} style={{
-        gridColumn: 'span 3', padding: '20px 8px', borderRadius: 10,
-        background: 'rgba(239,68,68,0.12)', border: '2px solid rgba(239,68,68,0.35)',
-        color: '#EF4444', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-      }}>KICK</button>
-    </div>
-  )
-}
 
 // Standard open chord voicings: [E2, A2, D3, G3, B3, E4] — null = muted
 const CHORDS: Record<string, (number | null)[]> = {
