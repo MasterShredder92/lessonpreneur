@@ -12,7 +12,7 @@ import { useLocations } from '../../hooks/useLocations'
 import { useTeachers } from '../../hooks/useTeachers'
 import { supabase } from '../../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Star, Music, MapPin, Phone, Mail, DollarSign, Upload, FileText, Trash2, Pencil, Download, Send, Lock } from 'lucide-react'
+import { Star, Music, MapPin, Phone, Mail, DollarSign, Upload, FileText, Trash2, Pencil, Download, Send, Lock, AlertTriangle } from 'lucide-react'
 import { useFamilyRate, useOverrideFamilyRate, useRemoveFamilyRateOverride, useAddSessionCredit, getRateTierLabel, getRateTierColor, formatRate } from '../../hooks/useFamilyRate'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import { toast } from '../../components/shared/Toast'
@@ -471,9 +471,11 @@ export default function StudentDetail() {
             </div>
 
             {/* Bill Family button */}
-            <button className="btn-primary" onClick={() => navigate(`/admin/families?family=${student.family_id}`)} style={{ fontSize: 11, padding: '8px 0', width: '100%', justifyContent: 'center' }}>
-              Bill Family
-            </button>
+            {student.family_id && (
+              <button className="btn-primary" onClick={() => navigate(`/admin/families?family=${student.family_id}`)} style={{ fontSize: 11, padding: '8px 0', width: '100%', justifyContent: 'center' }}>
+                Bill Family
+              </button>
+            )}
 
             {/* Details toggle */}
             <button onClick={() => setShowBillingDetails(!showBillingDetails)} style={{
@@ -532,76 +534,104 @@ export default function StudentDetail() {
 
         {/* Family Card */}
         <div data-tour-id="student-family-card" className="location-card" style={{ padding: 18, cursor: 'default' }}>
-          <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #6366F1, #818CF8)', boxShadow: '0 0 12px rgba(99,102,241,0.4)' }} />
-          <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)' }} />
+          <div className="loc-card-edge" style={{ background: student.family_id ? 'linear-gradient(180deg, #6366F1, #818CF8)' : 'linear-gradient(180deg, #D97706, #F59E0B)', boxShadow: student.family_id ? '0 0 12px rgba(99,102,241,0.4)' : '0 0 12px rgba(217,119,6,0.4)' }} />
+          <div className="loc-card-glow" style={{ background: student.family_id ? 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(217,119,6,0.07) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Family</span>
-              {(() => {
-                const bs = (student as any).family_billing_status ?? 'active'
-                const colors: Record<string, { bg: string; border: string; text: string }> = {
-                  active: { bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.3)', text: '#22C55E' },
-                  paused: { bg: 'rgba(255,184,0,0.1)', border: 'rgba(255,184,0,0.3)', text: '#FFB800' },
-                  suspended: { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', text: '#EF4444' },
-                  cancelled: { bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)', text: '#8080A8' },
-                }
-                const c = colors[bs] ?? colors.active
-                return (
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em',
-                    padding: '2px 8px', borderRadius: 6, background: c.bg, border: `1px solid ${c.border}`, color: c.text,
-                  }}>
-                    {bs}
-                  </span>
-                )
-              })()}
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', marginBottom: 4 }}>{student.family_name ?? '—'}</div>
-            <div style={{ fontSize: 12, color: '#A0A0C8', marginBottom: 6 }}>{(student as any).family_parent_name ?? student.family_contact ?? '—'}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10, minWidth: 0 }}>
-              <span style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 11.5, color: '#A0A0C8', minWidth: 0 }}><Mail size={11} style={{ flexShrink: 0, marginTop: 2 }} /> <span style={{ minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_email ?? '—'}</span></span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#A0A0C8' }}><Phone size={11} style={{ flexShrink: 0 }} /> {student.family_phone ?? '—'}</span>
-            </div>
-            {/* Rate Tier Badge */}
-            {(() => {
-              const tier = student.family_rate_tier ?? DEFAULT_RATE_TIER_CENTS
-              const tierColor = getRateTierColor(tier)
-              const tierLabel = getRateTierLabel(tier, student.family_is_military, student.family_active_students)
-              return (
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8,
-                      background: tierColor.bg, border: `1px solid ${tierColor.border}`, color: tierColor.text,
-                      overflowWrap: 'break-word', wordBreak: 'break-word',
-                    }}>
-                      ${formatRate(tier)} — {tierLabel}
-                    </span>
-                    {student.family_rate_tier_override && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#E8488A', fontWeight: 600 }}>
-                        <Lock size={10} /> Manually set
+            {student.family_id ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Family</span>
+                  {(() => {
+                    const bs = (student as any).family_billing_status ?? 'active'
+                    const colors: Record<string, { bg: string; border: string; text: string }> = {
+                      active: { bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.3)', text: '#22C55E' },
+                      paused: { bg: 'rgba(255,184,0,0.1)', border: 'rgba(255,184,0,0.3)', text: '#FFB800' },
+                      suspended: { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', text: '#EF4444' },
+                      cancelled: { bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)', text: '#8080A8' },
+                    }
+                    const c = colors[bs] ?? colors.active
+                    return (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em',
+                        padding: '2px 8px', borderRadius: 6, background: c.bg, border: `1px solid ${c.border}`, color: c.text,
+                      }}>
+                        {bs}
                       </span>
-                    )}
-                  </div>
-                  {student.family_rate_tier_reason && (
-                    <div style={{ fontSize: 10, color: '#8080A8', fontStyle: 'italic', marginTop: 2 }}>
-                      {student.family_rate_tier_reason}
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
-              )
-            })()}
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-              <span style={{ fontSize: 11, color: '#8080A8' }}>{(student as any).family_student_count ?? 1} student{((student as any).family_student_count ?? 1) !== 1 ? 's' : ''} in family</span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {(canDo('teachers.edit_pay_rate') || role === 'owner') && (
-                  <button className="btn-ghost" onClick={() => setShowRateOverrideModal(true)} style={{ fontSize: 10, color: '#6366F1', padding: '3px 8px' }}>
-                    Override Rate
-                  </button>
-                )}
-                <span style={{ fontSize: 11, color: '#606088', cursor: 'default' }}>View Family</span>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', marginBottom: 4 }}>{student.family_name ?? (student as any).family_primary_contact ?? '—'}</div>
+                <div style={{ fontSize: 12, color: '#A0A0C8', marginBottom: 6 }}>{(student as any).family_parent_name ?? student.family_contact ?? '—'}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10, minWidth: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 11.5, color: '#A0A0C8', minWidth: 0 }}><Mail size={11} style={{ flexShrink: 0, marginTop: 2 }} /> <span style={{ minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_email ?? '—'}</span></span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#A0A0C8' }}><Phone size={11} style={{ flexShrink: 0 }} /> {student.family_phone ?? '—'}</span>
+                </div>
+                {/* Rate Tier Badge */}
+                {(() => {
+                  const tier = student.family_rate_tier ?? DEFAULT_RATE_TIER_CENTS
+                  const tierColor = getRateTierColor(tier)
+                  const tierLabel = getRateTierLabel(tier, student.family_is_military, student.family_active_students)
+                  return (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 8,
+                          background: tierColor.bg, border: `1px solid ${tierColor.border}`, color: tierColor.text,
+                          overflowWrap: 'break-word', wordBreak: 'break-word',
+                        }}>
+                          ${formatRate(tier)} — {tierLabel}
+                        </span>
+                        {student.family_rate_tier_override && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#E8488A', fontWeight: 600 }}>
+                            <Lock size={10} /> Manually set
+                          </span>
+                        )}
+                      </div>
+                      {student.family_rate_tier_reason && (
+                        <div style={{ fontSize: 10, color: '#8080A8', fontStyle: 'italic', marginTop: 2 }}>
+                          {student.family_rate_tier_reason}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: '#8080A8' }}>{(student as any).family_student_count ?? 1} student{((student as any).family_student_count ?? 1) !== 1 ? 's' : ''} in family</span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {(canDo('teachers.edit_pay_rate') || role === 'owner') && (
+                      <button className="btn-ghost" onClick={() => setShowRateOverrideModal(true)} style={{ fontSize: 10, color: '#6366F1', padding: '3px 8px' }}>
+                        Override Rate
+                      </button>
+                    )}
+                    <button
+                      onClick={() => navigate(`/admin/families?family=${student.family_id}`)}
+                      style={{ fontSize: 11, fontWeight: 600, color: '#6366F1', background: 'none', border: 'none', cursor: 'pointer', padding: '3px 8px', borderRadius: 6, transition: 'background 120ms' }}
+                      onMouseEnter={(e) => { (e.target as HTMLElement).style.background = 'rgba(99,102,241,0.1)' }}
+                      onMouseLeave={(e) => { (e.target as HTMLElement).style.background = 'none' }}
+                    >
+                      View Family
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* No family linked — warning state */
+              <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 14, textAlign: 'left' }}>Family</span>
+                <AlertTriangle size={24} style={{ color: '#D97706', marginBottom: 8 }} />
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#D97706', marginBottom: 4 }}>No family linked</div>
+                <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 14 }}>This student is not connected to a family record.</div>
+                <button
+                  onClick={() => navigate(`/admin/families`)}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)', color: '#D97706',
+                  }}
+                >
+                  Link Family
+                </button>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
