@@ -83,8 +83,10 @@ export function useDashboard(locationIds?: string[] | null) {
         ? (locId: string) => locationIds.includes(locId)
         : () => true
 
-      // Active students (filtered by location if scoped)
-      const active = (students?.filter((s: any) => s.status === 'active' && locFilter(s.location_id)) ?? [])
+      // All active students (unfiltered — used for location summary cards)
+      const allActive = students?.filter((s: any) => s.status === 'active') ?? []
+      // Scoped active students (filtered by location for director aggregate counts)
+      const active = locationIds ? allActive.filter((s: any) => locFilter(s.location_id)) : allActive
       const studentsByLoc: Record<string, number> = {}
       active.forEach((s: any) => {
         const loc = locMap.get(s.location_id) ?? 'Unknown'
@@ -128,7 +130,7 @@ export function useDashboard(locationIds?: string[] | null) {
       // Location summary
       const locationSummary = (locations ?? []).map((loc: any) => {
         const locName = loc.name?.replace(' Music Lessons', '')
-        const locStudents = active.filter((s: any) => s.location_id === loc.id).length
+        const locStudents = allActive.filter((s: any) => s.location_id === loc.id).length
         const locOpenToday = todayBlocks?.filter((b: any) => b.location_id === loc.id && b.status === 'available').length ?? 0
         const locTeacherIds = new Set(todayBlocks?.filter((b: any) => b.location_id === loc.id).map((b: any) => b.teacher_id) ?? [])
 
