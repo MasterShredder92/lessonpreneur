@@ -568,9 +568,16 @@ function GeneralTab({ tenantId }: { tenantId: string | null }) {
                 <span className="form-label" style={{ minWidth: 70, marginBottom: 0, paddingTop: 2 }}>Slug</span>
                 <span style={{ fontSize: 13, color: '#686890' }}>{tenant.slug}</span>
               </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <span className="form-label" style={{ minWidth: 70, marginBottom: 0, paddingTop: 2 }}>Intake URL</span>
-                <span style={{ fontSize: 13, color: '#E8488A' }}>/intake/{tenant.slug}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span className="form-label" style={{ marginBottom: 0 }}>Enrollment URLs</span>
+                <p style={{ fontSize: 12, color: '#686890', margin: 0 }}>
+                  Each location has its own enrollment URL. Share the URL matching your location with prospective families.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {['/omaha/signup', '/gretna/signup', '/bellevue/signup', '/elkhorn/signup'].map((url) => (
+                    <span key={url} style={{ fontSize: 13, color: '#E8488A' }}>{url}</span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
