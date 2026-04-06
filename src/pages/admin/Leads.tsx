@@ -1174,7 +1174,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     <>
                       <div className="lead-section-label">Recovery</div>
                       <button
-                        onClick={async () => { try { await updateStage.mutateAsync({ id: lead.id, stage: 'inquiry', familyId: lead.family_id }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
+                        onClick={async () => { try { await updateStage.mutateAsync({ id: lead.id, stage: 'inquiry', familyId: lead.family_id }); onLeadUpdated({ ...lead, stage: 'inquiry' } as any); toast('Moved back to Active Leads', 'success') } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
                         disabled={updateStage.isPending}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E', fontSize: 15, fontWeight: 700, cursor: 'pointer', transition: 'all 140ms ease', fontFamily: 'var(--font-body)' }}
                       >
@@ -1198,7 +1198,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                             {forwardStages.map((s) => {
                               const c = stageButtonColors[s]
                               return (
-                                <button key={s} className="lead-stage-btn" onClick={async () => { try { await updateStage.mutateAsync({ id: lead.id, stage: s, familyId: lead.family_id }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }} disabled={updateStage.isPending}
+                                <button key={s} className="lead-stage-btn" onClick={async () => { try { await updateStage.mutateAsync({ id: lead.id, stage: s, familyId: lead.family_id }); onLeadUpdated({ ...lead, stage: s } as any); toast(`Stage updated to ${stageLabels[s] ?? s}`, 'success') } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }} disabled={updateStage.isPending}
                                   style={{ flex: 1, color: c.color, background: c.bg, borderColor: c.border }}>
                                   {stageLabels[s]}{isFamily ? ' Family' : ''}
                                 </button>
