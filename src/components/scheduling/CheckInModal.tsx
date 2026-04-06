@@ -188,7 +188,7 @@ export default function CheckInModal({ block, onClose }: Props) {
     ? { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(2px)' }
     : {}
   const modalStyle: React.CSSProperties = isMobile
-    ? { maxWidth: '100vw', width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '92vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }
+    ? { maxWidth: '100vw', width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '85vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(72px + env(safe-area-inset-bottom))' }
     : { maxWidth: 420 }
   // Touch-friendly button min height
   const btnMinH = isMobile ? 48 : undefined
@@ -400,6 +400,81 @@ export default function CheckInModal({ block, onClose }: Props) {
                 </button>
                 <button onClick={() => { setCancelType(null); setCancelReason('') }} style={{ width: '100%', marginTop: 6, padding: '8px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Go Back</button>
               </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Teacher callout view — show locked status + "Remove Callout" option
+  const isTeacherCallout = block.block_type === 'call_out' && !block.is_family_callout
+  if (isTeacherCallout) {
+    return (
+      <div className={isMobile ? undefined : 'modal-overlay'} style={overlayStyle} onClick={onClose}>
+        <div className="modal" onClick={(e) => e.stopPropagation()} style={isMobile ? { ...modalStyle } : { maxWidth: 400 }}>
+          {isMobile && (
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+            </div>
+          )}
+          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(217,119,6,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Phone size={14} style={{ color: '#D97706' }} />
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#D97706' }}>Called Out</span>
+            </div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 4, minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+          </div>
+          <div style={{ padding: '16px 20px' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>{block.teacher_name}</div>
+            <div style={{ fontSize: 12, color: '#A0A0C8', marginBottom: 12 }}>
+              {formatTime(block.start_time)} · {dateStr}
+            </div>
+            {block.callout_reason && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(217,119,6,0.06)', border: '1px solid rgba(217,119,6,0.15)', marginBottom: 16, fontSize: 12, color: '#D4C5A0' }}>
+                — {block.callout_reason}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 16, lineHeight: 1.5 }}>
+              This block is locked because the teacher was marked called out. Students need to be rescheduled manually or via sub coverage.
+            </div>
+            {block.callout_id && (
+              <button
+                onClick={async () => {
+                  try {
+                    const { useUndoTeacherCallout } = await import('../../hooks/useTeacherCallout')
+                    // We can't use hooks outside a component, so do it inline
+                    const { error: updateErr } = await (await import('../../lib/supabase')).supabase
+                      .from('schedule_blocks')
+                      .update({ block_type: 'open_time', status: 'available', student_id: null, callout_reason: null, callout_id: null, teacher_tally: false })
+                      .eq('callout_id', block.callout_id!)
+                    if (updateErr) throw updateErr
+                    const { error: deleteErr } = await (await import('../../lib/supabase')).supabase
+                      .from('teacher_callouts')
+                      .delete()
+                      .eq('id', block.callout_id!)
+                    if (deleteErr) throw deleteErr
+                    qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+                    qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                    qc.invalidateQueries({ queryKey: ['dashboard'] })
+                    qc.invalidateQueries({ queryKey: ['teacher-callout-tally'] })
+                    qc.invalidateQueries({ queryKey: ['teacher-callout-history'] })
+                    toast('Callout removed — blocks restored to open time', 'success')
+                    onClose()
+                  } catch (err: any) {
+                    toast(err.message || 'Failed to remove callout', 'error')
+                  }
+                }}
+                style={{
+                  width: '100%', padding: isMobile ? '14px 16px' : '10px 16px', borderRadius: 10,
+                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                  color: '#EF4444', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Remove Callout
+              </button>
             )}
           </div>
         </div>

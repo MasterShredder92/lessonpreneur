@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, ChevronDown, HelpCircle, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, HelpCircle, Star, Lock } from 'lucide-react'
 import type { GridBlock } from '../../hooks/useScheduleGrid'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
@@ -339,6 +339,28 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                         {isDragOver ? 'Drop here' : 'Open'}
                       </span>
                     </div>
+                  ) : block!.block_type === 'call_out' && !block!.is_family_callout ? (
+                    /* ── Teacher callout — locked gray/amber block ── */
+                    <div
+                      data-slot={slot}
+                      onClick={() => { if (dragSource) return; onBlockClick(block!) }}
+                      style={{
+                        height: '100%', minHeight: 44, borderRadius: 6, padding: '6px 12px',
+                        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                        cursor: 'pointer',
+                        background: '#4A4540',
+                        border: '1px solid rgba(217,119,6,0.25)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 700, color: '#D97706' }}>
+                        <Lock size={13} /> Called Out
+                      </div>
+                      {block!.callout_reason && (
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          — {block!.callout_reason}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div
                       data-slot={slot}
@@ -358,10 +380,10 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                         color: BLOCK_COLORS[block!.block_type]?.dark ? '#fff' : '#1a1a2e',
                         display: 'flex', alignItems: 'center', gap: 4,
                       }}>
-                        {block!.block_type === 'makeup_session' && <span style={{ fontSize: 13 }}>🌺</span>}
-                        {block!.block_type === 'call_out' && block!.is_family_callout && <span style={{ fontSize: 13 }}>👨‍👩‍👧</span>}
+                        {block!.block_type === 'makeup_session' && <span style={{ fontSize: 13 }}>{'\u{1F33A}'}</span>}
+                        {block!.block_type === 'call_out' && block!.is_family_callout && <span style={{ fontSize: 13 }}>{'\u{1F468}\u200D\u{1F469}\u200D\u{1F467}'}</span>}
                         {block!.block_type === 'makeup_session'
-                          ? `Makeup · ${block!.student_name ?? ''}`.trim()
+                          ? `Makeup \u00B7 ${block!.student_name ?? ''}`.trim()
                           : block!.block_type === 'call_out' && block!.is_family_callout
                             ? `Call Out — Family`
                             : (block!.student_name ?? block!.block_type.replace(/_/g, ' '))}
@@ -657,6 +679,26 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                     </div>
                   )
                 }
+                // Teacher callout — distinct locked style
+                const isTeacherCallout = block.block_type === 'call_out' && !block.is_family_callout
+                if (isTeacherCallout) {
+                  return (
+                    <div
+                      key={`${t.id}-${slot}`}
+                      onClick={() => onBlockClick(block)}
+                      style={{
+                        height: rowH, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                        alignItems: 'center', background: '#4A4540', border: '1px solid rgba(217,119,6,0.2)',
+                        borderRadius: 4, margin: '2px 1px', cursor: 'pointer', overflow: 'hidden', padding: '0 3px',
+                        transition: 'height 150ms ease',
+                      }}
+                    >
+                      <Lock size={10} style={{ color: '#D97706' }} />
+                      <div style={{ fontSize: 8, fontWeight: 700, color: '#D97706', marginTop: 1 }}>Out</div>
+                    </div>
+                  )
+                }
+
                 const colors = BLOCK_COLORS[block.block_type] ?? BLOCK_COLORS.student_session
                 return (
                   <div
@@ -682,9 +724,9 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                       maxWidth: '100%', textAlign: 'center', lineHeight: 1.2,
                     }}>
                       {block.block_type === 'makeup_session'
-                        ? '🌺 Makeup'
+                        ? '\u{1F33A} Makeup'
                         : block.block_type === 'call_out' && block.is_family_callout
-                          ? '👨‍👩‍👧 Family'
+                          ? '\u{1F468}\u200D\u{1F469}\u200D\u{1F467} Family'
                           : (block.student_name ?? (block.block_type === 'not_bookable' ? 'Locked' : block.block_type.replace(/_/g, ' ')))}
                     </div>
                     {isExpanded && block.instrument && (

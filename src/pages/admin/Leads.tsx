@@ -22,7 +22,7 @@ const STAGES = ['inquiry', 'contacted', 'scheduled', 'enrolled', 'lost'] as cons
 
 // No emojis — use Music lucide icon for all instruments (clean, monochrome)
 const STAGE_LABELS: Record<string, string> = {
-  inquiry: 'New Lead', contacted: 'Contacted', scheduled: 'Scheduled',
+  inquiry: 'New Lead', contacted: 'Contacted', scheduled: 'Trial Booked',
   enrolled: 'Enrolled', lost: 'Lost',
 }
 const STAGE_COLORS: Record<string, string> = {
@@ -221,6 +221,7 @@ export default function Leads() {
         })
       }
       setDetailLead({ ...lead, stage: next as any })
+      toast(`Stage updated to ${STAGE_LABELS[next] ?? next}`, 'success')
     } catch (err: any) {
       toast(err.message ?? 'Failed to advance stage', 'error')
     }
@@ -525,7 +526,7 @@ export default function Leads() {
                         <option value="enrolled">Enrolled</option>
                         <option value="inquiry">New Lead</option>
                         <option value="contacted">Contacted</option>
-                        <option value="scheduled">Scheduled</option>
+                        <option value="scheduled">Trial Booked</option>
                       </select>
                     ) : (
                       <select
@@ -985,6 +986,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                           try {
                             await updateLead.mutateAsync({ id: lead.id, preferred_days: updated })
                             setDetailLead((prev) => prev ? { ...prev, preferred_days: updated } : prev)
+                            toast(isSelected ? `${day} removed` : `${day} added`, 'success')
                           } catch (err: any) {
                             toast(err.message ?? 'Failed to update preferred days', 'error')
                           }
@@ -1038,6 +1040,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       try {
                         await updateLead.mutateAsync({ id: lead.id, instrument: val })
                         setDetailLead((prev) => prev ? { ...prev, instrument: val } : prev)
+                        toast(`Instrument updated to ${val}`, 'success')
                       } catch (err: any) {
                         toast(err.message ?? 'Failed to update instrument', 'error')
                       }
@@ -1068,6 +1071,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       try {
                         await updateLead.mutateAsync({ id: lead.id, location_id: val })
                         setDetailLead((prev) => prev ? { ...prev, location_id: val, location_name: loc?.name ?? prev.location_name } : prev)
+                        toast(`Location updated`, 'success')
                       } catch (err: any) {
                         toast(err.message ?? 'Failed to update location', 'error')
                       }

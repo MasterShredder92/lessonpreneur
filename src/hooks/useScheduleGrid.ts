@@ -42,6 +42,7 @@ export interface GridBlock {
   is_virtual: boolean
   meet_link: string | null
   meet_event_id: string | null
+  callout_reason: string | null
   is_family_callout: boolean
   callout_id: string | null
   is_makeup_session: boolean
@@ -61,7 +62,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
           is_recurring, checked_in, teacher_tally, fifth_week, room, room_id, notes,
           original_teacher_id, original_teacher_name,
           is_virtual, meet_link, meet_event_id,
-          is_family_callout, callout_id, is_makeup_session, makeup_session_id
+          callout_reason, is_family_callout, callout_id, is_makeup_session, makeup_session_id
         `)
         .eq('block_date', date)
         .order('start_time')
@@ -172,6 +173,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
           is_virtual: b.is_virtual ?? false,
           meet_link: b.meet_link ?? null,
           meet_event_id: b.meet_event_id ?? null,
+          callout_reason: b.callout_reason ?? null,
           is_family_callout: b.is_family_callout ?? false,
           callout_id: b.callout_id ?? null,
           is_makeup_session: b.is_makeup_session ?? false,

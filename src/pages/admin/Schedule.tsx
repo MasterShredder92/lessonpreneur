@@ -20,7 +20,7 @@ import MobileSchedule from '../../components/scheduling/MobileSchedule'
 import BulkVirtualModal from '../../components/scheduling/BulkVirtualModal'
 import { useAI, type ScheduleContext } from '../../hooks/useAI'
 import { useScheduleIntelligence } from '../../hooks/useScheduleIntelligence'
-import { ChevronLeft, ChevronRight, ChevronDown, Calendar, Music, MapPin, UserPlus, GripVertical, Check, Clock, DoorOpen, RefreshCw, Plus, PhoneOff, Star, Send, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, Calendar, Music, MapPin, UserPlus, GripVertical, Check, Clock, DoorOpen, RefreshCw, Plus, PhoneOff, Star, Send, X, Lock } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
@@ -135,6 +135,7 @@ export default function Schedule() {
   const [showCalendar, setShowCalendar] = useState(false)
   const [showAddTeacher, setShowAddTeacher] = useState(false)
   const [showCalloutWizard, setShowCalloutWizard] = useState(false)
+  const [calloutPreselectedTeacherId, setCalloutPreselectedTeacherId] = useState<string | undefined>(undefined)
   const [bulkVirtualOpen, setBulkVirtualOpen] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
   const [pendingConfirm, setPendingConfirm] = useState<{ title: string; message: string; variant?: 'warning' | 'danger' | 'info'; onConfirm: () => void } | null>(null)
@@ -596,7 +597,7 @@ export default function Schedule() {
   fullTeacherList.sort((a, b) => a.name.localeCompare(b.name))
 
   let visibleTeachers = fullTeacherList
-  const showMineOnly = viewMode === 'mine' && !!teacherRecord
+  const showMineOnly = viewMode === 'mine' && !!teacherRecord && !isMobile
   if (showMineOnly) {
     visibleTeachers = fullTeacherList.filter((t) => t.id === teacherRecord!.id)
   } else if (selectedTeacherFilter) {
@@ -748,7 +749,7 @@ export default function Schedule() {
 
         {/* Sub + Call Out — left side */}
         <button onClick={() => setShowAddTeacher(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: `1px solid ${locColor}40`, background: `${locColor}15`, color: locColor, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><Plus size={12} /> Sub</button>
-        <button onClick={() => setShowCalloutWizard(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><PhoneOff size={12} /> Call Out</button>
+        <button onClick={() => { setCalloutPreselectedTeacherId(undefined); setShowCalloutWizard(true) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><PhoneOff size={12} /> Call Out</button>
         <button onClick={() => setBulkVirtualOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(0,188,212,0.4)', background: 'rgba(0,188,212,0.1)', color: '#00BCD4', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><DoorOpen size={12} /> Go Virtual</button>
 
         {/* Center — date nav + calendar (absolutely centered in the row) */}
@@ -976,7 +977,11 @@ export default function Schedule() {
               const isSub = !hasAvailToday
               return (
                 <div key={t.id} style={{ padding: '10px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)', borderLeft: '1px solid rgba(255,255,255,0.04)', textAlign: 'center', position: 'relative' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: isSub ? '#22C55E' : '#E0E0F4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
+                  <div
+                    onClick={() => { setCalloutPreselectedTeacherId(t.id); setShowCalloutWizard(true) }}
+                    title={`Mark ${t.name} called out`}
+                    style={{ fontSize: 13, fontWeight: 700, color: isSub ? '#22C55E' : '#E0E0F4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}
+                  >{t.name}</div>
                   {(t as any).photo_url && (
                     <img src={(t as any).photo_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)', marginTop: 4, display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
                   )}
@@ -1193,7 +1198,41 @@ export default function Schedule() {
                   const isCheckedIn = block.checked_in
                   const isPendingTally = block.checked_in && !block.teacher_tally
                   const isFamilyCallout = bt === 'call_out' && block.is_family_callout
+                  const isTeacherCallout = bt === 'call_out' && !block.is_family_callout
                   const isMakeup = bt === 'makeup_session'
+
+                  // Teacher callout — distinct locked visual (gray/slate with amber tint)
+                  if (isTeacherCallout) {
+                    return (
+                      <div
+                        key={`${time}-${t.id}`}
+                        data-guide-block-type="call_out"
+                        onClick={() => setCheckInBlock(block)}
+                        title={`Called Out${block.callout_reason ? ` — ${block.callout_reason}` : ''}`}
+                        style={{ height: 68, borderBottom: '1px solid rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.04)', padding: '3px 4px', cursor: 'pointer' }}
+                      >
+                        <div style={{
+                          height: '100%', borderRadius: 8,
+                          background: '#4A4540',
+                          border: '1px solid rgba(217,119,6,0.25)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                          padding: '4px 6px', textAlign: 'center', position: 'relative',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Lock size={12} style={{ color: '#D97706' }} />
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#D97706' }}>Called Out</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{formatTime(block.start_time)}</div>
+                          {block.callout_reason && (
+                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                              — {block.callout_reason}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  }
+
                   const blockTitle = isFamilyCallout
                     ? `${block.student_name ?? 'Student'} — Family initiated via parent portal on ${block.block_date}`
                     : isMakeup
@@ -1228,17 +1267,17 @@ export default function Schedule() {
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '4px 6px', height: '100%', textAlign: 'center' }}>
                           <div style={{ fontWeight: 700, fontSize: '16px', color: textColor, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                             {isMakeup
-                              ? <>Makeup 🌺</>
+                              ? <>Makeup {'\uD83C\uDF3A'}</>
                               : isFamilyCallout
                                 ? <>Call Out — Family</>
                                 : (block.student_name || 'Student')}
                           </div>
                           <div style={{ fontSize: '14px', color: textColorMuted, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                            {isVirtual && <span title="Virtual — Google Meet" style={{ fontSize: 12 }}>📹</span>}
+                            {isVirtual && <span title="Virtual — Google Meet" style={{ fontSize: 12 }}>{'\uD83D\uDCF9'}</span>}
                             {block.instrument && <span title={block.instrument} style={{ fontSize: 14 }}>{getInstrumentEmoji(block.instrument)}</span>}
                             {formatTime(block.start_time)}
                             {(isMakeup || isFamilyCallout) && block.student_name && (
-                              <span style={{ fontSize: 11, opacity: 0.85 }}>· {block.student_name.split(' ')[0]}</span>
+                              <span style={{ fontSize: 11, opacity: 0.85 }}>{'\u00B7'} {block.student_name.split(' ')[0]}</span>
                             )}
                             {block.has_session_log && <span title="Session logged" style={{ fontSize: 10, opacity: 0.8 }}>&#9998;</span>}
                           </div>
@@ -1688,7 +1727,8 @@ export default function Schedule() {
           date={selectedDate}
           locationId={effectiveLocation}
           teachers={allGridTeachersFull}
-          onClose={() => setShowCalloutWizard(false)}
+          onClose={() => { setShowCalloutWizard(false); setCalloutPreselectedTeacherId(undefined) }}
+          preSelectedTeacherId={calloutPreselectedTeacherId}
         />
       )}
 

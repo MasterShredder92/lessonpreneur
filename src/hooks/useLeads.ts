@@ -106,7 +106,7 @@ export function useUpdateLeadStage() {
         if (error) throw error
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leads'] }) },
   })
 }
 
@@ -117,7 +117,7 @@ export function useUpdateLead() {
       const { error } = await supabase.from('leads').update(updates).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leads'] }) },
   })
 }
 
@@ -153,6 +153,6 @@ export function useCreateLead() {
       if (error) throw error
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leads'] }) },
   })
 }

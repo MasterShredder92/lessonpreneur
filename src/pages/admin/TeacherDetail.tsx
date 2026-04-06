@@ -9,7 +9,8 @@ import TeacherFormModal from '../../components/teachers/TeacherFormModal'
 import AvailabilityEditModal from '../../components/teachers/AvailabilityEditModal'
 import { supabase } from '../../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Camera, ChevronDown, ChevronRight, Upload, Trash2, FileText, Users } from 'lucide-react'
+import { Pencil, Camera, ChevronDown, ChevronRight, Upload, Trash2, FileText, Users, PhoneOff } from 'lucide-react'
+import { useTeacherCalloutTally, useTeacherCalloutHistory } from '../../hooks/useTeacherCallout'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import TeacherDocumentsModal from '../../components/teachers/TeacherDocumentsModal'
@@ -49,6 +50,9 @@ export default function TeacherDetail() {
   const { data: locations } = useLocations()
   const updateTeacher = useUpdateTeacher()
   const { data: paySummary } = useTeacherPaySummary(id)
+  const { data: calloutTally } = useTeacherCalloutTally(id)
+  const { data: calloutHistory } = useTeacherCalloutHistory(id)
+  const [showCalloutHistory, setShowCalloutHistory] = useState(false)
   const qc = useQueryClient()
   const canEdit = role === 'owner' || role === 'admin'
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -555,6 +559,86 @@ export default function TeacherDetail() {
           </div>
         )
       })()}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* 2c. CALLOUT HISTORY (Overview tab)                   */}
+      {/* ══════════════════════════════════════════════════ */}
+      <div className={`td-section td-tab-overview${mobileTab !== 'overview' ? ' td-tab-hidden' : ''}`} style={{ marginBottom: 14 }}>
+        <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
+          <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #D97706, #B45309)', boxShadow: '0 0 12px rgba(217,119,6,0.4)' }} />
+          <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(217,119,6,0.06) 0%, transparent 70%)' }} />
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+              <PhoneOff size={13} style={{ color: '#D97706' }} />
+              <span style={sectionLabelStyle}>Callout History</span>
+            </div>
+
+            {/* Tally stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: calloutHistory && calloutHistory.length > 0 ? 14 : 0 }}>
+              {[
+                { label: 'Total Callouts', value: calloutTally?.total_callouts ?? 0 },
+                { label: 'This Month', value: calloutTally?.callouts_this_month ?? 0 },
+                { label: 'Last 60 Days', value: calloutTally?.callouts_last_60_days ?? 0 },
+                { label: 'Blocks Affected', value: calloutTally?.total_blocks_affected ?? 0 },
+              ].map(stat => (
+                <div key={stat.label} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 8, textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: stat.value > 0 ? '#D97706' : '#606088' }}>{stat.value}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>{stat.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Last callout date */}
+            {calloutTally?.last_callout_date && (
+              <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 10 }}>
+                Last callout: {new Date(calloutTally.last_callout_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+            )}
+
+            {/* Collapsible history list */}
+            {calloutHistory && calloutHistory.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowCalloutHistory(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#D97706', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                >
+                  {showCalloutHistory ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  {showCalloutHistory ? 'Hide' : 'Show'} individual records ({calloutHistory.length})
+                </button>
+                {showCalloutHistory && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                    {calloutHistory.map(record => {
+                      const loc = locations?.find((l: any) => l.id === record.location_id)
+                      return (
+                        <div key={record.id} style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#E0E0F4' }}>
+                              {new Date(record.callout_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </span>
+                            <span style={{ fontSize: 10, color: '#8080A8' }}>{record.blocks_affected} block{record.blocks_affected !== 1 ? 's' : ''}</span>
+                          </div>
+                          {record.reason && (
+                            <div style={{ fontSize: 11, color: '#A0A0C8', marginTop: 3 }}>— {record.reason}</div>
+                          )}
+                          {loc && (
+                            <span style={{ fontSize: 9, fontWeight: 600, color: (loc as any).color ?? '#8080A8', marginTop: 3, display: 'inline-block' }}>
+                              {loc.name?.replace(' Music Lessons', '')}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
+            {!calloutTally && (!calloutHistory || calloutHistory.length === 0) && (
+              <p style={{ fontSize: 12, color: '#606088', margin: 0 }}>No callouts on record.</p>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* ══════════════════════════════════════════════════ */}
       {/* 3. TEACHING PROFILE + BEST MATCH (side by side)    */}
