@@ -1,75 +1,173 @@
 /**
- * DrumKit.tsx
- * Realistic aerial-view drum kit for Adkins Music Lessons drum pages.
+ * DrumsWidget.tsx
+ * Interactive SVG drum kit — tap/click any piece to play.
  *
- * Layout mirrors a real kit viewed from directly above:
- *   • Kick drum = large barrel center-back (decorative, NOT interactive)
- *   • Kick PEDAL = footboard below the kick (this triggers kick sound)
- *   • Snare = front-left, between hi-hat and kick
- *   • Hi-hat = far left, stacked pair, in front of snare
- *   • High Tom / Mid Tom = mounted on kick, upper-center via tom arms
- *   • Low Tom (floor) = right side, standing on its own legs
- *   • Crash = upper-left
- *   • Ride = upper-right (largest cymbal)
- *   • China = far upper-left
- *   • Splash = far upper-right (small)
- *
- * Polyphony: every hit spawns a NEW AudioBufferSourceNode from the cached
- *   buffer — unlimited simultaneous sounds, same model as the piano page.
- *
- * Input: click, multi-touch (any number of fingers), keyboard
- *   (keydown fires once per press; held keys do NOT auto-repeat).
- *
- * Color: reads CSS var(--c) from document root — set by location system.
- *   Drums use var(--c). Cymbals use gold palette. Pedal uses neutral steel.
- *
- * Usage: <DrumKit />
- *   Parent sets --c on document.documentElement before render.
+ * Audio: all sounds synthesized via Web Audio API (no files needed).
+ * Input: onPointerDown per SVG piece (instant on touch + mouse).
+ *        Keyboard as secondary layer (collapsible shortcut strip).
+ * Animation: React state drives hit flash per piece.
+ * Color: reads CSS var(--c) for accent. Cymbals use gold palette.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Audio synthesis ──────────────────────────────────────────────────────────
 
-interface Piece {
-  id: string
-  label: string
-  kind: 'drum' | 'cymbal' | 'pedal'
-  wav: string
-  key: string
-  keyLabel: string
+function getCtx(ref: React.MutableRefObject<AudioContext | null>): AudioContext {
+  if (!ref.current) ref.current = new AudioContext()
+  if (ref.current.state === 'suspended') ref.current.resume()
+  return ref.current
 }
 
-interface Ripple {
-  el: SVGCircleElement
-  t0: number
-  maxR: number
-  isCymbal: boolean
-  isPedal: boolean
+function playKick(ctx: AudioContext) {
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.connect(gain); gain.connect(ctx.destination)
+  osc.type = 'sine'
+  osc.frequency.setValueAtTime(150, ctx.currentTime)
+  osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.4)
+  gain.gain.setValueAtTime(1, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+  osc.start(); osc.stop(ctx.currentTime + 0.5)
 }
 
-// ─── Kit definition ────────────────────────────────────────────────────────────
+function playSnare(ctx: AudioContext) {
+  // Noise burst
+  const len = ctx.sampleRate * 0.2
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+  const d = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  const src = ctx.createBufferSource(); src.buffer = buf
+  const gain = ctx.createGain()
+  gain.gain.setValueAtTime(0.8, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2)
+  src.connect(gain); gain.connect(ctx.destination)
+  src.start(); src.stop(ctx.currentTime + 0.2)
+  // Tonal body
+  const osc = ctx.createOscillator()
+  const g2 = ctx.createGain()
+  osc.type = 'triangle'; osc.frequency.value = 180
+  g2.gain.setValueAtTime(0.4, ctx.currentTime)
+  g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
+  osc.connect(g2); g2.connect(ctx.destination)
+  osc.start(); osc.stop(ctx.currentTime + 0.12)
+}
 
-const PIECES: Piece[] = [
-  { id: 'kick',    label: 'KICK',     kind: 'pedal',  wav: '/audio/drums/kick.wav',     key: 'a', keyLabel: 'A' },
-  { id: 'snare',   label: 'SNARE',    kind: 'drum',   wav: '/audio/drums/snare.wav',    key: 's', keyLabel: 'S' },
-  { id: 'hihat',   label: 'HI-HAT',   kind: 'cymbal', wav: '/audio/drums/hihat.wav',    key: 'd', keyLabel: 'D' },
-  { id: 'tom-hi',  label: 'HIGH TOM', kind: 'drum',   wav: '/audio/drums/hitom.wav',   key: 'f', keyLabel: 'F' },
-  { id: 'tom-mid', label: 'MID TOM',  kind: 'drum',   wav: '/audio/drums/midtom.wav',  key: 'g', keyLabel: 'G' },
-  { id: 'tom-lo',  label: 'LOW TOM',  kind: 'drum',   wav: '/audio/drums/lotom.wav',   key: 'h', keyLabel: 'H' },
-  { id: 'crash',   label: 'CRASH',    kind: 'cymbal', wav: '/audio/drums/crash.wav',    key: 'j', keyLabel: 'J' },
-  { id: 'ride',    label: 'RIDE',     kind: 'cymbal', wav: '/audio/drums/ride.wav',     key: 'k', keyLabel: 'K' },
-  { id: 'china',   label: 'CHINA',    kind: 'cymbal', wav: '/audio/drums/china.wav',    key: 'l', keyLabel: 'L' },
-  { id: 'splash',  label: 'SPLASH',   kind: 'cymbal', wav: '/audio/drums/splash.wav',   key: ';', keyLabel: ';' },
+function playHihatClosed(ctx: AudioContext) {
+  const len = ctx.sampleRate * 0.06
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+  const d = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  const src = ctx.createBufferSource(); src.buffer = buf
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8000
+  const gain = ctx.createGain()
+  gain.gain.setValueAtTime(0.35, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06)
+  src.connect(hp); hp.connect(gain); gain.connect(ctx.destination)
+  src.start(); src.stop(ctx.currentTime + 0.06)
+}
+
+function playHihatOpen(ctx: AudioContext) {
+  const len = ctx.sampleRate * 0.35
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+  const d = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  const src = ctx.createBufferSource(); src.buffer = buf
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000
+  const gain = ctx.createGain()
+  gain.gain.setValueAtTime(0.3, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
+  src.connect(hp); hp.connect(gain); gain.connect(ctx.destination)
+  src.start(); src.stop(ctx.currentTime + 0.35)
+}
+
+function playCrash(ctx: AudioContext) {
+  const len = ctx.sampleRate * 0.8
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+  const d = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  const src = ctx.createBufferSource(); src.buffer = buf
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 5000; bp.Q.value = 0.8
+  const gain = ctx.createGain()
+  gain.gain.setValueAtTime(0.45, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8)
+  src.connect(bp); bp.connect(gain); gain.connect(ctx.destination)
+  src.start(); src.stop(ctx.currentTime + 0.8)
+}
+
+function playRide(ctx: AudioContext) {
+  const len = ctx.sampleRate * 0.5
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+  const d = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  const src = ctx.createBufferSource(); src.buffer = buf
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6000; bp.Q.value = 1.2
+  const gain = ctx.createGain()
+  gain.gain.setValueAtTime(0.3, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+  src.connect(bp); bp.connect(gain); gain.connect(ctx.destination)
+  src.start(); src.stop(ctx.currentTime + 0.5)
+}
+
+function playTom(ctx: AudioContext, freq: number) {
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.connect(gain); gain.connect(ctx.destination)
+  osc.type = 'sine'
+  osc.frequency.setValueAtTime(freq, ctx.currentTime)
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.5, ctx.currentTime + 0.25)
+  gain.gain.setValueAtTime(0.6, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3)
+  osc.start(); osc.stop(ctx.currentTime + 0.3)
+}
+
+type PieceId = 'kick' | 'snare' | 'hihat' | 'hihat-open' | 'crash' | 'ride' | 'tom-hi' | 'tom-mid' | 'tom-lo'
+
+function playSound(ctx: AudioContext, id: PieceId) {
+  switch (id) {
+    case 'kick':      playKick(ctx); break
+    case 'snare':     playSnare(ctx); break
+    case 'hihat':     playHihatClosed(ctx); break
+    case 'hihat-open': playHihatOpen(ctx); break
+    case 'crash':     playCrash(ctx); break
+    case 'ride':      playRide(ctx); break
+    case 'tom-hi':    playTom(ctx, 300); break
+    case 'tom-mid':   playTom(ctx, 200); break
+    case 'tom-lo':    playTom(ctx, 120); break
+  }
+}
+
+// ─── Key mapping ──────────────────────────────────────────────────────────────
+
+const KEY_MAP: { key: string; shift?: boolean; id: PieceId; label: string }[] = [
+  { key: ' ',  id: 'kick',      label: 'Space' },
+  { key: 's',  id: 'snare',     label: 'S' },
+  { key: 'h',  id: 'hihat',     label: 'H' },
+  { key: 'h',  shift: true, id: 'hihat-open', label: 'Shift+H' },
+  { key: 'c',  id: 'crash',     label: 'C' },
+  { key: 'r',  id: 'ride',      label: 'R' },
+  { key: 'j',  id: 'tom-hi',    label: 'J' },
+  { key: 'k',  id: 'tom-mid',   label: 'K' },
+  { key: 'l',  id: 'tom-lo',    label: 'L' },
 ]
 
-const KEY_MAP: Record<string, string> = {}
-PIECES.forEach(p => { KEY_MAP[p.key] = p.id })
+// ─── SVG palette ──────────────────────────────────────────────────────────────
+
+const GOLD       = '#b08820'
+const GOLD_BELL  = '#d4a83a'
+const GOLD_HI    = '#ffe090'
+const GOLD_RIM   = '#785c10'
+const LUG        = '#8a8a9a'
+const SHELL      = '#1a1a2e'
+const HEAD       = '#2a2a3e'
+const HEAD_LIT   = '#3a3a50'
+const CYMBAL_LIT = '#d4a83a'
+const ACCENT     = '#D4226A'
 
 // ─── Beat pattern (16 steps @ 95bpm, loops 4 bars then auto-stops) ────────────
 
 const STEP_MS = (60000 / 95) / 4
-const PATTERN: { step: number; ids: string[] }[] = [
+const PATTERN: { step: number; ids: PieceId[] }[] = [
   { step: 0,  ids: ['kick', 'hihat'] },
   { step: 1,  ids: ['hihat'] },
   { step: 2,  ids: ['hihat'] },
@@ -88,546 +186,369 @@ const PATTERN: { step: number; ids: string[] }[] = [
   { step: 15, ids: ['crash'] },
 ]
 
-// ─── SVG palette ───────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
-const GOLD      = '#b08820'
-const GOLD_BELL = '#d4a83a'
-const GOLD_HI   = '#ffe090'
-const GOLD_RIM  = '#785c10'
-const LUG       = '#8a8a9a'
-const SHELL     = '#1e1e2c'
-const HEAD      = '#e0d8c2'
-const WIRE      = 'rgba(90,70,40,0.22)'
+export default function DrumsWidget() {
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const [activeHits, setActiveHits] = useState<Set<PieceId>>(new Set())
+  const [showKeys, setShowKeys] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const beatRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const playingRef = useRef(false)
 
-// ─── SVG helpers ───────────────────────────────────────────────────────────────
-
-function Lugs({ cx, cy, r, count = 8 }: { cx: number; cy: number; r: number; count?: number }) {
-  return <>
-    {Array.from({ length: count }, (_, i) => {
-      const rad = ((360 / count) * i - 90) * Math.PI / 180
-      return <circle key={i} cx={cx + Math.cos(rad) * (r + 3)} cy={cy + Math.sin(rad) * (r + 3)} r={3.8} fill={LUG} />
-    })}
-  </>
-}
-
-function Grooves({ cx, cy, rOuter, n = 5 }: { cx: number; cy: number; rOuter: number; n?: number }) {
-  return <>
-    {Array.from({ length: n }, (_, i) => {
-      const r = rOuter - (rOuter / (n + 2)) * (i + 1)
-      return <ellipse key={i} cx={cx} cy={cy} rx={r} ry={r * 0.93} fill="none" stroke={GOLD_RIM} strokeWidth={0.7} opacity={0.45 - i * 0.05} />
-    })}
-  </>
-}
-
-function Cymbal({ id, cx, cy, rx, ry, bellR = 10, label, labelDy = 0 }: {
-  id: string; cx: number; cy: number; rx: number; ry?: number
-  bellR?: number; label: string; labelDy?: number
-}) {
-  const rY = ry ?? rx * 0.92
-  return (
-    <g id={id} data-kind="cymbal" style={{ cursor: 'pointer' }}>
-      <ellipse cx={cx} cy={cy} rx={rx} ry={rY} fill={GOLD} opacity={0.87} />
-      <Grooves cx={cx} cy={cy} rOuter={rx - 4} n={5} />
-      <ellipse cx={cx} cy={cy} rx={bellR * 1.1} ry={bellR} fill={GOLD_BELL} />
-      <ellipse cx={cx} cy={cy} rx={bellR * 0.45} ry={bellR * 0.42} fill={GOLD_HI} opacity={0.7} />
-      <ellipse id={`${id}-flash`} cx={cx} cy={cy} rx={rx} ry={rY} fill="white" opacity={0} style={{ pointerEvents: 'none' }} />
-      <text x={cx} y={cy + rY + 13 + labelDy} textAnchor="middle" fontSize={8} fill="rgba(0,0,0,0.28)"
-        fontFamily="system-ui,sans-serif" letterSpacing={1.5} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-        {label}
-      </text>
-    </g>
-  )
-}
-
-function China({ id, cx, cy, rx, label }: { id: string; cx: number; cy: number; rx: number; label: string }) {
-  const ry = rx * 0.88
-  return (
-    <g id={id} data-kind="cymbal" style={{ cursor: 'pointer' }}>
-      <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill={GOLD} opacity={0.84} />
-      <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="none" stroke="#c8a030" strokeWidth={3.5} opacity={0.45} />
-      <Grooves cx={cx} cy={cy} rOuter={rx - 6} n={4} />
-      <ellipse cx={cx} cy={cy} rx={9} ry={8} fill={GOLD_BELL} />
-      <ellipse cx={cx} cy={cy} rx={4} ry={3.5} fill={GOLD_HI} opacity={0.7} />
-      <ellipse id={`${id}-flash`} cx={cx} cy={cy} rx={rx} ry={ry} fill="white" opacity={0} style={{ pointerEvents: 'none' }} />
-      <text x={cx} y={cy + ry + 13} textAnchor="middle" fontSize={8} fill="rgba(0,0,0,0.28)"
-        fontFamily="system-ui,sans-serif" letterSpacing={1.5} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-        {label}
-      </text>
-    </g>
-  )
-}
-
-function Tom({ id, cx, cy, r, label, lugs = 8 }: {
-  id: string; cx: number; cy: number; r: number; label: string; lugs?: number
-}) {
-  return (
-    <g id={id} data-kind="drum" style={{ cursor: 'pointer' }}>
-      <circle cx={cx} cy={cy} r={r} fill="var(--c)" opacity={0.82} />
-      <Lugs cx={cx} cy={cy} r={r} count={lugs} />
-      <circle cx={cx} cy={cy} r={r - 7} fill={HEAD} />
-      <circle cx={cx} cy={cy} r={3} fill="rgba(0,0,0,0.1)" />
-      <circle id={`${id}-flash`} cx={cx} cy={cy} r={r} fill="white" opacity={0} style={{ pointerEvents: 'none' }} />
-      <text x={cx} y={cy + r + 14} textAnchor="middle" fontSize={8} fill="rgba(0,0,0,0.28)"
-        fontFamily="system-ui,sans-serif" letterSpacing={1.5} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-        {label}
-      </text>
-    </g>
-  )
-}
-
-// ─── Main component ────────────────────────────────────────────────────────────
-
-export default function DrumKit() {
-  const audioCtxRef  = useRef<AudioContext | null>(null)
-  const buffersRef   = useRef<Record<string, AudioBuffer>>({})
-  const ripples      = useRef<Ripple[]>([])
-  const rafId        = useRef<number>(0)
-  const rippleLayer  = useRef<SVGGElement | null>(null)
-  const heldKeys     = useRef<Set<string>>(new Set())
-  const beatTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isPlaying    = useRef(false)
-
-  // ── Kick barrel & pedal positions ──────────────────────────────────────────
-  const KX = 350, KY = 225, KR = 88   // kick barrel center + radius
-  const PX = 338, PY = 372             // pedal footboard center
-
-  // ── Audio ─────────────────────────────────────────────────────────────────
-
-  function ctx() {
-    if (!audioCtxRef.current)
-      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
-    return audioCtxRef.current
-  }
-
-  async function loadBuffer(id: string, wav: string) {
-    if (buffersRef.current[id]) return
-    try {
-      const c   = ctx()
-      const res = await fetch(`${wav}?v=${Math.random()}`)
-      const arr = await res.arrayBuffer()
-      buffersRef.current[id] = await c.decodeAudioData(arr)
-    } catch (e) {
-      console.warn(`DrumKit: failed to load ${wav}`, e)
-    }
-  }
-
-  function playSound(id: string) {
-    const c   = ctx()
-    const buf = buffersRef.current[id]
-    if (!buf) return
-    const src = c.createBufferSource()
-    src.buffer = buf
-    src.connect(c.destination)
-    src.start()
-  }
-
-  // ── Visual ─────────────────────────────────────────────────────────────────
-
-  function flash(id: string) {
-    const el = document.getElementById(`${id}-flash`)
-    if (!el) return
-    el.setAttribute('opacity', '0.3')
-    setTimeout(() => el.setAttribute('opacity', '0'), 140)
-  }
-
-  function spawnRipple(id: string) {
-    const wrapper = document.getElementById(id)
-    if (!wrapper || !rippleLayer.current) return
-
-    const kind     = wrapper.dataset.kind as string
-    const isCymbal = kind === 'cymbal'
-    const isPedal  = kind === 'pedal'
-
-    let cx: number, cy: number, maxR: number
-
-    if (isPedal) {
-      cx = PX; cy = PY; maxR = 50
-    } else {
-      const shape = wrapper.querySelector<SVGCircleElement | SVGEllipseElement>('circle,ellipse')
-      if (!shape) return
-      cx   = parseFloat(shape.getAttribute('cx') || '0')
-      cy   = parseFloat(shape.getAttribute('cy') || '0')
-      maxR = parseFloat(shape.getAttribute('rx') || shape.getAttribute('r') || '30') * 2.4
-    }
-
-    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    c.setAttribute('cx', String(cx))
-    c.setAttribute('cy', String(cy))
-    c.setAttribute('r', '4')
-    c.setAttribute('fill', 'none')
-    c.setAttribute('stroke-width', '2')
-    rippleLayer.current.appendChild(c)
-    ripples.current.push({ el: c, t0: performance.now(), maxR, isCymbal, isPedal })
-  }
-
-  // ── Hit ────────────────────────────────────────────────────────────────────
-
-  const hit = useCallback((id: string) => {
-    const piece = PIECES.find(p => p.id === id)
-    if (!piece) return
-    if (!buffersRef.current[id]) {
-      loadBuffer(id, piece.wav).then(() => playSound(id))
-    } else {
-      playSound(id)
-    }
-    flash(id)
-    spawnRipple(id)
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 768)
   }, [])
 
-  // ── Ripple RAF ─────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const accent = () =>
-      getComputedStyle(document.documentElement).getPropertyValue('--c').trim() || '#D41113'
-
-    function frame(now: number) {
-      const alive: Ripple[] = []
-      for (const rp of ripples.current) {
-        const dur = rp.isCymbal ? 900 : rp.isPedal ? 320 : 480
-        const p   = Math.min((now - rp.t0) / dur, 1)
-        rp.el.setAttribute('r',       String(4 + (rp.maxR - 4) * p))
-        rp.el.setAttribute('opacity', String(1 - p))
-        rp.el.setAttribute('stroke',  rp.isCymbal ? GOLD_BELL : accent())
-        if (p < 1) alive.push(rp)
-        else rippleLayer.current?.removeChild(rp.el)
-      }
-      ripples.current = alive
-      rafId.current   = requestAnimationFrame(frame)
-    }
-
-    rafId.current = requestAnimationFrame(frame)
-    return () => cancelAnimationFrame(rafId.current)
+  const handleHit = useCallback((id: PieceId) => {
+    const ctx = getCtx(audioCtxRef)
+    playSound(ctx, id)
+    setActiveHits(prev => new Set(prev).add(id))
+    setTimeout(() => {
+      setActiveHits(prev => { const n = new Set(prev); n.delete(id); return n })
+    }, 120)
   }, [])
 
-  // ── Preload on first interaction ───────────────────────────────────────────
-
+  // Keyboard handler
   useEffect(() => {
-    const preload = async () => { for (const p of PIECES) await loadBuffer(p.id, p.wav) }
-    window.addEventListener('pointerdown', () => preload(), { once: true })
-  }, [])
-
-  // ── Multi-touch ────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const svg = document.getElementById('drum-kit-svg')
-    if (!svg) return
-    const onTouch = (e: TouchEvent) => {
-      e.preventDefault()
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i]
-        const el = document.elementFromPoint(t.clientX, t.clientY)
-        const g  = el?.closest('[data-kind]') as HTMLElement | null
-        if (g?.id) hit(g.id)
-      }
-    }
-    svg.addEventListener('touchstart', onTouch, { passive: false })
-    return () => svg.removeEventListener('touchstart', onTouch)
-  }, [hit])
-
-  // ── Keyboard — polyphonic, no auto-repeat ──────────────────────────────────
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
+    const onDown = (e: KeyboardEvent) => {
       if (e.repeat) return
-      const id = KEY_MAP[e.key.toLowerCase()] ?? KEY_MAP[e.key]
-      if (!id) return
-      heldKeys.current.add(e.key.toLowerCase())
-      hit(id)
+      const k = e.key.toLowerCase()
+      for (const m of KEY_MAP) {
+        if (m.key === k && !!m.shift === e.shiftKey) {
+          e.preventDefault()
+          handleHit(m.id)
+          return
+        }
+      }
     }
-    const up = (e: KeyboardEvent) => heldKeys.current.delete(e.key.toLowerCase())
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [hit])
+    window.addEventListener('keydown', onDown)
+    return () => window.removeEventListener('keydown', onDown)
+  }, [handleHit])
 
-  // ── Beat demo ──────────────────────────────────────────────────────────────
-
+  // Beat demo
   function stopBeat() {
-    isPlaying.current = false
-    if (beatTimer.current) clearTimeout(beatTimer.current)
-    const pi = document.getElementById('beat-play')
-    const si = document.getElementById('beat-stop')
-    if (pi) pi.style.display = ''
-    if (si) si.style.display = 'none'
+    playingRef.current = false
+    setPlaying(false)
+    if (beatRef.current) clearTimeout(beatRef.current)
   }
 
   function runStep(idx: number, loop: number) {
-    if (!isPlaying.current) return
-    PATTERN[idx].ids.forEach(id => hit(id))
+    if (!playingRef.current) return
+    PATTERN[idx].ids.forEach(id => handleHit(id))
     const next = (idx + 1) % PATTERN.length
     const nextLoop = next === 0 ? loop + 1 : loop
-    if (nextLoop >= 4) { beatTimer.current = setTimeout(stopBeat, STEP_MS); return }
-    beatTimer.current = setTimeout(() => runStep(next, nextLoop), STEP_MS)
+    if (nextLoop >= 4) { beatRef.current = setTimeout(stopBeat, STEP_MS); return }
+    beatRef.current = setTimeout(() => runStep(next, nextLoop), STEP_MS)
   }
 
   function toggleBeat() {
-    if (isPlaying.current) { stopBeat(); return }
-    isPlaying.current = true
-    const pi = document.getElementById('beat-play')
-    const si = document.getElementById('beat-stop')
-    if (pi) pi.style.display = 'none'
-    if (si) si.style.display = ''
+    if (playingRef.current) { stopBeat(); return }
+    playingRef.current = true
+    setPlaying(true)
     runStep(0, 0)
   }
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // Cleanup beat on unmount
+  useEffect(() => () => { if (beatRef.current) clearTimeout(beatRef.current) }, [])
+
+  const isHit = (id: PieceId) => activeHits.has(id)
+
+  // Helper for pointer handler
+  const onHit = (id: PieceId) => (e: React.PointerEvent) => {
+    e.preventDefault()
+    handleHit(id)
+  }
+
+  // ─── Piece renderers ─────────────────────────────────────────────────────
+
+  function CymbalShape({ id, cx, cy, rx, ry, bellR = 10, label, labelDy = 0 }: {
+    id: PieceId; cx: number; cy: number; rx: number; ry?: number
+    bellR?: number; label: string; labelDy?: number
+  }) {
+    const rY = ry ?? rx * 0.92
+    const lit = isHit(id)
+    return (
+      <g style={{ cursor: 'pointer' }} onPointerDown={onHit(id)}>
+        <ellipse cx={cx} cy={cy} rx={rx} ry={rY}
+          fill={lit ? CYMBAL_LIT : GOLD} opacity={lit ? 1 : 0.87}
+          style={{ transition: 'fill 0.06s, opacity 0.06s' }} />
+        {/* Grooves */}
+        {Array.from({ length: 5 }, (_, i) => {
+          const r = (rx - 4) - ((rx - 4) / 7) * (i + 1)
+          return <ellipse key={i} cx={cx} cy={cy} rx={r} ry={r * 0.93}
+            fill="none" stroke={GOLD_RIM} strokeWidth={0.7} opacity={0.45 - i * 0.05}
+            style={{ pointerEvents: 'none' }} />
+        })}
+        <ellipse cx={cx} cy={cy} rx={bellR * 1.1} ry={bellR} fill={GOLD_BELL}
+          style={{ pointerEvents: 'none' }} />
+        <ellipse cx={cx} cy={cy} rx={bellR * 0.45} ry={bellR * 0.42} fill={GOLD_HI} opacity={0.7}
+          style={{ pointerEvents: 'none' }} />
+        {lit && <ellipse cx={cx} cy={cy} rx={rx} ry={rY} fill="white" opacity={0.25}
+          style={{ pointerEvents: 'none' }} />}
+        <text x={cx} y={cy + rY + 13 + labelDy} textAnchor="middle" fontSize={8}
+          fill="rgba(255,255,255,0.35)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
+          style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>
+      </g>
+    )
+  }
+
+  function DrumShape({ id, cx, cy, r, label, lugs = 8 }: {
+    id: PieceId; cx: number; cy: number; r: number; label: string; lugs?: number
+  }) {
+    const lit = isHit(id)
+    return (
+      <g style={{ cursor: 'pointer' }} onPointerDown={onHit(id)}>
+        {/* Shell */}
+        <circle cx={cx} cy={cy} r={r} fill={ACCENT} opacity={lit ? 1 : 0.82}
+          style={{ transition: 'opacity 0.06s' }} />
+        {/* Lugs */}
+        {Array.from({ length: lugs }, (_, i) => {
+          const rad = ((360 / lugs) * i - 90) * Math.PI / 180
+          return <circle key={i}
+            cx={cx + Math.cos(rad) * (r + 3)} cy={cy + Math.sin(rad) * (r + 3)}
+            r={3.8} fill={LUG} style={{ pointerEvents: 'none' }} />
+        })}
+        {/* Head */}
+        <circle cx={cx} cy={cy} r={r - 7} fill={lit ? HEAD_LIT : HEAD}
+          style={{ transition: 'fill 0.06s', pointerEvents: 'none' }} />
+        <circle cx={cx} cy={cy} r={3} fill="rgba(255,255,255,0.08)"
+          style={{ pointerEvents: 'none' }} />
+        {lit && <circle cx={cx} cy={cy} r={r} fill="white" opacity={0.2}
+          style={{ pointerEvents: 'none' }} />}
+        <text x={cx} y={cy + r + 14} textAnchor="middle" fontSize={8}
+          fill="rgba(255,255,255,0.35)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
+          style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>
+      </g>
+    )
+  }
+
+  // ─── Kick positions ──────────────────────────────────────────────────────
+  const KX = 300, KY = 225, KR = 80
+
+  const kickLit = isHit('kick')
 
   return (
-    <div style={{ width: '100%', maxWidth: 680, margin: '0 auto', padding: '1.5rem 0' }}>
+    <section style={{
+      width: '100%', background: '#0A0A10',
+      borderTop: '1px solid #1C1C2A', borderBottom: '1px solid #1C1C2A',
+      padding: '48px 16px',
+    }}>
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <div style={{
+          fontSize: 11, fontWeight: 800, letterSpacing: '0.12em',
+          textTransform: 'uppercase' as const, color: 'var(--c, #D4226A)', marginBottom: 8,
+        }}>Interactive</div>
+        <h2 style={{
+          fontFamily: "'Bebas Neue', sans-serif", fontSize: 'clamp(28px, 6vw, 48px)',
+          color: '#fff', lineHeight: 0.95, letterSpacing: '0.5px', margin: 0,
+        }}>
+          Play The <em style={{ fontStyle: 'normal', color: 'var(--c, #D4226A)' }}>Kit.</em>
+        </h2>
+        <p style={{
+          fontSize: 14, color: '#888', maxWidth: 400, margin: '12px auto 0', lineHeight: 1.6,
+        }}>Tap any piece. Real sounds, no downloads.</p>
+      </div>
 
-      <div style={{ position: 'relative', width: '100%' }}>
+      <div style={{ width: '100%', maxWidth: 640, margin: '0 auto', position: 'relative' }}>
         <svg
-          id="drum-kit-svg"
-          viewBox="0 0 680 460"
-          xmlns="http://www.w3.org/2000/svg"
-          style={{ width: '100%', height: 'auto', display: 'block' }}
+          viewBox="0 0 600 420"
+          width="100%"
+          style={{ display: 'block', touchAction: 'none', userSelect: 'none' }}
         >
-          {/* Stage shadow tray */}
-          <rect x={22} y={22} width={636} height={422} rx={14} fill="rgba(0,0,0,0.07)" />
-
-          {/* ══════════════════════════════════════════════════════
-              KICK DRUM BARREL — aerial top-view, decorative only.
-              The large cylinder you see behind everything else.
-              Shell → colored wrap band → batter head (dark).
-          ══════════════════════════════════════════════════════ */}
-
-          {/* Floor shadow under barrel */}
-          <ellipse cx={KX} cy={KY + 10} rx={KR + 8} ry={14} fill="rgba(0,0,0,0.22)" />
-
-          {/* Outer shell (darkest ring) */}
+          {/* ── Kick drum barrel (decorative shell, not the hit zone) ── */}
+          <ellipse cx={KX} cy={KY + 8} rx={KR + 6} ry={12} fill="rgba(0,0,0,0.2)" />
           <circle cx={KX} cy={KY} r={KR} fill={SHELL} opacity={0.97} />
-
-          {/* Colored wrap visible as a band */}
-          <circle cx={KX} cy={KY} r={KR}     fill="var(--c)" opacity={0.40} />
-          <circle cx={KX} cy={KY} r={KR - 7} fill={SHELL}   opacity={0.88} />
-
-          {/* Lug bolts (10-count on a large drum) */}
+          <circle cx={KX} cy={KY} r={KR} fill={ACCENT} opacity={0.35} />
+          <circle cx={KX} cy={KY} r={KR - 6} fill={SHELL} opacity={0.88} />
+          {/* Kick barrel lugs */}
           {Array.from({ length: 10 }, (_, i) => {
             const rad = ((360 / 10) * i - 90) * Math.PI / 180
             return <circle key={i}
               cx={KX + Math.cos(rad) * (KR + 2)} cy={KY + Math.sin(rad) * (KR + 2)}
-              r={5.5} fill={LUG} />
+              r={4.5} fill={LUG} style={{ pointerEvents: 'none' }} />
           })}
+          {/* Kick head */}
+          <circle cx={KX} cy={KY} r={KR - 10} fill="#0d0d1a" style={{ pointerEvents: 'none' }} />
+          <circle cx={KX} cy={KY} r={KR - 14} fill="#101018" style={{ pointerEvents: 'none' }} />
+          <circle cx={KX} cy={KY} r={24} fill="#1a1a28" style={{ pointerEvents: 'none' }} />
+          <circle cx={KX} cy={KY} r={18} fill={ACCENT} opacity={0.1} style={{ pointerEvents: 'none' }} />
 
-          {/* Batter head — dark, you're looking at the front head from above */}
-          <circle cx={KX} cy={KY} r={KR - 10} fill="#0d0d1a" />
-          <circle cx={KX} cy={KY} r={KR - 15} fill="#101018" />
+          {/* Tom mount hardware */}
+          <rect x={KX - 18} y={KY - KR - 2} width={12} height={8} rx={2} fill={LUG} opacity={0.6}
+            style={{ pointerEvents: 'none' }} />
+          <rect x={KX + 6} y={KY - KR - 2} width={12} height={8} rx={2} fill={LUG} opacity={0.6}
+            style={{ pointerEvents: 'none' }} />
 
-          {/* Reso port ring */}
-          <circle cx={KX} cy={KY} r={28} fill="#1a1a28" />
-          <circle cx={KX} cy={KY} r={22} fill="var(--c)" opacity={0.12} />
+          {/* Tom mount arms */}
+          <line x1={KX - 12} y1={KY - KR} x2={230} y2={155}
+            stroke={LUG} strokeWidth={4} strokeLinecap="round" opacity={0.5}
+            style={{ pointerEvents: 'none' }} />
+          <line x1={KX + 12} y1={KY - KR} x2={340} y2={140}
+            stroke={LUG} strokeWidth={4} strokeLinecap="round" opacity={0.5}
+            style={{ pointerEvents: 'none' }} />
 
-          {/* Subtle "KICK" label on the head */}
-          <text x={KX} y={KY + 5} textAnchor="middle" fontSize={10}
-            fill="rgba(255,255,255,0.16)" fontFamily="system-ui,sans-serif"
-            letterSpacing={3} fontWeight={500}
-            style={{ userSelect: 'none', pointerEvents: 'none' }}>
-            KICK
-          </text>
-
-          {/* Tom mount hardware on top of shell */}
-          <rect x={KX - 20} y={KY - KR - 2} width={14} height={9} rx={2} fill={LUG} opacity={0.65} />
-          <rect x={KX + 6}  y={KY - KR - 2} width={14} height={9} rx={2} fill={LUG} opacity={0.65} />
-
-          {/* ══════════════════════════════════════════════════════
-              KICK PEDAL — the interactive element that fires kick.
-              Aerial view: footboard rectangle below the barrel.
-              Beater arm connects footboard cam to kick head.
-          ══════════════════════════════════════════════════════ */}
-
-          {/* Beater arm */}
-          <line x1={PX} y1={KY + KR - 2} x2={PX} y2={PY - 30}
-            stroke="#4a4a5a" strokeWidth={3.5} strokeLinecap="round" />
-
-          {/* Cam wheel (top of pedal arm) */}
-          <circle cx={PX} cy={KY + KR + 6} r={8} fill="#3e3e50" />
-          <circle cx={PX} cy={KY + KR + 6} r={3.5} fill="#606070" />
-
-          {/* Chain links */}
-          {Array.from({ length: 5 }, (_, i) => (
-            <rect key={i} x={PX - 3.5} y={KY + KR + 16 + i * 9}
-              width={7} height={5} rx={1} fill="#424254" opacity={0.85} />
-          ))}
-
-          {/* Footboard — the tappable element */}
-          <g
-            id="kick"
-            data-kind="pedal"
-            style={{ cursor: 'pointer' }}
-          >
-            {/* Board drop shadow */}
-            <rect x={PX - 28} y={PY - 26} width={56} height={54} rx={6} fill="rgba(0,0,0,0.28)" />
-            {/* Board body */}
-            <rect x={PX - 27} y={PY - 27} width={54} height={52} rx={5} fill="#38384c" />
-            {/* Non-slip grip texture */}
-            {[-12, -5, 2, 9, 16].map((offset, i) => (
-              <line key={i}
-                x1={PX - 18} y1={PY - 8 + offset}
-                x2={PX + 18} y2={PY - 8 + offset}
-                stroke="#50506a" strokeWidth={1.5} />
+          {/* ── Kick pedal — the tappable hit zone ── */}
+          <g style={{ cursor: 'pointer' }} onPointerDown={onHit('kick')}>
+            {/* Beater arm */}
+            <line x1={290} y1={KY + KR - 4} x2={290} y2={355}
+              stroke="#4a4a5a" strokeWidth={3} strokeLinecap="round"
+              style={{ pointerEvents: 'none' }} />
+            {/* Cam wheel */}
+            <circle cx={290} cy={KY + KR + 4} r={7} fill="#3e3e50"
+              style={{ pointerEvents: 'none' }} />
+            {/* Footboard */}
+            <rect x={265} y={348} width={50} height={46} rx={5}
+              fill={kickLit ? '#4e4e68' : '#38384c'}
+              style={{ transition: 'fill 0.06s' }} />
+            {/* Grip lines */}
+            {[-10, -3, 4, 11].map((off, i) => (
+              <line key={i} x1={275} y1={371 + off} x2={305} y2={371 + off}
+                stroke="#50506a" strokeWidth={1.5} style={{ pointerEvents: 'none' }} />
             ))}
-            {/* Hinge bar at board top */}
-            <rect x={PX - 25} y={PY - 29} width={50} height={6} rx={3} fill="#50506a" />
-            {/* Toe clamp bar at bottom */}
-            <rect x={PX - 15} y={PY + 21} width={30} height={5} rx={2} fill="#50506a" />
-            {/* Flash overlay */}
-            <rect id="kick-flash" x={PX - 27} y={PY - 27} width={54} height={52} rx={5}
-              fill="white" opacity={0} style={{ pointerEvents: 'none' }} />
-            {/* Label below pedal */}
-            <text x={PX} y={PY + 42} textAnchor="middle" fontSize={8}
-              fill="rgba(0,0,0,0.28)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
-              style={{ pointerEvents: 'none', userSelect: 'none' }}>
-              PEDAL
-            </text>
+            {/* Hinge bar */}
+            <rect x={267} y={346} width={46} height={5} rx={2.5} fill="#50506a"
+              style={{ pointerEvents: 'none' }} />
+            {kickLit && <rect x={265} y={348} width={50} height={46} rx={5}
+              fill="white" opacity={0.2} style={{ pointerEvents: 'none' }} />}
+            <text x={290} y={408} textAnchor="middle" fontSize={8}
+              fill="rgba(255,255,255,0.35)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
+              style={{ pointerEvents: 'none', userSelect: 'none' }}>KICK</text>
           </g>
 
-          {/* ══════════════════════════════════════════════════════
-              HI-HAT — far left, stacked pair
-              Bottom plate slightly offset below top plate.
-          ══════════════════════════════════════════════════════ */}
+          {/* ── Hi-hat — far left ── */}
+          {/* Stand */}
+          <line x1={98} y1={275} x2={98} y2={298}
+            stroke="#555" strokeWidth={2.5} opacity={0.45} style={{ pointerEvents: 'none' }} />
+          <ellipse cx={98} cy={302} rx={12} ry={5} fill="#444" opacity={0.4}
+            style={{ pointerEvents: 'none' }} />
+          {/* Bottom plate peek */}
+          <ellipse cx={98} cy={256} rx={44} ry={40} fill={GOLD} opacity={0.55}
+            style={{ pointerEvents: 'none' }} />
 
-          {/* Stand rod and base */}
-          <line x1={112} y1={295} x2={112} y2={318} stroke="#555" strokeWidth={2.5} opacity={0.5} />
-          <ellipse cx={112} cy={322} rx={13} ry={5.5} fill="#444" opacity={0.5} />
+          <CymbalShape id="hihat" cx={98} cy={251} rx={44} ry={40} bellR={11} label="HI-HAT" />
 
-          <g id="hihat" data-kind="cymbal" style={{ cursor: 'pointer' }}>
-            {/* Bottom plate */}
-            <ellipse cx={112} cy={274} rx={50} ry={47} fill={GOLD} opacity={0.66} />
-            {/* Top plate */}
-            <ellipse cx={112} cy={269} rx={50} ry={47} fill={GOLD} opacity={0.93} />
-            <Grooves cx={112} cy={269} rOuter={44} n={5} />
-            <ellipse cx={112} cy={269} rx={13} ry={12} fill={GOLD_BELL} />
-            <ellipse cx={112} cy={269} rx={5.5} ry={5} fill={GOLD_HI} opacity={0.7} />
-            {/* Bottom plate edge peek */}
-            <ellipse cx={112} cy={274} rx={50} ry={47} fill="none" stroke="#906c14" strokeWidth={1.8} opacity={0.42} />
-            <ellipse id="hihat-flash" cx={112} cy={269} rx={50} ry={47} fill="white" opacity={0} style={{ pointerEvents: 'none' }} />
-            <text x={112} y={222} textAnchor="middle" fontSize={8} fill="rgba(0,0,0,0.28)"
-              fontFamily="system-ui,sans-serif" letterSpacing={1.5}
-              style={{ pointerEvents: 'none', userSelect: 'none' }}>HI-HAT</text>
-          </g>
-
-          {/* ══════════════════════════════════════════════════════
-              SNARE — front-left, between hi-hat and kick
-          ══════════════════════════════════════════════════════ */}
-
-          <g id="snare" data-kind="drum" style={{ cursor: 'pointer' }}>
-            <circle cx={215} cy={315} r={43} fill={SHELL} opacity={0.95} />
-            <Lugs cx={215} cy={315} r={43} count={8} />
-            <circle cx={215} cy={315} r={35} fill={HEAD} />
-            {/* Snare wire strands */}
-            {[-12, -6, 0, 6, 12, -18, 18].map((off, i) => (
-              <line key={i} x1={180} y1={315 + off} x2={250} y2={315 + off}
-                stroke={WIRE} strokeWidth={off % 6 === 0 ? 1.1 : 0.75} />
+          {/* ── Snare — front-left ── */}
+          <g style={{ cursor: 'pointer' }} onPointerDown={onHit('snare')}>
+            <circle cx={185} cy={300} r={40} fill={SHELL} opacity={0.95} />
+            {/* Lugs */}
+            {Array.from({ length: 8 }, (_, i) => {
+              const rad = ((360 / 8) * i - 90) * Math.PI / 180
+              return <circle key={i}
+                cx={185 + Math.cos(rad) * 43} cy={300 + Math.sin(rad) * 43}
+                r={3.8} fill={LUG} style={{ pointerEvents: 'none' }} />
+            })}
+            {/* Head */}
+            <circle cx={185} cy={300} r={33} fill={isHit('snare') ? HEAD_LIT : HEAD}
+              style={{ transition: 'fill 0.06s', pointerEvents: 'none' }} />
+            {/* Snare wires */}
+            {[-14, -7, 0, 7, 14].map((off, i) => (
+              <line key={i} x1={155} y1={300 + off} x2={215} y2={300 + off}
+                stroke="rgba(90,70,40,0.2)" strokeWidth={0.9} style={{ pointerEvents: 'none' }} />
             ))}
-            <circle id="snare-flash" cx={215} cy={315} r={43} fill="white" opacity={0} style={{ pointerEvents: 'none' }} />
-            <text x={215} y={370} textAnchor="middle" fontSize={8} fill="rgba(0,0,0,0.28)"
-              fontFamily="system-ui,sans-serif" letterSpacing={1.5}
+            {isHit('snare') && <circle cx={185} cy={300} r={40} fill="white" opacity={0.2}
+              style={{ pointerEvents: 'none' }} />}
+            <text x={185} y={352} textAnchor="middle" fontSize={8}
+              fill="rgba(255,255,255,0.35)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
               style={{ pointerEvents: 'none', userSelect: 'none' }}>SNARE</text>
           </g>
 
-          {/* ══════════════════════════════════════════════════════
-              RACK TOMS — mounted above kick via tom-mount arms
-          ══════════════════════════════════════════════════════ */}
+          {/* ── Rack toms ── */}
+          <DrumShape id="tom-hi" cx={230} cy={152} r={32} label="HIGH TOM" />
+          <DrumShape id="tom-mid" cx={340} cy={138} r={32} label="MID TOM" />
 
-          {/* Tom mount arms from kick hardware */}
-          <line x1={KX - 13} y1={KY - KR} x2={273} y2={158} stroke={LUG} strokeWidth={4.5} strokeLinecap="round" opacity={0.55} />
-          <line x1={KX + 13} y1={KY - KR} x2={375} y2={144} stroke={LUG} strokeWidth={4.5} strokeLinecap="round" opacity={0.55} />
-
-          <Tom id="tom-hi"  cx={272} cy={154} r={34} label="HIGH TOM" />
-          <Tom id="tom-mid" cx={377} cy={140} r={34} label="MID TOM" />
-
-          {/* ══════════════════════════════════════════════════════
-              LOW TOM — floor tom, right side, on its own legs
-          ══════════════════════════════════════════════════════ */}
-
-          {/* Floor tom legs (3 legs visible from above) */}
-          {[[-28, 20], [28, 20], [0, -28]].map(([dx, dy], i) => (
+          {/* ── Floor tom — right side ── */}
+          {/* Legs */}
+          {[[-24, 18], [24, 18], [0, -24]].map(([dx, dy], i) => (
             <line key={i}
-              x1={545 + dx * 0.4} y1={292 + dy * 0.4}
-              x2={545 + dx} y2={292 + dy + 32}
-              stroke="#555" strokeWidth={3} strokeLinecap="round" opacity={0.5} />
+              x1={490 + dx * 0.4} y1={270 + dy * 0.4}
+              x2={490 + dx} y2={270 + dy + 28}
+              stroke="#555" strokeWidth={3} strokeLinecap="round" opacity={0.45}
+              style={{ pointerEvents: 'none' }} />
           ))}
+          <DrumShape id="tom-lo" cx={490} cy={260} r={48} label="FLOOR TOM" />
 
-          <Tom id="tom-lo" cx={545} cy={278} r={52} label="LOW TOM" />
+          {/* ── Cymbals ── */}
+          {/* Stand rods */}
+          <line x1={170} y1={72} x2={170} y2={96}
+            stroke="#555" strokeWidth={2} opacity={0.35} style={{ pointerEvents: 'none' }} />
+          <line x1={458} y1={80} x2={458} y2={106}
+            stroke="#555" strokeWidth={2} opacity={0.35} style={{ pointerEvents: 'none' }} />
 
-          {/* ══════════════════════════════════════════════════════
-              CYMBALS — China, Crash, Ride, Splash
-              Each on a stand; stands shown as short rods.
-          ══════════════════════════════════════════════════════ */}
+          <CymbalShape id="crash" cx={170} cy={70} rx={58} ry={53} bellR={12} label="CRASH" />
+          <CymbalShape id="ride" cx={458} cy={82} rx={66} ry={61} bellR={14} label="RIDE" />
 
-          {/* Stand rods (decorative) */}
-          <line x1={82}  y1={98}  x2={82}  y2={122} stroke="#555" strokeWidth={2} opacity={0.38} />
-          <line x1={200} y1={78}  x2={200} y2={102} stroke="#555" strokeWidth={2} opacity={0.38} />
-          <line x1={502} y1={94}  x2={502} y2={120} stroke="#555" strokeWidth={2} opacity={0.38} />
-          <line x1={614} y1={150} x2={614} y2={172} stroke="#555" strokeWidth={2} opacity={0.38} />
-
-          {/* China — far upper-left */}
-          <China id="china" cx={82} cy={78} rx={50} label="CHINA" />
-
-          {/* Crash — upper-left center */}
-          <Cymbal id="crash" cx={214} cy={76} rx={64} ry={59} bellR={13} label="CRASH" />
-
-          {/* Ride — upper-right, largest */}
-          <Cymbal id="ride" cx={500} cy={96} rx={74} ry={69} bellR={16} label="RIDE" />
-
-          {/* Splash — far upper-right, smallest */}
-          <Cymbal id="splash" cx={615} cy={155} rx={36} ry={33} bellR={7} label="SPLASH" />
-
-          {/* Ripple layer — always rendered on top */}
-          <g ref={rippleLayer} style={{ pointerEvents: 'none' }} />
+          {/* ── Hi-hat open indicator — small overlay text ── */}
+          {isHit('hihat-open') && (
+            <text x={98} y={251} textAnchor="middle" fontSize={9} fill="white" opacity={0.7}
+              fontFamily="system-ui,sans-serif" fontWeight={700}
+              style={{ pointerEvents: 'none', userSelect: 'none' }}>OPEN</text>
+          )}
         </svg>
 
         {/* Beat demo button */}
         <button
           onClick={toggleBeat}
-          title="Play a beat"
+          title={playing ? 'Stop beat' : 'Play a beat'}
           style={{
-            position: 'absolute',
-            right: 0,
-            bottom: 56,
-            width: 48,
-            height: 48,
-            borderRadius: '50%',
+            position: 'absolute', right: 4, bottom: 48,
+            width: 44, height: 44, borderRadius: '50%',
             border: '1.5px solid rgba(255,255,255,0.18)',
-            background: 'rgba(255,255,255,0.05)',
-            color: 'inherit',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backdropFilter: 'blur(4px)',
-            transition: 'border-color 0.15s, background 0.15s',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'
+            background: playing ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.05)',
+            color: playing ? ACCENT : 'inherit',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(4px)', transition: 'border-color 0.15s, background 0.15s',
           }}
         >
-          <svg id="beat-play" width={14} height={14} viewBox="0 0 16 16" fill="currentColor">
-            <path d="M4 3l10 5-10 5V3z" />
-          </svg>
-          <svg id="beat-stop" width={14} height={14} viewBox="0 0 16 16" fill="currentColor" style={{ display: 'none' }}>
-            <rect x={3} y={3} width={4} height={10} rx={1} />
-            <rect x={9} y={3} width={4} height={10} rx={1} />
-          </svg>
+          {playing ? (
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="currentColor">
+              <rect x={3} y={3} width={4} height={10} rx={1} />
+              <rect x={9} y={3} width={4} height={10} rx={1} />
+            </svg>
+          ) : (
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4 3l10 5-10 5V3z" />
+            </svg>
+          )}
         </button>
       </div>
 
-      {/* Keyboard shortcut strip */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 18px', justifyContent: 'center', marginTop: 12, padding: '0 8px' }}>
-        {PIECES.map(p => (
-          <span key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, letterSpacing: '1.2px', textTransform: 'uppercase', opacity: 0.5 }}>
-            <span style={{ background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.18)', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 10 }}>
-              {p.keyLabel}
-            </span>
-            {p.label}
-          </span>
-        ))}
-      </div>
-    </div>
+      {/* Keyboard shortcuts — collapsible */}
+      {!isMobile && (
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
+          <button
+            onClick={() => setShowKeys(v => !v)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 11, color: '#555', fontFamily: 'inherit',
+              padding: '4px 8px',
+            }}
+          >
+            {showKeys ? '▾' : '▸'} Keyboard shortcuts
+          </button>
+          {showKeys && (
+            <div style={{
+              display: 'flex', flexWrap: 'wrap', gap: '8px 16px',
+              justifyContent: 'center', marginTop: 8, padding: '0 8px',
+            }}>
+              {KEY_MAP.map(m => (
+                <span key={m.id + (m.shift ? '-shift' : '')} style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: 10, letterSpacing: '1.2px', textTransform: 'uppercase', opacity: 0.45,
+                }}>
+                  <span style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '0.5px solid rgba(255,255,255,0.18)',
+                    borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 10,
+                  }}>{m.label}</span>
+                  {m.id.replace('-', ' ').replace('hihat open', 'hi-hat open').replace('hihat', 'hi-hat')}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   )
 }
