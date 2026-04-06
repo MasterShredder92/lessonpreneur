@@ -24,11 +24,9 @@ function PageLoader() {
 }
 
 // ── Lazy-loaded pages (code-split per route) ──
-const MarketingLanding = lazy(() => import('../pages/MarketingLanding'))
+// Routes removed — orphaned. Component files preserved for future use.
 const LandingPageV2 = lazy(() => import('../pages/LandingPage'))
-const TrialStartPageV2 = lazy(() => import('../pages/TrialStartPage'))
 const Login = lazy(() => import('../pages/Login'))
-const Signup = lazy(() => import('../pages/Signup'))
 const Intake = lazy(() => import('../pages/Intake'))
 const PayInvoice = lazy(() => import('../pages/PayInvoice'))
 const AdkinsLanding = lazy(() => import('../pages/AdkinsLanding'))
@@ -45,7 +43,6 @@ const ThankYou = lazy(() => import('../pages/ThankYou'))
 const VSLPage = lazy(() => import('../pages/public/VSLPage'))
 const LeadCaptureFormPage = lazy(() => import('../pages/public/LeadCaptureFormPage'))
 const CardCapturePage = lazy(() => import('../pages/public/CardCapturePage'))
-const OnboardingWizardPage = lazy(() => import('../pages/public/OnboardingWizardPage'))
 
 // Shells (loaded eagerly — they're the layout)
 import AdminShell from '../components/layout/AdminShell'
@@ -126,17 +123,14 @@ export default function App() {
           <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<LandingPageV2 />} />
-            <Route path="/v2" element={<MarketingLanding />} />
-            <Route path="/v2/start" element={<TrialStartPageV2 />} />
+            {/* Routes removed — orphaned. Component files preserved for future use. */}
             <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
             <Route path="/intake/:slug" element={<Intake />} />
             <Route path="/pay/:token" element={<PayInvoice />} />
             {/* Public funnel — no auth required */}
             <Route path="/start" element={<VSLPage />} />
             <Route path="/get-started" element={<LeadCaptureFormPage />} />
             <Route path="/trial" element={<CardCapturePage />} />
-            <Route path="/onboarding" element={<OnboardingWizardPage />} />
             {/* ── Location-specific nested routes ── */}
             {/* /omaha, /gretna, /bellevue, /elkhorn + instrument sub-routes */}
             {(['omaha', 'gretna', 'bellevue', 'elkhorn'] as LocKey[]).map(loc => (

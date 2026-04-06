@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase as anon } from '../lib/supabase'
-import EnrollmentForm from '../components/enrollment/EnrollmentForm'
 import CorneliusChat from '../components/site/CorneliusChat'
 import { useRouteLocationKey } from '../config/LocationContext'
 import { LOCATIONS, type LocKey } from '../config/locations'
@@ -79,8 +79,8 @@ export default function AdkinsLanding() {
       setLoc(routeLocKey)
     }
   }, [routeLocKey])
+  const navigate = useNavigate()
   const [logos, setLogos] = useState<Record<string, string>>({})
-  const [enrollOpen, setEnrollOpen] = useState(false)
   const [expandedInst, setExpandedInst] = useState<number | null>(null)
   const [randomReviews, setRandomReviews] = useState<{ id: string; reviewer_name: string; text_cleaned: string }[]>([])
   const [matchScore, setMatchScore] = useState(0)
@@ -182,7 +182,7 @@ export default function AdkinsLanding() {
     setLocColors({ '--c': LD.c, '--cg': LD.cg, '--cl': LD.cl })
   }, [loc])
 
-  const goEnroll = useCallback(() => setEnrollOpen(true), [])
+  const goEnroll = useCallback(() => navigate(`/${loc}/signup`), [loc, navigate])
 
   // 3D tilt
   const handleTilt = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -537,8 +537,6 @@ export default function AdkinsLanding() {
         onNavigateSignup={goEnroll}
       />
 
-      {/* Full-screen enrollment form */}
-      <EnrollmentForm isOpen={enrollOpen} onClose={() => setEnrollOpen(false)} defaultLocation={loc} />
     </div>
   )
 }

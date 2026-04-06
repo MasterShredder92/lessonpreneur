@@ -5,6 +5,7 @@ import { useSiteLocation } from '../hooks/useSiteLocation'
 import { setLocColors } from '../lib/setLocColors'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { trackLead, trackEnrollmentStarted, trackStudentNameEntered, trackInstrumentSelected, trackAdditionalStudentAdded } from '../lib/tracking'
+import { MapPin } from 'lucide-react'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { supabase } from '../lib/supabase'
 import { SCHOOL_CONFIG } from '../config/school'
@@ -718,7 +719,7 @@ export default function SignupLanding() {
             </h1>
           )}
           {showPrefLoc && (
-            <h1 className="signup-title">Preferred location</h1>
+            <h1 className="signup-title">Your location</h1>
           )}
           {showSecLocs && (
             <h1 className="signup-title">Any other locations work?</h1>
@@ -792,17 +793,12 @@ export default function SignupLanding() {
 
           {showPrefLoc && (
             <>
-              <div className="signup-pills">
-                {LOC_OPTIONS.map(loc => (
-                  <button
-                    key={loc.key}
-                    className={`signup-pill${preferredLoc === loc.key ? ' selected' : ''}`}
-                    onClick={() => { setPreferredLoc(loc.key); advanceStep2() }}
-                  >
-                    {loc.label}
-                  </button>
-                ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', background: 'rgba(255,255,255,0.04)', border: `1.5px solid ${LOCATIONS[preferredLoc].accentColor}40`, borderRadius: 14 }}>
+                <MapPin size={18} style={{ color: LOCATIONS[preferredLoc].accentColor, flexShrink: 0 }} />
+                <span style={{ fontSize: 17, fontWeight: 700, color: LOCATIONS[preferredLoc].accentColor }}>{LOCATIONS[preferredLoc].name}</span>
               </div>
+              <p style={{ fontSize: 12, color: '#777', margin: '6px 0 0', textAlign: 'center' }}>Based on the page you came from</p>
+              <button className="signup-next" onClick={advanceStep2} style={{ marginTop: 12 }}>Next</button>
             </>
           )}
 

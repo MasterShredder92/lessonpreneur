@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { setLocColors } from '../lib/setLocColors'
 import PianoWidget from '../components/instruments/PianoWidget'
@@ -109,16 +109,35 @@ export default function ThankYou() {
         </div>
       </div>
 
-      {/* Footer */}
-      <p style={{
-        fontSize: 14,
-        color: '#555',
+      {/* Location + next step */}
+      <div style={{
         textAlign: 'center',
-        marginTop: 48,
-        fontStyle: 'italic',
+        marginTop: 40,
+        padding: '24px 20px',
+        background: 'rgba(255,255,255,0.03)',
+        border: `1px solid ${accent}30`,
+        borderRadius: 14,
+        maxWidth: 480,
+        width: '100%',
       }}>
-        Your first lesson is closer than you think.
-      </p>
+        <p style={{ fontSize: 15, fontWeight: 700, color: accent, margin: '0 0 6px' }}>{loc.name}</p>
+        <p style={{ fontSize: 15, color: '#ccc', margin: 0, lineHeight: 1.5 }}>
+          We'll reach out within 24 hours to get you scheduled.
+        </p>
+      </div>
+
+      <Link
+        to={`/${locKey}`}
+        style={{
+          marginTop: 28,
+          fontSize: 14,
+          color: accent,
+          textDecoration: 'none',
+          fontWeight: 600,
+        }}
+      >
+        &larr; Return to Home
+      </Link>
     </div>
   )
 }
