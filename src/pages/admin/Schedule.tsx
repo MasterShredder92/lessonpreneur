@@ -64,7 +64,11 @@ const EDGE_COLORS: Record<string, { bg: string; shadow: string; glow: string }> 
 const COUNTS_AS_LESSON = new Set(['student_session', 'first_day', 'last_day', 'call_out', 'meet_greet', 'sub'])
 
 export default function Schedule() {
-  const { tenantId, profile, role, teacherRecord } = useAuthContext()
+  const { tenantId, profile, role, teacherRecord, locationIds } = useAuthContext()
+
+  // Studio director location scoping — hard-lock to their assigned location
+  const isStudioDirector = role === 'studio_director'
+  const studioDirectorLocationId = isStudioDirector ? (locationIds?.[0] ?? '') : ''
 
   // My Sessions toggle — only meaningful for dual-role studio directors
   const [viewMode, setViewMode] = useState<'all' | 'mine'>(() => {
@@ -148,7 +152,9 @@ export default function Schedule() {
   const [starOpen, setStarOpen] = useState(false)
   const [starInput, setStarInput] = useState('')
 
-  const effectiveLocation = selectedLocation || (locations?.[0]?.id ?? '')
+  const effectiveLocation = isStudioDirector
+    ? studioDirectorLocationId
+    : (selectedLocation || (locations?.[0]?.id ?? ''))
   const { data: gridData, isLoading } = useScheduleGrid(selectedDate, effectiveLocation || null)
   const { data: allStudents } = useStudentsForAssignment()
   const { data: rooms } = useRooms(effectiveLocation || undefined)
@@ -728,21 +734,28 @@ export default function Schedule() {
     <div className="page" style={{ maxWidth: 'none' }}>
       {/* Unified toolbar — locations | date nav | actions (desktop only) */}
       {!isMobile && <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${locColor}25`, borderRadius: 12, marginBottom: 8, position: 'relative', overflow: 'visible', zIndex: 50, gap: 8, flexWrap: 'wrap' }}>
-        {/* Location tabs */}
-        <div data-guide-id="location-selector" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {locations?.filter((l: any) => l.is_active).map((loc: any) => {
-            const c = (loc as any).color ?? '#D4226A'
-            const active = loc.id === effectiveLocation
-            return (
-              <button key={loc.id} onClick={() => setSelectedLocation(loc.id)} style={{
-                padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', letterSpacing: '-0.01em',
-                background: active ? c : 'transparent', color: active ? '#fff' : '#606088',
-                border: active ? `2px solid ${c}` : '2px solid rgba(255,255,255,0.06)',
-                boxShadow: active ? `0 4px 16px ${c}40` : 'none', transition: 'all 150ms ease',
-              }}>{loc.name.replace(' Music Lessons', '')}</button>
-            )
-          })}
-        </div>
+        {/* Location tabs — hidden for studio directors, replaced with static location name */}
+        {isStudioDirector ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 4, background: locColor, boxShadow: `0 0 8px ${locColor}60` }} />
+            <span style={{ fontSize: 14, fontWeight: 800, color: locColor, letterSpacing: '-0.01em' }}>Schedule — {activeLocationName}</span>
+          </div>
+        ) : (
+          <div data-guide-id="location-selector" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {locations?.filter((l: any) => l.is_active).map((loc: any) => {
+              const c = (loc as any).color ?? '#D4226A'
+              const active = loc.id === effectiveLocation
+              return (
+                <button key={loc.id} onClick={() => setSelectedLocation(loc.id)} style={{
+                  padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', letterSpacing: '-0.01em',
+                  background: active ? c : 'transparent', color: active ? '#fff' : '#606088',
+                  border: active ? `2px solid ${c}` : '2px solid rgba(255,255,255,0.06)',
+                  boxShadow: active ? `0 4px 16px ${c}40` : 'none', transition: 'all 150ms ease',
+                }}>{loc.name.replace(' Music Lessons', '')}</button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Separator */}
         <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
@@ -917,6 +930,7 @@ export default function Schedule() {
           onStarOpen={() => setStarOpen(!starOpen)}
           starOpen={starOpen}
           teacherAvailability={teacherAvailability}
+          isStudioDirector={isStudioDirector}
         />
       ) : isLoading ? (
         <div className="loading-screen" style={{ height: 400 }}><MusicLoader /></div>

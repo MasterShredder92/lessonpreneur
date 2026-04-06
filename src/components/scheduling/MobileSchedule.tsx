@@ -42,6 +42,7 @@ interface MobileScheduleProps {
   onStarOpen?: () => void
   starOpen?: boolean
   teacherAvailability?: Map<string, { start: string; end: string }> | null
+  isStudioDirector?: boolean
 }
 
 const BLOCK_COLORS: Record<string, { bg: string; dark: boolean }> = {
@@ -70,7 +71,7 @@ const LEGEND_ITEMS = [
   { type: 'teacher_training', label: 'Training' },
 ]
 
-export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime, onBlockClick, onOpenSlotClick, onDragDrop, locations, selectedLocation, onLocationChange, selectedDate, onNavigateDate, utilization, onStarOpen, starOpen, teacherAvailability }: MobileScheduleProps) {
+export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime, onBlockClick, onOpenSlotClick, onDragDrop, locations, selectedLocation, onLocationChange, selectedDate, onNavigateDate, utilization, onStarOpen, starOpen, teacherAvailability, isStudioDirector }: MobileScheduleProps) {
   const [focusedTeacher, setFocusedTeacher] = useState<string | null>(null)
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
@@ -414,61 +415,68 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
         padding: '6px 10px', flexShrink: 0, position: 'relative',
         gap: 8,
       }}>
-        {/* Left: Location dropdown */}
-        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowLocationDropdown(v => !v); setShowLegend(false) }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
-              background: `${locColor}18`, border: `1px solid ${locColor}30`, borderRadius: 8,
-              color: '#E0E0F4', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              width: '100%',
-            }}
-          >
-            <div style={{ width: 8, height: 8, borderRadius: 3, background: locColor, flexShrink: 0 }} />
-            <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentLocationName}</span>
-            {openCountMap.has(selectedLocation) && (
-              <span style={{ fontSize: 10, color: '#8080A8', fontWeight: 500, flexShrink: 0 }}>{openCountMap.get(selectedLocation)} open</span>
-            )}
-            <ChevronDown size={12} style={{ color: '#8080A8', flexShrink: 0 }} />
-          </button>
-
-          {/* Location dropdown */}
-          {showLocationDropdown && (
-            <div
-              onClick={(e) => e.stopPropagation()}
+        {/* Left: Location — static for studio directors, dropdown for owners/admins */}
+        {isStudioDirector ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', flex: 1, minWidth: 0 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 3, background: locColor, boxShadow: `0 0 6px ${locColor}60`, flexShrink: 0 }} />
+            <span style={{ fontSize: 13, fontWeight: 800, color: locColor, letterSpacing: '-0.01em' }}>Schedule — {currentLocationName}</span>
+          </div>
+        ) : (
+          <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowLocationDropdown(v => !v); setShowLegend(false) }}
               style={{
-                position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100,
-                background: '#1C1C2E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 200, overflow: 'hidden',
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                background: `${locColor}18`, border: `1px solid ${locColor}30`, borderRadius: 8,
+                color: '#E0E0F4', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                width: '100%',
               }}
             >
-              {activeLocations.map(loc => {
-                const c = (loc as any).color ?? '#D4226A'
-                const active = loc.id === selectedLocation
-                const openCount = openCountMap.get(loc.id)
-                return (
-                  <button
-                    key={loc.id}
-                    onClick={() => { onLocationChange(loc.id); setShowLocationDropdown(false) }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                      padding: '10px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                      background: active ? `${c}20` : 'transparent', color: active ? '#fff' : '#A0A0C8',
-                      fontSize: 12, fontWeight: active ? 700 : 500,
-                    }}
-                  >
-                    <div style={{ width: 8, height: 8, borderRadius: 3, background: c, flexShrink: 0 }} />
-                    <span style={{ flex: 1 }}>{loc.name.replace(' Music Lessons', '')}</span>
-                    {openCount != null && (
-                      <span style={{ fontSize: 10, color: '#606088', fontWeight: 500 }}>{openCount} open</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+              <div style={{ width: 8, height: 8, borderRadius: 3, background: locColor, flexShrink: 0 }} />
+              <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentLocationName}</span>
+              {openCountMap.has(selectedLocation) && (
+                <span style={{ fontSize: 10, color: '#8080A8', fontWeight: 500, flexShrink: 0 }}>{openCountMap.get(selectedLocation)} open</span>
+              )}
+              <ChevronDown size={12} style={{ color: '#8080A8', flexShrink: 0 }} />
+            </button>
+
+            {/* Location dropdown */}
+            {showLocationDropdown && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100,
+                  background: '#1C1C2E', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 200, overflow: 'hidden',
+                }}
+              >
+                {activeLocations.map(loc => {
+                  const c = (loc as any).color ?? '#D4226A'
+                  const active = loc.id === selectedLocation
+                  const openCount = openCountMap.get(loc.id)
+                  return (
+                    <button
+                      key={loc.id}
+                      onClick={() => { onLocationChange(loc.id); setShowLocationDropdown(false) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                        padding: '10px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        background: active ? `${c}20` : 'transparent', color: active ? '#fff' : '#A0A0C8',
+                        fontSize: 12, fontWeight: active ? 700 : 500,
+                      }}
+                    >
+                      <div style={{ width: 8, height: 8, borderRadius: 3, background: c, flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{loc.name.replace(' Music Lessons', '')}</span>
+                      {openCount != null && (
+                        <span style={{ fontSize: 10, color: '#606088', fontWeight: 500 }}>{openCount} open</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Right: Star button */}
         {onStarOpen && (
