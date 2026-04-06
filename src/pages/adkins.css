@@ -1,7 +1,7 @@
 /* Adkins Landing Page — CSS Variable Theming */
 :root{--c:#D41113;--cg:rgba(212,17,19,0.22);--cl:rgba(212,17,19,0.11)}
 
-.ak-page{font-family:'Plus Jakarta Sans',sans-serif;background:#070709;color:#F0EEF8;overflow-x:hidden;min-height:100vh}
+.ak-page{font-family:'Plus Jakarta Sans',sans-serif;background:transparent;color:#F0EEF8;overflow-x:hidden;min-height:100vh}
 
 /* Location bar */
 .ak-locbar{background:#0A0A10;border-bottom:1px solid #1C1C2A;padding:9px 16px;display:flex;align-items:center;justify-content:center;gap:6px;position:sticky;top:0;z-index:300}
@@ -100,7 +100,7 @@
 .ak-secdesc{font-size:16px;color:#9A96B4;line-height:1.75;max-width:600px;margin-bottom:36px;text-align:center;margin-left:auto;margin-right:auto}
 
 /* Compatibility */
-.ak-compat-sec{background:#0A0A10;border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px;position:relative;overflow:hidden}
+.ak-compat-sec{background:rgba(10,10,16,0.85);border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px;position:relative;overflow:hidden}
 .ak-compat-sec::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--c),transparent)}
 .ak-compat-inner{max-width:860px;margin:0 auto;text-align:center}
 .ak-csub{font-size:16px;color:#9A96B4;line-height:1.7;margin-bottom:44px;max-width:640px;margin-left:auto;margin-right:auto}
@@ -137,7 +137,7 @@
 .ak-pcta-box p{font-size:15px;color:#9A96B4;margin-bottom:22px}
 
 /* 3 Steps */
-.ak-steps-sec{background:#0A0A10;border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px}
+.ak-steps-sec{background:rgba(10,10,16,0.85);border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px}
 /* Roadmap — vertical connecting line with dots + Cornelius at the end */
 .ak-roadmap{position:relative;max-width:620px;margin:48px auto 0;padding-left:8px}
 .ak-roadline{position:absolute;left:32px;top:24px;bottom:60px;width:2px;background:linear-gradient(to bottom,var(--c),var(--cl));border-radius:2px;z-index:0}
@@ -176,7 +176,7 @@
 .ak-ipanel-wlbl{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px}
 
 /* Reviews */
-.ak-rev-sec{background:#0A0A10;border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px}
+.ak-rev-sec{background:rgba(10,10,16,0.85);border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px}
 .ak-rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:40px}
 .ak-rcard{background:#141420;border-radius:18px;border:1px solid #1C1C2A;padding:22px;transition:all 0.28s}
 .ak-rcard:hover{border-color:var(--c);transform:translateY(-3px)}
@@ -214,7 +214,7 @@
 .ak-cdot2.on{background:var(--c);width:20px;border-radius:4px;box-shadow:0 0 7px var(--cg)}
 
 /* No Risk */
-.ak-norisk-sec{background:#0A0A10;text-align:center;border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px}
+.ak-norisk-sec{background:rgba(10,10,16,0.85);text-align:center;border-top:1px solid #1C1C2A;border-bottom:1px solid #1C1C2A;padding:72px 24px}
 .ak-nrinner{max-width:600px;margin:0 auto}
 .ak-nri{font-size:48px;margin-bottom:16px}
 .ak-norisk-sec h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(38px,6vw,56px);color:#fff;letter-spacing:0.5px;margin-bottom:12px}
@@ -249,7 +249,7 @@
 .ak-fbtns{display:flex;gap:13px;justify-content:center;flex-wrap:wrap;position:relative;z-index:2}
 
 /* Footer */
-.ak-footer{background:#0A0A10;border-top:1px solid #1C1C2A;padding:28px 24px;text-align:center}
+.ak-footer{background:rgba(10,10,16,0.85);border-top:1px solid #1C1C2A;padding:28px 24px;text-align:center}
 .ak-fname{font-family:'Bebas Neue',sans-serif;font-size:22px;color:#fff;letter-spacing:1px;margin-bottom:5px}
 .ak-fpow{font-size:11px;color:#55516E}
 .ak-fpow span{color:var(--c);font-weight:700}
