@@ -602,6 +602,7 @@ export default function Leads() {
           onEnroll={() => { setConvertLead(detailLead); setDetailLead(null) }}
           updateStage={updateStage}
           updateLead={updateLead}
+          onLeadUpdated={setDetailLead}
         />
       )}
 
@@ -694,7 +695,7 @@ export default function Leads() {
 
 type DetailTab = 'overview' | 'form'
 
-function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, nextStage, aiMatch, tenantId, canEdit, onClose, onAdvance, onMarkLost, onConvert, onEnroll, updateStage, updateLead }: {
+function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, nextStage, aiMatch, tenantId, canEdit, onClose, onAdvance, onMarkLost, onConvert, onEnroll, updateStage, updateLead, onLeadUpdated }: {
   lead: LeadRow
   siblingLeads?: LeadRow[]
   stageColors: Record<string, string>
@@ -710,6 +711,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
   onEnroll: () => void
   updateStage: any
   updateLead: any
+  onLeadUpdated: (updater: (prev: LeadRow | null) => LeadRow | null) => void
 }) {
   const isFamily = siblingLeads.length > 0
   const allFamilyLeads = isFamily ? [lead, ...siblingLeads] : [lead]
@@ -737,7 +739,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
     personalityTimer.current = setTimeout(async () => {
       try {
         await updateLead.mutateAsync({ id: lead.id, personality_notes: value || null })
-        setDetailLead((prev) => prev ? { ...prev, personality_notes: value || null } : prev)
+        onLeadUpdated((prev) => prev ? { ...prev, personality_notes: value || null } : prev)
       } catch (err: any) {
         toast(err.message ?? 'Failed to save personality notes', 'error')
       }
@@ -753,7 +755,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
     const updated = existingNotes ? `${newNote}\n${existingNotes}` : newNote
     try {
       await updateLead.mutateAsync({ id: lead.id, notes: updated })
-      setDetailLead((prev) => prev ? { ...prev, notes: updated } : prev)
+      onLeadUpdated((prev) => prev ? { ...prev, notes: updated } : prev)
       setNoteDraft('')
       setShowNoteInput(false)
     } catch (err: any) {
@@ -985,7 +987,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                           }
                           try {
                             await updateLead.mutateAsync({ id: lead.id, preferred_days: updated })
-                            setDetailLead((prev) => prev ? { ...prev, preferred_days: updated } : prev)
+                            onLeadUpdated((prev) => prev ? { ...prev, preferred_days: updated } : prev)
                             toast(isSelected ? `${day} removed` : `${day} added`, 'success')
                           } catch (err: any) {
                             toast(err.message ?? 'Failed to update preferred days', 'error')
@@ -1039,7 +1041,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       const val = e.target.value
                       try {
                         await updateLead.mutateAsync({ id: lead.id, instrument: val })
-                        setDetailLead((prev) => prev ? { ...prev, instrument: val } : prev)
+                        onLeadUpdated((prev) => prev ? { ...prev, instrument: val } : prev)
                         toast(`Instrument updated to ${val}`, 'success')
                       } catch (err: any) {
                         toast(err.message ?? 'Failed to update instrument', 'error')
@@ -1070,7 +1072,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       const loc = locations?.find((l) => l.id === val)
                       try {
                         await updateLead.mutateAsync({ id: lead.id, location_id: val })
-                        setDetailLead((prev) => prev ? { ...prev, location_id: val, location_name: loc?.name ?? prev.location_name } : prev)
+                        onLeadUpdated((prev) => prev ? { ...prev, location_id: val, location_name: loc?.name ?? prev.location_name } : prev)
                         toast(`Location updated`, 'success')
                       } catch (err: any) {
                         toast(err.message ?? 'Failed to update location', 'error')
