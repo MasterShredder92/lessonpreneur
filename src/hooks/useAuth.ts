@@ -9,6 +9,7 @@ interface MinimalSession {
 export function useAuth(): AuthState & {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
+  refreshProfile: () => Promise<void>
 } {
   const [session, setSession] = useState<MinimalSession | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -78,24 +79,29 @@ export function useAuth(): AuthState & {
     }
   }, [loadProfile])
 
+  const refreshProfile = useCallback(async () => {
+    if (session?.user) await loadProfile(session.user.id)
+  }, [session, loadProfile])
+
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
   }
 
   const signOut = async () => {
-    try {
-      await supabase.auth.signOut()
-    } catch (err) {
-      console.error('supabase.auth.signOut failed:', err)
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('Sign out failed:', error)
+      // Still attempt cleanup and redirect — never leave user stuck
     }
-    // Always clear LP-related storage and redirect, even if signOut throws —
-    // never leave the user stuck on a page they can't exit.
+
+    // Clear React state
+    setProfile(null)
+    setTeacherRecord(null)
+    setLocationIds([])
+
+    // Clear LP-prefixed keys from localStorage + sessionStorage
     try {
-      setProfile(null)
-      setTeacherRecord(null)
-      setLocationIds([])
-      // Clear LP-prefixed keys from localStorage + sessionStorage
       const clearLpKeys = (storage: Storage) => {
         const toRemove: string[] = []
         for (let i = 0; i < storage.length; i++) {
@@ -106,15 +112,19 @@ export function useAuth(): AuthState & {
       }
       clearLpKeys(localStorage)
       clearLpKeys(sessionStorage)
-      // Clear SW cache so next login gets fresh assets
+    } catch (err) {
+      console.error('signOut storage cleanup failed:', err)
+    }
+
+    // Clear SW cache so next login gets fresh assets
+    try {
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' })
       }
-    } catch (err) {
-      console.error('signOut cleanup failed:', err)
-    }
-    // Hard redirect to root — resets all in-memory state
-    window.location.href = '/'
+    } catch (_) { /* ignore */ }
+
+    // Hard redirect to /login — resets all in-memory React state
+    window.location.href = '/login'
   }
 
   return {
@@ -125,5 +135,6 @@ export function useAuth(): AuthState & {
     isLoading,
     signIn,
     signOut,
+    refreshProfile,
   }
 }

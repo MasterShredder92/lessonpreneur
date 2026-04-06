@@ -21,10 +21,10 @@ const STEPS: GuideStep[] = [
     body: "This counts how many families have successfully paid their invoice this cycle. As billing runs and payments process, this number climbs. By mid-month it should be most of your active families.",
   },
   {
-    id: 'billing-card-awaiting',
-    targetSelector: '[data-tour-id="billing-card-awaiting"]',
-    title: 'Outstanding Invoices',
-    body: "Families who have been invoiced but haven't paid yet. Some are on autopay and will process shortly. Others need manual follow-up. Click into this number to see exactly who is outstanding.",
+    id: 'billing-card-scheduled',
+    targetSelector: '[data-tour-id="billing-hero-cards"]',
+    title: 'Scheduled Payments',
+    body: "Invoices that are scheduled or unpaid for the current month. Some are on autopay and will process shortly. Others need manual follow-up.",
   },
   {
     id: 'billing-overdue',

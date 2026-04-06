@@ -138,15 +138,7 @@ export default function TeacherShell() {
             <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); setShowChangePassword(true) }} title="Change Password" style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
               <KeyRound size={13} />
             </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={(e) => { e.stopPropagation(); signOut() }}
-              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); signOut() }}
-              style={{ minWidth: 44, minHeight: 44, padding: '10px 12px', fontSize: '11px', color: 'var(--text-ghost)', cursor: 'pointer', touchAction: 'manipulation' }}
-            >
-              {sidebarOpen ? 'Sign Out' : <LogOut size={13} />}
-            </button>
+            <TeacherSignOutButton sidebarOpen={sidebarOpen} signOut={signOut} />
           </div>
           <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
         </div>
@@ -161,5 +153,25 @@ export default function TeacherShell() {
 
       <TeacherMobileTabBar />
     </div>
+  )
+}
+
+function TeacherSignOutButton({ sidebarOpen, signOut }: { sidebarOpen: boolean; signOut: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      type="button"
+      className="btn-ghost"
+      disabled={busy}
+      onClick={async (e) => {
+        e.stopPropagation()
+        if (busy) return
+        setBusy(true)
+        await signOut()
+      }}
+      style={{ minWidth: 44, minHeight: 44, padding: '10px 12px', fontSize: '11px', color: 'var(--text-ghost)', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1, touchAction: 'manipulation' }}
+    >
+      {sidebarOpen ? (busy ? 'Signing out…' : 'Sign Out') : <LogOut size={13} />}
+    </button>
   )
 }

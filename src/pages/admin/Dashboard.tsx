@@ -6,13 +6,16 @@ import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useDashboard } from '../../hooks/useDashboard'
 import { useBillingHeroStats } from '../../hooks/useBillingPage'
+import { useBillingSnapshot } from '../../hooks/useBillingSnapshot'
 import { useUserLocations } from '../../hooks/useUserLocations'
+import { useLocations } from '../../hooks/useLocations'
 import { supabase } from '../../lib/supabase'
 import { Star, Video } from 'lucide-react'
 import TaskCenter from '../../components/tasks/TaskCenter'
 import WhatsImportantNow from '../../components/admin/WhatsImportantNow'
 import HappeningTodayFeed from '../../components/admin/HappeningTodayFeed'
 import DirectorCloseoutSection from '../../components/admin/DirectorCloseoutSection'
+import BillingSnapshotCard from '../../components/admin/BillingSnapshotCard'
 import { getLocationColor } from '../../utils/locationColor'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
@@ -25,6 +28,19 @@ export default function Dashboard() {
   const { data, isLoading } = useDashboard(userLocations)
   const navigate = useNavigate()
   const { data: heroStats } = useBillingHeroStats()
+
+  // Billing snapshot data — role-scoped
+  const directorLocationId = isStudioDirector ? (allowedLocationIds?.[0] ?? undefined) : undefined
+  const { data: snapshotAll } = useBillingSnapshot()                          // all-location aggregate
+  const { data: snapshotDirector } = useBillingSnapshot(directorLocationId)   // director's location only
+  const { data: locations } = useLocations()
+
+  // Resolve director's location name + color
+  const directorLocation = isStudioDirector && directorLocationId
+    ? locations?.find((l: any) => l.id === directorLocationId)
+    : null
+  const directorLocationName = directorLocation?.name ?? 'My Location'
+  const directorLocationColor = directorLocationId ? getLocationColor(directorLocationId) : '#D4226A'
 
   // Fetch tenant info for business name + logo
   const { data: tenant } = useQuery({
@@ -221,74 +237,48 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 3. Billing Snapshot — premium cards */}
-      {heroStats && (
+      {/* 3. Billing Snapshot — role-scoped cards */}
+      {(snapshotAll || snapshotDirector) && (
         <div style={{ marginBottom: 16 }}>
           <div className="section-header" style={{ marginBottom: 8 }}>
             <span className="section-label">Billing Snapshot</span>
             <div className="section-line" />
           </div>
-          <div className="financial-grid" style={{ marginBottom: 6 }}>
-            {/* Collected This Month — GREEN */}
-            <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(6,18,9,0.97), rgba(4,12,6,0.99))', border: '1px solid rgba(34,197,94,0.2)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(34,197,94,0.14)', cursor: 'pointer' }} onClick={() => navigate('/admin/billing')}>
-              <div className="financial-card-edge" style={{ background: 'linear-gradient(#16A34A, #22C55E, #16A34A)', boxShadow: '0 0 24px rgba(22,163,74,0.65), 0 0 60px rgba(22,163,74,0.2)' }} />
-              <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(22,163,74,0.18) 0%, transparent 70%)' }} />
-              <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(22,163,74,0.08) 0%, transparent 70%)' }} />
-              <div className="financial-card-content">
-                <div className="financial-label">Collected This Month</div>
-                <div className="financial-value">{dollars(heroStats.collectedCents)}</div>
-                <div className="financial-sub">{heroStats.collectedCount} payments received</div>
-              </div>
+
+          {isStudioDirector ? (
+            /* Studio Director: two cards — all-schools summary + their location full detail */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {snapshotAll && (
+                <BillingSnapshotCard
+                  title="All Schools Overview"
+                  data={snapshotAll}
+                  accentColor="#8080A8"
+                  variant="summary"
+                  clickable={false}
+                />
+              )}
+              {snapshotDirector && (
+                <BillingSnapshotCard
+                  title={directorLocationName}
+                  data={snapshotDirector}
+                  accentColor={directorLocationColor}
+                  variant="full"
+                  clickable={false}
+                />
+              )}
             </div>
-            {/* Awaiting Payment — GOLD */}
-            <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(13,10,4,0.97), rgba(9,7,3,0.99))', border: '1px solid rgba(251,191,36,0.18)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(251,191,36,0.12)', cursor: 'pointer' }} onClick={() => navigate('/admin/billing')}>
-              <div className="financial-card-edge" style={{ background: 'linear-gradient(#D97706, #FBBF24, #D97706)', boxShadow: '0 0 24px rgba(251,191,36,0.55), 0 0 60px rgba(255,184,0,0.18)' }} />
-              <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.16) 0%, transparent 70%)' }} />
-              <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.07) 0%, transparent 70%)' }} />
-              <div className="financial-card-content">
-                <div className="financial-label">Awaiting Payment</div>
-                <div className="financial-value">{dollars(heroStats.awaitingCents)}</div>
-                <div className="financial-sub">{heroStats.awaitingCount} invoices scheduled</div>
-              </div>
-            </div>
-            {/* Discounted This Month — RED */}
-            <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(15,5,5,0.97), rgba(10,3,3,0.99))', border: '1px solid rgba(239,68,68,0.18)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(239,68,68,0.12)', cursor: 'pointer' }} onClick={() => navigate('/admin/billing')}>
-              <div className="financial-card-edge" style={{ background: 'linear-gradient(#B91C1C, #EF4444, #B91C1C)', boxShadow: '0 0 24px rgba(239,68,68,0.5), 0 0 60px rgba(220,38,38,0.16)' }} />
-              <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 70%)' }} />
-              <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(220,38,38,0.07) 0%, transparent 70%)' }} />
-              <div className="financial-card-content">
-                <div className="financial-label">Discounted This Month</div>
-                <div className="financial-value">{dollars(heroStats.discountedCents)}</div>
-                <div className="financial-sub">Full potential: {dollars(heroStats.fullPotentialCents)}</div>
-              </div>
-            </div>
-            {/* Next Month — NEUTRAL */}
-            <div className="financial-card" style={{ background: 'linear-gradient(150deg, rgba(8,8,14,0.97), rgba(5,5,10,0.99))', border: '1px solid rgba(128,128,168,0.18)', boxShadow: '0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 rgba(128,128,168,0.1)', cursor: 'pointer' }} onClick={() => navigate('/admin/billing')}>
-              <div className="financial-card-edge" style={{ background: 'linear-gradient(#606088, #8080A8, #606088)', boxShadow: '0 0 24px rgba(128,128,168,0.4), 0 0 60px rgba(128,128,168,0.12)' }} />
-              <div className="financial-card-glow-top" style={{ background: 'radial-gradient(circle, rgba(128,128,168,0.12) 0%, transparent 70%)' }} />
-              <div className="financial-card-glow-bottom" style={{ background: 'radial-gradient(circle, rgba(128,128,168,0.06) 0%, transparent 70%)' }} />
-              <div className="financial-card-content">
-                <div className="financial-label">{heroStats.nextMonthLabel} Billing</div>
-                <div className="financial-value" style={{ color: '#C0C0E0' }}>{dollars(heroStats.nextMonthCents)}</div>
-                <div className="financial-sub">{heroStats.nextMonthCount} invoices scheduled</div>
-              </div>
-            </div>
-          </div>
-          {/* Full Earning Potential */}
-          <div style={{ padding: '6px 14px', textAlign: 'center', fontSize: 11, color: '#606088' }}>
-            Full earning potential this month: <span style={{ fontWeight: 700, color: '#8080A8' }}>{dollars(heroStats.fullPotentialCents)}</span>
-          </div>
-          {/* Past Due Alert — only shown when > $0 */}
-          {heroStats.pastDueCents > 0 && (
-            <div style={{ marginTop: 6, padding: '8px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 4, background: '#EF4444', boxShadow: '0 0 8px rgba(239,68,68,0.6)', flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 700 }}>
-                {dollars(heroStats.pastDueCents)} past due
-              </span>
-              <span style={{ fontSize: 10, color: '#8080A8' }}>
-                — {heroStats.pastDueFamilies} {heroStats.pastDueFamilies === 1 ? 'family' : 'families'}
-              </span>
-            </div>
+          ) : (
+            /* Owner / Company Director / Admin: single aggregate card, all metrics clickable */
+            snapshotAll && (
+              <BillingSnapshotCard
+                title="All Schools"
+                data={snapshotAll}
+                accentColor="#D4226A"
+                variant="full"
+                clickable={true}
+                onMetricClick={() => navigate('/admin/billing')}
+              />
+            )
           )}
         </div>
       )}

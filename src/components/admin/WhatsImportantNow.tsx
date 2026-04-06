@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { Star, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Star, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -16,14 +16,18 @@ interface Insight {
   actionRoute: string | null
 }
 
-const priorityConfig = {
+const priorityConfig: Record<Insight['priority'], { color: string; bg: string; border: string; icon: string; label: string }> = {
   critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.09)', border: 'rgba(239,68,68,0.25)', icon: '\uD83D\uDD34', label: 'CRITICAL' },
   warning:  { color: '#fb923c', bg: 'rgba(251,146,60,0.09)', border: 'rgba(251,146,60,0.25)', icon: '\uD83D\uDFE0', label: 'ATTENTION' },
   info:     { color: '#3b82f6', bg: 'rgba(59,130,246,0.09)', border: 'rgba(59,130,246,0.25)', icon: '\uD83D\uDD35', label: 'INFO' },
   positive: { color: '#22c55e', bg: 'rgba(34,197,94,0.09)', border: 'rgba(34,197,94,0.25)', icon: '\uD83D\uDFE2', label: 'GOOD NEWS' },
 }
 
-const PRIORITY_ORDER = { critical: 0, warning: 1, info: 2, positive: 3 }
+const PRIORITY_ORDER: Record<Insight['priority'], number> = { critical: 0, warning: 1, info: 2, positive: 3 }
+
+// Module-level guard — persists across unmount/remount cycles within the same page session.
+// Prevents the call storm where React re-mounting fires duplicate requests.
+let _insightsAttempted = false
 
 // ─── Main Component ──────────────────────────────────
 
@@ -37,23 +41,22 @@ export default function WhatsImportantNow({ data, heroStats }: Props) {
   const navigate = useNavigate()
   const [insights, setInsights] = useState<Insight[]>([])
   const [loading, setLoading] = useState(false)
-  const [generated, setGenerated] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [failed, setFailed] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const calledRef = useRef(false)
   useEffect(() => {
-    if (calledRef.current || !data || !tenantId) return
-    calledRef.current = true
+    if (_insightsAttempted || !data || !tenantId) return
+    _insightsAttempted = true
     generate()
   }, [data, tenantId])
 
   const generate = async () => {
     setLoading(true)
+    setError(null)
     try {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      if (!token) { setFailed(true); setLoading(false); setGenerated(true); return }
+      if (!token) { setError('Unable to load insights'); setLoading(false); return }
 
       const context = [
         `Active students: ${data.activeStudents}`,
@@ -65,7 +68,7 @@ export default function WhatsImportantNow({ data, heroStats }: Props) {
         data.atRiskStudents?.length > 0 ? `At-risk students (14+ days since last session): ${data.atRiskStudents.length}` : `At-risk students: 0`,
         data.flaggedInventoryCount > 0 ? `Room issues flagged: ${data.flaggedInventoryCount}` : null,
         heroStats ? `Collected this month: $${(heroStats.collectedCents / 100).toLocaleString()}` : null,
-        heroStats ? `Awaiting payment: $${(heroStats.awaitingCents / 100).toLocaleString()} (${heroStats.awaitingCount} invoices)` : null,
+        heroStats ? `Scheduled payments: $${(heroStats.awaitingCents / 100).toLocaleString()} (${heroStats.awaitingCount} invoices)` : null,
         heroStats?.pastDueCents > 0 ? `Past due: $${(heroStats.pastDueCents / 100).toLocaleString()} (${heroStats.pastDueFamilies} families)` : null,
         heroStats ? `${heroStats.nextMonthLabel} billing scheduled: $${(heroStats.nextMonthCents / 100).toLocaleString()} (${heroStats.nextMonthCount} invoices)` : null,
         data.sessionLogsToday > 0 ? `Session logs recorded today: ${data.sessionLogsToday}` : `Session logs today: 0`,
@@ -110,27 +113,29 @@ Rules:
         }
       )
 
+      // Hard stop on non-200 — no retry
+      if (!res.ok) {
+        console.warn('[WhatsImportantNow] Edge function returned', res.status)
+        setError('Unable to load insights')
+        setLoading(false)
+        return
+      }
+
       const result = await res.json()
       const answer = result.answer ?? ''
 
       // Parse JSON — try to extract array from response
       let parsed: Insight[] = []
       try {
-        // Try direct parse first
         parsed = JSON.parse(answer)
       } catch {
-        // Try extracting JSON from markdown code block
         const match = answer.match(/\[[\s\S]*\]/)
         if (match) {
           try { parsed = JSON.parse(match[0]) } catch { /* fall through */ }
         }
       }
 
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        console.warn('[WhatsImportantNow] Failed to parse AI response as JSON:', answer?.slice(0, 200))
-      }
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Validate and sort
         const valid = parsed
           .filter((i: any) => i.priority && i.title && i.body)
           .map((i: any): Insight => ({
@@ -146,20 +151,33 @@ Rules:
 
         setInsights(valid)
       } else {
-        setFailed(true)
+        console.warn('[WhatsImportantNow] Failed to parse AI response as JSON:', answer?.slice(0, 200))
+        setError('Unable to load insights')
       }
-    } catch {
-      setFailed(true)
+    } catch (err) {
+      console.warn('[WhatsImportantNow] Fetch failed:', err)
+      setError('Unable to load insights')
     }
     setLoading(false)
-    setGenerated(true)
   }
 
   // Swipe support for mobile
   const touchStartX = useRef(0)
 
-  // Hide on failure
-  if (failed && !loading) return null
+  // Graceful fallback on error — never retry, never return null on failure
+  if (error) {
+    return (
+      <div style={{ marginBottom: 24 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px',
+          borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <AlertTriangle size={14} style={{ color: '#8080A8', flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: '#8080A8' }}>Unable to load insights right now.</span>
+        </div>
+      </div>
+    )
+  }
   if (!loading && insights.length === 0) return null
 
   const criticalCount = insights.filter(i => i.priority === 'critical').length

@@ -271,15 +271,7 @@ export default function AdminShell() {
             <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); setShowChangePassword(true) }} title="Change Password" style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--text-ghost)' }}>
               {sidebarOpen ? <KeyRound size={13} /> : <KeyRound size={13} />}
             </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={(e) => { e.stopPropagation(); signOut() }}
-              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); signOut() }}
-              style={{ minWidth: 44, minHeight: 44, padding: '10px 12px', fontSize: '11px', color: 'var(--text-ghost)', cursor: 'pointer', touchAction: 'manipulation' }}
-            >
-              {sidebarOpen ? 'Sign Out' : <LogOut size={13} />}
-            </button>
+            <SignOutButton sidebarOpen={sidebarOpen} signOut={signOut} />
           </div>
           <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
         </div>
@@ -298,6 +290,30 @@ export default function AdminShell() {
       <StarModal open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
     </div>
     </OnboardingProvider>
+  )
+}
+
+// ═══════════════════════════════════════
+// SIGN OUT BUTTON (with loading state)
+// ═══════════════════════════════════════
+
+function SignOutButton({ sidebarOpen, signOut }: { sidebarOpen: boolean; signOut: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      type="button"
+      className="btn-ghost"
+      disabled={busy}
+      onClick={async (e) => {
+        e.stopPropagation()
+        if (busy) return
+        setBusy(true)
+        await signOut()
+      }}
+      style={{ minWidth: 44, minHeight: 44, padding: '10px 12px', fontSize: '11px', color: 'var(--text-ghost)', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1, touchAction: 'manipulation' }}
+    >
+      {sidebarOpen ? (busy ? 'Signing out…' : 'Sign Out') : <LogOut size={13} />}
+    </button>
   )
 }
 

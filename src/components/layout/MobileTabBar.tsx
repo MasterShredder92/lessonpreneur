@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { LayoutDashboard, CalendarDays, Users, UserPlus, Menu, ShieldCheck, Guitar, BookOpen, Settings2, Plug, ChevronRight, X, LogOut } from 'lucide-react'
@@ -231,21 +231,7 @@ export default function MobileTabBar() {
                   </div>
                   <div style={{ fontSize: 11, color: '#606088', textTransform: 'capitalize', marginTop: 2 }}>{role}</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setMoreOpen(false); signOut() }}
-                  onTouchEnd={(e) => { e.preventDefault(); setMoreOpen(false); signOut() }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    minWidth: 44, minHeight: 44, padding: '0 16px', borderRadius: 10,
-                    background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
-                    color: '#D4226A', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    WebkitTapHighlightColor: 'transparent', flexShrink: 0, touchAction: 'manipulation',
-                  }}
-                >
-                  <LogOut size={15} />
-                  Sign Out
-                </button>
+                <MobileSignOutButton signOut={signOut} />
               </div>
             )}
 
@@ -340,5 +326,31 @@ export default function MobileTabBar() {
         document.body
       )}
     </>
+  )
+}
+
+function MobileSignOutButton({ signOut }: { signOut: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        if (busy) return
+        setBusy(true)
+        await signOut()
+      }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        minWidth: 44, minHeight: 44, padding: '0 16px', borderRadius: 10,
+        background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
+        color: '#D4226A', fontSize: 13, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
+        opacity: busy ? 0.5 : 1,
+        WebkitTapHighlightColor: 'transparent', flexShrink: 0, touchAction: 'manipulation',
+      }}
+    >
+      <LogOut size={15} />
+      {busy ? 'Signing out…' : 'Sign Out'}
+    </button>
   )
 }

@@ -19,15 +19,7 @@ export default function StudentShell() {
           <button className="btn-ghost" onClick={() => setShowChangePassword(true)} style={{ fontSize: '11px' }}>
             Password
           </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => signOut()}
-            onTouchEnd={(e) => { e.preventDefault(); signOut() }}
-            style={{ minWidth: 44, minHeight: 44, padding: '10px 14px', fontSize: '11px', cursor: 'pointer', touchAction: 'manipulation' }}
-          >
-            Sign Out
-          </button>
+          <StudentSignOutButton signOut={signOut} />
           <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
         </div>
       </header>
@@ -35,5 +27,24 @@ export default function StudentShell() {
         <PageTransition><Outlet /></PageTransition>
       </main>
     </div>
+  )
+}
+
+function StudentSignOutButton({ signOut }: { signOut: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      type="button"
+      className="btn-ghost"
+      disabled={busy}
+      onClick={async () => {
+        if (busy) return
+        setBusy(true)
+        await signOut()
+      }}
+      style={{ minWidth: 44, minHeight: 44, padding: '10px 14px', fontSize: '11px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1, touchAction: 'manipulation' }}
+    >
+      {busy ? 'Signing out…' : 'Sign Out'}
+    </button>
   )
 }

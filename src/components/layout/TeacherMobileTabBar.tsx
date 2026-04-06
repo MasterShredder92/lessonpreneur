@@ -202,21 +202,7 @@ export default function TeacherMobileTabBar() {
                   </div>
                   <div style={{ fontSize: 11, color: '#606088', marginTop: 2 }}>Teacher</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setMoreOpen(false); signOut() }}
-                  onTouchEnd={(e) => { e.preventDefault(); setMoreOpen(false); signOut() }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    minWidth: 44, minHeight: 44, padding: '0 16px', borderRadius: 10,
-                    background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
-                    color: '#D4226A', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    WebkitTapHighlightColor: 'transparent', flexShrink: 0, touchAction: 'manipulation',
-                  }}
-                >
-                  <LogOut size={15} />
-                  Sign Out
-                </button>
+                <TeacherMobileSignOutButton signOut={signOut} />
               </div>
             )}
 
@@ -241,5 +227,31 @@ export default function TeacherMobileTabBar() {
         document.body
       )}
     </>
+  )
+}
+
+function TeacherMobileSignOutButton({ signOut }: { signOut: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        if (busy) return
+        setBusy(true)
+        await signOut()
+      }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        minWidth: 44, minHeight: 44, padding: '0 16px', borderRadius: 10,
+        background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.3)',
+        color: '#D4226A', fontSize: 13, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
+        opacity: busy ? 0.5 : 1,
+        WebkitTapHighlightColor: 'transparent', flexShrink: 0, touchAction: 'manipulation',
+      }}
+    >
+      <LogOut size={15} />
+      {busy ? 'Signing out…' : 'Sign Out'}
+    </button>
   )
 }

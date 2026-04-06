@@ -14,6 +14,9 @@ import {
   useCreateBillingAdjustment,
   useCreateOneOffInvoice,
 } from '../../hooks/useBillingPage'
+import { useBillingSnapshot } from '../../hooks/useBillingSnapshot'
+import BillingSnapshotCard from '../../components/admin/BillingSnapshotCard'
+import { getLocationColor } from '../../utils/locationColor'
 import { toast } from '../../components/shared/Toast'
 import {
   CreditCard, DollarSign, AlertTriangle, CheckCircle, Users,
@@ -161,6 +164,29 @@ const utilBtn: React.CSSProperties = {
 }
 
 // ══════════════════════════════════════════
+// PER-LOCATION SNAPSHOT CARD (loads its own data)
+// ══════════════════════════════════════════
+
+function LocationSnapshotCard({ locationId, name, color, onSelect }: {
+  locationId: string; name: string; color: string; onSelect: () => void
+}) {
+  const { data } = useBillingSnapshot(locationId)
+  if (!data) return null
+  return (
+    <div onClick={onSelect} style={{ cursor: 'pointer' }}>
+      <BillingSnapshotCard
+        title={name}
+        data={data}
+        accentColor={color}
+        variant="full"
+        size="default"
+        clickable={false}
+      />
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════
 // MAIN PAGE
 // ══════════════════════════════════════════
 
@@ -181,7 +207,10 @@ function BillingInner() {
   const [showOneOff, setShowOneOff] = useState(false)
   const [showSquareSync, setShowSquareSync] = useState(false)
   const [creditRow, setCreditRow] = useState<string | null>(null)
-  const [expandedCard, setExpandedCard] = useState<string>('collected')
+  // Data hooks — billing snapshot (new role-scoped cards)
+  const { data: snapshotAll, isLoading: snapshotLoading } = useBillingSnapshot()
+  const directorLocId = isStudioDirector ? (locationIds?.[0] ?? undefined) : undefined
+  const { data: snapshotDirectorLoc } = useBillingSnapshot(directorLocId)
 
   // Data hooks
   const { data: heroStats, isLoading: heroLoading } = useBillingHeroStats(locationFilter || undefined)
@@ -227,57 +256,15 @@ function BillingInner() {
     return list
   }, [families, search, sortBy])
 
-  // Snapshot card config
-  const snapshotCards = heroStats ? [
-    {
-      key: 'collected',
-      label: 'Collected This Month',
-      value: dollars(heroStats.collectedCents),
-      sub: `${heroStats.collectedCount} payments received`,
-      accent: '#22C55E',
-      border: 'rgba(34,197,94,0.2)',
-      bg: 'linear-gradient(150deg, rgba(6,18,9,0.97), rgba(4,12,6,0.99))',
-      edgeBg: 'linear-gradient(#16A34A, #22C55E, #16A34A)',
-      edgeShadow: '0 0 24px rgba(22,163,74,0.65)',
-      glowColor: 'rgba(22,163,74,0.18)',
-    },
-    {
-      key: 'awaiting',
-      label: 'Awaiting Payment',
-      value: dollars(heroStats.awaitingCents),
-      sub: `${heroStats.awaitingCount} invoices scheduled`,
-      accent: '#FBBF24',
-      border: 'rgba(251,191,36,0.18)',
-      bg: 'linear-gradient(150deg, rgba(13,10,4,0.97), rgba(9,7,3,0.99))',
-      edgeBg: 'linear-gradient(#D97706, #FBBF24, #D97706)',
-      edgeShadow: '0 0 24px rgba(251,191,36,0.55)',
-      glowColor: 'rgba(251,191,36,0.16)',
-    },
-    {
-      key: 'discounted',
-      label: 'Discounted This Month',
-      value: dollars(heroStats.discountedCents),
-      sub: `Full potential: ${dollars(heroStats.fullPotentialCents)}`,
-      accent: '#EF4444',
-      border: 'rgba(239,68,68,0.18)',
-      bg: 'linear-gradient(150deg, rgba(15,5,5,0.97), rgba(10,3,3,0.99))',
-      edgeBg: 'linear-gradient(#B91C1C, #EF4444, #B91C1C)',
-      edgeShadow: '0 0 24px rgba(239,68,68,0.5)',
-      glowColor: 'rgba(239,68,68,0.15)',
-    },
-    {
-      key: 'nextMonth',
-      label: `${heroStats.nextMonthLabel} Billing`,
-      value: dollars(heroStats.nextMonthCents),
-      sub: `${heroStats.nextMonthCount} invoices scheduled`,
-      accent: '#8080A8',
-      border: 'rgba(128,128,168,0.18)',
-      bg: 'linear-gradient(150deg, rgba(8,8,14,0.97), rgba(5,5,10,0.99))',
-      edgeBg: 'linear-gradient(#606088, #8080A8, #606088)',
-      edgeShadow: '0 0 24px rgba(128,128,168,0.4)',
-      glowColor: 'rgba(128,128,168,0.12)',
-    },
-  ] : []
+  // Per-location snapshot data for owner/admin breakdown
+  const perLocationSnapshots = useMemo(() => {
+    if (isStudioDirector || !activeLocations.length) return []
+    return activeLocations.map((loc: any) => ({
+      locationId: loc.id,
+      name: loc.name,
+      color: getLocationColor(loc.id),
+    }))
+  }, [isStudioDirector, activeLocations])
 
   return (
     <div style={{ minHeight: '100vh', background: '#020209', padding: '0 16px 40px' }}>
@@ -352,103 +339,53 @@ function BillingInner() {
         </div>
       </div>}
 
-      {/* SNAPSHOT CARDS */}
-      {heroLoading ? (
+      {/* BILLING SNAPSHOT CARDS — role-scoped */}
+      {snapshotLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={28} /></div>
-      ) : heroStats ? (
-        <div data-tour-id="billing-hero-cards">
-          {/* Desktop: 4 cards in a row */}
-          <div className="billing-snapshot-desktop" style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10,
-          }}>
-            {snapshotCards.map(card => (
-              <div key={card.key} data-tour-id={`billing-card-${card.key}`} style={{
-                position: 'relative', overflow: 'hidden', borderRadius: 14,
-                background: card.bg, border: `1px solid ${card.border}`,
-                boxShadow: `0 14px 52px rgba(0,0,0,0.65), inset 0 1px 0 ${card.border}`,
-                padding: '18px 16px',
-              }}>
-                <div style={{
-                  position: 'absolute', top: 0, left: 0, bottom: 0, width: 3,
-                  background: card.edgeBg, boxShadow: card.edgeShadow,
-                }} />
-                <div style={{
-                  position: 'absolute', top: -20, left: -20, width: 100, height: 100,
-                  background: `radial-gradient(circle, ${card.glowColor} 0%, transparent 70%)`,
-                  pointerEvents: 'none',
-                }} />
-                <div style={{ position: 'relative' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    {card.label}
-                  </div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: card.accent === '#8080A8' ? '#C0C0E0' : card.accent, marginBottom: 6 }}>
-                    {card.value}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#606088' }}>{card.sub}</div>
-                </div>
-              </div>
-            ))}
+      ) : isStudioDirector ? (
+        /* Studio Director: only their location */
+        snapshotDirectorLoc && (
+          <div data-tour-id="billing-hero-cards" style={{ marginBottom: 16 }}>
+            <BillingSnapshotCard
+              title={activeLocations.find((l: any) => l.id === directorLocId)?.name ?? 'My Location'}
+              data={snapshotDirectorLoc}
+              accentColor={directorLocId ? getLocationColor(directorLocId) : '#D4226A'}
+              variant="full"
+              size="large"
+              clickable={false}
+            />
           </div>
-
-          {/* Mobile: Accordion cards */}
-          <div className="billing-snapshot-mobile" style={{ display: 'none', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-            {snapshotCards.map(card => {
-              const isExpanded = expandedCard === card.key
-              return (
-                <div key={card.key} data-tour-id={`billing-card-${card.key}-m`} style={{
-                  position: 'relative', overflow: 'hidden', borderRadius: 12,
-                  background: card.bg, border: `1px solid ${card.border}`,
-                  cursor: 'pointer',
-                }} onClick={() => setExpandedCard(isExpanded ? '' : card.key)}>
-                  <div style={{
-                    position: 'absolute', top: 0, left: 0, bottom: 0, width: 3,
-                    background: card.edgeBg,
-                  }} />
-                  {isExpanded ? (
-                    <div style={{ padding: '14px 14px 14px 16px', position: 'relative' }}>
-                      <div style={{
-                        position: 'absolute', top: -20, left: -20, width: 80, height: 80,
-                        background: `radial-gradient(circle, ${card.glowColor} 0%, transparent 70%)`,
-                        pointerEvents: 'none',
-                      }} />
-                      <div style={{ position: 'relative' }}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-                          {card.label}
-                        </div>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: card.accent === '#8080A8' ? '#C0C0E0' : card.accent, marginBottom: 4 }}>
-                          {card.value}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#606088' }}>{card.sub}</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ padding: '10px 14px 10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#A0A0C8' }}>{card.label}</span>
-                      <span style={{ fontSize: 16, fontWeight: 800, color: card.accent === '#8080A8' ? '#C0C0E0' : card.accent }}>
-                        {card.value}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Earning Potential Bar */}
-          <div style={{ padding: '6px 14px', textAlign: 'center', fontSize: 11, color: '#606088', marginBottom: 4 }}>
-            Full earning potential this month: <span style={{ fontWeight: 700, color: '#8080A8' }}>{dollars(heroStats.fullPotentialCents)}</span>
-          </div>
-
-          {/* Past Due Alert */}
-          {heroStats.pastDueCents > 0 && (
-            <div data-tour-id="billing-overdue-alert" style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 4, background: '#EF4444', boxShadow: '0 0 8px rgba(239,68,68,0.6)', flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 700 }}>
-                {dollars(heroStats.pastDueCents)} past due
-              </span>
-              <span style={{ fontSize: 10, color: '#8080A8' }}>
-                — {heroStats.pastDueFamilies} {heroStats.pastDueFamilies === 1 ? 'family' : 'families'}
-              </span>
+        )
+      ) : snapshotAll ? (
+        /* Owner / Admin: aggregate + per-location breakdown */
+        <div data-tour-id="billing-hero-cards" style={{ marginBottom: 16 }}>
+          <BillingSnapshotCard
+            title="All Schools"
+            data={snapshotAll}
+            accentColor="#D4226A"
+            variant="full"
+            size="large"
+            clickable={true}
+            onMetricClick={(metric) => {
+              if (metric === 'invoiced') setLocationFilter('')
+              else if (metric === 'scheduled') setLocationFilter('')
+            }}
+          />
+          {/* Per-location breakdown */}
+          {perLocationSnapshots.length > 0 && (
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: 10, marginTop: 12,
+            }}>
+              {perLocationSnapshots.map((loc) => (
+                <LocationSnapshotCard
+                  key={loc.locationId}
+                  locationId={loc.locationId}
+                  name={loc.name}
+                  color={loc.color}
+                  onSelect={() => setLocationFilter(loc.locationId)}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -572,8 +509,6 @@ function BillingInner() {
         @media (max-width: 768px) {
           .billing-loc-pills { display: none !important; }
           .billing-loc-dropdown { display: block !important; }
-          .billing-snapshot-desktop { display: none !important; }
-          .billing-snapshot-mobile { display: flex !important; }
         }
       `}</style>
     </div>

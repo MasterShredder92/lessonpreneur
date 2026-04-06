@@ -19,7 +19,7 @@ const STEPS: TourStep[] = [
     navigateTo: '/admin',
     targetSelector: '[data-tour-id="dashboard-nav"]',
     title: 'Your Command Center',
-    body: "Everything that needs your attention lives here — call-outs, alerts, and your end-of-day closeout. Check this before the studio opens.",
+    body: "Everything that needs your attention lives here \u2014 call-outs, alerts, and your end-of-day closeout. Check this before the studio opens.",
   },
   {
     id: 'happening-today',
@@ -33,7 +33,7 @@ const STEPS: TourStep[] = [
     navigateTo: '/admin/schedule',
     targetSelector: '[data-tour-id="schedule-nav"]',
     title: 'The Schedule',
-    body: "Your location's full weekly schedule — every teacher, every student, every open slot.",
+    body: "Your location's full weekly schedule \u2014 every teacher, every student, every open slot.",
   },
   {
     id: 'my-sessions',
@@ -55,7 +55,7 @@ const STEPS: TourStep[] = [
     navigateTo: '/admin/leads',
     targetSelector: '[data-tour-id="leads-nav"]',
     title: 'New Inquiries',
-    body: "When someone fills out a form on the website, they land here. Follow up fast — speed wins enrollments.",
+    body: "When someone fills out a form on the website, they land here. Follow up fast \u2014 speed wins enrollments.",
   },
   {
     id: 'report-issue',
@@ -73,7 +73,7 @@ const STEPS: TourStep[] = [
   },
 ]
 
-type Phase = 'idle' | 'welcome' | 'steps' | 'complete'
+type Phase = 'idle' | 'welcome' | 'steps' | 'complete' | 'error'
 
 interface OnboardingValue {
   startTour: () => void
@@ -88,37 +88,65 @@ export function useOnboarding() {
   return ctx
 }
 
+// Module-level guard — survives React unmount/remount within the same page session
+let _autoStartFired = false
+
 export function OnboardingProvider({ children }: { children: ReactNode }) {
-  const { profile, role, teacherRecord, isLoading, signOut } = useAuthContext()
+  const { profile, role, teacherRecord, isLoading, signOut, refreshProfile } = useAuthContext()
   const navigate = useNavigate()
   const location = useLocation()
   const [phase, setPhase] = useState<Phase>('idle')
   const [stepIdx, setStepIdx] = useState(0)
-  const autoStarted = useRef(false)
+  const [saving, setSaving] = useState(false)
 
   const steps = STEPS.filter((s) => !s.dualRoleOnly || !!teacherRecord)
 
+  // Auto-start: only fires once per page session, only when profile data confirms onboarding not done
   useEffect(() => {
-    if (isLoading || autoStarted.current) return
+    if (_autoStartFired || isLoading) return
     if (role !== 'studio_director' || !profile) return
     if (profile.onboarding_completed_at) return
-    autoStarted.current = true
+    _autoStartFired = true
     setPhase('welcome')
   }, [isLoading, role, profile])
 
-  const markCompleted = useCallback(async (skipped: boolean) => {
-    if (!profile) return
+  // Write to DB, await confirmation, then refresh cached profile
+  const markCompleted = useCallback(async (skipped: boolean): Promise<boolean> => {
+    if (!profile) return false
+    setSaving(true)
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ onboarding_completed_at: new Date().toISOString(), onboarding_skipped: skipped })
         .eq('id', profile.id)
-    } catch (err) { console.error(err) }
-  }, [profile])
+
+      if (error) {
+        console.error('[Onboarding] DB write failed:', error)
+        setSaving(false)
+        return false
+      }
+
+      // Refresh the cached profile so parent condition sees the update
+      await refreshProfile()
+      setSaving(false)
+      return true
+    } catch (err) {
+      console.error('[Onboarding] markCompleted failed:', err)
+      setSaving(false)
+      return false
+    }
+  }, [profile, refreshProfile])
 
   const startTour = useCallback(() => { setStepIdx(0); setPhase('welcome') }, [])
 
-  const skip = useCallback(async () => { setPhase('idle'); await markCompleted(true) }, [markCompleted])
+  const skip = useCallback(async () => {
+    const success = await markCompleted(true)
+    if (success) {
+      setPhase('idle')
+    } else {
+      setPhase('error')
+    }
+  }, [markCompleted])
 
   const begin = useCallback(() => { setStepIdx(0); setPhase('steps') }, [])
 
@@ -131,8 +159,16 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   const back = useCallback(() => setStepIdx((i) => Math.max(0, i - 1)), [])
 
-  const finish = useCallback(async () => { setPhase('idle'); await markCompleted(false) }, [markCompleted])
+  const finish = useCallback(async () => {
+    const success = await markCompleted(false)
+    if (success) {
+      setPhase('idle')
+    } else {
+      setPhase('error')
+    }
+  }, [markCompleted])
 
+  // Navigate to step target page when in steps phase
   useEffect(() => {
     if (phase !== 'steps') return
     const step = steps[stepIdx]
@@ -147,6 +183,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .update({ onboarding_completed_at: null, onboarding_skipped: false })
         .eq('id', profile.id)
+      // Reset module guard so auto-start can fire after re-login
+      _autoStartFired = false
       await signOut()
     } catch (err) { console.error(err) }
   }, [profile, signOut])
@@ -160,7 +198,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         }
       `}</style>
       {children}
-      {phase === 'welcome' && <WelcomeModal onStart={begin} onSkip={skip} />}
+      {phase === 'welcome' && <WelcomeModal onStart={begin} onSkip={skip} saving={saving} />}
       {phase === 'steps' && steps[stepIdx] && (
         <StepOverlay
           key={steps[stepIdx].id}
@@ -172,15 +210,17 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
           onSkip={skip}
           canGoBack={stepIdx > 0}
           requiresNavigation={!!steps[stepIdx].navigateTo && location.pathname !== steps[stepIdx].navigateTo}
+          saving={saving}
         />
       )}
-      {phase === 'complete' && <CompletionModal onConfirm={finish} />}
+      {phase === 'complete' && <CompletionModal onConfirm={finish} saving={saving} />}
+      {phase === 'error' && <ErrorModal onDismiss={() => setPhase('idle')} />}
     </OnboardingContext.Provider>
   )
 }
 
 // ───────── Welcome Modal ─────────
-function WelcomeModal({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
+function WelcomeModal({ onStart, onSkip, saving }: { onStart: () => void; onSkip: () => void; saving: boolean }) {
   return (
     <div style={overlayStyle}>
       <div style={{ ...cardStyle, maxWidth: 380, padding: 24, textAlign: 'center' }}>
@@ -190,8 +230,8 @@ function WelcomeModal({ onStart, onSkip }: { onStart: () => void; onSkip: () => 
           You're logged in as a Studio Director. Let's take 2 minutes to show you around so you can hit the ground running.
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-          <button onClick={onSkip} style={ghostBtn}>Skip Tour</button>
-          <button onClick={onStart} style={primaryBtn}>Let's Go →</button>
+          <button onClick={onSkip} disabled={saving} style={{ ...ghostBtn, opacity: saving ? 0.5 : 1 }}>Skip Tour</button>
+          <button onClick={onStart} style={primaryBtn}>Let's Go &rarr;</button>
         </div>
       </div>
     </div>
@@ -199,19 +239,36 @@ function WelcomeModal({ onStart, onSkip }: { onStart: () => void; onSkip: () => 
 }
 
 // ───────── Completion Modal ─────────
-function CompletionModal({ onConfirm }: { onConfirm: () => void }) {
+function CompletionModal({ onConfirm, saving }: { onConfirm: () => void; saving: boolean }) {
   return (
     <div style={overlayStyle}>
       <div style={{ ...cardStyle, maxWidth: 380, padding: 24, textAlign: 'center' }}>
         <img src="/lp-logo.png" alt="Lessonpreneur" style={{ width: 56, height: 56, marginBottom: 12, borderRadius: 12 }} />
         <div style={{ fontSize: 19, fontWeight: 800, color: '#FFFFFF', marginBottom: 10 }}>You're all set!</div>
         <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 8 }}>
-          You now know the essentials. The platform will feel natural fast — just use it like a real day.
+          You now know the essentials. The platform will feel natural fast &mdash; just use it like a real day.
         </div>
         <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 22 }}>
           Questions? Your owner has your back.
         </div>
-        <button onClick={onConfirm} style={{ ...primaryBtn, width: '100%' }}>Start Using Lessonpreneur</button>
+        <button onClick={onConfirm} disabled={saving} style={{ ...primaryBtn, width: '100%', opacity: saving ? 0.7 : 1 }}>
+          {saving ? 'Saving...' : 'Start Using Lessonpreneur'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ───────── Error Modal ─────────
+function ErrorModal({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div style={overlayStyle}>
+      <div style={{ ...cardStyle, maxWidth: 380, padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 19, fontWeight: 800, color: '#FFFFFF', marginBottom: 10 }}>Something went wrong</div>
+        <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 22 }}>
+          We couldn't save your onboarding progress. You can dismiss this and try again later from Settings.
+        </div>
+        <button onClick={onDismiss} style={{ ...primaryBtn, width: '100%' }}>Dismiss</button>
       </div>
     </div>
   )
@@ -219,7 +276,7 @@ function CompletionModal({ onConfirm }: { onConfirm: () => void }) {
 
 // ───────── Step Overlay ─────────
 function StepOverlay({
-  step, stepNumber, total, onNext, onBack, onSkip, canGoBack, requiresNavigation,
+  step, stepNumber, total, onNext, onBack, onSkip, canGoBack, requiresNavigation, saving,
 }: {
   step: TourStep
   stepNumber: number
@@ -229,6 +286,7 @@ function StepOverlay({
   onSkip: () => void
   canGoBack: boolean
   requiresNavigation: boolean
+  saving: boolean
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null)
   const [ready, setReady] = useState(false)
@@ -240,7 +298,7 @@ function StepOverlay({
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  // Wait 400ms after navigation, then find + spotlight target
+  // Wait after navigation, then find + spotlight target
   useEffect(() => {
     setReady(false)
     setRect(null)
@@ -318,7 +376,6 @@ function StepOverlay({
     left = Math.max(12, Math.min(left, window.innerWidth - cardW - 12))
     cardPos = { position: 'fixed', top, left, transform, width: cardW, zIndex: 10002 }
 
-    // CSS arrow pointing from card toward target
     const arrowLeft = rect.left + rect.width / 2 - left - 8
     arrow = {
       position: 'absolute',
@@ -346,10 +403,10 @@ function StepOverlay({
         <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', marginBottom: 6 }}>{step.title}</div>
         <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 14 }}>{step.body}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={onSkip} style={linkBtn}>Skip Tour</button>
+          <button onClick={onSkip} disabled={saving} style={{ ...linkBtn, opacity: saving ? 0.5 : 1 }}>Skip Tour</button>
           <div style={{ display: 'flex', gap: 6 }}>
             {canGoBack && <button onClick={onBack} style={ghostBtn}>Back</button>}
-            <button onClick={onNext} style={primaryBtn}>Next →</button>
+            <button onClick={onNext} style={primaryBtn}>Next &rarr;</button>
           </div>
         </div>
       </div>
