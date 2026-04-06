@@ -7,6 +7,7 @@ import { LOCATIONS, type LocKey } from '../config/locations'
 import { useLocationTracking } from '../hooks/useLocationTracking'
 import { useLocationStats } from '../hooks/useLocationStats'
 import SiteHeader from '../components/site/SiteHeader'
+import InstrumentAtmosphere from '../components/site/InstrumentAtmosphere'
 import { setLocColors } from '../lib/setLocColors'
 import './adkins.css'
 
@@ -199,6 +200,7 @@ export default function AdkinsLanding() {
 
   return (
     <div className="ak-page">
+      <InstrumentAtmosphere theme="guitar" />
       <SiteHeader />
 
       {/* HERO — single column, everything above the fold */}

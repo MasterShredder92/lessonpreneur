@@ -42,87 +42,87 @@ const BLOBS: Record<InstrumentTheme, BlobConfig> = {
 
 // ── SVG builders ──
 
-const pianoKeySvg = `<svg viewBox="0 0 30 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0.5" y="0.5" width="9" height="39" rx="1" stroke="rgba(255,255,255,0.10)"/><rect x="10.5" y="0.5" width="9" height="39" rx="1" stroke="rgba(255,255,255,0.10)"/><rect x="20.5" y="0.5" width="9" height="39" rx="1" stroke="rgba(255,255,255,0.10)"/><rect x="6.5" y="0.5" width="6" height="24" rx="1" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.10)"/><rect x="17.5" y="0.5" width="6" height="24" rx="1" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.10)"/></svg>`
+const pianoKeySvg = `<svg viewBox="0 0 30 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0.5" y="0.5" width="9" height="39" rx="1" stroke="rgba(163,51,255,0.90)"/><rect x="10.5" y="0.5" width="9" height="39" rx="1" stroke="rgba(163,51,255,0.90)"/><rect x="20.5" y="0.5" width="9" height="39" rx="1" stroke="rgba(163,51,255,0.90)"/><rect x="6.5" y="0.5" width="6" height="24" rx="1" fill="rgba(163,51,255,0.30)" stroke="rgba(163,51,255,0.90)"/><rect x="17.5" y="0.5" width="6" height="24" rx="1" fill="rgba(163,51,255,0.30)" stroke="rgba(163,51,255,0.90)"/></svg>`
 
-const stratSvg = `<svg viewBox="0 0 40 80" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 2c8 0 14 6 16 14s-2 12-6 16c4 4 8 10 8 18s-4 16-10 22c-4 4-8 6-8 6s-4-2-8-6c-6-6-10-14-10-22s4-14 8-18c-4-4-8-8-6-16S12 2 20 2z" stroke="rgba(255,255,255,0.12)" stroke-width="1.2"/></svg>`
+const stratSvg = `<svg viewBox="0 0 40 80" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 2c8 0 14 6 16 14s-2 12-6 16c4 4 8 10 8 18s-4 16-10 22c-4 4-8 6-8 6s-4-2-8-6c-6-6-10-14-10-22s4-14 8-18c-4-4-8-8-6-16S12 2 20 2z" stroke="rgba(212,34,106,0.90)" stroke-width="1.2"/></svg>`
 
-const flyingVSvg = `<svg viewBox="0 0 44 70" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 68L2 2h10l10 40L32 2h10L22 68z" stroke="rgba(255,255,255,0.12)" stroke-width="1.2"/></svg>`
+const flyingVSvg = `<svg viewBox="0 0 44 70" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 68L2 2h10l10 40L32 2h10L22 68z" stroke="rgba(212,34,106,0.90)" stroke-width="1.2"/></svg>`
 
-const lesPaulSvg = `<svg viewBox="0 0 36 72" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 2c7 0 13 5 14 12s-3 12-6 15c3 3 8 10 8 19s-5 14-10 18c-3 3-6 4-6 4s-3-1-6-4C7 62 2 55 2 48s5-16 8-19c-3-3-7-8-6-15S11 2 18 2z" stroke="rgba(255,255,255,0.12)" stroke-width="1.2"/></svg>`
+const lesPaulSvg = `<svg viewBox="0 0 36 72" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 2c7 0 13 5 14 12s-3 12-6 15c3 3 8 10 8 19s-5 14-10 18c-3 3-6 4-6 4s-3-1-6-4C7 62 2 55 2 48s5-16 8-19c-3-3-7-8-6-15S11 2 18 2z" stroke="rgba(212,34,106,0.90)" stroke-width="1.2"/></svg>`
 
-const pickSvg = `<svg viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 18L1.5 5A6.5 6.5 0 0 1 8 1a6.5 6.5 0 0 1 6.5 4L8 18z" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" stroke-linejoin="round"/></svg>`
+const pickSvg = `<svg viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 18L1.5 5A6.5 6.5 0 0 1 8 1a6.5 6.5 0 0 1 6.5 4L8 18z" stroke="rgba(212,34,106,0.90)" stroke-width="1.2" stroke-linejoin="round"/></svg>`
 
-const micSvg = `<svg viewBox="0 0 20 50" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="1" width="10" height="20" rx="5" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/><path d="M2 18a8 8 0 0 0 16 0" stroke="rgba(255,255,255,0.10)" stroke-width="1.2" fill="none"/><line x1="10" y1="26" x2="10" y2="44" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/><line x1="5" y1="44" x2="15" y2="44" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/></svg>`
+const micSvg = `<svg viewBox="0 0 20 50" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="1" width="10" height="20" rx="5" stroke="rgba(255,184,0,0.90)" stroke-width="1.2"/><path d="M2 18a8 8 0 0 0 16 0" stroke="rgba(255,184,0,0.90)" stroke-width="1.2" fill="none"/><line x1="10" y1="26" x2="10" y2="44" stroke="rgba(255,184,0,0.90)" stroke-width="1.2"/><line x1="5" y1="44" x2="15" y2="44" stroke="rgba(255,184,0,0.90)" stroke-width="1.2"/></svg>`
 
-const soundWaveSvg = `<svg viewBox="0 0 36 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14a10 10 0 0 1 10-10" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/><path d="M4 14a16 16 0 0 1 16-13" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/><path d="M4 14a22 22 0 0 1 22-13" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/></svg>`
+const soundWaveSvg = `<svg viewBox="0 0 36 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14a10 10 0 0 1 10-10" stroke="rgba(255,184,0,0.90)" stroke-width="1.2"/><path d="M4 14a16 16 0 0 1 16-13" stroke="rgba(255,184,0,0.90)" stroke-width="1.2"/><path d="M4 14a22 22 0 0 1 22-13" stroke="rgba(255,184,0,0.90)" stroke-width="1.2"/></svg>`
 
-const speechBubbleSvg = `<svg viewBox="0 0 28 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="26" height="18" rx="6" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/><path d="M8 19l-3 4 6-4" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/></svg>`
+const speechBubbleSvg = `<svg viewBox="0 0 28 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="26" height="18" rx="6" stroke="rgba(255,184,0,0.90)" stroke-width="1.2"/><path d="M8 19l-3 4 6-4" stroke="rgba(255,184,0,0.90)" stroke-width="1.2"/></svg>`
 
-const drumCircleSvg = `<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="16" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/><ellipse cx="18" cy="18" rx="12" ry="6" stroke="rgba(255,255,255,0.10)" stroke-width="1"/></svg>`
+const drumCircleSvg = `<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="16" stroke="rgba(255,85,0,0.90)" stroke-width="1.2"/><ellipse cx="18" cy="18" rx="12" ry="6" stroke="rgba(255,85,0,0.90)" stroke-width="1"/></svg>`
 
-const drumstickSvg = `<svg viewBox="0 0 8 40" fill="none" xmlns="http://www.w3.org/2000/svg"><line x1="4" y1="6" x2="4" y2="38" stroke="rgba(255,255,255,0.10)" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="4" cy="4" rx="2.5" ry="3.5" stroke="rgba(255,255,255,0.10)" stroke-width="1"/></svg>`
+const drumstickSvg = `<svg viewBox="0 0 8 40" fill="none" xmlns="http://www.w3.org/2000/svg"><line x1="4" y1="6" x2="4" y2="38" stroke="rgba(255,85,0,0.90)" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="4" cy="4" rx="2.5" ry="3.5" stroke="rgba(255,85,0,0.90)" stroke-width="1"/></svg>`
 
-const hihatSvg = `<svg viewBox="0 0 32 16" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="16" cy="6" rx="15" ry="5" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/><ellipse cx="16" cy="10" rx="15" ry="5" stroke="rgba(255,255,255,0.10)" stroke-width="1.2"/></svg>`
+const hihatSvg = `<svg viewBox="0 0 32 16" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="16" cy="6" rx="15" ry="5" stroke="rgba(255,85,0,0.90)" stroke-width="1.2"/><ellipse cx="16" cy="10" rx="15" ry="5" stroke="rgba(255,85,0,0.90)" stroke-width="1.2"/></svg>`
 
 // ── Symbol definitions per theme ──
 
 function makeSymbols(theme: InstrumentTheme): SymbolConfig[] {
   if (theme === 'piano') return [
-    { type:'svg', content:pianoKeySvg, top:'6%',  left:'10%', size:32, mobileSize:20, opacity:0.07, rotation:5,   duration:32, delay:0,  driftY:28, driftX:8,  rotDrift:6 },
-    { type:'svg', content:pianoKeySvg, top:'22%', left:'82%', size:32, mobileSize:20, opacity:0.05, rotation:-10, duration:38, delay:4,  driftY:24, driftX:-6, rotDrift:-5 },
-    { type:'svg', content:pianoKeySvg, top:'48%', left:'5%',  size:32, mobileSize:20, opacity:0.06, rotation:12,  duration:28, delay:8,  driftY:32, driftX:10, rotDrift:8 },
-    { type:'svg', content:pianoKeySvg, top:'68%', left:'90%', size:32, mobileSize:20, opacity:0.04, rotation:-8,  duration:42, delay:12, driftY:20, driftX:-8, rotDrift:-4 },
-    { type:'svg', content:pianoKeySvg, top:'82%', left:'35%', size:32, mobileSize:20, opacity:0.06, rotation:3,   duration:36, delay:16, driftY:26, driftX:6,  rotDrift:5 },
-    { type:'svg', content:pianoKeySvg, top:'38%', left:'60%', size:32, mobileSize:20, opacity:0.05, rotation:-14, duration:30, delay:20, driftY:30, driftX:-10,rotDrift:-7 },
-    { type:'char', content:'♩', top:'14%', left:'42%', size:32, mobileSize:24, opacity:0.06, rotation:0,  duration:34, delay:2,  driftY:30, driftX:8,  rotDrift:6 },
-    { type:'char', content:'♪', top:'35%', left:'74%', size:44, mobileSize:28, opacity:0.05, rotation:0,  duration:40, delay:6,  driftY:26, driftX:-6, rotDrift:-5 },
-    { type:'char', content:'♫', top:'58%', left:'28%', size:36, mobileSize:24, opacity:0.07, rotation:0,  duration:26, delay:10, driftY:34, driftX:10, rotDrift:7 },
-    { type:'char', content:'♬', top:'76%', left:'66%', size:28, mobileSize:24, opacity:0.04, rotation:0,  duration:44, delay:14, driftY:22, driftX:-8, rotDrift:-4 },
-    { type:'char', content:'𝄞', top:'10%', left:'62%', size:48, mobileSize:32, opacity:0.05, rotation:0,  duration:38, delay:18, driftY:28, driftX:6,  rotDrift:5 },
-    { type:'char', content:'𝄞', top:'88%', left:'16%', size:36, mobileSize:32, opacity:0.06, rotation:0,  duration:30, delay:22, driftY:32, driftX:-10,rotDrift:-8 },
+    { type:'svg', content:pianoKeySvg, top:'6%',  left:'10%', size:40, mobileSize:28, opacity:0.17, rotation:5,   duration:32, delay:0,  driftY:28, driftX:8,  rotDrift:6 },
+    { type:'svg', content:pianoKeySvg, top:'22%', left:'82%', size:40, mobileSize:28, opacity:0.14, rotation:-10, duration:38, delay:4,  driftY:24, driftX:-6, rotDrift:-5 },
+    { type:'svg', content:pianoKeySvg, top:'48%', left:'5%',  size:40, mobileSize:28, opacity:0.15, rotation:12,  duration:28, delay:8,  driftY:32, driftX:10, rotDrift:8 },
+    { type:'svg', content:pianoKeySvg, top:'68%', left:'90%', size:40, mobileSize:28, opacity:0.12, rotation:-8,  duration:42, delay:12, driftY:20, driftX:-8, rotDrift:-4 },
+    { type:'svg', content:pianoKeySvg, top:'82%', left:'35%', size:40, mobileSize:28, opacity:0.15, rotation:3,   duration:36, delay:16, driftY:26, driftX:6,  rotDrift:5 },
+    { type:'svg', content:pianoKeySvg, top:'38%', left:'60%', size:40, mobileSize:28, opacity:0.14, rotation:-14, duration:30, delay:20, driftY:30, driftX:-10,rotDrift:-7 },
+    { type:'char', content:'♩', top:'14%', left:'42%', size:36, mobileSize:24, opacity:0.15, rotation:0,  duration:34, delay:2,  driftY:30, driftX:8,  rotDrift:6 },
+    { type:'char', content:'♪', top:'35%', left:'74%', size:48, mobileSize:32, opacity:0.14, rotation:0,  duration:40, delay:6,  driftY:26, driftX:-6, rotDrift:-5 },
+    { type:'char', content:'♫', top:'58%', left:'28%', size:40, mobileSize:28, opacity:0.17, rotation:0,  duration:26, delay:10, driftY:34, driftX:10, rotDrift:7 },
+    { type:'char', content:'♬', top:'76%', left:'66%', size:32, mobileSize:24, opacity:0.12, rotation:0,  duration:44, delay:14, driftY:22, driftX:-8, rotDrift:-4 },
+    { type:'char', content:'𝄞', top:'10%', left:'62%', size:52, mobileSize:36, opacity:0.14, rotation:0,  duration:38, delay:18, driftY:28, driftX:6,  rotDrift:5 },
+    { type:'char', content:'𝄞', top:'88%', left:'16%', size:40, mobileSize:36, opacity:0.15, rotation:0,  duration:30, delay:22, driftY:32, driftX:-10,rotDrift:-8 },
   ]
   if (theme === 'guitar') return [
-    { type:'svg', content:stratSvg,    top:'5%',  left:'8%',  size:40, mobileSize:24, opacity:0.07, rotation:10,  duration:34, delay:0,  driftY:30, driftX:8,  rotDrift:6 },
-    { type:'svg', content:stratSvg,    top:'40%', left:'85%', size:40, mobileSize:24, opacity:0.05, rotation:-15, duration:40, delay:6,  driftY:26, driftX:-10,rotDrift:-5 },
-    { type:'svg', content:stratSvg,    top:'72%', left:'20%', size:40, mobileSize:24, opacity:0.06, rotation:5,   duration:28, delay:12, driftY:34, driftX:6,  rotDrift:7 },
-    { type:'svg', content:flyingVSvg,  top:'18%', left:'70%', size:44, mobileSize:26, opacity:0.05, rotation:-8,  duration:44, delay:4,  driftY:24, driftX:-8, rotDrift:-4 },
-    { type:'svg', content:flyingVSvg,  top:'60%', left:'50%', size:44, mobileSize:26, opacity:0.04, rotation:12,  duration:36, delay:16, driftY:28, driftX:10, rotDrift:8 },
-    { type:'svg', content:lesPaulSvg,  top:'30%', left:'14%', size:36, mobileSize:22, opacity:0.06, rotation:-6,  duration:32, delay:8,  driftY:32, driftX:-6, rotDrift:-6 },
-    { type:'svg', content:lesPaulSvg,  top:'85%', left:'76%', size:36, mobileSize:22, opacity:0.05, rotation:8,   duration:48, delay:20, driftY:20, driftX:8,  rotDrift:5 },
-    { type:'char', content:'♪', top:'12%', left:'48%', size:34, mobileSize:20, opacity:0.06, rotation:0, duration:30, delay:2,  driftY:28, driftX:6,  rotDrift:5 },
-    { type:'char', content:'♫', top:'52%', left:'36%', size:28, mobileSize:20, opacity:0.05, rotation:0, duration:38, delay:10, driftY:26, driftX:-8, rotDrift:-7 },
-    { type:'char', content:'♬', top:'78%', left:'62%', size:24, mobileSize:20, opacity:0.07, rotation:0, duration:26, delay:18, driftY:30, driftX:10, rotDrift:6 },
-    { type:'svg', content:pickSvg,     top:'24%', left:'92%', size:16, mobileSize:12, opacity:0.08, rotation:15,  duration:22, delay:14, driftY:24, driftX:-6, rotDrift:-8 },
-    { type:'svg', content:pickSvg,     top:'66%', left:'6%',  size:16, mobileSize:12, opacity:0.06, rotation:-20, duration:42, delay:22, driftY:32, driftX:8,  rotDrift:5 },
+    { type:'svg', content:stratSvg,    top:'5%',  left:'8%',  size:48, mobileSize:34, opacity:0.17, rotation:10,  duration:34, delay:0,  driftY:30, driftX:8,  rotDrift:6 },
+    { type:'svg', content:stratSvg,    top:'40%', left:'85%', size:48, mobileSize:34, opacity:0.14, rotation:-15, duration:40, delay:6,  driftY:26, driftX:-10,rotDrift:-5 },
+    { type:'svg', content:stratSvg,    top:'72%', left:'20%', size:48, mobileSize:34, opacity:0.15, rotation:5,   duration:28, delay:12, driftY:34, driftX:6,  rotDrift:7 },
+    { type:'svg', content:flyingVSvg,  top:'18%', left:'70%', size:48, mobileSize:34, opacity:0.14, rotation:-8,  duration:44, delay:4,  driftY:24, driftX:-8, rotDrift:-4 },
+    { type:'svg', content:flyingVSvg,  top:'60%', left:'50%', size:48, mobileSize:34, opacity:0.12, rotation:12,  duration:36, delay:16, driftY:28, driftX:10, rotDrift:8 },
+    { type:'svg', content:lesPaulSvg,  top:'30%', left:'14%', size:48, mobileSize:34, opacity:0.15, rotation:-6,  duration:32, delay:8,  driftY:32, driftX:-6, rotDrift:-6 },
+    { type:'svg', content:lesPaulSvg,  top:'85%', left:'76%', size:48, mobileSize:34, opacity:0.14, rotation:8,   duration:48, delay:20, driftY:20, driftX:8,  rotDrift:5 },
+    { type:'char', content:'♪', top:'12%', left:'48%', size:40, mobileSize:28, opacity:0.15, rotation:0, duration:30, delay:2,  driftY:28, driftX:6,  rotDrift:5 },
+    { type:'char', content:'♫', top:'52%', left:'36%', size:32, mobileSize:24, opacity:0.14, rotation:0, duration:38, delay:10, driftY:26, driftX:-8, rotDrift:-7 },
+    { type:'char', content:'♬', top:'78%', left:'62%', size:28, mobileSize:20, opacity:0.17, rotation:0, duration:26, delay:18, driftY:30, driftX:10, rotDrift:6 },
+    { type:'svg', content:pickSvg,     top:'24%', left:'92%', size:20, mobileSize:14, opacity:0.18, rotation:15,  duration:22, delay:14, driftY:24, driftX:-6, rotDrift:-8 },
+    { type:'svg', content:pickSvg,     top:'66%', left:'6%',  size:20, mobileSize:14, opacity:0.15, rotation:-20, duration:42, delay:22, driftY:32, driftX:8,  rotDrift:5 },
   ]
   if (theme === 'vocals') return [
-    { type:'svg', content:micSvg,          top:'8%',  left:'12%', size:24, mobileSize:16, opacity:0.07, rotation:5,   duration:32, delay:0,  driftY:28, driftX:8,  rotDrift:6 },
-    { type:'svg', content:micSvg,          top:'34%', left:'80%', size:24, mobileSize:16, opacity:0.05, rotation:-10, duration:38, delay:6,  driftY:24, driftX:-6, rotDrift:-5 },
-    { type:'svg', content:micSvg,          top:'58%', left:'22%', size:24, mobileSize:16, opacity:0.06, rotation:8,   duration:26, delay:12, driftY:34, driftX:10, rotDrift:7 },
-    { type:'svg', content:micSvg,          top:'82%', left:'68%', size:24, mobileSize:16, opacity:0.04, rotation:-12, duration:42, delay:18, driftY:20, driftX:-8, rotDrift:-4 },
-    { type:'svg', content:soundWaveSvg,    top:'20%', left:'56%', size:36, mobileSize:24, opacity:0.06, rotation:0,   duration:34, delay:4,  driftY:26, driftX:6,  rotDrift:5 },
-    { type:'svg', content:soundWaveSvg,    top:'70%', left:'40%', size:36, mobileSize:24, opacity:0.05, rotation:15,  duration:40, delay:16, driftY:30, driftX:-10,rotDrift:-6 },
-    { type:'char', content:'♩', top:'14%', left:'44%', size:30, mobileSize:22, opacity:0.06, rotation:0, duration:28, delay:2,  driftY:28, driftX:8,  rotDrift:6 },
-    { type:'char', content:'♪', top:'42%', left:'8%',  size:40, mobileSize:26, opacity:0.05, rotation:0, duration:36, delay:8,  driftY:32, driftX:-6, rotDrift:-5 },
-    { type:'char', content:'♫', top:'62%', left:'88%', size:34, mobileSize:22, opacity:0.07, rotation:0, duration:22, delay:10, driftY:26, driftX:10, rotDrift:7 },
-    { type:'char', content:'♬', top:'86%', left:'30%', size:26, mobileSize:22, opacity:0.04, rotation:0, duration:40, delay:14, driftY:24, driftX:-8, rotDrift:-4 },
-    { type:'svg', content:speechBubbleSvg, top:'26%', left:'34%', size:28, mobileSize:18, opacity:0.05, rotation:-5,  duration:30, delay:20, driftY:30, driftX:6,  rotDrift:5 },
-    { type:'svg', content:speechBubbleSvg, top:'76%', left:'74%', size:28, mobileSize:18, opacity:0.06, rotation:8,   duration:36, delay:22, driftY:22, driftX:-10,rotDrift:-8 },
+    { type:'svg', content:micSvg,          top:'8%',  left:'12%', size:30, mobileSize:21, opacity:0.17, rotation:5,   duration:32, delay:0,  driftY:28, driftX:8,  rotDrift:6 },
+    { type:'svg', content:micSvg,          top:'34%', left:'80%', size:30, mobileSize:21, opacity:0.14, rotation:-10, duration:38, delay:6,  driftY:24, driftX:-6, rotDrift:-5 },
+    { type:'svg', content:micSvg,          top:'58%', left:'22%', size:30, mobileSize:21, opacity:0.15, rotation:8,   duration:26, delay:12, driftY:34, driftX:10, rotDrift:7 },
+    { type:'svg', content:micSvg,          top:'82%', left:'68%', size:30, mobileSize:21, opacity:0.12, rotation:-12, duration:42, delay:18, driftY:20, driftX:-8, rotDrift:-4 },
+    { type:'svg', content:soundWaveSvg,    top:'20%', left:'56%', size:44, mobileSize:31, opacity:0.15, rotation:0,   duration:34, delay:4,  driftY:26, driftX:6,  rotDrift:5 },
+    { type:'svg', content:soundWaveSvg,    top:'70%', left:'40%', size:44, mobileSize:31, opacity:0.14, rotation:15,  duration:40, delay:16, driftY:30, driftX:-10,rotDrift:-6 },
+    { type:'char', content:'♩', top:'14%', left:'44%', size:36, mobileSize:24, opacity:0.15, rotation:0, duration:28, delay:2,  driftY:28, driftX:8,  rotDrift:6 },
+    { type:'char', content:'♪', top:'42%', left:'8%',  size:48, mobileSize:32, opacity:0.14, rotation:0, duration:36, delay:8,  driftY:32, driftX:-6, rotDrift:-5 },
+    { type:'char', content:'♫', top:'62%', left:'88%', size:40, mobileSize:28, opacity:0.17, rotation:0, duration:22, delay:10, driftY:26, driftX:10, rotDrift:7 },
+    { type:'char', content:'♬', top:'86%', left:'30%', size:32, mobileSize:24, opacity:0.12, rotation:0, duration:40, delay:14, driftY:24, driftX:-8, rotDrift:-4 },
+    { type:'svg', content:speechBubbleSvg, top:'26%', left:'34%', size:28, mobileSize:20, opacity:0.14, rotation:-5,  duration:30, delay:20, driftY:30, driftX:6,  rotDrift:5 },
+    { type:'svg', content:speechBubbleSvg, top:'76%', left:'74%', size:28, mobileSize:20, opacity:0.15, rotation:8,   duration:36, delay:22, driftY:22, driftX:-10,rotDrift:-8 },
   ]
   // drums
   return [
-    { type:'svg', content:drumCircleSvg, top:'6%',  left:'14%', size:36, mobileSize:22, opacity:0.07, rotation:0,   duration:22, delay:0,  driftY:32, driftX:12, rotDrift:6 },
-    { type:'svg', content:drumCircleSvg, top:'44%', left:'82%', size:36, mobileSize:22, opacity:0.05, rotation:0,   duration:28, delay:6,  driftY:28, driftX:-14,rotDrift:-5 },
-    { type:'svg', content:drumCircleSvg, top:'78%', left:'38%', size:36, mobileSize:22, opacity:0.06, rotation:0,   duration:18, delay:12, driftY:36, driftX:10, rotDrift:7 },
-    { type:'svg', content:drumstickSvg,  top:'16%', left:'56%', size:40, mobileSize:24, opacity:0.06, rotation:30,  duration:24, delay:2,  driftY:30, driftX:14, rotDrift:8 },
-    { type:'svg', content:drumstickSvg,  top:'34%', left:'6%',  size:40, mobileSize:24, opacity:0.05, rotation:-25, duration:32, delay:8,  driftY:26, driftX:-12,rotDrift:-6 },
-    { type:'svg', content:drumstickSvg,  top:'62%', left:'70%', size:40, mobileSize:24, opacity:0.07, rotation:45,  duration:20, delay:14, driftY:34, driftX:10, rotDrift:5 },
-    { type:'svg', content:drumstickSvg,  top:'88%', left:'24%', size:40, mobileSize:24, opacity:0.04, rotation:-40, duration:30, delay:20, driftY:24, driftX:-8, rotDrift:-7 },
-    { type:'svg', content:hihatSvg,      top:'22%', left:'36%', size:32, mobileSize:20, opacity:0.05, rotation:10,  duration:26, delay:4,  driftY:28, driftX:12, rotDrift:6 },
-    { type:'svg', content:hihatSvg,      top:'70%', left:'88%', size:32, mobileSize:20, opacity:0.06, rotation:-8,  duration:34, delay:16, driftY:30, driftX:-14,rotDrift:-8 },
-    { type:'char', content:'♪', top:'10%', left:'78%', size:30, mobileSize:20, opacity:0.06, rotation:0, duration:18, delay:3,  driftY:32, driftX:14, rotDrift:7 },
-    { type:'char', content:'♫', top:'52%', left:'48%', size:36, mobileSize:24, opacity:0.05, rotation:0, duration:24, delay:10, driftY:28, driftX:-12,rotDrift:-5 },
-    { type:'char', content:'♬', top:'84%', left:'62%', size:24, mobileSize:20, opacity:0.07, rotation:0, duration:16, delay:18, driftY:36, driftX:10, rotDrift:8 },
+    { type:'svg', content:drumCircleSvg, top:'6%',  left:'14%', size:44, mobileSize:31, opacity:0.17, rotation:0,   duration:22, delay:0,  driftY:32, driftX:12, rotDrift:6 },
+    { type:'svg', content:drumCircleSvg, top:'44%', left:'82%', size:44, mobileSize:31, opacity:0.14, rotation:0,   duration:28, delay:6,  driftY:28, driftX:-14,rotDrift:-5 },
+    { type:'svg', content:drumCircleSvg, top:'78%', left:'38%', size:44, mobileSize:31, opacity:0.15, rotation:0,   duration:18, delay:12, driftY:36, driftX:10, rotDrift:7 },
+    { type:'svg', content:drumstickSvg,  top:'16%', left:'56%', size:12, mobileSize:8,  opacity:0.15, rotation:30,  duration:24, delay:2,  driftY:30, driftX:14, rotDrift:8 },
+    { type:'svg', content:drumstickSvg,  top:'34%', left:'6%',  size:12, mobileSize:8,  opacity:0.14, rotation:-25, duration:32, delay:8,  driftY:26, driftX:-12,rotDrift:-6 },
+    { type:'svg', content:drumstickSvg,  top:'62%', left:'70%', size:12, mobileSize:8,  opacity:0.17, rotation:45,  duration:20, delay:14, driftY:34, driftX:10, rotDrift:5 },
+    { type:'svg', content:drumstickSvg,  top:'88%', left:'24%', size:12, mobileSize:8,  opacity:0.12, rotation:-40, duration:30, delay:20, driftY:24, driftX:-8, rotDrift:-7 },
+    { type:'svg', content:hihatSvg,      top:'22%', left:'36%', size:40, mobileSize:28, opacity:0.14, rotation:10,  duration:26, delay:4,  driftY:28, driftX:12, rotDrift:6 },
+    { type:'svg', content:hihatSvg,      top:'70%', left:'88%', size:40, mobileSize:28, opacity:0.15, rotation:-8,  duration:34, delay:16, driftY:30, driftX:-14,rotDrift:-8 },
+    { type:'char', content:'♪', top:'10%', left:'78%', size:36, mobileSize:24, opacity:0.15, rotation:0, duration:18, delay:3,  driftY:32, driftX:14, rotDrift:7 },
+    { type:'char', content:'♫', top:'52%', left:'48%', size:44, mobileSize:32, opacity:0.14, rotation:0, duration:24, delay:10, driftY:28, driftX:-12,rotDrift:-5 },
+    { type:'char', content:'♬', top:'84%', left:'62%', size:28, mobileSize:20, opacity:0.17, rotation:0, duration:16, delay:18, driftY:36, driftX:10, rotDrift:8 },
   ]
 }
 
@@ -302,7 +302,7 @@ export default function InstrumentAtmosphere({ theme }: InstrumentAtmosphereProp
                 style={{
                   ...shared,
                   fontSize: sz,
-                  color: `rgba(255,255,255,${s.opacity})`,
+                  color: `rgba(255,255,255,${isMobile ? Math.min(s.opacity + 0.02, 0.20) : s.opacity})`,
                   fontFamily: 'serif',
                   lineHeight: 1,
                 }}
@@ -320,7 +320,7 @@ export default function InstrumentAtmosphere({ theme }: InstrumentAtmosphereProp
                 width: sz,
                 height: 'auto',
                 display: 'inline-block',
-                opacity: s.opacity,
+                opacity: isMobile ? Math.min(s.opacity + 0.02, 0.20) : s.opacity,
               }}
               dangerouslySetInnerHTML={{ __html: s.content }}
             />
