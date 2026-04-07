@@ -37,11 +37,11 @@ export async function exportStudents(tenantId: string) {
 
   // Session counts
   const stuIds = (students ?? []).map(s => s.first_name) // placeholder — we need actual IDs
-  const { data: logs } = await supabase.from('session_log').select('student_id, block_date').eq('tenant_id', tenantId)
+  const { data: logs } = await supabase.from('session_log').select('student_id, block_date').eq('tenant_id', tenantId).limit(50000)
   const sessionMap = new Map<string, number>()
   const lastSessionMap = new Map<string, string>()
   // We need student IDs — re-query
-  const { data: stuWithId } = await supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId)
+  const { data: stuWithId } = await supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId).limit(10000)
   const idToName = new Map((stuWithId ?? []).map((s: any) => [s.id, `${s.first_name} ${s.last_name}`]))
   logs?.forEach((l: any) => { sessionMap.set(l.student_id, (sessionMap.get(l.student_id) ?? 0) + 1); if (!lastSessionMap.has(l.student_id)) lastSessionMap.set(l.student_id, l.block_date) })
 
@@ -73,6 +73,7 @@ export async function exportFinancials(tenantId: string) {
     .select('invoice_date, requested_amount, amount_paid, location_id, customer_name, status')
     .eq('tenant_id', tenantId)
     .order('invoice_date', { ascending: false })
+    .limit(10000)
 
   const locIds = [...new Set((invoices ?? []).map(i => i.location_id).filter(Boolean))]
   const locMap = new Map<string, string>()

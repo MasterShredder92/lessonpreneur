@@ -166,7 +166,7 @@ export function usePLSummary() {
       // 6. Location breakdown
       const { data: locations } = await supabase.from('locations').select('id, name').eq('is_active', true)
       const { data: rooms } = await supabase.from('rooms').select('id, location_id')
-      const { data: students } = await supabase.from('students').select('id, location_id').eq('status', 'active')
+      const { data: students } = await supabase.from('students').select('id, location_id').eq('status', 'active').limit(10000)
 
       const roomsByLoc = new Map<string, number>()
       rooms?.forEach((r: any) => { if (r.location_id) roomsByLoc.set(r.location_id, (roomsByLoc.get(r.location_id) ?? 0) + 1) })
