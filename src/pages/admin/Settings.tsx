@@ -14,7 +14,7 @@ import { Upload, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
 import type { Location } from '../../lib/types'
 import { useTenantBilling, useCreateCheckout, useCustomerPortal } from '../../hooks/useTenantBilling'
-import { useIssues, useCreateIssue, useUpdateIssue, useScreenshotUrl, PAGES, PAGE_SECTION_MAP, CATEGORIES, SEVERITIES, STATUS_COLORS, STATUS_LABELS, getSectionsForPage, getSubsectionsForSection, type StatusGroup } from '../../hooks/useIssues'
+import { useIssues, useCreateIssue, useUpdateIssue, useScreenshotUrl, checkForDuplicateIssue, PAGES, PAGE_SECTION_MAP, CATEGORIES, SEVERITIES, STATUS_COLORS, STATUS_LABELS, getSectionsForPage, getSubsectionsForSection, type StatusGroup } from '../../hooks/useIssues'
 import { useStripeConnectStatus, useStripeConnectOnboard } from '../../hooks/useStripeConnect'
 import { getTierByKey, TRIAL_DAYS } from '../../lib/pricing'
 import { IssueContextProvider } from '../../contexts/IssueContext'
@@ -1765,6 +1765,7 @@ function IssuesTab() {
 // ─── Report Form ─────────────────────────────────────
 
 function IssueReportForm({ isOwner }: { isOwner: boolean }) {
+  const { tenantId: formTenantId } = useAuthContext()
   const createIssue = useCreateIssue()
   const [title, setTitle] = useState('')
   const [page, setPage] = useState('')
@@ -1781,6 +1782,8 @@ function IssueReportForm({ isOwner }: { isOwner: boolean }) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState<{ id: string; title: string } | null>(null)
+  const [duplicateChecked, setDuplicateChecked] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const categories = isOwner ? CATEGORIES : CATEGORIES.filter(c => c.value !== 'feature_request')
@@ -1819,11 +1822,38 @@ function IssueReportForm({ isOwner }: { isOwner: boolean }) {
     if (!category) { toast('Select a category', 'error'); return }
     if (desc.trim().length < 20) { toast('Description must be at least 20 characters', 'error'); return }
 
-    const finalPage = page === 'Other' ? `Other: ${otherPage.trim()}` : page
-    const finalSection = section === 'Other' ? `Other: ${otherSection.trim()}` : section
+    // "Other" saves as just "Other" — the user's typed description goes into element_description
+    const finalPage = page === 'Other' ? 'Other' : page
+    const finalSection = section === 'Other' ? 'Other' : section
     const finalSubsection = !hasSubsections ? null
-      : subsection === 'Other' ? `Other: ${otherSubsection.trim()}`
+      : subsection === 'Other' ? 'Other'
       : subsection || null
+
+    // Build element_description with any "Other" context
+    const otherContext = [
+      page === 'Other' && otherPage.trim() ? `Page: ${otherPage.trim()}` : '',
+      section === 'Other' && otherSection.trim() ? `Section: ${otherSection.trim()}` : '',
+      subsection === 'Other' && otherSubsection.trim() ? `Subsection: ${otherSubsection.trim()}` : '',
+    ].filter(Boolean).join('; ')
+    const fullElement = otherContext
+      ? `${element.trim()}${element.trim() ? ' — ' : ''}${otherContext}`
+      : element.trim()
+
+    // Check for duplicates (soft warning, never blocks)
+    if (!duplicateChecked && formTenantId && finalPage) {
+      setIsSubmitting(true)
+      try {
+        const dup = await checkForDuplicateIssue(formTenantId, finalPage, desc.trim())
+        if (dup) {
+          setDuplicateWarning(dup)
+          setIsSubmitting(false)
+          return
+        }
+      } catch {
+        // If duplicate check fails, proceed
+      }
+      setIsSubmitting(false)
+    }
 
     setIsSubmitting(true)
     try {
@@ -1831,13 +1861,15 @@ function IssueReportForm({ isOwner }: { isOwner: boolean }) {
       await Promise.race([
         createIssue.mutateAsync({
           title: title.trim(), page: finalPage, section: finalSection, subsection: finalSubsection,
-          platform, element_description: element.trim(),
+          platform, element_description: fullElement,
           category, severity, description: desc.trim(), screenshotFile: file,
         }),
         timeout,
       ])
       toast('Issue reported — fix pipeline activated', 'success')
       clearForm()
+      setDuplicateWarning(null)
+      setDuplicateChecked(false)
     } catch (err: any) {
       toast(err.message ?? 'Failed to submit issue', 'error')
     } finally {
@@ -1956,14 +1988,39 @@ function IssueReportForm({ isOwner }: { isOwner: boolean }) {
           )}
         </div>
 
+        {/* Duplicate Warning */}
+        {duplicateWarning && (
+          <div style={{
+            padding: '12px 14px', borderRadius: 10,
+            background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#D97706', marginBottom: 4 }}>Possible duplicate</div>
+            <div style={{ fontSize: 11, color: '#D4C5A0', lineHeight: 1.4, marginBottom: 10 }}>
+              This may be similar to: <strong>"{duplicateWarning.title}"</strong>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setDuplicateWarning(null); setDuplicateChecked(true); handleSubmit() }} disabled={isSubmitting} style={{
+                padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: 'rgba(217,119,6,0.15)', border: '1px solid rgba(217,119,6,0.3)', color: '#D97706',
+              }}>{isSubmitting ? 'Submitting...' : 'Submit Anyway'}</button>
+              <button onClick={() => setDuplicateWarning(null)} style={{
+                padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8',
+              }}>Edit Report</button>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button onClick={clearForm} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'none', color: '#8080A8', border: 'none' }}>Cancel</button>
-          <button onClick={handleSubmit} disabled={isSubmitting} style={{
-            padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            background: '#D4226A', color: '#fff', border: 'none', opacity: isSubmitting ? 0.5 : 1,
-          }}>{isSubmitting ? 'Submitting...' : 'Submit Issue'}</button>
-        </div>
+        {!duplicateWarning && (
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button onClick={clearForm} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'none', color: '#8080A8', border: 'none' }}>Cancel</button>
+            <button onClick={handleSubmit} disabled={isSubmitting} style={{
+              padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              background: '#D4226A', color: '#fff', border: 'none', opacity: isSubmitting ? 0.5 : 1,
+            }}>{isSubmitting ? 'Submitting...' : 'Submit Issue'}</button>
+          </div>
+        )}
       </div>
     </div>
   )

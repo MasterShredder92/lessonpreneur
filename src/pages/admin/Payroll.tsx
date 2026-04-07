@@ -425,11 +425,12 @@ export default function Payroll() {
       : `${selYear}-${String(selMonth + 2).padStart(2, '0')}-01`
     const todayStr = new Date().toISOString().split('T')[0]
 
-    // Count checked_in sessions this month per teacher
+    // Count confirmed tally sessions this month per teacher
     const { data: checkedIn } = await supabase
       .from('schedule_blocks')
       .select('teacher_id')
       .eq('checked_in', true)
+      .eq('teacher_tally', true)
       .gte('block_date', monthStart)
       .lt('block_date', nextMonth)
 

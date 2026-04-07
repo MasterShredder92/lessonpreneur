@@ -34,23 +34,13 @@ export function useAIMatch() {
     setResult(null)
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData.session?.access_token
+      const { data, error: invokeError } = await supabase.functions.invoke('ai-teacher-match', {
+        body: { lead_id: leadId, tenant_id: tenantId },
+      })
 
-      const res = await fetch(
-        'https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-teacher-match',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ lead_id: leadId, tenant_id: tenantId }),
-        }
-      )
-
-      const data = await res.json()
-      if (data.error) {
+      if (invokeError) {
+        setError(invokeError.message ?? 'Failed to get AI match')
+      } else if (data?.error) {
         setError(data.error)
       } else {
         setResult({ recommendations: data.recommendations ?? [], teachers_evaluated: data.teachers_evaluated, recovery_analysis: data.recovery_analysis ?? null })

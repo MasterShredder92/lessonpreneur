@@ -362,6 +362,46 @@ export function useUpdateIssue() {
   })
 }
 
+// ─── Helper: check for potential duplicates ──────────
+
+export async function checkForDuplicateIssue(tenantId: string, page: string, description: string): Promise<{ id: string; title: string } | null> {
+  // Look for recent issues on the same page with similar content (last 7 days)
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 7)
+
+  const { data } = await supabase
+    .from('issues')
+    .select('id, title, description')
+    .eq('tenant_id', tenantId)
+    .eq('page', page)
+    .in('status', ['reported', 'queued', 'diagnosing', 'fixing', 'deploying'])
+    .gte('created_at', cutoff.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (!data || data.length === 0) return null
+
+  // Simple similarity check — see if any words overlap substantially
+  const descWords = new Set(description.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3))
+  if (descWords.size === 0) return null
+
+  for (const issue of data) {
+    const issueWords = new Set(
+      `${issue.title} ${issue.description}`.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter((w: string) => w.length > 3)
+    )
+    let matches = 0
+    for (const w of descWords) {
+      if (issueWords.has(w)) matches++
+    }
+    const overlap = matches / descWords.size
+    if (overlap >= 0.5 && matches >= 3) {
+      return { id: issue.id, title: issue.title }
+    }
+  }
+
+  return null
+}
+
 // ─── Helper: get screenshot URL ─────────────────────
 
 export function useScreenshotUrl(path: string | null) {

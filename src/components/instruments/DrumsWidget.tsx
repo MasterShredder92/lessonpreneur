@@ -287,9 +287,9 @@ export default function DrumsWidget() {
           style={{ pointerEvents: 'none' }} />
         {lit && <ellipse cx={cx} cy={cy} rx={rx} ry={rY} fill="white" opacity={0.25}
           style={{ pointerEvents: 'none' }} />}
-        <text x={cx} y={cy + rY + 13 + labelDy} textAnchor="middle" fontSize={8}
+        {!isMobile && <text x={cx} y={cy + rY + 13 + labelDy} textAnchor="middle" fontSize={8}
           fill="rgba(255,255,255,0.35)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
-          style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>
+          style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>}
       </g>
     )
   }
@@ -317,9 +317,9 @@ export default function DrumsWidget() {
           style={{ pointerEvents: 'none' }} />
         {lit && <circle cx={cx} cy={cy} r={r} fill="white" opacity={0.2}
           style={{ pointerEvents: 'none' }} />}
-        <text x={cx} y={cy + r + 14} textAnchor="middle" fontSize={8}
+        {!isMobile && <text x={cx} y={cy + r + 14} textAnchor="middle" fontSize={8}
           fill="rgba(255,255,255,0.35)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
-          style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>
+          style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>}
       </g>
     )
   }
@@ -412,9 +412,9 @@ export default function DrumsWidget() {
               style={{ pointerEvents: 'none' }} />
             {kickLit && <rect x={265} y={348} width={50} height={46} rx={5}
               fill="white" opacity={0.2} style={{ pointerEvents: 'none' }} />}
-            <text x={290} y={408} textAnchor="middle" fontSize={8}
+            {!isMobile && <text x={290} y={408} textAnchor="middle" fontSize={8}
               fill="rgba(255,255,255,0.35)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
-              style={{ pointerEvents: 'none', userSelect: 'none' }}>KICK</text>
+              style={{ pointerEvents: 'none', userSelect: 'none' }}>KICK</text>}
           </g>
 
           {/* ── Hi-hat — far left ── */}
@@ -449,9 +449,9 @@ export default function DrumsWidget() {
             ))}
             {isHit('snare') && <circle cx={185} cy={300} r={40} fill="white" opacity={0.2}
               style={{ pointerEvents: 'none' }} />}
-            <text x={185} y={352} textAnchor="middle" fontSize={8}
+            {!isMobile && <text x={185} y={352} textAnchor="middle" fontSize={8}
               fill="rgba(255,255,255,0.35)" fontFamily="system-ui,sans-serif" letterSpacing={1.5}
-              style={{ pointerEvents: 'none', userSelect: 'none' }}>SNARE</text>
+              style={{ pointerEvents: 'none', userSelect: 'none' }}>SNARE</text>}
           </g>
 
           {/* ── Rack toms ── */}

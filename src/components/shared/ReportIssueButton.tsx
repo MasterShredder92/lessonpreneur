@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Bug, X, Upload, ChevronDown } from 'lucide-react'
+import { Bug, X, Upload, AlertTriangle } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import { useIssueContext } from '../../contexts/IssueContext'
-import { useCreateIssue, CATEGORIES, SEVERITIES } from '../../hooks/useIssues'
+import { useCreateIssue, CATEGORIES, SEVERITIES, checkForDuplicateIssue } from '../../hooks/useIssues'
 import { toast } from './Toast'
 
 const ALLOWED_ROLES = ['owner', 'admin', 'company_director']
@@ -46,6 +46,7 @@ function ReportButton({ role }: { role: string }) {
 
 function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
   const { page, section, subsection } = useIssueContext()
+  const { tenantId } = useAuthContext()
   const createIssue = useCreateIssue()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -54,6 +55,10 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
   const [severity, setSeverity] = useState('normal')
   const [screenshot, setScreenshot] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Duplicate warning state
+  const [duplicateWarning, setDuplicateWarning] = useState<{ id: string; title: string } | null>(null)
+  const [duplicateChecked, setDuplicateChecked] = useState(false)
 
   const canSetSeverity = ALLOWED_ROLES.includes(role)
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
@@ -70,12 +75,7 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
     setScreenshot(file)
   }
 
-  const handleSubmit = async () => {
-    if (!description.trim() || description.trim().length < 10) {
-      toast('Please describe the issue (at least 10 characters)', 'error')
-      return
-    }
-
+  const doSubmit = async () => {
     setSubmitting(true)
     try {
       const title = description.trim().slice(0, 100)
@@ -98,6 +98,43 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleSubmit = async () => {
+    if (!description.trim() || description.trim().length < 10) {
+      toast('Please describe the issue (at least 10 characters)', 'error')
+      return
+    }
+
+    // If already checked for duplicates (user clicked "Submit Anyway"), go straight to submit
+    if (duplicateChecked) {
+      await doSubmit()
+      return
+    }
+
+    // Check for potential duplicates first
+    if (tenantId && page) {
+      setSubmitting(true)
+      try {
+        const dup = await checkForDuplicateIssue(tenantId, page, description.trim())
+        if (dup) {
+          setDuplicateWarning(dup)
+          setSubmitting(false)
+          return
+        }
+      } catch {
+        // If duplicate check fails, just proceed with submission
+      }
+      setSubmitting(false)
+    }
+
+    await doSubmit()
+  }
+
+  const handleSubmitAnyway = async () => {
+    setDuplicateWarning(null)
+    setDuplicateChecked(true)
+    await doSubmit()
   }
 
   const modal = (
@@ -163,7 +200,7 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>What's wrong?</div>
           <textarea
             value={description}
-            onChange={e => setDescription(e.target.value)}
+            onChange={e => { setDescription(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
             placeholder="Describe the issue..."
             maxLength={500}
             rows={4}
@@ -225,21 +262,63 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
           </div>
         )}
 
+        {/* Duplicate Warning */}
+        {duplicateWarning && (
+          <div style={{
+            padding: '12px 14px', borderRadius: 10, marginBottom: 14,
+            background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)',
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <AlertTriangle size={16} style={{ color: '#D97706', flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#D97706', marginBottom: 3 }}>Possible duplicate</div>
+                <div style={{ fontSize: 11, color: '#D4C5A0', lineHeight: 1.4 }}>
+                  This may be similar to an existing issue: <strong>"{duplicateWarning.title}"</strong>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleSubmitAnyway}
+                disabled={submitting}
+                style={{
+                  flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  background: 'rgba(217,119,6,0.15)', border: '1px solid rgba(217,119,6,0.3)', color: '#D97706',
+                }}
+              >
+                {submitting ? 'Submitting...' : 'Submit Anyway'}
+              </button>
+              <button
+                onClick={() => setDuplicateWarning(null)}
+                style={{
+                  flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8',
+                }}
+              >
+                Edit Report
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Submit */}
-        <button
-          onClick={handleSubmit}
-          disabled={submitting || description.trim().length < 10}
-          style={{
-            width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 14, fontWeight: 700,
-            cursor: submitting ? 'wait' : 'pointer',
-            background: submitting || description.trim().length < 10 ? 'rgba(212,34,106,0.15)' : 'linear-gradient(135deg, #D4226A, #9B1B5A)',
-            color: submitting || description.trim().length < 10 ? '#8080A8' : '#fff',
-            border: 'none',
-            boxShadow: submitting || description.trim().length < 10 ? 'none' : '0 4px 20px rgba(212,34,106,0.3)',
-          }}
-        >
-          {submitting ? 'Submitting...' : 'Submit Issue'}
-        </button>
+        {!duplicateWarning && (
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || description.trim().length < 10}
+            style={{
+              width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 14, fontWeight: 700,
+              cursor: submitting ? 'wait' : 'pointer',
+              background: submitting || description.trim().length < 10 ? 'rgba(212,34,106,0.15)' : 'linear-gradient(135deg, #D4226A, #9B1B5A)',
+              color: submitting || description.trim().length < 10 ? '#8080A8' : '#fff',
+              border: 'none',
+              boxShadow: submitting || description.trim().length < 10 ? 'none' : '0 4px 20px rgba(212,34,106,0.3)',
+            }}
+          >
+            {submitting ? 'Submitting...' : 'Submit Issue'}
+          </button>
+        )}
       </div>
     </div>
   )

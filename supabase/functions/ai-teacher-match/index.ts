@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 1024,
+        max_tokens: 4096,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -174,7 +174,10 @@ Deno.serve(async (req) => {
     }
 
     const claudeData = await claudeRes.json();
-    const rawText = claudeData.content?.[0]?.text ?? "{}";
+    let rawText = claudeData.content?.[0]?.text ?? "{}";
+
+    // Strip markdown code blocks if Claude wrapped the JSON
+    rawText = rawText.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
 
     let recommendations: any[] = [];
     let recoveryAnalysis: string | null = null;

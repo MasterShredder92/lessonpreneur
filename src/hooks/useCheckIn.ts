@@ -1,30 +1,26 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
+export interface CheckInResult {
+  session_id: string
+  action: string
+  status: string
+  teacher_rate: number
+  tally_granted: boolean
+  payment_gated: boolean
+}
+
 export function useCheckIn() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ blockId, action, userId }: { blockId: string; action: 'check_in' | 'call_out' | 'no_show'; userId: string }) => {
-      if (action === 'check_in') {
-        const { error } = await supabase
-          .from('schedule_blocks')
-          .update({ checked_in: true })
-          .eq('id', blockId)
-        if (error) throw error
-      } else if (action === 'call_out') {
-        const { error } = await supabase
-          .from('schedule_blocks')
-          .update({ block_type: 'call_out' })
-          .eq('id', blockId)
-        if (error) throw error
-      } else if (action === 'no_show') {
-        const { error } = await supabase
-          .from('schedule_blocks')
-          .update({ notes: '[No Show]' })
-          .eq('id', blockId)
-        if (error) throw error
-      }
-      return { action }
+    mutationFn: async ({ blockId, action, userId }: { blockId: string; action: 'check_in' | 'call_out' | 'no_show'; userId: string }): Promise<CheckInResult> => {
+      const { data, error } = await supabase.rpc('check_in_block', {
+        p_block_id: blockId,
+        p_action: action,
+        p_user_id: userId,
+      })
+      if (error) throw error
+      return data as CheckInResult
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })

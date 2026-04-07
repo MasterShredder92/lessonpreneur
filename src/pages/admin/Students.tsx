@@ -621,7 +621,7 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
           student={editStudent}
           families={familyList ?? []}
           locations={locations ?? []}
-          teachers={teacherList ?? []}
+          teachers={(teacherList ?? []).filter((t: any) => { const s = t.status ?? (t.is_active ? 'active' : 'inactive'); return s !== 'inactive' })}
           tenantId={tenantId!}
           onSave={handleEditSave}
           onClose={() => { setShowCreateModal(false); setEditStudent(null); }}

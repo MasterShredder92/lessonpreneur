@@ -136,6 +136,8 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
 
   // Filter teachers by selected location
   const locationTeachers = (teachers ?? []).filter((t: any) => {
+    const st = t.status ?? (t.is_active ? 'active' : 'inactive')
+    if (st === 'inactive') return false
     if (!locationId) return true
     const locs = t.location_ids ?? t.locations?.map((l: any) => l.id) ?? []
     return locs.includes(locationId)

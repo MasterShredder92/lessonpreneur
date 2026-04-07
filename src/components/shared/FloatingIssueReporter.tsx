@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bug, X, Send } from 'lucide-react'
+import { Bug, X, Send, AlertTriangle } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { checkForDuplicateIssue } from '../../hooks/useIssues'
 import { toast } from './Toast'
 
 const PAGE_MAP: Record<string, string> = {
@@ -44,6 +45,10 @@ export default function FloatingIssueReporter() {
   const [category, setCategory] = useState('bug')
   const [section, setSection] = useState('')
 
+  // Duplicate warning state
+  const [duplicateWarning, setDuplicateWarning] = useState<{ id: string; title: string } | null>(null)
+  const [duplicateChecked, setDuplicateChecked] = useState(false)
+
   const currentPage = PAGE_MAP[location.pathname] ?? 'Unknown'
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
@@ -52,10 +57,11 @@ export default function FloatingIssueReporter() {
     setDescription('')
     setCategory('bug')
     setSection('')
+    setDuplicateWarning(null)
+    setDuplicateChecked(false)
   }
 
-  const handleSubmit = async () => {
-    if (!title.trim() || !description.trim()) return
+  const doSubmit = async () => {
     setSubmitting(true)
     try {
       const { error } = await supabase.from('issues').insert({
@@ -83,6 +89,40 @@ export default function FloatingIssueReporter() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !description.trim()) return
+
+    // If already confirmed past duplicate warning, submit directly
+    if (duplicateChecked) {
+      await doSubmit()
+      return
+    }
+
+    // Check for duplicates (soft warning only)
+    if (tenantId && currentPage) {
+      setSubmitting(true)
+      try {
+        const dup = await checkForDuplicateIssue(tenantId, currentPage, description.trim())
+        if (dup) {
+          setDuplicateWarning(dup)
+          setSubmitting(false)
+          return
+        }
+      } catch {
+        // If check fails, proceed
+      }
+      setSubmitting(false)
+    }
+
+    await doSubmit()
+  }
+
+  const handleSubmitAnyway = async () => {
+    setDuplicateWarning(null)
+    setDuplicateChecked(true)
+    await doSubmit()
   }
 
   return (
@@ -197,7 +237,7 @@ export default function FloatingIssueReporter() {
                 <input
                   type="text"
                   value={title}
-                  onChange={e => setTitle(e.target.value)}
+                  onChange={e => { setTitle(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
                   placeholder="Brief summary of the issue"
                   style={{
                     width: '100%',
@@ -240,7 +280,7 @@ export default function FloatingIssueReporter() {
                 <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>Description *</label>
                 <textarea
                   value={description}
-                  onChange={e => setDescription(e.target.value)}
+                  onChange={e => { setDescription(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
                   placeholder="What happened? What did you expect?"
                   rows={4}
                   style={{
@@ -259,32 +299,62 @@ export default function FloatingIssueReporter() {
                 />
               </div>
 
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || !title.trim() || !description.trim()}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  width: '100%',
-                  padding: '12px',
-                  borderRadius: 10,
-                  border: 'none',
-                  background: submitting || !title.trim() || !description.trim()
-                    ? 'rgba(212,34,106,0.3)'
-                    : '#D4226A',
-                  color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: submitting ? 'wait' : 'pointer',
-                  fontFamily: 'inherit',
-                  transition: 'background 150ms ease',
-                }}
-              >
-                <Send size={14} />
-                {submitting ? 'Submitting...' : 'Submit Issue'}
-              </button>
+              {/* Duplicate Warning */}
+              {duplicateWarning && (
+                <div style={{
+                  padding: '12px 14px', borderRadius: 10,
+                  background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+                    <AlertTriangle size={16} style={{ color: '#D97706', flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#D97706', marginBottom: 3 }}>Possible duplicate</div>
+                      <div style={{ fontSize: 11, color: '#D4C5A0', lineHeight: 1.4 }}>
+                        This may be similar to: <strong>"{duplicateWarning.title}"</strong>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={handleSubmitAnyway} disabled={submitting} style={{
+                      flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      background: 'rgba(217,119,6,0.15)', border: '1px solid rgba(217,119,6,0.3)', color: '#D97706',
+                    }}>{submitting ? 'Submitting...' : 'Submit Anyway'}</button>
+                    <button onClick={() => setDuplicateWarning(null)} style={{
+                      flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8',
+                    }}>Edit Report</button>
+                  </div>
+                </div>
+              )}
+
+              {!duplicateWarning && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting || !title.trim() || !description.trim()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: submitting || !title.trim() || !description.trim()
+                      ? 'rgba(212,34,106,0.3)'
+                      : '#D4226A',
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: submitting ? 'wait' : 'pointer',
+                    fontFamily: 'inherit',
+                    transition: 'background 150ms ease',
+                  }}
+                >
+                  <Send size={14} />
+                  {submitting ? 'Submitting...' : 'Submit Issue'}
+                </button>
+              )}
             </div>
           </div>
         </div>,

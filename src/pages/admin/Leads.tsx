@@ -737,9 +737,10 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
   const savePersonality = useCallback((value: string) => {
     if (personalityTimer.current) clearTimeout(personalityTimer.current)
     personalityTimer.current = setTimeout(async () => {
+      // Optimistic: update parent state immediately
+      onLeadUpdated((prev) => prev ? { ...prev, personality_notes: value || null } : prev)
       try {
         await updateLead.mutateAsync({ id: lead.id, personality_notes: value || null })
-        onLeadUpdated((prev) => prev ? { ...prev, personality_notes: value || null } : prev)
       } catch (err: any) {
         toast(err.message ?? 'Failed to save personality notes', 'error')
       }
@@ -753,12 +754,15 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
     const timestamp = new Date().toLocaleString()
     const newNote = `[${timestamp}] ${userName}: ${noteDraft.trim()}`
     const updated = existingNotes ? `${newNote}\n${existingNotes}` : newNote
+    const rollback = lead.notes
+    // Optimistic: update UI immediately
+    onLeadUpdated((prev) => prev ? { ...prev, notes: updated } : prev)
+    setNoteDraft('')
+    setShowNoteInput(false)
     try {
       await updateLead.mutateAsync({ id: lead.id, notes: updated })
-      onLeadUpdated((prev) => prev ? { ...prev, notes: updated } : prev)
-      setNoteDraft('')
-      setShowNoteInput(false)
     } catch (err: any) {
+      onLeadUpdated((prev) => prev ? { ...prev, notes: rollback } : prev)
       toast(err.message ?? 'Failed to save note', 'error')
     }
   }
@@ -979,17 +983,20 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                         className={`lead-preferred-day${isSelected ? ' selected' : ''}`}
                         onClick={async () => {
                           if (!canEdit) return
+                          const rollback = lead.preferred_days
                           let updated: string[]
                           if (isSelected) {
                             updated = currentDays.filter((d) => !d.toLowerCase().startsWith(day.toLowerCase()))
                           } else {
                             updated = [...currentDays, day]
                           }
+                          // Optimistic: update UI immediately
+                          onLeadUpdated((prev) => prev ? { ...prev, preferred_days: updated } : prev)
                           try {
                             await updateLead.mutateAsync({ id: lead.id, preferred_days: updated })
-                            onLeadUpdated((prev) => prev ? { ...prev, preferred_days: updated } : prev)
-                            toast(isSelected ? `${day} removed` : `${day} added`, 'success')
                           } catch (err: any) {
+                            // Revert on real failure
+                            onLeadUpdated((prev) => prev ? { ...prev, preferred_days: rollback } : prev)
                             toast(err.message ?? 'Failed to update preferred days', 'error')
                           }
                         }}
@@ -1039,14 +1046,16 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     autoFocus
                     onChange={async (e) => {
                       const val = e.target.value
+                      const rollback = lead.instrument
+                      // Optimistic: update UI immediately
+                      onLeadUpdated((prev) => prev ? { ...prev, instrument: val } : prev)
+                      setEditInstrument(false)
                       try {
                         await updateLead.mutateAsync({ id: lead.id, instrument: val })
-                        onLeadUpdated((prev) => prev ? { ...prev, instrument: val } : prev)
-                        toast(`Instrument updated to ${val}`, 'success')
                       } catch (err: any) {
+                        onLeadUpdated((prev) => prev ? { ...prev, instrument: rollback } : prev)
                         toast(err.message ?? 'Failed to update instrument', 'error')
                       }
-                      setEditInstrument(false)
                     }}
                     onBlur={() => setEditInstrument(false)}
                   >
@@ -1070,14 +1079,17 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     onChange={async (e) => {
                       const val = e.target.value
                       const loc = locations?.find((l) => l.id === val)
+                      const rollbackId = lead.location_id
+                      const rollbackName = lead.location_name
+                      // Optimistic: update UI immediately
+                      onLeadUpdated((prev) => prev ? { ...prev, location_id: val, location_name: loc?.name ?? prev.location_name } : prev)
+                      setEditLocation(false)
                       try {
                         await updateLead.mutateAsync({ id: lead.id, location_id: val })
-                        onLeadUpdated((prev) => prev ? { ...prev, location_id: val, location_name: loc?.name ?? prev.location_name } : prev)
-                        toast(`Location updated`, 'success')
                       } catch (err: any) {
+                        onLeadUpdated((prev) => prev ? { ...prev, location_id: rollbackId, location_name: rollbackName } : prev)
                         toast(err.message ?? 'Failed to update location', 'error')
                       }
-                      setEditLocation(false)
                     }}
                     onBlur={() => setEditLocation(false)}
                   >
@@ -1174,7 +1186,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     <>
                       <div className="lead-section-label">Recovery</div>
                       <button
-                        onClick={async () => { try { await updateStage.mutateAsync({ id: lead.id, stage: 'inquiry', familyId: lead.family_id }); onLeadUpdated({ ...lead, stage: 'inquiry' } as any); toast('Moved back to Active Leads', 'success') } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
+                        onClick={async () => { const rollback = lead.stage; onLeadUpdated((prev) => prev ? { ...prev, stage: 'inquiry' } : prev); try { await updateStage.mutateAsync({ id: lead.id, stage: 'inquiry', familyId: lead.family_id }); toast('Moved back to Active Leads', 'success') } catch (err: any) { onLeadUpdated((prev) => prev ? { ...prev, stage: rollback } : prev); toast(err.message ?? 'Failed to update stage', 'error') } }}
                         disabled={updateStage.isPending}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E', fontSize: 15, fontWeight: 700, cursor: 'pointer', transition: 'all 140ms ease', fontFamily: 'var(--font-body)' }}
                       >
@@ -1198,7 +1210,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                             {forwardStages.map((s) => {
                               const c = stageButtonColors[s]
                               return (
-                                <button key={s} className="lead-stage-btn" onClick={async () => { try { await updateStage.mutateAsync({ id: lead.id, stage: s, familyId: lead.family_id }); onLeadUpdated({ ...lead, stage: s } as any); toast(`Stage updated to ${stageLabels[s] ?? s}`, 'success') } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }} disabled={updateStage.isPending}
+                                <button key={s} className="lead-stage-btn" onClick={async () => { const rollback = lead.stage; onLeadUpdated((prev) => prev ? { ...prev, stage: s } : prev); try { await updateStage.mutateAsync({ id: lead.id, stage: s, familyId: lead.family_id }); toast(`Stage updated to ${stageLabels[s] ?? s}`, 'success') } catch (err: any) { onLeadUpdated((prev) => prev ? { ...prev, stage: rollback } : prev); toast(err.message ?? 'Failed to update stage', 'error') } }} disabled={updateStage.isPending}
                                   style={{ flex: 1, color: c.color, background: c.bg, borderColor: c.border }}>
                                   {stageLabels[s]}{isFamily ? ' Family' : ''}
                                 </button>

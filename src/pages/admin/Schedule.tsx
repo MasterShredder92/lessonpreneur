@@ -24,6 +24,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, Calendar, Music, MapPin, UserPl
 import { useQuery } from '@tanstack/react-query'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
+import { useAutoCheckIn } from '../../hooks/useAutoCheckIn'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import PageGuide, { type GuideStep } from '../../components/shared/PageGuide'
@@ -156,6 +157,7 @@ export default function Schedule() {
     ? studioDirectorLocationId
     : (selectedLocation || (locations?.[0]?.id ?? ''))
   const { data: gridData, isLoading } = useScheduleGrid(selectedDate, effectiveLocation || null)
+  useAutoCheckIn(effectiveLocation, new Date(selectedDate + 'T12:00:00'))
   const { data: allStudents } = useStudentsForAssignment()
   const { data: rooms } = useRooms(effectiveLocation || undefined)
 
@@ -970,10 +972,11 @@ export default function Schedule() {
             const totalDataHeight = timeSlots.length * rowHeight
             const topPos = headerHeight + progress * totalDataHeight
 
+            const timeBarColor = getLocationColor(effectiveLocation)
             return (
               <div style={{ position: 'absolute', top: topPos, left: 0, right: 0, zIndex: 10, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#E8488A', flexShrink: 0, marginLeft: -4 }} />
-                <div style={{ flex: 1, height: 2, background: '#E8488A', opacity: 0.6 }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: timeBarColor, boxShadow: `0 0 8px ${timeBarColor}66`, flexShrink: 0, marginLeft: -4 }} />
+                <div style={{ flex: 1, height: 2, background: timeBarColor, opacity: 0.7, boxShadow: `0 0 6px ${timeBarColor}40` }} />
               </div>
             )
           })()}
@@ -1267,15 +1270,36 @@ export default function Schedule() {
                       <div style={{
                         height: '100%',
                         borderRadius: 8,
-                        background: (isCheckedIn && !isPendingTally) ? `${bgColor}50` : isPendingTally ? `${bgColor}50` : bgColor,
+                        background: isCheckedIn
+                          ? isPendingTally
+                            ? `${bgColor}40`
+                            : `${getLocationColor(effectiveLocation)}18`
+                          : bgColor,
                         boxShadow: isCheckedIn ? 'none' : `0 2px 8px ${bgColor}40`,
-                        border: isPendingTally ? `2px dashed ${bgColor}` : '2px solid transparent',
+                        border: isCheckedIn
+                          ? isPendingTally
+                            ? `2px dashed ${getLocationColor(effectiveLocation)}`
+                            : `2px solid ${getLocationColor(effectiveLocation)}`
+                          : '2px solid transparent',
+                        opacity: isPendingTally ? 0.7 : 1,
                         transition: 'transform 120ms, box-shadow 120ms',
                         position: 'relative',
                       }}>
+                        {/* Tally status indicators */}
+                        {isCheckedIn && !isPendingTally && (
+                          <span title="Session checked in — tally credited" style={{
+                            position: 'absolute', top: 2, right: 3, fontSize: 10, lineHeight: 1,
+                            color: getLocationColor(effectiveLocation), fontWeight: 700,
+                          }}>✓</span>
+                        )}
+                        {isPendingTally && (
+                          <span title="Session complete — tally held (billing inactive)" style={{
+                            position: 'absolute', top: 2, right: 3, fontSize: 9, lineHeight: 1,
+                          }}>⏳</span>
+                        )}
                         {isFamilyCallout && (
                           <span title="Family initiated via parent portal" style={{
-                            position: 'absolute', top: 2, right: 3, fontSize: 10, lineHeight: 1,
+                            position: 'absolute', top: 2, right: isFamilyCallout && (isCheckedIn || isPendingTally) ? 16 : 3, fontSize: 10, lineHeight: 1,
                           }}>👨‍👩‍👧</span>
                         )}
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '4px 6px', height: '100%', textAlign: 'center' }}>

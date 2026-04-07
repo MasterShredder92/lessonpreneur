@@ -74,6 +74,10 @@ export default function StudentDetail() {
   const [showSessionCreditModal, setShowSessionCreditModal] = useState(false)
   const [editingFamilyName, setEditingFamilyName] = useState(false)
   const [familyNameValue, setFamilyNameValue] = useState('')
+  const [editingPhone, setEditingPhone] = useState(false)
+  const [phoneValue, setPhoneValue] = useState('')
+  const [editingEmail, setEditingEmail] = useState(false)
+  const [emailValue, setEmailValue] = useState('')
   const logActivity = useLogActivity()
   const overrideMutation = useOverrideFamilyRate()
   const removeOverrideMutation = useRemoveFamilyRateOverride()
@@ -419,14 +423,66 @@ export default function StudentDetail() {
             {/* Contact + family name */}
             <div style={{ fontSize: 12, color: '#A0A0C8', marginTop: 6, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_contact ?? '—'}</div>
             {/* Phone */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#A0A0C8', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-              <Phone size={11} style={{ flexShrink: 0 }} /> {student.family_phone ?? '—'}
-            </div>
+            {editingPhone ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                <Phone size={11} style={{ flexShrink: 0, color: '#A0A0C8' }} />
+                <input value={phoneValue} onChange={(e) => setPhoneValue(e.target.value)}
+                  onBlur={async () => {
+                    if (phoneValue !== (student.family_phone ?? '')) {
+                      const { error: phErr } = await supabase.from('families').update({ primary_phone: phoneValue || null }).eq('id', student.family_id)
+                      if (phErr) { toast('Failed to update phone: ' + phErr.message, 'error'); return }
+                      qc.invalidateQueries({ queryKey: ['student-detail'] })
+                      qc.invalidateQueries({ queryKey: ['families'] })
+                      qc.invalidateQueries({ queryKey: ['family_detail'] })
+                      toast('Phone updated', 'success')
+                    }
+                    setEditingPhone(false)
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingPhone(false) }}
+                  autoFocus placeholder="Phone number"
+                  style={{ fontSize: 12, color: '#E0E0F4', background: 'transparent', border: 'none', borderBottom: '2px solid #D4226A', outline: 'none', width: '100%', maxWidth: 200, padding: 0 }}
+                />
+              </div>
+            ) : (
+              <div
+                onClick={() => { if (canEdit) { setPhoneValue(student.family_phone ?? ''); setEditingPhone(true) } }}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#A0A0C8', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word', cursor: canEdit ? 'pointer' : 'default' }}
+                title={canEdit ? 'Tap to edit phone' : undefined}
+              >
+                <Phone size={11} style={{ flexShrink: 0 }} /> {student.family_phone ?? '—'}
+              </div>
+            )}
             {/* Email */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 11, color: '#8080A8', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-              <Mail size={11} style={{ flexShrink: 0, marginTop: 2 }} />
-              <span style={{ minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_email ?? '—'}</span>
-            </div>
+            {editingEmail ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                <Mail size={11} style={{ flexShrink: 0, color: '#8080A8' }} />
+                <input value={emailValue} onChange={(e) => setEmailValue(e.target.value)}
+                  onBlur={async () => {
+                    if (emailValue !== (student.family_email ?? '')) {
+                      const { error: emErr } = await supabase.from('families').update({ primary_email: emailValue || null }).eq('id', student.family_id)
+                      if (emErr) { toast('Failed to update email: ' + emErr.message, 'error'); return }
+                      qc.invalidateQueries({ queryKey: ['student-detail'] })
+                      qc.invalidateQueries({ queryKey: ['families'] })
+                      qc.invalidateQueries({ queryKey: ['family_detail'] })
+                      toast('Email updated', 'success')
+                    }
+                    setEditingEmail(false)
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingEmail(false) }}
+                  autoFocus placeholder="Email address"
+                  style={{ fontSize: 12, color: '#E0E0F4', background: 'transparent', border: 'none', borderBottom: '2px solid #D4226A', outline: 'none', width: '100%', maxWidth: 240, padding: 0 }}
+                />
+              </div>
+            ) : (
+              <div
+                onClick={() => { if (canEdit) { setEmailValue(student.family_email ?? ''); setEditingEmail(true) } }}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 11, color: '#8080A8', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word', cursor: canEdit ? 'pointer' : 'default' }}
+                title={canEdit ? 'Tap to edit email' : undefined}
+              >
+                <Mail size={11} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span style={{ minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_email ?? '—'}</span>
+              </div>
+            )}
 
             {/* Siblings */}
             {student.siblings && student.siblings.length > 0 && (
