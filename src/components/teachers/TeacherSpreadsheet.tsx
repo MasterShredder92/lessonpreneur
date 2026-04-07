@@ -136,7 +136,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
   const { data: teachers, isLoading } = useQuery({
     queryKey: ['teacher-spreadsheet'],
     queryFn: async () => {
-      const { data } = await supabase.from('teachers').select('id, first_name, last_name, teacher_role, ai_context, personality, lesson_style, best_age_range, square_team_member_id, needs_1099, rate_per_block, pay_rate_per_half_hour, status, is_active, email, phone, primary_instruments, secondary_instruments, style_genre_strengths, preferred_age_range, acceptable_age_range, skill_levels_by_instrument, teaching_strengths, musical_strengths_background, best_first_lesson_fit, best_match_students, use_caution_internal_placement_notes, meet_and_greet_fit, substitute_coverage, customer_facing_match_summary, internal_matching_tags, director_notes').order('first_name')
+      const { data } = await supabase.from('teachers').select('id, first_name, last_name, teacher_role, ai_context, personality, lesson_style, best_age_range, square_team_member_id, needs_1099, rate_per_block, pay_rate_per_half_hour, status, is_active, email, phone, primary_instruments, secondary_instruments, style_genre_strengths, preferred_age_range, acceptable_age_range, skill_levels_by_instrument, teaching_strengths, musical_strengths_background, best_first_lesson_fit, best_match_students, use_caution_internal_placement_notes, meet_and_greet_fit, substitute_coverage, customer_facing_match_summary, internal_matching_tags, director_notes').order('first_name').limit(500)
       // Sort: empty names (new rows) go to the end
       return (data ?? []).sort((a: any, b: any) => {
         const aEmpty = !a.first_name && !a.last_name

@@ -59,6 +59,7 @@ export function useLeads(filters?: { locationId?: string; instrument?: string })
         .select('*')
         .eq('tenant_id', tenantId!)
         .order('created_at', { ascending: false })
+        .limit(500)
 
       if (filters?.locationId) query = query.eq('location_id', filters.locationId)
       if (filters?.instrument) query = query.eq('instrument', filters.instrument)

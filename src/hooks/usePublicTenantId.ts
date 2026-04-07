@@ -8,9 +8,11 @@ import { supabase } from '../lib/supabase'
 export function usePublicTenantId(): string | null {
   const [tenantId, setTenantId] = useState<string | null>(null)
   useEffect(() => {
+    let cancelled = false
     supabase.from('tenants').select('id').limit(1).single().then(({ data }) => {
-      if (data) setTenantId(data.id)
+      if (!cancelled && data) setTenantId(data.id)
     })
+    return () => { cancelled = true }
   }, [])
   return tenantId
 }

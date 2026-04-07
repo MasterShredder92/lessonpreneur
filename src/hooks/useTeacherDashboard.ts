@@ -208,12 +208,16 @@ export function useTeacherScheduleUpdates() {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
       const cutoff = thirtyDaysAgo.toISOString()
 
-      // New students added (blocks created recently)
+      // New students added (blocks created recently) — bound to 14 days future
+      const fourteenDaysOut = new Date()
+      fourteenDaysOut.setDate(fourteenDaysOut.getDate() + 14)
+      const maxDate = fourteenDaysOut.toISOString().split('T')[0]
       const { data: newBlocks } = await supabase
         .from('schedule_blocks')
         .select('id, student_id, block_date, start_time, location_id, status, created_at, updated_at')
         .eq('teacher_id', teacherId)
         .gte('created_at', cutoff)
+        .lte('block_date', maxDate)
         .not('student_id', 'is', null)
         .order('updated_at', { ascending: false })
         .limit(15)
@@ -469,8 +473,11 @@ export function useTeacherStudents() {
     queryFn: async () => {
       if (!teacherId) return []
 
-      // Get all booked blocks for this teacher (current + future)
+      // Get booked blocks for this teacher (current + 14 days)
       const today = new Date().toISOString().split('T')[0]
+      const twoWeeksOut = new Date()
+      twoWeeksOut.setDate(twoWeeksOut.getDate() + 14)
+      const maxFuture = twoWeeksOut.toISOString().split('T')[0]
       const { data: blocks } = await supabase
         .from('schedule_blocks')
         .select('student_id, block_date, start_time, location_id')
@@ -478,16 +485,21 @@ export function useTeacherStudents() {
         .eq('status', 'booked')
         .not('student_id', 'is', null)
         .gte('block_date', today)
+        .lte('block_date', maxFuture)
         .order('start_time')
 
       if (!blocks || blocks.length === 0) {
-        // Fallback: check past blocks too (some teachers only have historical data)
+        // Fallback: check past 14 days (some teachers only have historical data)
+        const fourteenDaysAgo = new Date()
+        fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+        const minPast = fourteenDaysAgo.toISOString().split('T')[0]
         const { data: pastBlocks } = await supabase
           .from('schedule_blocks')
           .select('student_id, block_date, start_time, location_id')
           .eq('teacher_id', teacherId)
           .eq('status', 'booked')
           .not('student_id', 'is', null)
+          .gte('block_date', minPast)
           .order('block_date', { ascending: false })
           .limit(100)
         if (!pastBlocks || pastBlocks.length === 0) return []

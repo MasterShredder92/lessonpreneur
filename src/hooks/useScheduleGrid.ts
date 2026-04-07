@@ -230,6 +230,9 @@ export function useAssignStudent() {
 
         if (block) {
           const dow = new Date(block.block_date + 'T00:00:00').getDay()
+          const fourteenDaysOut = new Date()
+          fourteenDaysOut.setDate(fourteenDaysOut.getDate() + 14)
+          const maxDate = fourteenDaysOut.toISOString().split('T')[0]
           const { data: futureBlocks } = await supabase
             .from('schedule_blocks')
             .select('id, block_date')
@@ -238,6 +241,7 @@ export function useAssignStudent() {
             .eq('status', 'available')
             .eq('block_type', 'open_time')
             .gt('block_date', block.block_date)
+            .lte('block_date', maxDate)
 
           // Filter to same day of week
           const sameDayBlockIds = (futureBlocks ?? [])

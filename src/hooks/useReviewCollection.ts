@@ -20,7 +20,7 @@ export function useAdminReviews() {
     queryKey: ['admin-reviews', tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data } = await supabase.from('reviews').select('*').eq('tenant_id', tenantId!).order('created_at', { ascending: false })
+      const { data } = await supabase.from('reviews').select('*').eq('tenant_id', tenantId!).order('created_at', { ascending: false }).limit(200)
       return data ?? []
     },
   })

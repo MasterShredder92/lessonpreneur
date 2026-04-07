@@ -55,7 +55,7 @@ export function useTasks(filters?: TaskFilters) {
   return useQuery({
     queryKey: ['tasks', filters],
     queryFn: async () => {
-      let query = supabase.from('tasks').select('*').order('created_at', { ascending: false })
+      let query = supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(200)
 
       if (filters?.status) {
         query = query.eq('status', filters.status)

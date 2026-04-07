@@ -74,8 +74,10 @@ export default function CheckInModal({ block, onClose }: Props) {
   // Fetch student's family_id for quick nav
   useEffect(() => {
     if (!block.student_id) return
+    let cancelled = false
     supabase.from('students').select('family_id').eq('id', block.student_id).single()
-      .then(({ data }) => { if (data?.family_id) setFamilyId(data.family_id) })
+      .then(({ data }) => { if (!cancelled && data?.family_id) setFamilyId(data.family_id) })
+    return () => { cancelled = true }
   }, [block.student_id])
 
   const [currentType, setCurrentType] = useState<BlockType>(block.block_type)
@@ -102,6 +104,7 @@ export default function CheckInModal({ block, onClose }: Props) {
   // Load and score sub candidates when block is a sub
   useEffect(() => {
     if (!block.original_teacher_name) return
+    let cancelled = false
     ;(async () => {
       const dayOfWeek = new Date(block.block_date + 'T12:00:00').getDay()
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
@@ -112,6 +115,8 @@ export default function CheckInModal({ block, onClose }: Props) {
         supabase.from('schedule_blocks').select('teacher_id, location_id, student_id').eq('block_date', block.block_date).eq('status', 'booked'),
         supabase.from('teacher_availability').select('teacher_id, location_id').eq('day_of_week', dayName).eq('is_active', true),
       ])
+
+      if (cancelled) return
 
       const hereToday = new Set((todayBlocks ?? []).filter(b => b.location_id === block.location_id).map(b => b.teacher_id))
       const elsewhereToday = new Set((todayBlocks ?? []).filter(b => b.location_id !== block.location_id).map(b => b.teacher_id))
@@ -133,6 +138,7 @@ export default function CheckInModal({ block, onClose }: Props) {
 
       setSubTeachers(scored)
     })()
+    return () => { cancelled = true }
   }, [block.original_teacher_name, block.block_date, block.location_id, block.instrument, block.original_teacher_id])
 
   const handleSubChange = async () => {

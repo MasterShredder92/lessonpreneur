@@ -102,6 +102,7 @@ export function useFamiliesPage() {
         .select('*')
         .eq('tenant_id', tenantId!)
         .order('name')
+        .limit(2000)
       if (error) throw error
 
       // Get all students with teacher info
@@ -110,6 +111,7 @@ export function useFamiliesPage() {
         .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id')
         .eq('tenant_id', tenantId!)
         .order('last_name')
+        .limit(5000)
 
       // Get teacher names
       const teacherIds = [...new Set((students ?? []).filter((s) => s.teacher_id).map((s) => s.teacher_id!))]
@@ -148,6 +150,7 @@ export function useFamiliesPage() {
         .from('student_effective_rate')
         .select('family_id, monthly_cents')
         .eq('tenant_id', tenantId!)
+        .limit(5000)
       const monthlyByFamily = new Map<string, number>()
       for (const r of (effectiveRates ?? [])) {
         monthlyByFamily.set(r.family_id, (monthlyByFamily.get(r.family_id) ?? 0) + (r.monthly_cents ?? 0))
@@ -161,6 +164,7 @@ export function useFamiliesPage() {
         .not('family_id', 'is', null)
         .not('status', 'in', '("CANCELED","DRAFT")')
         .order('invoice_date', { ascending: false })
+        .limit(5000)
       const squareByFamily = new Map<string, { hasScheduled: boolean; hasOverdue: boolean; hasPaid: boolean; overdueCents: number; latest: { status: string; amountCents: number; date: string } | null }>()
       for (const inv of (squareInvoices ?? [])) {
         const entry = squareByFamily.get(inv.family_id) ?? { hasScheduled: false, hasOverdue: false, hasPaid: false, overdueCents: 0, latest: null }
@@ -300,8 +304,11 @@ export function useFamilyDetail(familyId: string | undefined) {
       let sessionDays: string[] = []
       if (activeStudentIds.length > 0) {
         const todayStr = new Date().toISOString().split('T')[0]
+        const twoWeeksOut = new Date()
+        twoWeeksOut.setDate(twoWeeksOut.getDate() + 14)
+        const maxDate = twoWeeksOut.toISOString().split('T')[0]
         const blocks = await batchIn('schedule_blocks', 'block_date', 'student_id', activeStudentIds, (q: any) =>
-          q.eq('status', 'booked').gte('block_date', todayStr),
+          q.eq('status', 'booked').gte('block_date', todayStr).lte('block_date', maxDate),
           80, tenantId!
         )
         if (blocks && blocks.length > 0) {
@@ -568,12 +575,16 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
       const events: ActivityEvent[] = []
 
       // 3. Schedule blocks events (batched to avoid URL length limits)
+      // Bound to last 90 days to avoid scanning 72K+ rows
       if (studentIds.length > 0) {
+        const ninetyDaysAgo = new Date()
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+        const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0]
         const blocks = await batchIn(
           'schedule_blocks',
           'id, block_date, status, checked_in, callout_reason, fifth_week, teacher_id, student_id, original_teacher_id, original_teacher_name, block_type',
           'student_id', studentIds,
-          (q: any) => q.order('block_date', { ascending: false }).limit(limit * 2),
+          (q: any) => q.gte('block_date', ninetyDaysAgoStr).order('block_date', { ascending: false }).limit(limit * 2),
           80, tenantId!
         )
 
@@ -689,12 +700,16 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
 
       // 4b. Appointment notifications for this family's students
       if (studentIds.length > 0) {
-        // Get block IDs for these students
+        // Get block IDs for these students (bounded to last 90 days)
+        const blocksLookback = new Date()
+        blocksLookback.setDate(blocksLookback.getDate() - 90)
+        const blocksLookbackStr = blocksLookback.toISOString().split('T')[0]
         const { data: familyBlocks } = await supabase
           .from('schedule_blocks')
           .select('id')
           .eq('tenant_id', tenantId!)
           .in('student_id', studentIds)
+          .gte('block_date', blocksLookbackStr)
           .limit(200)
         const blockIds = (familyBlocks ?? []).map((b: any) => b.id)
 

@@ -50,7 +50,8 @@ export default function TaskCenter({ compact = false, limit }: { compact?: boole
     if (tenantId && (role === 'owner' || role === 'admin' || role === 'company_director')) {
       scanTasks.mutate()
     }
-  }, [tenantId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, role])
 
   // Teachers see nothing if no tasks assigned to them
   if (role === 'teacher' && (!tasks || tasks.length === 0)) return null

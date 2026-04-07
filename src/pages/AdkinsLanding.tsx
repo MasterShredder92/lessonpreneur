@@ -109,7 +109,9 @@ export default function AdkinsLanding() {
 
   // Fetch logos from Supabase
   useEffect(() => {
+    let cancelled = false
     anon.from('locations').select('id, name, logo_url').then(({ data }) => {
+      if (cancelled) return
       const map: Record<string, string> = {}
       data?.forEach((l: any) => {
         const key = (l.name as string).split(' ')[0].toLowerCase()
@@ -117,6 +119,7 @@ export default function AdkinsLanding() {
       })
       setLogos(map)
     })
+    return () => { cancelled = true }
   }, [])
 
   // Fetch 3 random reviews for this location from Supabase

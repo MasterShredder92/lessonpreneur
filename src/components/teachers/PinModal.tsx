@@ -43,10 +43,13 @@ export default function PinModal({ profileId, onSuccess, onClose }: Props) {
 
   // Check if PIN exists
   useEffect(() => {
+    let cancelled = false
     supabase.from('profiles').select('export_pin').eq('id', profileId).single().then(({ data }) => {
+      if (cancelled) return
       setMode(data?.export_pin ? 'enter' : 'set')
       setChecking(false)
     })
+    return () => { cancelled = true }
   }, [profileId])
 
   useEffect(() => { if (!checking) refs[0].current?.focus() }, [checking, mode])

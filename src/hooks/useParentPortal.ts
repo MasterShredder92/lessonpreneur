@@ -185,11 +185,14 @@ export function usePortalSessionCount(studentIds: string[]) {
     queryFn: async () => {
       const now = new Date()
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      const monthEndStr = monthEnd.toISOString().split('T')[0]
       const { data } = await supabase
         .from('schedule_blocks')
         .select('student_id')
         .in('student_id', studentIds)
         .gte('block_date', monthStart)
+        .lte('block_date', monthEndStr)
         .neq('block_type', 'call_out')
         .eq('checked_in', true)
 

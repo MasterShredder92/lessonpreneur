@@ -255,13 +255,13 @@ export function useWeeklyLocationSummaries() {
       }
 
       const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).eq('is_active', true)
-      const { data: students } = await supabase.from('students').select('id, location_id, status').eq('tenant_id', tenantId!)
+      const { data: students } = await supabase.from('students').select('id, location_id, status').eq('tenant_id', tenantId!).limit(5000)
       const { data: sessions } = await supabase.from('session_log').select('location_id').eq('tenant_id', tenantId!).gte('block_date', mondayStr).lte('block_date', todayStr)
       const { data: leads } = await supabase.from('leads').select('location_id').eq('tenant_id', tenantId!).gte('created_at', mondayStr + 'T00:00:00')
 
       // At-risk: active students with no session in 14 days
       const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0]
-      const { data: recentSessions } = await supabase.from('session_log').select('student_id').eq('tenant_id', tenantId!).gte('block_date', fourteenDaysAgo)
+      const { data: recentSessions } = await supabase.from('session_log').select('student_id').eq('tenant_id', tenantId!).gte('block_date', fourteenDaysAgo).lte('block_date', todayStr).limit(10000)
       const recentStudentIds = new Set((recentSessions ?? []).map(s => s.student_id))
       const activeStudents = (students ?? []).filter(s => s.status === 'active')
 

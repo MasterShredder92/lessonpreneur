@@ -15,6 +15,8 @@ export interface Issue {
   element_description: string
   title: string
   description: string
+  steps_to_reproduce: string | null
+  user_friendly_category: string | null
   screenshot_path: string | null
   category: 'bug' | 'display' | 'data' | 'feature_request'
   severity: 'critical' | 'high' | 'normal' | 'low'
@@ -157,10 +159,10 @@ export const PAGE_SECTION_MAP = Object.fromEntries(
 )
 
 export const CATEGORIES = [
-  { value: 'bug', label: "Something's not working", helper: "A button, form, or feature isn't doing what it should", pillLabel: 'Not working', color: '#D4226A' },
-  { value: 'display', label: "Doesn't look right", helper: 'Something is off-screen, overlapping, or hard to read', pillLabel: 'Looks wrong', color: '#fb923c' },
-  { value: 'data', label: 'Wrong or missing info', helper: 'Data is incorrect, missing, or not saving', pillLabel: 'Wrong info', color: '#FFB800' },
-  { value: 'feature_request', label: 'Feature idea', helper: 'A new feature or change you\'d like to see', pillLabel: 'Feature idea', color: '#8B5CF6' },
+  { value: 'bug', label: "Something's not working", helper: "A button, form, or feature isn't doing what it should", pillLabel: 'Not working', color: '#D4226A', friendlyLabel: "Something's broken" },
+  { value: 'display', label: "Doesn't look right", helper: 'Something is off-screen, overlapping, or hard to read', pillLabel: 'Looks wrong', color: '#fb923c', friendlyLabel: "Looks wrong" },
+  { value: 'data', label: 'Wrong or missing info', helper: 'Data is incorrect, missing, or not saving', pillLabel: 'Wrong info', color: '#FFB800', friendlyLabel: "Wrong or missing info" },
+  { value: 'feature_request', label: 'Feature idea', helper: 'A new feature or change you\'d like to see', pillLabel: 'Feature idea', color: '#8B5CF6', friendlyLabel: "I have an idea" },
 ] as const
 
 export const SEVERITIES = [
@@ -247,6 +249,8 @@ export function useCreateIssue() {
       category: string
       severity: string
       description: string
+      steps_to_reproduce?: string | null
+      user_friendly_category?: string | null
       screenshotFile?: File | null
     }) => {
       if (!tenantId || !profile) throw new Error('Not authenticated')
@@ -265,6 +269,8 @@ export function useCreateIssue() {
           category: params.category,
           severity: params.severity,
           description: params.description,
+          steps_to_reproduce: params.steps_to_reproduce ?? null,
+          user_friendly_category: params.user_friendly_category ?? null,
           reported_from_url: window.location.pathname,
           reported_screen_width: window.innerWidth,
           reported_screen_height: window.innerHeight,

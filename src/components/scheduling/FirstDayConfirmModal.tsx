@@ -16,11 +16,14 @@ export default function FirstDayConfirmModal({ block, onClose, onComplete }: Pro
   const changeType = useChangeBlockType()
 
   useEffect(() => {
+    let cancelled = false
     supabase.rpc('count_first_day_notbookable', { p_block_id: block.block_id })
       .then(({ data, error }) => {
+        if (cancelled) return
         if (!error) setPriorCount(data as number)
         setLoading(false)
       })
+    return () => { cancelled = true }
   }, [block.block_id])
 
   const handleConfirm = async () => {

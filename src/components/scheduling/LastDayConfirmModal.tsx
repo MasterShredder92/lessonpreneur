@@ -16,11 +16,14 @@ export default function LastDayConfirmModal({ block, onClose, onComplete }: Prop
   const changeType = useChangeBlockType()
 
   useEffect(() => {
+    let cancelled = false
     supabase.rpc('count_last_day_revert', { p_block_id: block.block_id })
       .then(({ data, error }) => {
+        if (cancelled) return
         if (!error) setFutureCount(data as number)
         setLoading(false)
       })
+    return () => { cancelled = true }
   }, [block.block_id])
 
   const handleConfirm = async () => {

@@ -77,12 +77,14 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
 
   // Load all families for searchable dropdown
   useEffect(() => {
+    let cancelled = false
     setFamilyLoadError(false)
     supabase
       .from('families')
       .select('id, name, primary_email')
       .order('name')
       .then(({ data, error: queryErr }) => {
+        if (cancelled) return
         if (queryErr) { setFamilyLoadError(true); return }
         const fams = (data ?? []).map((f: any) => ({ id: f.id, name: f.name, email: f.primary_email }))
         setAllFamilies(fams)
@@ -96,11 +98,13 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
           }
         }
       })
+    return () => { cancelled = true }
   }, [lead.email])
 
   // Load teachers at lead's location
   useEffect(() => {
     if (!lead.location_id) return
+    let cancelled = false
     setTeacherLoadError(false)
     const loadTeachers = async () => {
       try {

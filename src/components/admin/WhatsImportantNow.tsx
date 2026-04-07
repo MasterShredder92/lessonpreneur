@@ -48,7 +48,9 @@ export default function WhatsImportantNow({ data, heroStats }: Props) {
   useEffect(() => {
     if (_insightsAttempted || !data || !tenantId) return
     _insightsAttempted = true
-    generate()
+    let cancelled = false
+    generate().then(() => { if (cancelled) return })
+    return () => { cancelled = true }
   }, [data, tenantId])
 
   const generate = async () => {

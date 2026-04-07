@@ -178,7 +178,10 @@ export function useGenerateValueCard() {
         }
       }
 
-      // Lifetime attended sessions
+      // Attended sessions (last 365 days — bounded for performance)
+      const oneYearAgo = new Date()
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+      const yearAgoStr = oneYearAgo.toISOString().split('T')[0]
       const { count: lifetimeSessions } = await supabase
         .from('schedule_blocks')
         .select('*', { count: 'exact', head: true })
@@ -186,6 +189,7 @@ export function useGenerateValueCard() {
         .eq('status', 'booked')
         .eq('block_type', 'student_session')
         .eq('checked_in', true)
+        .gte('block_date', yearAgoStr)
 
       // FIX 5: Redesigned AI prompt — short, emoji-led, 3-5 lines
       const token = (await supabase.auth.getSession()).data.session?.access_token
@@ -439,13 +443,17 @@ export function useAtRiskStudents(locationIds?: string[] | null) {
       const { data: students } = await studentsQuery
       if (!students || students.length === 0) return []
 
-      // Get last session date per student
+      // Get last session date per student (bounded to last 90 days — enough to detect at-risk)
+      const ninetyDaysAgo = new Date(now)
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+      const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0]
       const { data: blocks } = await supabase
         .from('schedule_blocks')
         .select('student_id, block_date, checked_in')
         .in('student_id', students.map(s => s.id))
         .eq('status', 'booked')
         .eq('checked_in', true)
+        .gte('block_date', ninetyDaysAgoStr)
         .order('block_date', { ascending: false })
 
       const lastSessionMap = new Map<string, string>()

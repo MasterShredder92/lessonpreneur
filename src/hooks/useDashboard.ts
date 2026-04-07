@@ -69,11 +69,11 @@ export function useDashboard(locationIds?: string[] | null) {
         { data: recentLeads },
         { data: recentStudents },
       ] = await Promise.all([
-        supabase.from('students').select('id, status, location_id').eq('tenant_id', tenantId!),
-        supabase.from('leads').select('id, stage, parent_name, first_name, updated_at, created_at, instrument').eq('tenant_id', tenantId!),
+        supabase.from('students').select('id, status, location_id').eq('tenant_id', tenantId!).limit(5000),
+        supabase.from('leads').select('id, stage, parent_name, first_name, updated_at, created_at, instrument').eq('tenant_id', tenantId!).limit(2000),
         supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).gte('block_date', mondayStr).lte('block_date', sundayStr),
         supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).eq('block_date', today),
-        supabase.from('teachers').select('id, is_active, ai_context, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!),
+        supabase.from('teachers').select('id, is_active, ai_context, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!).limit(500),
         supabase.from('locations').select('id, name').eq('tenant_id', tenantId!),
         supabase.from('leads').select('first_name, parent_name, instrument, created_at, stage').eq('tenant_id', tenantId!).order('created_at', { ascending: false }).limit(5),
         supabase.from('students').select('first_name, last_name, instrument, created_at').eq('tenant_id', tenantId!).order('created_at', { ascending: false }).limit(5),
@@ -278,10 +278,13 @@ export function useDashboard(locationIds?: string[] | null) {
       }
 
       // === Task 6: Recent session logs (last 10 across all teachers) ===
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
       const { data: recentLogRows } = await supabase
         .from('session_log')
         .select('student_id, teacher_id, worked_on, progress_indicator, block_date, instrument')
         .eq('tenant_id', tenantId!)
+        .gte('created_at', sevenDaysAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(10)
 

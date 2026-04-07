@@ -49,11 +49,13 @@ export default function TeacherShell() {
   const [locationNames, setLocationNames] = useState<string[]>([])
   useEffect(() => {
     if (locationIds.length === 0) return
+    let cancelled = false
     import('../../lib/supabase').then(({ supabase }) => {
       supabase.from('locations').select('name').in('id', locationIds).then(({ data }: any) => {
-        if (data) setLocationNames(data.map((l: any) => l.name?.replace(' Music Lessons', '') ?? ''))
+        if (!cancelled && data) setLocationNames(data.map((l: any) => l.name?.replace(' Music Lessons', '') ?? ''))
       })
     })
+    return () => { cancelled = true }
   }, [locationIds])
 
   return (
