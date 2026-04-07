@@ -2009,13 +2009,16 @@ function FamilyMessagesTab({ familyId, locationId, familyPhone }: {
   // Mark unread inbound messages as read when tab opens
   useEffect(() => {
     if (!messages || !user) return
+    let cancelled = false
     const unread = messages.filter(m => m.direction === 'inbound' && !m.read)
     if (unread.length === 0) return
     supabase.from('studio_messages').update({
       read: true, read_at: new Date().toISOString(), read_by: user.id,
     }).in('id', unread.map(m => m.id)).then(() => {
+      if (cancelled) return
       qc.invalidateQueries({ queryKey: ['admin-family-messages', familyId] })
     })
+    return () => { cancelled = true }
   }, [messages, user, familyId, qc])
 
   const sendMessage = useMutation({

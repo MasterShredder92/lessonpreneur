@@ -1600,8 +1600,11 @@ export default function Schedule() {
                           if (lockErr) throw new Error(lockErr.message)
                           if (lockRecurring) {
                             const dow = new Date(assignModal.block_date + 'T00:00:00').getDay()
+                            const upperDate = new Date(assignModal.block_date + 'T00:00:00')
+                            upperDate.setMonth(upperDate.getMonth() + 6)
+                            const upperBound = upperDate.toISOString().slice(0, 10)
                             const { data: futureBlocks } = await supabase.from('schedule_blocks').select('id, block_date')
-                              .eq('teacher_id', assignModal.teacher_id).eq('start_time', assignModal.start_time).eq('status', 'available').gt('block_date', assignModal.block_date)
+                              .eq('teacher_id', assignModal.teacher_id).eq('start_time', assignModal.start_time).eq('status', 'available').gt('block_date', assignModal.block_date).lte('block_date', upperBound)
                             const sameDayIds = (futureBlocks ?? [])
                               .filter((fb: any) => new Date(fb.block_date + 'T00:00:00').getDay() === dow)
                               .map((fb: any) => fb.id)

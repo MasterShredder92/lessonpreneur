@@ -39,6 +39,7 @@ export function useLocationHours(locationId: string | undefined) {
 
   useEffect(() => {
     if (!locationId) return
+    let cancelled = false
     setLoading(true)
 
     supabase
@@ -47,9 +48,12 @@ export function useLocationHours(locationId: string | undefined) {
       .eq('location_id', locationId)
       .order('day_of_week')
       .then(({ data }: { data: DayHours[] | null }) => {
+        if (cancelled) return
         setHours(data || [])
         setLoading(false)
       })
+
+    return () => { cancelled = true }
   }, [locationId])
 
   return { hours, loading, formatted: formatHoursDisplay(hours) }

@@ -104,6 +104,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!profile?.id || !tenantId) return
+    let cancelled = false
     const checkInsight = async () => {
       try {
         const { data: rows } = await supabase
@@ -114,11 +115,13 @@ export default function Dashboard() {
           .eq('role', 'assistant')
           .order('created_at', { ascending: false })
           .limit(10)
+        if (cancelled) return
         const insight = rows?.find((r: any) => r.metadata?.type === 'onboarding_insight' && !r.metadata?.shown)
         if (insight) setInsightModal({ id: insight.id, content: insight.content })
       } catch { /* silent */ }
     }
     checkInsight()
+    return () => { cancelled = true }
   }, [profile?.id, tenantId])
 
   const dismissInsight = async () => {
