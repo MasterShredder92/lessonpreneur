@@ -1325,7 +1325,7 @@ export default function Schedule() {
 
                   // Booked block — solid color fill, faded if checked in
                   const isCheckedIn = block.checked_in
-                  const isPendingTally = block.checked_in && !block.teacher_tally
+                  const isPendingTally = isCheckedIn && !block.teacher_tally
                   const isFamilyCallout = bt === 'call_out' && block.is_family_callout
                   const isTeacherCallout = bt === 'call_out' && !block.is_family_callout
                   const isMakeup = bt === 'makeup_session'
