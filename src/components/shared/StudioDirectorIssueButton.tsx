@@ -1,13 +1,9 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { useState, useEffect, useRef } from 'react'
 import { useAuthContext } from '../../app/AuthContext'
+import { useIssueContext } from '../../contexts/IssueContext'
+import { useCreateIssue, CATEGORIES, DESCRIPTION_MAX_LENGTH } from '../../hooks/useIssues'
 import { toast } from './Toast'
-import { AlertCircle, X } from 'lucide-react'
-
-const PAGE_AREAS = [
-  'Dashboard', 'Schedule', 'Students', 'Families', 'Leads',
-  'Billing', 'Retention', 'Teachers', 'Settings', 'Other',
-]
+import { AlertCircle, X, Upload } from 'lucide-react'
 
 const GUIDE_KEY = 'issue_report_guide_seen'
 
@@ -26,16 +22,16 @@ const GUIDE_STEPS: GuideStep[] = [
   {
     selector: '[data-tour-id="report-issue-btn"]',
     title: 'How to Report Well',
-    body: "Choose the page where you saw the issue, then describe exactly what happened in plain language. 'The check-in button on Schedule didn't do anything when I tapped it' is perfect. 'Something is broken' is not enough to fix. Be specific — you're the eyes on the ground.",
+    body: "Choose what kind of issue it is, then describe exactly what happened in plain language. 'The check-in button on Schedule didn't do anything when I tapped it' is perfect. 'Something is broken' is not enough to fix. Be specific — you're the eyes on the ground.",
   },
   {
-    selector: '[data-tour-id="issue-page-area"]',
-    title: 'Which Page?',
-    body: 'Pick the page where you saw the issue. This helps route it to the right fix immediately.',
+    selector: '[data-tour-id="issue-category"]',
+    title: 'What Kind of Issue?',
+    body: 'Pick the category that best describes what you saw. This helps route it to the right fix immediately.',
   },
   {
     selector: '[data-tour-id="issue-description"]',
-    title: 'Describe It',
+    title: 'What Happened?',
     body: 'Type exactly what happened. What were you trying to do? What did you see instead? The more specific, the faster it gets fixed.',
   },
   {
@@ -51,12 +47,22 @@ interface Props {
 }
 
 export default function StudioDirectorIssueButton({ variant = 'sidebar', onClose }: Props) {
-  const { profile, tenantId } = useAuthContext()
+  const { profile } = useAuthContext()
+  const { page, section, subsection } = useIssueContext()
+  const createIssue = useCreateIssue()
+
   const [open, setOpen] = useState(false)
-  const [pageArea, setPageArea] = useState('Dashboard')
+  const [category, setCategory] = useState('bug')
   const [description, setDescription] = useState('')
+  const [stepsToReproduce, setStepsToReproduce] = useState('')
+  const [screenshot, setScreenshot] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [guideStep, setGuideStep] = useState<number>(-1)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const breadcrumb = [page, section, subsection].filter(Boolean).join(' → ')
+  const selectedCategory = CATEGORIES.find(c => c.value === category)
 
   const handleButtonClick = () => {
     const seen = typeof window !== 'undefined' && window.localStorage.getItem(GUIDE_KEY) === 'true'
@@ -70,7 +76,6 @@ export default function StudioDirectorIssueButton({ variant = 'sidebar', onClose
   const advanceGuide = () => {
     setGuideStep((s) => {
       const nextIdx = s + 1
-      // After step 2 (index 1), open the modal so field targets exist.
       if (s === 1) setOpen(true)
       if (nextIdx >= GUIDE_STEPS.length) {
         try { window.localStorage.setItem(GUIDE_KEY, 'true') } catch {}
@@ -85,22 +90,49 @@ export default function StudioDirectorIssueButton({ variant = 'sidebar', onClose
     setGuideStep(-1)
   }
 
+  const handleScreenshot = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Screenshot must be under 5MB', 'error')
+      return
+    }
+    setScreenshot(file)
+  }
+
+  const resetForm = () => {
+    setDescription('')
+    setStepsToReproduce('')
+    setCategory('bug')
+    setScreenshot(null)
+  }
+
   const submit = async () => {
-    if (!description.trim() || !profile || !tenantId) return
+    if (!description.trim() || description.trim().length < 10) {
+      toast('Please describe the issue (at least 10 characters)', 'error')
+      return
+    }
+    if (!profile) return
     setSubmitting(true)
     try {
-      const { error } = await supabase.from('issue_reports').insert({
-        tenant_id: tenantId,
-        submitted_by: profile.id,
-        page_area: pageArea,
+      const title = description.trim().slice(0, 100)
+      await createIssue.mutateAsync({
+        title,
+        page,
+        section: section ?? 'General',
+        subsection: subsection ?? null,
+        platform: isMobile ? 'mobile' : 'desktop',
+        element_description: breadcrumb,
+        category,
+        severity: 'normal',
         description: description.trim(),
-        status: 'open',
+        steps_to_reproduce: stepsToReproduce.trim() || null,
+        user_friendly_category: selectedCategory?.friendlyLabel ?? null,
+        screenshotFile: screenshot,
       })
-      if (error) throw error
       toast('Issue reported — thank you!', 'success')
       setOpen(false)
-      setDescription('')
-      setPageArea('Dashboard')
+      resetForm()
       onClose?.()
     } catch (err: any) {
       toast(err.message ?? 'Failed to submit report', 'error')
@@ -148,61 +180,124 @@ export default function StudioDirectorIssueButton({ variant = 'sidebar', onClose
           onClick={() => setOpen(false)}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+            display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: 16,
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: '#141224', borderRadius: 16, width: '100%', maxWidth: 440, padding: 20,
+              background: '#141224', borderRadius: isMobile ? '20px 20px 0 0' : 16,
+              width: '100%', maxWidth: 440,
+              maxHeight: isMobile ? '85vh' : '80vh', overflowY: 'auto',
+              padding: isMobile ? '20px 16px 32px' : '24px 28px',
               border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
             }}
           >
+            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#FFFFFF' }}>Report an Issue</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={16} style={{ color: '#FFB800' }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#FFFFFF' }}>How can we help?</span>
+              </div>
               <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8080A8', padding: 4 }}>
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, color: '#A0A0C8', fontWeight: 600, marginBottom: 6 }}>
-                Page / Area
-              </label>
-              <select
-                data-tour-id="issue-page-area"
-                value={pageArea}
-                onChange={(e) => setPageArea(e.target.value)}
-                style={{
-                  width: '100%', padding: '10px 12px', fontSize: 13,
-                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 8, color: '#E0E0F4', outline: 'none', boxSizing: 'border-box',
-                }}
-              >
-                {PAGE_AREAS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
+            {/* Where did this occur? */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Where did this occur?</div>
+              <div style={{ fontSize: 12, color: '#A0A0C8', fontWeight: 600, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+                {breadcrumb || page || 'Unknown'}
+              </div>
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 12, color: '#A0A0C8', fontWeight: 600, marginBottom: 6 }}>
-                Description
-              </label>
+            {/* Category */}
+            <div style={{ marginBottom: 14 }} data-tour-id="issue-category">
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>What kind of issue?</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {CATEGORIES.filter(c => c.value !== 'feature_request').map(c => (
+                  <button
+                    key={c.value}
+                    onClick={() => setCategory(c.value)}
+                    style={{
+                      padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                      background: category === c.value ? `${c.color}18` : 'rgba(255,255,255,0.04)',
+                      color: category === c.value ? c.color : '#8080A8',
+                      border: category === c.value ? `1px solid ${c.color}40` : '1px solid rgba(255,255,255,0.06)',
+                    }}
+                  >
+                    {c.pillLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Description */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>What happened?</div>
               <textarea
                 data-tour-id="issue-description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 1500))}
-                placeholder="Describe what's happening — the more detail, the faster we can fix it..."
-                rows={6}
-                maxLength={1500}
+                onChange={(e) => setDescription(e.target.value.slice(0, DESCRIPTION_MAX_LENGTH))}
+                placeholder="Tell us what went wrong or what you expected to happen..."
+                rows={4}
+                maxLength={DESCRIPTION_MAX_LENGTH}
                 style={{
-                  width: '100%', padding: 10, fontSize: 13, fontFamily: 'inherit',
+                  width: '100%', padding: '10px 12px', fontSize: 13, fontFamily: 'inherit',
                   background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 8, color: '#E0E0F4', outline: 'none', boxSizing: 'border-box', resize: 'vertical',
+                  borderRadius: 10, color: '#E0E0F4', outline: 'none', boxSizing: 'border-box',
+                  resize: 'vertical', lineHeight: 1.5,
                 }}
               />
-              <div style={{ fontSize: 10, color: (1500 - description.length) < 100 ? '#D4226A' : '#606088', marginTop: 4, textAlign: 'right' }}>{1500 - description.length} characters remaining</div>
+              <div style={{ fontSize: 10, color: '#606088', marginTop: 3, textAlign: 'right' }}>{DESCRIPTION_MAX_LENGTH - description.length}</div>
             </div>
 
+            {/* Steps to reproduce */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                How can we reproduce it? <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span>
+              </div>
+              <textarea
+                value={stepsToReproduce}
+                onChange={(e) => setStepsToReproduce(e.target.value)}
+                placeholder="e.g. 1. Go to Schedule  2. Tap on a block  3. Nothing happens"
+                maxLength={1000}
+                rows={2}
+                style={{
+                  width: '100%', padding: '10px 12px', fontSize: 13, fontFamily: 'inherit',
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 10, color: '#E0E0F4', outline: 'none', boxSizing: 'border-box',
+                  resize: 'vertical', lineHeight: 1.5,
+                }}
+              />
+            </div>
+
+            {/* Screenshot */}
+            <div style={{ marginBottom: 16 }}>
+              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleScreenshot} style={{ display: 'none' }} />
+              {screenshot ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize: 12, color: '#A0A0C8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{screenshot.name}</span>
+                  <button onClick={() => setScreenshot(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: 2, display: 'flex' }}>
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
+                    color: '#8080A8', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  <Upload size={12} /> Attach Screenshot
+                </button>
+              )}
+            </div>
+
+            {/* Submit */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setOpen(false)}
@@ -217,11 +312,11 @@ export default function StudioDirectorIssueButton({ variant = 'sidebar', onClose
               <button
                 data-tour-id="issue-submit-btn"
                 onClick={submit}
-                disabled={submitting || !description.trim()}
+                disabled={submitting || description.trim().length < 10}
                 style={{
                   padding: '10px 18px', borderRadius: 10, border: 'none',
-                  background: description.trim() ? 'linear-gradient(135deg, #D4226A, #FF5500)' : 'rgba(255,255,255,0.08)',
-                  color: '#FFFFFF', cursor: submitting ? 'wait' : description.trim() ? 'pointer' : 'not-allowed',
+                  background: description.trim().length >= 10 ? 'linear-gradient(135deg, #D4226A, #FF5500)' : 'rgba(255,255,255,0.08)',
+                  color: '#FFFFFF', cursor: submitting ? 'wait' : description.trim().length >= 10 ? 'pointer' : 'not-allowed',
                   fontSize: 13, fontWeight: 800,
                 }}
               >
