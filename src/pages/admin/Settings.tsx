@@ -8,6 +8,7 @@ import { useTeachers } from '../../hooks/useTeachers'
 import { useTeacherLocations, useToggleTeacherLocation, useToggleSubAvailable } from '../../hooks/useTeacherLocations'
 import { supabase } from '../../lib/supabase'
 import RoomsManager from '../../components/rooms/RoomsManager'
+import FloorPlanEditor from '../../components/rooms/FloorPlanEditor'
 import StudioClosuresManager from '../../components/admin/StudioClosuresManager'
 import DataGrid from '../../components/shared/DataGrid'
 import { Upload, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react'
@@ -245,6 +246,12 @@ function LocationsConsolidatedTab({ isOwner, tenantId }: { isOwner: boolean; ten
       </CollapsibleSection>
       <CollapsibleSection title="Rooms">
         <RoomsManager />
+      </CollapsibleSection>
+      <CollapsibleSection title="Studio Floor Plan">
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+          Drag rooms to match your physical layout
+        </p>
+        <FloorPlanEditor />
       </CollapsibleSection>
       <CollapsibleSection title="Teacher Locations">
         <TeacherLocationsTab />
@@ -1307,7 +1314,7 @@ function TeamMembers({ tenantId, myProfileId }: { tenantId: string | null; myPro
     try {
       const { error } = await supabase.from('profiles').update({ role: confirmModal.to }).eq('id', confirmModal.id)
       if (error) throw error
-      supabase.from('audit_log').insert({ tenant_id: tenantId, action: 'ROLE_CHANGED', table_name: 'profiles', record_id: confirmModal.id, old_value: { role: confirmModal.from }, new_value: { role: confirmModal.to }, performed_by: myProfileId }).then(() => {}).catch(() => {})
+      supabase.from('audit_log').insert({ tenant_id: tenantId, action: 'ROLE_CHANGED', table_name: 'profiles', record_id: confirmModal.id, old_value: { role: confirmModal.from }, new_value: { role: confirmModal.to }, performed_by: myProfileId }).then(() => {}).catch((err: any) => console.error('[audit_log] insert failed:', err))
       qc.invalidateQueries({ queryKey: ['team_members'] })
       qc.invalidateQueries({ queryKey: ['teachers'] })
       toast(`${confirmModal.name}'s role updated to ${ROLE_LABELS[confirmModal.to] ?? confirmModal.to}`, 'success')
@@ -1966,8 +1973,8 @@ function IssueReportForm({ isOwner }: { isOwner: boolean }) {
 
         {/* Description */}
         <div>
-          <textarea value={desc} onChange={e => setDesc(e.target.value.slice(0, 500))} maxLength={500} placeholder="What were you doing? What happened? What should have happened?" rows={4} style={{ ...inputStyle, resize: 'vertical', minHeight: 100 }} />
-          <div style={{ fontSize: 11, marginTop: 4, color: (500 - desc.length) === 0 ? '#D4226A' : (500 - desc.length) < 20 ? '#FF5500' : '#55516E' }}>{500 - desc.length} characters remaining</div>
+          <textarea value={desc} onChange={e => setDesc(e.target.value.slice(0, 1500))} maxLength={1500} placeholder="What were you doing? What happened? What should have happened? The more detail you provide, the faster we can fix it." rows={6} style={{ ...inputStyle, resize: 'vertical', minHeight: 120 }} />
+          <div style={{ fontSize: 11, marginTop: 4, color: (1500 - desc.length) === 0 ? '#D4226A' : (1500 - desc.length) < 100 ? '#FF5500' : '#55516E' }}>{1500 - desc.length} characters remaining</div>
         </div>
 
         {/* Screenshot */}
