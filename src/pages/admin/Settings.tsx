@@ -7,7 +7,6 @@ import { useLocations, useCreateLocation, useUpdateLocation } from '../../hooks/
 import { useTeachers } from '../../hooks/useTeachers'
 import { useTeacherLocations, useToggleTeacherLocation, useToggleSubAvailable } from '../../hooks/useTeacherLocations'
 import { supabase } from '../../lib/supabase'
-import RoomsManager from '../../components/rooms/RoomsManager'
 import FloorPlanEditor from '../../components/rooms/FloorPlanEditor'
 import StudioClosuresManager from '../../components/admin/StudioClosuresManager'
 import DataGrid from '../../components/shared/DataGrid'
@@ -239,13 +238,14 @@ function BusinessTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: 
 }
 
 function LocationsConsolidatedTab({ isOwner, tenantId }: { isOwner: boolean; tenantId: string | null }) {
+  const { data: locations } = useLocations()
   return (
     <div>
       <CollapsibleSection title="Locations">
         <LocationsTab isOwner={isOwner} tenantId={tenantId} />
       </CollapsibleSection>
-      <CollapsibleSection title="Rooms">
-        <RoomsManager />
+      <CollapsibleSection title="Teacher Locations">
+        <TeacherLocationsTab />
       </CollapsibleSection>
       <CollapsibleSection title="Studio Floor Plan">
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
@@ -253,8 +253,11 @@ function LocationsConsolidatedTab({ isOwner, tenantId }: { isOwner: boolean; ten
         </p>
         <FloorPlanEditor />
       </CollapsibleSection>
-      <CollapsibleSection title="Teacher Locations">
-        <TeacherLocationsTab />
+      <CollapsibleSection title="School Closures & Holidays" defaultOpen={false}>
+        <StudioClosuresManager locationId={null} />
+        {locations?.map(loc => (
+          <StudioClosuresManager key={loc.id} locationId={loc.id} locationName={loc.name?.replace(' Music Lessons', '')} />
+        ))}
       </CollapsibleSection>
     </div>
   )
@@ -671,9 +674,6 @@ function LocationsTab({ isOwner, tenantId }: { isOwner: boolean; tenantId: strin
 
   return (
     <div style={{ marginTop: '16px' }}>
-      {/* Company-Wide Closures — apply to all locations */}
-      <StudioClosuresManager locationId={null} />
-
       {isOwner && (
         <div style={{ margin: '16px 0' }}>
           <button className="btn-primary" onClick={openCreate}>+ Add Location</button>
@@ -815,8 +815,6 @@ function LocationCard({ loc, isOwner, tenantId, onEdit, onToggle, hoursExpanded,
       {/* Operating Hours */}
       <OperatingHoursEditor locationId={loc.id} isOwner={isOwner} expanded={hoursExpanded} onToggle={onHoursToggle} />
 
-      {/* Location-Specific Closures */}
-      <StudioClosuresManager locationId={loc.id} locationName={loc.name?.replace(' Music Lessons', '')} />
       </div>
     </div>
   )
