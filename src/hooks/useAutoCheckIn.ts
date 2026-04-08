@@ -6,6 +6,25 @@ const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000099'
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 const INTERVAL_MS = 60_000
 
+/**
+ * Module-level dedup set — survives across re-renders and StrictMode double-fires.
+ * Once a block ID is in here, we never call check_in_block for it again this session.
+ */
+const attemptedBlockIds = new Set<string>()
+
+/** Block types eligible for auto check-in */
+const AUTO_CHECK_IN_TYPES: string[] = [
+  'student_session',
+  'first_day',
+  'last_day',
+  'call_out',
+  'meet_greet',
+  'sub',
+  'virtual',
+  'makeup_session',
+  'teacher_training',
+]
+
 function getCentralTime(): { hours: number; minutes: number; dateStr: string } {
   const now = new Date()
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -31,6 +50,9 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
   const running = useRef(false)
 
   useEffect(() => {
+    // Guard: don't fire if locationId is empty/missing
+    if (!locationId) return
+
     const selStr = selectedDate.toISOString().split('T')[0]
 
     async function tick() {
@@ -42,7 +64,7 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
         if (selStr !== ct.dateStr) return
         const nowMinutes = ct.hours * 60 + ct.minutes
 
-        // Find ended, unchecked sessions
+        // Find ended, unchecked blocks of eligible types
         const { data: blocks } = await supabase
           .from('schedule_blocks')
           .select('id, end_time')
@@ -52,16 +74,23 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
           .eq('checked_in', false)
           .eq('fifth_week', false)
           .eq('status', 'booked')
-          .not('student_id', 'is', null)
-          .in('block_type', ['student_session', 'first_day', 'last_day'])
+          .in('block_type', AUTO_CHECK_IN_TYPES)
 
         if (!blocks || blocks.length === 0) return
 
-        const eligible = blocks.filter((b: any) => timeToMinutes(b.end_time) <= nowMinutes)
+        const eligible = blocks.filter((b: any) => {
+          // Skip if already attempted this session
+          if (attemptedBlockIds.has(b.id)) return false
+          // Only check in blocks whose end_time has passed
+          return timeToMinutes(b.end_time) <= nowMinutes
+        })
+
         if (eligible.length === 0) return
 
         let checked = 0
         for (const block of eligible) {
+          // Mark as attempted BEFORE calling — prevents retries even on failure
+          attemptedBlockIds.add(block.id)
           try {
             await supabase.rpc('check_in_block', {
               p_block_id: block.id,
@@ -70,13 +99,12 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
             })
             checked++
           } catch (err) {
-            // Individual block failures don't stop the batch
             console.warn('[AutoCheckIn] Failed for block', block.id, err)
           }
         }
 
         if (checked > 0) {
-          console.log(`[AutoCheckIn] Auto-checked ${checked} session(s)`)
+          console.log(`[AutoCheckIn] Auto-checked ${checked} block(s)`)
           qc.invalidateQueries({ queryKey: ['schedule-grid'] })
           qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
           qc.invalidateQueries({ queryKey: ['teachers-monthly-tally'] })
@@ -87,11 +115,10 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
       }
     }
 
-    // Check if viewing today before setting up interval
+    // Only set up interval if viewing today
     const ct = getCentralTime()
     if (selStr !== ct.dateStr) return
 
-    // Run immediately, then every 60s
     tick()
     const id = setInterval(tick, INTERVAL_MS)
     return () => clearInterval(id)

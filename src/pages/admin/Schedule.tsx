@@ -26,6 +26,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
 import { useAutoCheckIn } from '../../hooks/useAutoCheckIn'
+import { useScheduleRealtime } from '../../hooks/useScheduleRealtime'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import PageGuide, { type GuideStep } from '../../components/shared/PageGuide'
@@ -159,6 +160,7 @@ export default function Schedule() {
     : (selectedLocation || (locations?.[0]?.id ?? ''))
   const { data: gridData, isLoading } = useScheduleGrid(selectedDate, effectiveLocation || null)
   useAutoCheckIn(effectiveLocation, new Date(selectedDate + 'T12:00:00'))
+  useScheduleRealtime(selectedDate, effectiveLocation || undefined)
   const { data: allStudents } = useStudentsForAssignment()
   const { data: rooms } = useRooms(effectiveLocation || undefined)
 
