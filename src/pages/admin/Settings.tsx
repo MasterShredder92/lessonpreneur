@@ -1774,7 +1774,7 @@ function PaymentsTab() {
 function IssuesTab() {
   const { role } = useAuthContext()
   const isOwner = role === 'owner' || role === 'admin'
-  const [statusFilter, setStatusFilter] = useState<StatusGroup>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusGroup>('open')
   const [severityFilter, setSeverityFilter] = useState<string>('all')
   const { data: issues, isLoading } = useIssues(statusFilter)
 
