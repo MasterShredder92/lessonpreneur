@@ -14,7 +14,9 @@ export interface Room {
   floor: number
   primary_instruments: string[] | null
   status: string
+  room_type: string | null
   notes: string | null
+  color: string | null
   is_active: boolean
   inventory?: InventoryItem[]
   flagged_count?: number
@@ -23,8 +25,10 @@ export interface Room {
 export interface InventoryItem {
   id: string
   room_id: string
+  tenant_id: string
   item_name: string
   quantity: number
+  condition: string
   is_flagged: boolean
   flag_note: string | null
   flagged_at: string | null

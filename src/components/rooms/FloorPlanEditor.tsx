@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRooms, useCreateRoom, type Room } from '../../hooks/useRooms'
+import { useRooms, useCreateRoom, type Room, type InventoryItem } from '../../hooks/useRooms'
 import { useLocations } from '../../hooks/useLocations'
 import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -8,11 +8,13 @@ import { getLocationColor } from '../../utils/locationColor'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { toast } from '../shared/Toast'
 import MusicLoader from '../shared/MusicLoader'
+import { Trash2 } from 'lucide-react'
 
-// --------------- DEFAULTS ---------------
+// --------------- CONSTANTS ---------------
 const DEFAULT_COLS = 12
 const DEFAULT_ROWS = 10
 const CELL_SIZE = 60
+const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 const SPACE_TYPES = ['Lobby', 'Bathroom', 'Storage', 'Office', 'Hallway'] as const
 type SpaceType = typeof SPACE_TYPES[number]
@@ -21,6 +23,17 @@ const FLOOR_LABELS: Record<number, string> = {
   1: 'Floor 1 — Main Level',
   2: 'Floor 2 — Upper Level',
 }
+
+const ROOM_TYPES = [
+  { value: 'lesson_room', label: 'Lesson Room' },
+  { value: 'waiting_area', label: 'Waiting Area' },
+  { value: 'storage', label: 'Storage' },
+  { value: 'bathroom', label: 'Bathroom' },
+  { value: 'office', label: 'Office' },
+  { value: 'other', label: 'Other' },
+] as const
+
+const CONDITIONS = ['Good', 'Fair', 'Needs Repair'] as const
 
 interface LayoutBlock {
   id: string
@@ -34,6 +47,7 @@ interface LayoutBlock {
   instruments: string[]
   inventoryCount: number
   status: string
+  color: string | null
 }
 
 // --------------- HELPERS ---------------
@@ -63,6 +77,7 @@ function roomToBlock(r: Room): LayoutBlock {
     instruments: r.primary_instruments ?? [],
     inventoryCount: r.inventory?.length ?? 0,
     status: r.status,
+    color: r.color,
   }
 }
 
@@ -113,7 +128,9 @@ function hasCollision(blocks: LayoutBlock[], moving: LayoutBlock, ignoreId: stri
   return false
 }
 
-// --------------- MAIN COMPONENT ---------------
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function FloorPlanEditor({ locationId }: { locationId?: string }) {
   const { role, tenantId } = useAuthContext()
   const { data: locations } = useLocations()
@@ -124,7 +141,6 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   const effectiveLocation = locationId || selectedLocation || (locations?.[0]?.id ?? '')
   const { data: rooms, isLoading } = useRooms(effectiveLocation || undefined)
 
-  // Per-location grid dimensions
   const activeLocationObj = useMemo(
     () => locations?.find(l => l.id === effectiveLocation),
     [locations, effectiveLocation],
@@ -138,10 +154,10 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   const [saving, setSaving] = useState(false)
   const [showAddSpace, setShowAddSpace] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
 
   const brandColor = getLocationColor(effectiveLocation)
 
-  // Which floors exist
   const floors = useMemo(() => {
     const set = new Set(allBlocks.map(b => b.floor))
     if (set.size === 0) set.add(1)
@@ -150,20 +166,22 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
 
   const isMultiFloor = floors.length > 1
 
-  // Blocks for active floor
   const floorBlocks = useMemo(
     () => allBlocks.filter(b => b.floor === activeFloor),
     [allBlocks, activeFloor],
   )
 
-  // Set default location
+  const selectedRoom = useMemo(
+    () => rooms?.find(r => r.id === selectedRoomId) ?? null,
+    [rooms, selectedRoomId],
+  )
+
   useEffect(() => {
     if (!selectedLocation && !locationId && locations?.length) {
       setSelectedLocation(locations[0].id)
     }
   }, [locations, selectedLocation, locationId])
 
-  // Detect mobile
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
@@ -171,7 +189,6 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Sync rooms → blocks
   useEffect(() => {
     if (!rooms?.length) { setAllBlocks([]); setActiveFloor(1); return }
     const byFloor = new Map<number, Room[]>()
@@ -191,6 +208,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
 
   // --------------- DRAG ---------------
   const gridRef = useRef<HTMLDivElement>(null)
+  const didDrag = useRef(false)
   const dragState = useRef<{
     blockId: string
     startMouseX: number
@@ -210,6 +228,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
     const block = floorBlocks.find(b => b.id === blockId)
     if (!block) return
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    didDrag.current = false
     dragState.current = {
       blockId,
       startMouseX: e.clientX,
@@ -233,6 +252,8 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
     const cellPx = CELL_SIZE * scale
     const deltaX = Math.round((e.clientX - ds.startMouseX) / cellPx)
     const deltaY = Math.round((e.clientY - ds.startMouseY) / cellPx)
+
+    if (deltaX !== 0 || deltaY !== 0) didDrag.current = true
 
     setAllBlocks(prev => {
       const idx = prev.findIndex(b => b.id === ds.blockId)
@@ -269,10 +290,23 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
         block.w !== ds.origBlock.w || block.h !== ds.origBlock.h)) {
       setDirty(true)
     }
+
+    // If no drag happened, treat as a click → select room
+    if (!didDrag.current) {
+      setSelectedRoomId(ds.blockId)
+    }
     dragState.current = null
   }, [allBlocks])
 
-  // --------------- SAVE ---------------
+  // Click empty canvas → close panel
+  const handleCanvasClick = useCallback((e: React.PointerEvent) => {
+    // Only handle clicks directly on the canvas, not on blocks
+    if (e.target === gridRef.current || (e.target as HTMLElement).tagName === 'svg' || (e.target as HTMLElement).tagName === 'line') {
+      setSelectedRoomId(null)
+    }
+  }, [])
+
+  // --------------- SAVE LAYOUT ---------------
   const handleSave = async () => {
     if (!tenantId || !effectiveLocation) return
     setSaving(true)
@@ -298,7 +332,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
     }
   }
 
-  // --------------- RESET (current floor) ---------------
+  // --------------- RESET ---------------
   const handleReset = () => {
     if (!rooms?.length) return
     const floorRooms = rooms.filter(r => (r.floor ?? 1) === activeFloor)
@@ -345,9 +379,29 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
     }
   }
 
+  // --------------- ROOM NAME UPDATE (optimistic on canvas) ---------------
+  const updateBlockName = useCallback((roomId: string, name: string) => {
+    setAllBlocks(prev => prev.map(b => b.id === roomId ? { ...b, name } : b))
+  }, [])
+
+  // --------------- DELETE ROOM ---------------
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!tenantId) return
+    try {
+      const { error } = await supabase.from('rooms').delete().eq('id', roomId).eq('tenant_id', tenantId)
+      if (error) throw error
+      setSelectedRoomId(null)
+      qc.invalidateQueries({ queryKey: ['rooms'] })
+      toast.success('Room deleted')
+    } catch (err: any) {
+      toast.error(`Delete failed: ${err.message}`)
+    }
+  }
+
   // --------------- RENDER ---------------
   const gridWidth = gridCols * CELL_SIZE
   const gridHeight = gridRows * CELL_SIZE
+  const panelOpen = selectedRoomId !== null
 
   if (isLoading) {
     return (
@@ -358,13 +412,13 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   }
 
   return (
-    <div style={{ marginTop: 16 }}>
+    <div style={{ marginTop: 16, position: 'relative' }}>
       {/* Location selector */}
       {!locationId && (
         <div style={{ marginBottom: 16 }}>
           <select
             value={selectedLocation}
-            onChange={e => { setSelectedLocation(e.target.value); setDirty(false) }}
+            onChange={e => { setSelectedLocation(e.target.value); setDirty(false); setSelectedRoomId(null) }}
             className="filter-select"
           >
             {locations?.map(l => (
@@ -380,7 +434,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
           {floors.map(f => (
             <button
               key={f}
-              onClick={() => setActiveFloor(f)}
+              onClick={() => { setActiveFloor(f); setSelectedRoomId(null) }}
               style={{
                 padding: '6px 16px',
                 borderRadius: 8,
@@ -400,28 +454,18 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
         </div>
       )}
 
-      {/* Floor label */}
       {isMultiFloor && (
-        <p style={{
-          fontSize: 12, color: 'var(--text-muted)', marginBottom: 10,
-          fontFamily: 'var(--font-display)', fontWeight: 600,
-        }}>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
           {FLOOR_LABELS[activeFloor] ?? `Floor ${activeFloor}`}
         </p>
       )}
 
       {/* Toolbar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap',
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         {canEdit && !isMobile && (
           <>
-            <button className="btn-outline" onClick={() => setShowAddSpace(true)} style={{ fontSize: 13 }}>
-              + Add Space
-            </button>
-            <button className="btn-outline" onClick={handleReset} style={{ fontSize: 13 }}>
-              Reset Layout
-            </button>
+            <button className="btn-outline" onClick={() => setShowAddSpace(true)} style={{ fontSize: 13 }}>+ Add Space</button>
+            <button className="btn-outline" onClick={handleReset} style={{ fontSize: 13 }}>Reset Layout</button>
             <button
               className="btn-primary"
               onClick={handleSave}
@@ -433,140 +477,172 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
           </>
         )}
         {dirty && !isMobile && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-            Unsaved changes
-          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Unsaved changes</span>
         )}
       </div>
 
-      {/* Mobile notice */}
       {isMobile && (
         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
           Floor plan editing is available on desktop
         </p>
       )}
 
-      {/* Grid */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: gridWidth,
-          aspectRatio: `${gridCols} / ${gridRows}`,
-          position: 'relative',
-          borderRadius: 14,
-          overflow: 'hidden',
-          background: '#020209',
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)',
-          backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
-          border: '1px solid rgba(255,255,255,0.08)',
-          touchAction: 'none',
-        }}
-        ref={gridRef}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      >
-        {/* Grid lines */}
-        <svg
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-          viewBox={`0 0 ${gridWidth} ${gridHeight}`}
-          preserveAspectRatio="none"
+      {/* Canvas + Panel layout */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        {/* Grid */}
+        <div
+          style={{
+            width: '100%',
+            maxWidth: gridWidth,
+            aspectRatio: `${gridCols} / ${gridRows}`,
+            position: 'relative',
+            borderRadius: 14,
+            overflow: 'hidden',
+            background: '#020209',
+            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)',
+            backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
+            border: '1px solid rgba(255,255,255,0.08)',
+            touchAction: 'none',
+            flexShrink: 0,
+          }}
+          ref={gridRef}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerDown={handleCanvasClick}
         >
-          {Array.from({ length: gridCols + 1 }, (_, i) => (
-            <line key={`v${i}`} x1={i * CELL_SIZE} y1={0} x2={i * CELL_SIZE} y2={gridHeight}
-              stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
-          ))}
-          {Array.from({ length: gridRows + 1 }, (_, i) => (
-            <line key={`h${i}`} x1={0} y1={i * CELL_SIZE} x2={gridWidth} y2={i * CELL_SIZE}
-              stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
-          ))}
-        </svg>
+          <svg
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+            viewBox={`0 0 ${gridWidth} ${gridHeight}`}
+            preserveAspectRatio="none"
+          >
+            {Array.from({ length: gridCols + 1 }, (_, i) => (
+              <line key={`v${i}`} x1={i * CELL_SIZE} y1={0} x2={i * CELL_SIZE} y2={gridHeight}
+                stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+            ))}
+            {Array.from({ length: gridRows + 1 }, (_, i) => (
+              <line key={`h${i}`} x1={0} y1={i * CELL_SIZE} x2={gridWidth} y2={i * CELL_SIZE}
+                stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+            ))}
+          </svg>
 
-        {/* Room blocks */}
-        {floorBlocks.map(block => {
-          const color = block.isSpace ? '#666' : brandColor
-          const isDragging = dragState.current?.blockId === block.id
-          return (
-            <div
-              key={block.id}
-              style={{
-                position: 'absolute',
-                left: `${(block.x / gridCols) * 100}%`,
-                top: `${(block.y / gridRows) * 100}%`,
-                width: `${(block.w / gridCols) * 100}%`,
-                height: `${(block.h / gridRows) * 100}%`,
-                background: `${color}30`,
-                border: `2px solid ${color}`,
-                borderRadius: 8,
-                padding: '6px 8px',
-                boxSizing: 'border-box',
-                cursor: canEdit && !isMobile ? 'grab' : 'default',
-                userSelect: 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                transition: isDragging ? 'none' : 'left 0.15s, top 0.15s, width 0.15s, height 0.15s',
-                zIndex: isDragging ? 10 : 1,
-              }}
-              onPointerDown={e => handlePointerDown(e, block.id, 'move')}
-            >
-              <span style={{
-                fontSize: 12, fontWeight: 800, color: '#fff', lineHeight: 1.2,
-                fontFamily: 'var(--font-display)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>
-                {block.name}
-              </span>
-
-              {!block.isSpace && block.instruments.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
-                  {block.instruments.slice(0, 3).map(inst => (
-                    <span key={inst} style={{
-                      fontSize: 9, background: 'rgba(255,255,255,0.1)', borderRadius: 4,
-                      padding: '1px 4px', color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap',
-                    }}>
-                      {instrumentWithEmojiTitle(inst)}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {!block.isSpace && block.inventoryCount > 0 && (
-                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 'auto' }}>
-                  {block.inventoryCount} item{block.inventoryCount !== 1 ? 's' : ''}
+          {floorBlocks.map(block => {
+            const blockColor = block.color || (block.isSpace ? '#666' : brandColor)
+            const isDragging = dragState.current?.blockId === block.id
+            const isSelected = block.id === selectedRoomId
+            return (
+              <div
+                key={block.id}
+                style={{
+                  position: 'absolute',
+                  left: `${(block.x / gridCols) * 100}%`,
+                  top: `${(block.y / gridRows) * 100}%`,
+                  width: `${(block.w / gridCols) * 100}%`,
+                  height: `${(block.h / gridRows) * 100}%`,
+                  background: `${blockColor}30`,
+                  border: `2px solid ${blockColor}`,
+                  borderRadius: 8,
+                  padding: '6px 8px',
+                  boxSizing: 'border-box',
+                  cursor: canEdit && !isMobile ? 'grab' : 'pointer',
+                  userSelect: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  transition: isDragging ? 'none' : 'left 0.15s, top 0.15s, width 0.15s, height 0.15s',
+                  zIndex: isDragging ? 10 : isSelected ? 5 : 1,
+                  outline: isSelected ? `2px solid #fff` : 'none',
+                  outlineOffset: 1,
+                }}
+                onPointerDown={e => {
+                  if (canEdit && !isMobile) {
+                    handlePointerDown(e, block.id, 'move')
+                  } else {
+                    // Mobile: just select
+                    e.stopPropagation()
+                    setSelectedRoomId(block.id)
+                  }
+                }}
+              >
+                <span style={{
+                  fontSize: 12, fontWeight: 800, color: '#fff', lineHeight: 1.2,
+                  fontFamily: 'var(--font-display)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {block.name}
                 </span>
-              )}
 
-              {canEdit && !isMobile && (
-                <div
-                  style={{
-                    position: 'absolute', bottom: 0, right: 0,
-                    width: 14, height: 14, cursor: 'nwse-resize',
-                  }}
-                  onPointerDown={e => handlePointerDown(e, block.id, 'resize')}
-                >
-                  <svg viewBox="0 0 14 14" width="14" height="14" style={{ opacity: 0.4 }}>
-                    <line x1="4" y1="14" x2="14" y2="4" stroke="white" strokeWidth="1.5" />
-                    <line x1="8" y1="14" x2="14" y2="8" stroke="white" strokeWidth="1.5" />
-                    <line x1="12" y1="14" x2="14" y2="12" stroke="white" strokeWidth="1.5" />
-                  </svg>
-                </div>
-              )}
+                {!block.isSpace && block.instruments.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
+                    {block.instruments.slice(0, 3).map(inst => (
+                      <span key={inst} style={{
+                        fontSize: 9, background: 'rgba(255,255,255,0.1)', borderRadius: 4,
+                        padding: '1px 4px', color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap',
+                      }}>
+                        {instrumentWithEmojiTitle(inst)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {!block.isSpace && block.inventoryCount > 0 && (
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 'auto' }}>
+                    {block.inventoryCount} item{block.inventoryCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+
+                {canEdit && !isMobile && (
+                  <div
+                    style={{ position: 'absolute', bottom: 0, right: 0, width: 14, height: 14, cursor: 'nwse-resize' }}
+                    onPointerDown={e => handlePointerDown(e, block.id, 'resize')}
+                  >
+                    <svg viewBox="0 0 14 14" width="14" height="14" style={{ opacity: 0.4 }}>
+                      <line x1="4" y1="14" x2="14" y2="4" stroke="white" strokeWidth="1.5" />
+                      <line x1="8" y1="14" x2="14" y2="8" stroke="white" strokeWidth="1.5" />
+                      <line x1="12" y1="14" x2="14" y2="12" stroke="white" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {floorBlocks.length === 0 && !isLoading && (
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-muted)', fontSize: 14,
+            }}>
+              {isMultiFloor ? `No rooms on Floor ${activeFloor}` : 'No rooms at this location'}
             </div>
-          )
-        })}
+          )}
+        </div>
 
-        {/* Empty state */}
-        {floorBlocks.length === 0 && !isLoading && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-muted)', fontSize: 14,
-          }}>
-            {isMultiFloor ? `No rooms on Floor ${activeFloor}` : 'No rooms at this location'}
-          </div>
+        {/* Side Panel — desktop */}
+        {!isMobile && (
+          <RoomDetailPanel
+            room={selectedRoom}
+            brandColor={brandColor}
+            block={allBlocks.find(b => b.id === selectedRoomId) ?? null}
+            onClose={() => setSelectedRoomId(null)}
+            onNameChange={updateBlockName}
+            onDelete={handleDeleteRoom}
+            canEdit={canEdit}
+          />
         )}
       </div>
 
-      {/* Add Space Modal */}
+      {/* Bottom sheet — mobile */}
+      {isMobile && (
+        <MobileRoomSheet
+          room={selectedRoom}
+          brandColor={brandColor}
+          block={allBlocks.find(b => b.id === selectedRoomId) ?? null}
+          onClose={() => setSelectedRoomId(null)}
+          onNameChange={updateBlockName}
+          onDelete={handleDeleteRoom}
+          canEdit={canEdit}
+        />
+      )}
+
       {showAddSpace && (
         <AddSpaceModal
           onClose={() => setShowAddSpace(false)}
@@ -579,7 +655,485 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   )
 }
 
-// --------------- ADD SPACE MODAL ---------------
+// ============================================================
+// ROOM DETAIL PANEL (desktop slide-in)
+// ============================================================
+interface PanelProps {
+  room: Room | null
+  brandColor: string
+  block: LayoutBlock | null
+  onClose: () => void
+  onNameChange: (id: string, name: string) => void
+  onDelete: (id: string) => void
+  canEdit: boolean
+}
+
+function RoomDetailPanel({ room, brandColor, block, onClose, onNameChange, onDelete, canEdit }: PanelProps) {
+  return (
+    <div style={{
+      width: 320,
+      minHeight: 400,
+      flexShrink: 0,
+      background: 'linear-gradient(150deg, rgba(22,20,40,0.97), rgba(16,14,30,0.99))',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: 16,
+      overflow: 'hidden',
+      transform: room ? 'translateX(0)' : 'translateX(20px)',
+      opacity: room ? 1 : 0,
+      pointerEvents: room ? 'auto' : 'none',
+      transition: 'transform 200ms ease, opacity 200ms ease',
+    }}>
+      {room && block && (
+        <RoomPanelContent
+          room={room}
+          brandColor={brandColor}
+          block={block}
+          onClose={onClose}
+          onNameChange={onNameChange}
+          onDelete={onDelete}
+          canEdit={canEdit}
+        />
+      )}
+    </div>
+  )
+}
+
+function MobileRoomSheet({ room, brandColor, block, onClose, onNameChange, onDelete, canEdit }: PanelProps) {
+  return (
+    <div style={{
+      position: 'fixed',
+      left: 0, right: 0, bottom: 0,
+      maxHeight: '70vh',
+      background: 'linear-gradient(150deg, rgba(22,20,40,0.99), rgba(16,14,30,0.99))',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: '16px 16px 0 0',
+      overflow: 'auto',
+      transform: room ? 'translateY(0)' : 'translateY(100%)',
+      transition: 'transform 200ms ease',
+      zIndex: 100,
+      boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+    }}>
+      {room && block && (
+        <RoomPanelContent
+          room={room}
+          brandColor={brandColor}
+          block={block}
+          onClose={onClose}
+          onNameChange={onNameChange}
+          onDelete={onDelete}
+          canEdit={canEdit}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// SHARED PANEL CONTENT
+// ============================================================
+function RoomPanelContent({ room, brandColor, block, onClose, onNameChange, onDelete, canEdit }: PanelProps & { room: Room; block: LayoutBlock }) {
+  const qc = useQueryClient()
+  const [editName, setEditName] = useState(room.name)
+  const [roomType, setRoomType] = useState(room.room_type ?? 'lesson_room')
+  const [notes, setNotes] = useState(room.notes ?? '')
+  const [roomColor, setRoomColor] = useState(room.color ?? brandColor)
+  const [savingRoom, setSavingRoom] = useState(false)
+  const [showAddItem, setShowAddItem] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Sync when room changes (switching rooms without closing panel)
+  useEffect(() => {
+    setEditName(room.name)
+    setRoomType(room.room_type ?? 'lesson_room')
+    setNotes(room.notes ?? '')
+    setRoomColor(room.color ?? brandColor)
+    setShowAddItem(false)
+    setConfirmDelete(false)
+  }, [room.id, room.name, room.room_type, room.notes, room.color, brandColor])
+
+  // Save room name on blur
+  const handleNameBlur = async () => {
+    const trimmed = editName.trim()
+    if (!trimmed || trimmed === room.name) { setEditName(room.name); return }
+    onNameChange(room.id, trimmed)
+    await supabase.from('rooms').update({ name: trimmed }).eq('id', room.id).eq('tenant_id', TENANT_ID)
+    qc.invalidateQueries({ queryKey: ['rooms'] })
+  }
+
+  const handleNameKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+  }
+
+  // Save all room details
+  const handleSaveRoom = async () => {
+    setSavingRoom(true)
+    try {
+      const { error } = await supabase.from('rooms').update({
+        name: editName.trim() || room.name,
+        room_type: roomType,
+        notes: notes || null,
+        color: roomColor === brandColor ? null : roomColor,
+      }).eq('id', room.id).eq('tenant_id', TENANT_ID)
+      if (error) throw error
+      onNameChange(room.id, editName.trim() || room.name)
+      qc.invalidateQueries({ queryKey: ['rooms'] })
+      toast.success('Room saved')
+    } catch (err: any) {
+      toast.error(`Save failed: ${err.message}`)
+    } finally {
+      setSavingRoom(false)
+    }
+  }
+
+  const PRESET_COLORS = [brandColor, '#D41113', '#00A651', '#A333FF', '#00A5E8', '#D4226A', '#FF5500', '#FFB800', '#666666']
+
+  const s = panelStyles
+
+  return (
+    <div style={{ padding: 20 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        {/* Color swatch */}
+        <div style={{ position: 'relative' }}>
+          <label style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: roomColor, border: '2px solid rgba(255,255,255,0.2)',
+              flexShrink: 0,
+            }} />
+            {canEdit && (
+              <input
+                type="color"
+                value={roomColor}
+                onChange={e => setRoomColor(e.target.value)}
+                style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+              />
+            )}
+          </label>
+        </div>
+
+        {/* Editable name */}
+        <input
+          value={editName}
+          onChange={e => setEditName(e.target.value)}
+          onBlur={handleNameBlur}
+          onKeyDown={handleNameKey}
+          readOnly={!canEdit}
+          style={{
+            flex: 1, fontSize: 16, fontWeight: 800, color: '#fff',
+            fontFamily: 'var(--font-display)',
+            background: 'transparent', border: 'none', outline: 'none',
+            borderBottom: canEdit ? '1px solid rgba(255,255,255,0.1)' : 'none',
+            padding: '2px 0',
+          }}
+        />
+
+        <button onClick={onClose} style={{
+          background: 'none', border: 'none', color: 'var(--text-muted)',
+          cursor: 'pointer', fontSize: 18, padding: '4px 8px', flexShrink: 0,
+        }}>
+          ✕
+        </button>
+      </div>
+
+      {/* Color presets */}
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          {PRESET_COLORS.map(c => (
+            <button
+              key={c}
+              onClick={() => setRoomColor(c)}
+              style={{
+                width: 20, height: 20, borderRadius: 6, background: c,
+                border: roomColor === c ? '2px solid #fff' : '1px solid rgba(255,255,255,0.15)',
+                cursor: 'pointer', padding: 0,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Section: Room Details */}
+      <div style={s.section}>
+        <h4 style={s.sectionTitle}>Room Details</h4>
+
+        <div style={s.field}>
+          <label style={s.label}>Type</label>
+          {canEdit ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ROOM_TYPES.map(rt => (
+                <button
+                  key={rt.value}
+                  onClick={() => setRoomType(rt.value)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                    border: roomType === rt.value ? `1.5px solid ${brandColor}` : '1px solid rgba(255,255,255,0.1)',
+                    background: roomType === rt.value ? `${brandColor}20` : 'transparent',
+                    color: roomType === rt.value ? '#fff' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {rt.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span style={{ fontSize: 13, color: '#fff' }}>
+              {ROOM_TYPES.find(rt => rt.value === roomType)?.label ?? roomType}
+            </span>
+          )}
+        </div>
+
+        <div style={s.field}>
+          <label style={s.label}>Floor</label>
+          <span style={{ fontSize: 13, color: '#fff' }}>Floor {block.floor}</span>
+        </div>
+
+        <div style={s.field}>
+          <label style={s.label}>Dimensions</label>
+          <span style={{ fontSize: 13, color: '#fff' }}>{block.w} × {block.h} cells</span>
+        </div>
+
+        <div style={s.field}>
+          <label style={s.label}>Notes</label>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            readOnly={!canEdit}
+            placeholder={canEdit ? 'Internal notes about this room…' : ''}
+            rows={3}
+            style={{
+              width: '100%', fontSize: 12, color: '#c0c0d8',
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: 8, resize: 'vertical', outline: 'none',
+              fontFamily: 'inherit',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Section: Inventory */}
+      <div style={s.section}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h4 style={s.sectionTitle}>Inventory</h4>
+          {canEdit && (
+            <button onClick={() => setShowAddItem(true)} style={{
+              fontSize: 11, fontWeight: 700, color: brandColor,
+              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
+            }}>
+              + Add Item
+            </button>
+          )}
+        </div>
+
+        {(room.inventory?.length ?? 0) === 0 && !showAddItem && (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>No inventory items</p>
+        )}
+
+        {room.inventory?.map(item => (
+          <InventoryRow key={item.id} item={item} canEdit={canEdit} brandColor={brandColor} />
+        ))}
+
+        {showAddItem && (
+          <AddItemForm
+            roomId={room.id}
+            brandColor={brandColor}
+            onDone={() => { setShowAddItem(false); qc.invalidateQueries({ queryKey: ['rooms'] }) }}
+            onCancel={() => setShowAddItem(false)}
+          />
+        )}
+      </div>
+
+      {/* Footer */}
+      {canEdit && (
+        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button className="btn-primary" onClick={handleSaveRoom} disabled={savingRoom} style={{ fontSize: 13, width: '100%' }}>
+            {savingRoom ? 'Saving…' : 'Save Changes'}
+          </button>
+          {!confirmDelete ? (
+            <button onClick={() => setConfirmDelete(true)} style={{
+              background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer',
+              fontSize: 12, padding: '6px 0', textAlign: 'center',
+            }}>
+              Delete Room
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button onClick={() => onDelete(room.id)} style={{
+                background: 'rgba(239,68,68,0.15)', border: '1px solid #EF4444',
+                color: '#EF4444', borderRadius: 8, padding: '6px 16px', fontSize: 12,
+                cursor: 'pointer', fontWeight: 700,
+              }}>
+                Confirm Delete
+              </button>
+              <button onClick={() => setConfirmDelete(false)} className="btn-ghost" style={{ fontSize: 12 }}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// INVENTORY ROW
+// ============================================================
+function InventoryRow({ item, canEdit, brandColor }: { item: InventoryItem; canEdit: boolean; brandColor: string }) {
+  const qc = useQueryClient()
+  const [qty, setQty] = useState(item.quantity)
+  const [cond, setCond] = useState(item.condition ?? 'Good')
+
+  useEffect(() => { setQty(item.quantity); setCond(item.condition ?? 'Good') }, [item.quantity, item.condition])
+
+  const saveField = async (field: string, value: any) => {
+    await supabase.from('room_inventory').update({ [field]: value }).eq('id', item.id).eq('tenant_id', TENANT_ID)
+    qc.invalidateQueries({ queryKey: ['rooms'] })
+  }
+
+  const handleDelete = async () => {
+    await supabase.from('room_inventory').delete().eq('id', item.id).eq('tenant_id', TENANT_ID)
+    qc.invalidateQueries({ queryKey: ['rooms'] })
+  }
+
+  const condColor = cond === 'Good' ? '#22C55E' : cond === 'Fair' ? '#FFB800' : '#EF4444'
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0',
+      borderBottom: '1px solid rgba(255,255,255,0.04)',
+    }}>
+      <span style={{ flex: 1, fontSize: 12, color: '#e0e0f4' }}>{item.item_name}</span>
+
+      {canEdit ? (
+        <input
+          type="number"
+          value={qty}
+          onChange={e => setQty(Number(e.target.value))}
+          onBlur={() => { if (qty !== item.quantity) saveField('quantity', qty) }}
+          min={1}
+          style={{
+            width: 36, fontSize: 11, textAlign: 'center', color: '#fff',
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 6, padding: '2px 4px', outline: 'none',
+          }}
+        />
+      ) : (
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>×{qty}</span>
+      )}
+
+      {canEdit ? (
+        <select
+          value={cond}
+          onChange={e => { setCond(e.target.value); saveField('condition', e.target.value) }}
+          style={{
+            fontSize: 10, fontWeight: 700, color: condColor,
+            background: `${condColor}15`, border: `1px solid ${condColor}40`,
+            borderRadius: 6, padding: '2px 6px', outline: 'none', cursor: 'pointer',
+          }}
+        >
+          {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      ) : (
+        <span style={{
+          fontSize: 10, fontWeight: 700, color: condColor,
+          background: `${condColor}15`, borderRadius: 6, padding: '2px 6px',
+        }}>
+          {cond}
+        </span>
+      )}
+
+      {canEdit && (
+        <button onClick={handleDelete} style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+          color: 'rgba(255,255,255,0.25)',
+        }}>
+          <Trash2 size={13} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// ADD ITEM FORM
+// ============================================================
+function AddItemForm({ roomId, brandColor, onDone, onCancel }: {
+  roomId: string; brandColor: string; onDone: () => void; onCancel: () => void
+}) {
+  const [name, setName] = useState('')
+  const [qty, setQty] = useState(1)
+  const [cond, setCond] = useState('Good')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('room_inventory').insert({
+        room_id: roomId,
+        tenant_id: TENANT_ID,
+        item_name: name.trim(),
+        quantity: qty,
+        condition: cond,
+      })
+      if (error) throw error
+      onDone()
+    } catch (err: any) {
+      toast.error(`Add failed: ${err.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 10,
+      border: '1px solid rgba(255,255,255,0.06)', marginTop: 8,
+    }}>
+      <input
+        className="form-input"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        placeholder="Item name"
+        autoFocus
+        style={{ width: '100%', fontSize: 12, marginBottom: 8 }}
+      />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <input
+          type="number"
+          value={qty}
+          onChange={e => setQty(Number(e.target.value))}
+          min={1}
+          style={{
+            width: 50, fontSize: 12, textAlign: 'center', color: '#fff',
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 6, padding: '4px', outline: 'none',
+          }}
+        />
+        <select
+          value={cond}
+          onChange={e => setCond(e.target.value)}
+          className="filter-select"
+          style={{ flex: 1, fontSize: 11 }}
+        >
+          {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button className="btn-ghost" onClick={onCancel} style={{ fontSize: 11 }}>Cancel</button>
+        <button className="btn-primary" onClick={handleSave} disabled={!name.trim() || saving} style={{ fontSize: 11 }}>
+          {saving ? 'Saving…' : 'Add'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// ADD SPACE MODAL
+// ============================================================
 function AddSpaceModal({ onClose, onAdd, isMultiFloor, defaultFloor }: {
   onClose: () => void
   onAdd: (name: string, type: SpaceType, floor: number) => void
@@ -647,4 +1201,25 @@ function AddSpaceModal({ onClose, onAdd, isMultiFloor, defaultFloor }: {
       </div>
     </div>
   )
+}
+
+// ============================================================
+// STYLES
+// ============================================================
+const panelStyles = {
+  section: {
+    marginBottom: 20,
+    paddingTop: 16,
+    borderTop: '1px solid rgba(255,255,255,0.06)',
+  } as React.CSSProperties,
+  sectionTitle: {
+    margin: '0 0 10px', fontSize: 13, fontWeight: 800, color: '#e0e0f4',
+    fontFamily: 'var(--font-display)',
+  } as React.CSSProperties,
+  field: {
+    marginBottom: 12,
+  } as React.CSSProperties,
+  label: {
+    fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600,
+  } as React.CSSProperties,
 }
