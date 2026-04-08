@@ -28,6 +28,8 @@ export interface Location {
   google_review_url: string | null
   hours_json: Record<string, { open: string; close: string }> | null
   is_active: boolean
+  floorplan_cols: number | null
+  floorplan_rows: number | null
 }
 
 export interface Teacher {

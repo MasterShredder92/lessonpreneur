@@ -11,6 +11,7 @@ export interface Room {
   layout_y: number
   layout_w: number
   layout_h: number
+  floor: number
   primary_instruments: string[] | null
   status: string
   notes: string | null
