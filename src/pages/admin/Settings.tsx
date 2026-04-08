@@ -2130,6 +2130,31 @@ function IssueRow({ issue, isOwner }: { issue: any; isOwner: boolean }) {
               {issue.description}
             </div>
 
+            {/* Fix Prompt (pipeline_prompt) */}
+            {issue.pipeline_prompt && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fix Prompt</div>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(issue.pipeline_prompt); toast('Prompt copied', 'success') }}
+                    style={{
+                      padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                      background: 'rgba(255,255,255,0.04)', color: '#8080A8', border: '1px solid rgba(255,255,255,0.08)',
+                      cursor: 'pointer', transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                  >Copy Prompt</button>
+                </div>
+                <pre style={{
+                  width: '100%', maxHeight: 300, overflow: 'auto', padding: '12px 14px',
+                  borderRadius: 10, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)',
+                  color: '#B0B0D0', fontFamily: 'monospace', margin: 0, boxSizing: 'border-box',
+                }}>{issue.pipeline_prompt}</pre>
+              </div>
+            )}
+
             {/* Screenshot */}
             {screenshotUrl && (
               <div style={{ marginBottom: 12 }}>
