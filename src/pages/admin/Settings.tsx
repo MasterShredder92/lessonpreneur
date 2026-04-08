@@ -47,6 +47,7 @@ const VALID_TABS: Tab[] = ['business', 'locations', 'access', 'billing-config', 
 export default function Settings() {
   const { role, tenantId } = useAuthContext()
   const isOwner = role === 'owner'
+  const canManageAccess = role === 'owner' || role === 'admin' || role === 'company_director'
   const [searchParams, setSearchParams] = useSearchParams()
 
   const resolveTab = useCallback((): Tab => {
@@ -80,7 +81,7 @@ export default function Settings() {
       <div className="settings-tabs">
         {!isStudioDirector && <button className={`settings-tab ${tab === 'business' ? 'active' : ''}`} onClick={() => setTab('business')}>Business</button>}
         {!isStudioDirector && <button className={`settings-tab ${tab === 'locations' ? 'active' : ''}`} onClick={() => setTab('locations')}>Locations</button>}
-        {isOwner && (
+        {canManageAccess && (
           <button className={`settings-tab ${tab === 'access' ? 'active' : ''}`} onClick={() => setTab('access')}>Access & Control</button>
         )}
         {isOwner && (
@@ -94,7 +95,7 @@ export default function Settings() {
 
       {tab === 'business' && <BusinessTab tenantId={tenantId} isOwner={isOwner} />}
       {tab === 'locations' && <LocationsConsolidatedTab isOwner={isOwner} tenantId={tenantId} />}
-      {tab === 'access' && isOwner && <AccessControlTab tenantId={tenantId} />}
+      {tab === 'access' && canManageAccess && <AccessControlTab tenantId={tenantId} />}
       {tab === 'billing-config' && isOwner && <BillingConfigTab />}
       {tab === 'issues' && <IssuesTab />}
       {tab === 'account' && <AccountTab />}
@@ -254,14 +255,18 @@ function LocationsConsolidatedTab({ isOwner, tenantId }: { isOwner: boolean; ten
 }
 
 function AccessControlTab({ tenantId }: { tenantId: string | null }) {
+  const { role } = useAuthContext()
+  const isOwner = role === 'owner'
   return (
     <div>
       <CollapsibleSection title="Permissions">
         <PermissionsTab tenantId={tenantId} />
       </CollapsibleSection>
-      <CollapsibleSection title="Master Control">
-        <MasterControlTab />
-      </CollapsibleSection>
+      {isOwner && (
+        <CollapsibleSection title="Master Control">
+          <MasterControlTab />
+        </CollapsibleSection>
+      )}
     </div>
   )
 }
@@ -1203,8 +1208,8 @@ const ROLE_MATRIX = [
   },
   {
     role: 'Company Director', summary: 'Nearly full access. Cannot change system settings or permissions.', color: '#FFB800',
-    pages: [[true,'Dashboard — all locations'],[true,'Schedule — all locations, full control'],[true,'Students — full CRUD, all locations'],[true,'Families — view/edit contact info, change billing status'],[true,'Leads — full access, all locations'],[true,'Teachers — full access, all locations'],[true,'Billing — view and edit, cannot run charges'],[true,'Payroll — edit sessions, director pay, tips; cannot override bonus'],[true,'Retention — all tabs, all locations'],[true,'Integrations — view only'],[true,'Settings — Business, Locations, Issues tabs only'],[false,'Settings — Access & Control (hidden)'],[false,'Settings — Billing Config (hidden)']] as [boolean,string][],
-    actions: [[true,'Create tasks for studio directors'],[true,'Complete and dismiss tasks'],[true,'Report bugs, display issues, data issues'],[false,'Cannot report feature requests'],[false,'Cannot view pipeline prompts'],[false,"Cannot manage issue log (won't fix, duplicate, etc.)"],[false,'Cannot change team roles']] as [boolean,string][],
+    pages: [[true,'Dashboard — all locations'],[true,'Schedule — all locations, full control'],[true,'Students — full CRUD, all locations'],[true,'Families — view/edit contact info, change billing status'],[true,'Leads — full access, all locations'],[true,'Teachers — full access, all locations'],[true,'Billing — view and edit, cannot run charges'],[true,'Payroll — edit sessions, director pay, tips; cannot override bonus'],[true,'Retention — all tabs, all locations'],[true,'Integrations — view only'],[true,'Settings — Business, Locations, Issues, Access & Control tabs'],[false,'Settings — Billing Config (hidden)']] as [boolean,string][],
+    actions: [[true,'Create tasks for studio directors'],[true,'Complete and dismiss tasks'],[true,'Report bugs, display issues, data issues'],[true,'Assign studio director and teacher roles'],[false,'Cannot report feature requests'],[false,'Cannot view pipeline prompts'],[false,"Cannot manage issue log (won't fix, duplicate, etc.)"],[false,'Cannot change owner, admin, or company director roles']] as [boolean,string][],
   },
   {
     role: 'Studio Director', summary: 'Location-scoped access. Sees only their assigned location.', color: '#00A5E8',
@@ -1228,11 +1233,11 @@ const ROLE_LABELS: Record<string, string> = { owner: 'Owner', admin: 'Admin', co
 
 function PermissionsTab({ tenantId }: { tenantId: string | null }) {
   const { role: myRole, profile } = useAuthContext()
-  const isOwnerRole = myRole === 'owner' || myRole === 'admin'
+  const canManageTeam = myRole === 'owner' || myRole === 'admin' || myRole === 'company_director'
   return (
     <div>
       <PermissionMatrix />
-      {isOwnerRole && <TeamMembers tenantId={tenantId} myProfileId={profile?.id} />}
+      {canManageTeam && <TeamMembers tenantId={tenantId} myProfileId={profile?.id} myRole={myRole} />}
     </div>
   )
 }
@@ -1275,7 +1280,7 @@ function PermissionMatrix() {
   )
 }
 
-function TeamMembers({ tenantId, myProfileId }: { tenantId: string | null; myProfileId?: string }) {
+function TeamMembers({ tenantId, myProfileId, myRole }: { tenantId: string | null; myProfileId?: string; myRole?: string }) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
@@ -1316,7 +1321,10 @@ function TeamMembers({ tenantId, myProfileId }: { tenantId: string | null; myPro
     finally { setSaving(false) }
   }
 
-  const availableRoles = ['owner', 'admin', 'company_director', 'studio_director', 'teacher']
+  const isOwnerOrAdmin = myRole === 'owner' || myRole === 'admin'
+  const availableRoles = isOwnerOrAdmin
+    ? ['owner', 'admin', 'company_director', 'studio_director', 'teacher']
+    : ['studio_director', 'teacher']
 
   return (
     <div>
@@ -1335,6 +1343,8 @@ function TeamMembers({ tenantId, myProfileId }: { tenantId: string | null; myPro
           {filtered.map(m => {
             const name = `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || 'Unnamed'
             const isMe = m.id === myProfileId
+            const outranksMe = !isOwnerOrAdmin && ['owner', 'admin', 'company_director'].includes(m.role)
+            const cannotEdit = isMe || outranksMe
             const pillColor = ROLE_PILL_COLORS[m.role] ?? '#8080A8'
             return (
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -1342,10 +1352,10 @@ function TeamMembers({ tenantId, myProfileId }: { tenantId: string | null; myPro
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{name}{isMe && <span style={{ fontSize: 10, color: '#55516E', marginLeft: 6 }}>(you)</span>}</div>
                   <div style={{ fontSize: 11, color: '#55516E' }}>{m.email ?? '—'}</div>
                 </div>
-                <select value={m.role} disabled={isMe} title={isMe ? 'You cannot change your own role' : undefined}
+                <select value={m.role} disabled={cannotEdit} title={isMe ? 'You cannot change your own role' : outranksMe ? 'You cannot change the role of a higher-ranked team member' : undefined}
                   onChange={e => { const nr = e.target.value; if (nr === m.role) return; setConfirmModal({ id: m.id, name, from: m.role, to: nr }); e.target.value = m.role }}
-                  style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: isMe ? 'not-allowed' : 'pointer', background: `${pillColor}18`, color: pillColor, border: `1px solid ${pillColor}30`, outline: 'none', opacity: isMe ? 0.5 : 1 }}>
-                  {availableRoles.map(r => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
+                  style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: cannotEdit ? 'not-allowed' : 'pointer', background: `${pillColor}18`, color: pillColor, border: `1px solid ${pillColor}30`, outline: 'none', opacity: cannotEdit ? 0.5 : 1 }}>
+                  {(availableRoles.includes(m.role) ? availableRoles : [m.role, ...availableRoles]).map(r => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
                 </select>
               </div>
             )
