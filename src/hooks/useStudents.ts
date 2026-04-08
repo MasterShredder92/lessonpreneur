@@ -61,6 +61,7 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
       let query = supabase
         .from('students')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .order('first_name')
         .order('last_name')
 
@@ -83,6 +84,7 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
         ? await supabase
             .from('families')
             .select('id, name, primary_email, primary_phone, primary_contact_name, parent_name, parent_first_name, parent_last_name')
+            .eq('tenant_id', tenantId!)
             .in('id', familyIds)
         : { data: [] }
       const famMap = new Map(families?.map((f: any) => {
@@ -98,6 +100,7 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
         const { data: teachers } = await supabase
           .from('teachers')
           .select('id, first_name, last_name, instruments, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+          .eq('tenant_id', tenantId!)
           .in('id', teacherIds)
         teachers?.forEach((t: any) => {
           teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
@@ -108,7 +111,7 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
       // Get location names
       const locIds = [...new Set(students.map((s: any) => s.location_id).filter(Boolean))]
       const { data: locations } = locIds.length > 0
-        ? await supabase.from('locations').select('id, name').in('id', locIds)
+        ? await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
         : { data: [] }
       const locMap = new Map(locations?.map((l: any) => [l.id, l.name]) ?? [])
 
@@ -121,6 +124,7 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
         ? await supabase
             .from('schedule_blocks')
             .select('student_id, teacher_id, block_date, start_time, location_id')
+            .eq('tenant_id', tenantId!)
             .in('student_id', studentIds)
             .gte('block_date', today)
             .lte('block_date', lookAheadStr)
@@ -172,12 +176,15 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
 }
 
 export function useFamilies() {
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['families'],
+    queryKey: ['families', tenantId],
+    enabled: !!tenantId,
     queryFn: async () => {
       const { data: families, error } = await supabase
         .from('families')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .order('name')
       if (error) throw error
 
@@ -185,6 +192,7 @@ export function useFamilies() {
       const { data: students } = await supabase
         .from('students')
         .select('id, family_id, first_name, last_name, instrument, status')
+        .eq('tenant_id', tenantId!)
         .order('last_name')
 
       const familyStudents = new Map<string, any[]>()
@@ -204,13 +212,15 @@ export function useFamilies() {
 }
 
 export function useFamily(id: string | undefined) {
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['family', id],
-    enabled: !!id,
+    queryKey: ['family', id, tenantId],
+    enabled: !!id && !!tenantId,
     queryFn: async () => {
       const { data: family, error } = await supabase
         .from('families')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .eq('id', id!)
         .single()
       if (error) throw error
@@ -218,6 +228,7 @@ export function useFamily(id: string | undefined) {
       const { data: students } = await supabase
         .from('students')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .eq('family_id', id!)
         .order('status')
         .order('last_name')

@@ -168,6 +168,66 @@ Deno.serve(async (req) => {
     const todayStr = getDateStringInTimezone(tz);
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // ─── FAST PATH: business context mode (system_override) ───
+    // When the client sends system_override, all business data is already
+    // in the prompt. Skip all DB queries and go straight to Claude.
+    if (system_override) {
+      const messages: any[] = [];
+      if (conversation_history && Array.isArray(conversation_history)) {
+        for (const msg of conversation_history.slice(-10)) messages.push({ role: msg.role, content: msg.content });
+      }
+      messages.push({ role: "user", content: question });
+
+      const claudeController = new AbortController();
+      const claudeTimeout = setTimeout(() => claudeController.abort(), 12000);
+      let claudeRes: Response;
+      try {
+        claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          signal: claudeController.signal,
+          headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1024, system: system_override, messages }),
+        });
+      } catch (fetchErr: any) {
+        if (fetchErr.name === "AbortError") {
+          return new Response(JSON.stringify({ answer: "Star took too long — please try again or ask a simpler question." }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        throw fetchErr;
+      } finally {
+        clearTimeout(claudeTimeout);
+      }
+
+      if (!claudeRes.ok) {
+        const errText = await claudeRes.text();
+        return new Response(JSON.stringify({ error: "AI service error — please try again." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const claudeData = await claudeRes.json();
+      let answer = "";
+      for (const block of (claudeData.content ?? [])) {
+        if (block.type === "text") answer += block.text;
+      }
+      if (!answer) answer = "Star had no response — please try rephrasing your question.";
+
+      // Log conversation (non-blocking)
+      const authHeader = req.headers.get("Authorization");
+      if (authHeader) {
+        try {
+          const token = authHeader.replace("Bearer ", "");
+          const profileId = JSON.parse(atob(token.split(".")[1])).sub;
+          if (profileId) {
+            sb.from("ai_conversations").insert([
+              { tenant_id, profile_id: profileId, role: "user", content: question, metadata: { source: "star_business" } },
+              { tenant_id, profile_id: profileId, role: "assistant", content: answer, metadata: { model: "claude-sonnet-4-6", usage: claudeData.usage } },
+            ]).then(() => {});
+          }
+        } catch { /* ok */ }
+      }
+
+      return new Response(JSON.stringify({ answer, usage: claudeData.usage }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── SCHEDULING MODE: full context with tools ───
     // Gather context — only what's needed for scheduling
     const [
       { data: tenant },
@@ -261,6 +321,11 @@ RULES:
 - When a slot is taken, say who's there and list open times.
 - Fuzzy name matching is enabled — "Candice" will match "Kandice", etc. If corrected, note it.
 
+NOT-BOOKABLE BLOCKS:
+- "not_bookable" blocks mark times a teacher is unavailable. They are NOT student lessons.
+- You CANNOT move, cancel, or modify not_bookable blocks with your tools. They are managed in Settings.
+- If asked to move/change a not_bookable block, respond: "Not-bookable blocks are managed in teacher availability settings — I can only move student sessions. Would you like me to help with something else?"
+
 CANCELLATION RULES:
 - Every cancellation MUST include a reason. Pick the best-fit preset: student_sick, teacher_sick, family_emergency, no_show, schedule_conflict, holiday, weather, other.
 - If user says "sick" → student_sick. If user says "teacher is out" → teacher_sick. If vague, use the most likely preset.
@@ -268,8 +333,8 @@ CANCELLATION RULES:
 - If user explicitly says "cancel all", "cancel going forward", "drop the student" → all_future. If they say "just today", "this week only" → this_week.
 - Cancelled blocks flip back to Open so the teacher's time is available.`;
 
-    // Honor system_override — when present, use it instead of the default scheduling prompt
-    const finalSystemPrompt = system_override || systemPrompt;
+    // system_override is handled by the fast path above — this is always scheduling mode
+    const finalSystemPrompt = systemPrompt;
 
     const messages: any[] = [];
     if (conversation_history && Array.isArray(conversation_history)) {
@@ -387,11 +452,24 @@ CANCELLATION RULES:
       },
     ];
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1024, system: finalSystemPrompt, messages, ...(system_override ? {} : { tools, tool_choice: { type: "auto" } }) }),
-    });
+    const claudeController = new AbortController();
+    const claudeTimeout = setTimeout(() => claudeController.abort(), 25000);
+    let claudeRes: Response;
+    try {
+      claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal: claudeController.signal,
+        headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1024, system: finalSystemPrompt, messages, tools, tool_choice: { type: "auto" } }),
+      });
+    } catch (fetchErr: any) {
+      if (fetchErr.name === "AbortError") {
+        return new Response(JSON.stringify({ answer: "I took too long to think about that — please try again or rephrase your question.", error: null }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw fetchErr;
+    } finally {
+      clearTimeout(claudeTimeout);
+    }
 
     if (!claudeRes.ok) {
       const errText = await claudeRes.text();

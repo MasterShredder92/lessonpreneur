@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -68,7 +69,7 @@ export async function generateReviewMessage(params: {
     if (!token) throw new Error('No auth token')
 
     const res = await fetch(
-      'https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/generate-review-message',
+      EDGE_FUNCTIONS.generateReviewMessage,
       {
         method: 'POST',
         headers: {
@@ -88,8 +89,12 @@ export async function generateReviewMessage(params: {
       }
     )
 
+    if (!res.ok) {
+      return { message: buildFallbackMessage(params), fallback: true }
+    }
+
     const data = await res.json()
-    if (data.fallback || data.error) {
+    if (data.fallback || data.error || !data.message) {
       return { message: buildFallbackMessage(params), fallback: true }
     }
     return { message: data.message, fallback: false }

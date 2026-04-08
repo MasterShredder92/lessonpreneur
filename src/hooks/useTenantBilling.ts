@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 export interface TenantBilling {
   plan: string
@@ -56,7 +57,7 @@ export function useCreateCheckout() {
 
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      const res = await fetch('https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/create-checkout', {
+      const res = await fetch(EDGE_FUNCTIONS.createCheckout, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ tenant_id: tenantId, pricing_tier: pricingTier }),
@@ -74,7 +75,7 @@ export function useCustomerPortal() {
     mutationFn: async () => {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      const res = await fetch('https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/customer-portal', {
+      const res = await fetch(EDGE_FUNCTIONS.customerPortal, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ tenant_id: tenantId }),

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { useTeacherRecord } from './useTeacherDashboard'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 export interface SessionNote {
   id: string
@@ -161,7 +162,7 @@ ${params.rawNote}
 Please polish this into a parent-friendly progress update.`
 
   const res = await fetch(
-    'https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-assistant',
+    EDGE_FUNCTIONS.aiAssistant,
     {
       method: 'POST',
       headers: {

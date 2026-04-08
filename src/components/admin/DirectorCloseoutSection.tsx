@@ -44,7 +44,7 @@ export default function DirectorCloseoutSection() {
   const { data: status } = useQuery<DirectorCloseoutStatus>({
     queryKey: ['director-closeout-status', profile?.id, tenantId],
     enabled: isStudioDirector && !!profile?.id && !!tenantId,
-    staleTime: 30_000,
+    staleTime: 60_000,
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
       const nowDate = new Date()

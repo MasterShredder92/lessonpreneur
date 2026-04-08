@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useAuthContext } from '../app/AuthContext'
 
 export interface LeadRow {
   id: string
@@ -48,12 +49,15 @@ export interface LeadRow {
 }
 
 export function useLeads(filters?: { locationId?: string; instrument?: string }) {
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['leads', filters],
+    queryKey: ['leads', tenantId, filters],
+    enabled: !!tenantId,
     queryFn: async () => {
       let query = supabase
         .from('leads')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .order('created_at', { ascending: false })
 
       if (filters?.locationId) query = query.eq('location_id', filters.locationId)
@@ -65,7 +69,7 @@ export function useLeads(filters?: { locationId?: string; instrument?: string })
       const locIds = [...new Set(data.filter((l: any) => l.location_id).map((l: any) => l.location_id))]
       const locMap = new Map<string, string>()
       if (locIds.length > 0) {
-        const { data: locs } = await supabase.from('locations').select('id, name').in('id', locIds)
+        const { data: locs } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
         locs?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
       }
 

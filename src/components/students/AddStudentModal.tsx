@@ -184,13 +184,18 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
     if (!ratePerSession || ratePerSession <= 0) { setError('Rate per session is required.'); return }
     if (!startDate) { setError('Start date is required.'); return }
 
-    // Validate family
-    if (familyMode === 'search' && !selectedFamily) { setError('Please search and select a family, or create a new one.'); return }
+    // Validate family — switch to details tab so user can see family section
+    if (familyMode === 'search' && !selectedFamily) {
+      setActiveTab('details')
+      setError('Please search and select a family, or create a new one.')
+      return
+    }
     if (familyMode === 'create') {
-      if (!parentFirst.trim()) { setError('Parent first name is required.'); return }
-      if (!parentLast.trim()) { setError('Parent last name is required.'); return }
-      if (!email.trim()) { setError('Email is required.'); return }
-      if (!phone.trim()) { setError('Phone is required.'); return }
+      if (!parentFirst.trim() || !parentLast.trim() || !email.trim() || !phone.trim()) {
+        setActiveTab('details')
+        setError('All parent/family fields are required when creating a new family.')
+        return
+      }
     }
 
     setSaving(true)
@@ -678,24 +683,24 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
               </div>
             )}
 
-            {!hasFamilyLink && activeTab === 'details' && (
+            {!hasFamilyLink && (
               <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', marginBottom: 12, fontSize: 11, color: '#D97706' }}>
-                A family must be linked before saving. Search for an existing family or create a new one above.
+                A family must be linked before saving. {activeTab !== 'details' ? 'Switch to Student Details tab to ' : 'S'}earch for an existing family or create a new one{activeTab === 'details' ? ' above' : ''}.
               </div>
             )}
 
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving || !hasFamilyLink}
+              disabled={saving}
               style={{
                 width: '100%', padding: '13px 24px', borderRadius: 12, border: 'none',
-                background: hasFamilyLink && !saving ? 'linear-gradient(135deg, #FFB800, #FF8C00)' : '#2A2844',
-                color: hasFamilyLink && !saving ? '#1A1A2E' : '#606088',
+                background: !saving ? 'linear-gradient(135deg, #FFB800, #FF8C00)' : '#2A2844',
+                color: !saving ? '#1A1A2E' : '#606088',
                 fontSize: 14, fontWeight: 800,
-                cursor: hasFamilyLink && !saving ? 'pointer' : 'not-allowed',
+                cursor: !saving ? 'pointer' : 'not-allowed',
                 opacity: saving ? 0.7 : 1,
-                boxShadow: hasFamilyLink ? '0 4px 16px rgba(255,184,0,0.3)' : 'none',
+                boxShadow: !saving ? '0 4px 16px rgba(255,184,0,0.3)' : 'none',
                 letterSpacing: '-0.01em',
               }}
             >

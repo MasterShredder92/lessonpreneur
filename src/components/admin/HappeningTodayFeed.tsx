@@ -149,7 +149,7 @@ export default function HappeningTodayFeed({ userLocations }: HappeningTodayFeed
         }
       })
     },
-    staleTime: 30_000,
+    staleTime: 60_000,
   })
 
   const acknowledge = useMutation({

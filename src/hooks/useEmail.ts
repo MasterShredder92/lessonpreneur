@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { EDGE_FUNCTIONS } from '../lib/config'
 import type { EmailBrand } from '../lib/emailTemplates'
 
 // ─── Types ───────────────────────────────────────────
@@ -61,7 +62,6 @@ export function useSendEmail() {
     }) => {
       // Don't send in development
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        console.log('[Email] Skipped in dev:', params.subject, '→', params.to)
         return { sent: false, reason: 'dev_environment' }
       }
 
@@ -74,7 +74,7 @@ export function useSendEmail() {
 
       try {
         const res = await fetch(
-          'https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/send-email',
+          EDGE_FUNCTIONS.sendEmail,
           {
             method: 'POST',
             headers: {

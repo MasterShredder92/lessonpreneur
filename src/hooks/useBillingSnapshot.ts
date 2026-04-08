@@ -22,7 +22,7 @@ export interface BillingSnapshotData {
 // ══════════════════════════════════════════
 
 export function useBillingSnapshot(locationId?: string) {
-  const { tenantId } = useAuthContext()
+  const { tenantId, profile } = useAuthContext()
   const monthStart = getMonthStart()
   const nextMonth = getNextCycleMonth()
   const monthAfterNext = getMonthAfterNext()
@@ -30,8 +30,8 @@ export function useBillingSnapshot(locationId?: string) {
 
   return useQuery<BillingSnapshotData>({
     queryKey: ['billing_snapshot', tenantId, monthStart, locKey],
-    enabled: !!tenantId,
-    staleTime: 0,
+    enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
+    staleTime: 60_000,
     queryFn: async (): Promise<BillingSnapshotData> => {
 
       // 1. Collected: PAID invoices, current month by invoice_date

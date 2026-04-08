@@ -10,7 +10,8 @@ import { useBillingSnapshot } from '../../hooks/useBillingSnapshot'
 import { useUserLocations } from '../../hooks/useUserLocations'
 import { useLocations } from '../../hooks/useLocations'
 import { supabase } from '../../lib/supabase'
-import { Star, Video } from 'lucide-react'
+import { Star, Video, FileWarning } from 'lucide-react'
+import { useFamilyFilesStats } from '../../hooks/useFamilyFiles'
 import TaskCenter from '../../components/tasks/TaskCenter'
 import WhatsImportantNow from '../../components/admin/WhatsImportantNow'
 import HappeningTodayFeed from '../../components/admin/HappeningTodayFeed'
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const { data, isLoading } = useDashboard(userLocations)
   const navigate = useNavigate()
   const { data: heroStats } = useBillingHeroStats()
+  const { data: agreementStats } = useFamilyFilesStats()
 
   // Billing snapshot data — role-scoped
   const directorLocationId = isStudioDirector ? (allowedLocationIds?.[0] ?? undefined) : undefined
@@ -339,6 +341,39 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Missing Enrollment Agreements Warning */}
+      {agreementStats && agreementStats.familiesMissingAgreement > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div
+            onClick={() => navigate('/admin/families?agreement=missing')}
+            style={{
+              padding: '16px 20px', borderRadius: 14, cursor: 'pointer',
+              background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.15)',
+              display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+              transition: 'border-color 200ms',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(255,184,0,0.35)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,184,0,0.15)')}
+          >
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: 'rgba(255,184,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <FileWarning size={20} style={{ color: '#FFB800' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#FFB800' }}>Missing Enrollment Agreements</div>
+              <div style={{ fontSize: 11, color: '#8080A8', marginTop: 2 }}>
+                {agreementStats.familiesMissingAgreement} of {agreementStats.totalFamilies} active families
+              </div>
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: '#FFB800', flexShrink: 0 }}>
+              {agreementStats.familiesMissingAgreement}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Virtual sessions summary — last month */}
       {virtualSummary && (

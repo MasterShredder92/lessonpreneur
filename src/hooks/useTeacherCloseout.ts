@@ -29,7 +29,7 @@ export function useTeacherCloseoutStatus() {
   return useQuery<CloseoutStatus>({
     queryKey: ['teacher-closeout-status', teacherId, today],
     enabled: !!teacherId && !!tenantId,
-    staleTime: 30_000,
+    staleTime: 60_000,
     queryFn: async () => {
       const empty: CloseoutStatus = {
         teacherId: teacherId ?? null,

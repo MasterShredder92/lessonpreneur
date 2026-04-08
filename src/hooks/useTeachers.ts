@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Teacher, TeacherAvailability, Student } from '../lib/types'
 import { usePermissions } from './usePermissions'
+import { useAuthContext } from '../app/AuthContext'
 
 // Columns that studio directors must never see
 const COMPENSATION_FIELDS = ['pay_rate_per_half_hour', 'rate_per_block', 'needs_1099'] as const
@@ -16,8 +17,10 @@ function stripCompensation(teacher: any): any {
 
 export function useTeachers() {
   const { canViewTeacherCompensation, canViewTeacherDocuments } = usePermissions()
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['teachers', canViewTeacherCompensation],
+    queryKey: ['teachers', tenantId, canViewTeacherCompensation],
+    enabled: !!tenantId,
     queryFn: async () => {
       const { data: teachers, error } = await supabase
         .from('teachers')
@@ -25,6 +28,7 @@ export function useTeachers() {
           *,
           profile:profiles!teachers_profile_id_fkey(id, first_name, last_name, email, phone, is_active)
         `)
+        .eq('tenant_id', tenantId!)
         .order('first_name')
         .order('last_name')
 
@@ -34,6 +38,7 @@ export function useTeachers() {
       const { data: locations } = await supabase
         .from('locations')
         .select('id, name')
+        .eq('tenant_id', tenantId!)
 
       const locMap = new Map(locations?.map((l) => [l.id, l.name]) ?? [])
 
@@ -41,6 +46,7 @@ export function useTeachers() {
       const { data: students } = await supabase
         .from('students')
         .select('teacher_id')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'active')
 
       const studentCounts = new Map<string, number>()
@@ -63,6 +69,7 @@ export function useTeachers() {
       const { data: blocks } = await supabase
         .from('schedule_blocks')
         .select('teacher_id')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'booked')
         .not('student_id', 'is', null)
         .gte('block_date', mondayStr)
@@ -78,11 +85,13 @@ export function useTeachers() {
       const { data: teacherLocs } = await supabase
         .from('teacher_locations')
         .select('teacher_id, location_id')
+        .eq('tenant_id', tenantId!)
         .in('teacher_id', teacherIds)
 
       const { data: availLocs } = await supabase
         .from('teacher_availability')
         .select('teacher_id, location_id')
+        .eq('tenant_id', tenantId!)
         .in('teacher_id', teacherIds)
         .eq('is_active', true)
 

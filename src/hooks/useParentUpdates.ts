@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -116,7 +117,7 @@ export function useGenerateParentUpdate() {
       if (!token) throw new Error('No auth token')
 
       const res = await fetch(
-        'https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-assistant',
+        EDGE_FUNCTIONS.aiAssistant,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -200,7 +201,7 @@ Rules:
           progressIndicator: log.progress_indicator,
         })
         // Queue email send (will no-op in dev)
-        fetch('https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/send-email', {
+        fetch(EDGE_FUNCTIONS.sendEmail, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
           body: JSON.stringify({ to: family.primary_email, subject: email.subject, html: email.html, from_name: emailBrand.studioName, tenant_id: tenantId }),

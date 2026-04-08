@@ -303,7 +303,7 @@ export function useCreateIssue() {
           record_id: issue.id,
           new_value: { title: params.title, page: params.page, section: params.section, category: params.category, severity: params.severity },
           performed_by: profile.id,
-        }).then(() => {}).catch(() => {})
+        }).then(() => {}).catch((err: any) => console.error('[audit_log] insert failed:', err))
 
         return issue
       } catch (err) {
@@ -354,7 +354,7 @@ export function useUpdateIssue() {
         record_id: id,
         new_value: updates,
         performed_by: profile.id,
-      }).then(() => {}).catch(() => {})
+      }).then(() => {}).catch((err: any) => console.error('[audit_log] insert failed:', err))
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['issues'] })

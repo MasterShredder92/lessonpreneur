@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { EDGE_FUNCTIONS } from '../../lib/config'
 import { Star, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────
@@ -78,7 +79,7 @@ export default function WhatsImportantNow({ data, heroStats }: Props) {
       ].filter(Boolean).join('\n')
 
       const res = await fetch(
-        'https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-assistant',
+        EDGE_FUNCTIONS.aiAssistant,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

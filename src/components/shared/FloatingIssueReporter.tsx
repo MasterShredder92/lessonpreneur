@@ -28,10 +28,10 @@ const PAGE_MAP: Record<string, string> = {
 }
 
 const CATEGORIES = [
-  { value: 'bug', label: 'Bug' },
-  { value: 'feature', label: 'Feature Request' },
-  { value: 'ui', label: 'UI / Design' },
-  { value: 'other', label: 'Other' },
+  { value: 'bug', label: "Something's not working" },
+  { value: 'display', label: "Doesn't look right" },
+  { value: 'data', label: 'Wrong or missing info' },
+  { value: 'feature', label: 'Feature idea' },
 ]
 
 export default function FloatingIssueReporter() {
@@ -207,7 +207,7 @@ export default function FloatingIssueReporter() {
             {/* Form */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>Category</label>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>What kind of issue?</label>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {CATEGORIES.map(c => (
                     <button
@@ -233,12 +233,12 @@ export default function FloatingIssueReporter() {
               </div>
 
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>Title *</label>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>What's going on? *</label>
                 <input
                   type="text"
                   value={title}
                   onChange={e => { setTitle(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
-                  placeholder="Brief summary of the issue"
+                  placeholder="Brief summary of what's wrong"
                   style={{
                     width: '100%',
                     padding: '10px 12px',
@@ -255,7 +255,7 @@ export default function FloatingIssueReporter() {
               </div>
 
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>Section (optional)</label>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>Where on the page? (optional)</label>
                 <input
                   type="text"
                   value={section}
@@ -281,8 +281,9 @@ export default function FloatingIssueReporter() {
                 <textarea
                   value={description}
                   onChange={e => { setDescription(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
-                  placeholder="What happened? What did you expect?"
-                  rows={4}
+                  placeholder="What happened? What did you expect? The more detail you provide, the faster we can fix it."
+                  maxLength={1500}
+                  rows={6}
                   style={{
                     width: '100%',
                     padding: '10px 12px',
@@ -297,6 +298,7 @@ export default function FloatingIssueReporter() {
                     boxSizing: 'border-box',
                   }}
                 />
+                <div style={{ fontSize: 10, color: (1500 - description.length) < 100 ? '#D4226A' : '#606088', marginTop: 3, textAlign: 'right' }}>{1500 - description.length} characters remaining</div>
               </div>
 
               {/* Duplicate Warning */}

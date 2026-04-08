@@ -27,6 +27,10 @@ export function useOverrideFamilyRate() {
   const { user } = useAuthContext()
   return useMutation({
     mutationFn: async (params: { familyId: string; rateTier: number; reason: string }) => {
+      const VALID_RATE_TIERS = [4500, 4000, 3750]
+      if (!VALID_RATE_TIERS.includes(params.rateTier)) {
+        throw new Error(`Invalid rate tier: ${params.rateTier}. Must be one of: ${VALID_RATE_TIERS.join(', ')}`)
+      }
       const { error } = await supabase
         .from('families')
         .update({

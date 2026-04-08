@@ -202,8 +202,8 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
             value={description}
             onChange={e => { setDescription(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
             placeholder="Describe the issue..."
-            maxLength={500}
-            rows={4}
+            maxLength={1500}
+            rows={6}
             style={{
               width: '100%', fontSize: 13, padding: '10px 12px', borderRadius: 10,
               background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
@@ -211,7 +211,7 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
               lineHeight: 1.5, boxSizing: 'border-box',
             }}
           />
-          <div style={{ fontSize: 10, color: '#55516E', marginTop: 3, textAlign: 'right' }}>{500 - description.length}</div>
+          <div style={{ fontSize: 10, color: (1500 - description.length) < 100 ? '#D4226A' : '#55516E', marginTop: 3, textAlign: 'right' }}>{1500 - description.length} characters remaining</div>
         </div>
 
         {/* Screenshot */}

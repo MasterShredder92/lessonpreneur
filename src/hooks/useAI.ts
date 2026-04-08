@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -59,42 +60,65 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData.session?.access_token
+      if (!token) {
+        setError('Not authenticated')
+        setMessages((prev) => [...prev, { role: 'assistant', content: 'You need to be signed in to use Star. Please refresh the page.' }])
+        return
+      }
       const ctx = contextRef.current
 
-      const res = await fetch(
-        `https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-assistant`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            question: question.trim(),
-            tenant_id: tenantId,
-            conversation_history: messagesRef.current.slice(-10),
-            schedule_context: ctx ?? undefined,
-            business_context: bizContextRef.current ?? undefined,
-            timezone: ctx?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-            system_override: bizContextRef.current ? `You are Star, the AI business assistant for Lessonpreneur — an operating system for music schools. You help owners and administrators understand and manage their business using real-time data. Be direct, specific, and actionable. Always reference real numbers and names from the data provided. If you don't have enough data, say so clearly. Never make up numbers. Keep responses concise — 2-4 sentences for simple questions, more for complex analysis. Sessions are always 30-minute increments. Here is the current business data:\n\n${bizContextRef.current}` : undefined,
-          }),
-        }
-      )
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15000)
 
-      const data = await res.json()
+      let res: Response
+      try {
+        res = await fetch(
+          EDGE_FUNCTIONS.aiAssistant,
+          {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              question: question.trim(),
+              tenant_id: tenantId,
+              conversation_history: messagesRef.current.slice(-10),
+              schedule_context: ctx ?? undefined,
+              business_context: bizContextRef.current ?? undefined,
+              timezone: ctx?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+              system_override: bizContextRef.current || undefined,
+            }),
+          }
+        )
+      } finally {
+        clearTimeout(timeout)
+      }
+
+      let data: any
+      try {
+        data = await res.json()
+      } catch {
+        setError('Invalid response from Star')
+        setMessages((prev) => [...prev, { role: 'assistant', content: 'Star received an invalid response from the server. Please try again.' }])
+        return
+      }
 
       if (data.error) {
         setError(data.error)
         setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: ' + data.error }])
       } else {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.answer }])
+        setMessages((prev) => [...prev, { role: 'assistant', content: data.answer || 'Star had no response — please try rephrasing your question.' }])
         if (data.proposed_action) {
           setPendingAction(data.proposed_action)
         }
       }
     } catch (err: any) {
-      setError(err.message)
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Failed to reach AI assistant.' }])
+      const isTimeout = err.name === 'AbortError'
+      const msg = isTimeout ? 'Star took too long to respond — try a simpler question or try again.' : 'Failed to reach Star. Check your connection and try again.'
+      setError(isTimeout ? 'timeout' : err.message)
+      setMessages((prev) => [...prev, { role: 'assistant', content: msg }])
     } finally {
       setIsLoading(false)
     }
@@ -107,21 +131,30 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData.session?.access_token
 
-      const res = await fetch(
-        `https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-schedule-action`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            action: pendingAction.action,
-            tenant_id: tenantId,
-            params: pendingAction.params,
-          }),
-        }
-      )
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30000)
+
+      let res: Response
+      try {
+        res = await fetch(
+          EDGE_FUNCTIONS.aiScheduleAction,
+          {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              action: pendingAction.action,
+              tenant_id: tenantId,
+              params: pendingAction.params,
+            }),
+          }
+        )
+      } finally {
+        clearTimeout(timeout)
+      }
 
       const data = await res.json()
       if (data.error) {

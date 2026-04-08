@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -38,7 +39,7 @@ export function useCampaignStats() {
   return useQuery<CampaignStats>({
     queryKey: ['campaign-stats', tenantId],
     enabled: !!tenantId,
-    staleTime: 30_000,
+    staleTime: 60_000,
     queryFn: async () => {
       const { data } = await supabase
         .from('retention_campaigns')
@@ -201,7 +202,7 @@ export function useGenerateWave1() {
 
             // Call AI
             const res = await fetch(
-              'https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-assistant',
+              EDGE_FUNCTIONS.aiAssistant,
               {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -346,7 +347,7 @@ export function useGenerateWinBack() {
         3: `Write an "it's not too late" message for ${student.first_name}'s family. They've been away ${daysPaused} days. They were studying ${student.instrument ?? 'music'} and were working on ${lastTopics.join(', ') || 'building their skills'}. Encourage a fresh start. Mention that their progress isn't lost — they can pick up right where they left off. 2-3 sentences, encouraging and genuine.`,
       }
 
-      const res = await fetch('https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-assistant', {
+      const res = await fetch(EDGE_FUNCTIONS.aiAssistant, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({

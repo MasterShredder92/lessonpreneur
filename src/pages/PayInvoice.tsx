@@ -258,16 +258,30 @@ export default function PayInvoice() {
     init()
   }, [invoice, paid])
 
-  // Handle payment
+  // Handle payment — all Square API calls go through edge function
   async function handlePay() {
     if (!cardInstanceRef.current || !invoice) return
     setPaying(true)
     setPayError(null)
 
-    const sqHeaders = {
-      'Authorization': `Bearer ${import.meta.env.VITE_SQUARE_ACCESS_TOKEN}`,
-      'Content-Type': 'application/json',
-      'Square-Version': '2025-01-23',
+    const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/square-proxy`
+
+    async function proxyCall(action: string, payload: Record<string, unknown>) {
+      const { data: { session } } = await anonClient.auth.getSession()
+      const token = session?.access_token ?? ''
+      const res = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action, ...payload }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(data?.errors?.[0]?.detail ?? data?.error ?? 'Request failed')
+      }
+      return data
     }
 
     try {
@@ -281,18 +295,11 @@ export default function PayInvoice() {
       let sourceId = result.token
 
       if (saveCard) {
-        const cardRes = await fetch('/square-api/v2/cards', {
-          method: 'POST',
-          headers: sqHeaders,
-          body: JSON.stringify({
-            idempotency_key: crypto.randomUUID(),
+        try {
+          const cardData = await proxyCall('create-card', {
             source_id: result.token,
-            card: { reference_id: invoice.family.id },
-          }),
-        })
-
-        if (cardRes.ok) {
-          const cardData = await cardRes.json()
+            reference_id: invoice.family.id,
+          })
           const savedCard = cardData.card
           if (savedCard?.id) {
             sourceId = savedCard.id
@@ -304,27 +311,17 @@ export default function PayInvoice() {
               card_exp_year: savedCard.exp_year ?? null,
             }).eq('id', invoice.family.id)
           }
+        } catch {
+          // Card save failed — still proceed with one-time payment using nonce
         }
       }
 
-      const payRes = await fetch('/square-api/v2/payments', {
-        method: 'POST',
-        headers: sqHeaders,
-        body: JSON.stringify({
-          source_id: sourceId,
-          idempotency_key: crypto.randomUUID(),
-          amount_money: { amount: invoice.amount_cents, currency: 'USD' },
-          reference_id: invoice.token,
-          note: `${invoice.family.name} — ${invoice.billing_period_label ?? 'Music Sessions'}`,
-        }),
+      const payData = await proxyCall('create-payment', {
+        source_id: sourceId,
+        amount_cents: invoice.amount_cents,
+        reference_id: invoice.token,
+        note: `${invoice.family.name} — ${invoice.billing_period_label ?? 'Music Sessions'}`,
       })
-
-      if (!payRes.ok) {
-        const err = await payRes.json().catch(() => null)
-        throw new Error(err?.errors?.[0]?.detail ?? 'Payment failed')
-      }
-
-      const payData = await payRes.json()
 
       await anonClient
         .from('invoice_tokens')

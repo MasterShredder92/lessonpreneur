@@ -190,17 +190,17 @@ export default function StudioDirectorIssueButton({ variant = 'sidebar', onClose
               <textarea
                 data-tour-id="issue-description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 500))}
-                placeholder="Describe what's happening..."
-                rows={4}
-                maxLength={500}
+                onChange={(e) => setDescription(e.target.value.slice(0, 1500))}
+                placeholder="Describe what's happening — the more detail, the faster we can fix it..."
+                rows={6}
+                maxLength={1500}
                 style={{
                   width: '100%', padding: 10, fontSize: 13, fontFamily: 'inherit',
                   background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: 8, color: '#E0E0F4', outline: 'none', boxSizing: 'border-box', resize: 'vertical',
                 }}
               />
-              <div style={{ fontSize: 10, color: '#606088', marginTop: 4, textAlign: 'right' }}>{description.length}/500</div>
+              <div style={{ fontSize: 10, color: (1500 - description.length) < 100 ? '#D4226A' : '#606088', marginTop: 4, textAlign: 'right' }}>{1500 - description.length} characters remaining</div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

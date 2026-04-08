@@ -85,6 +85,7 @@ export function useManualPayFamilies() {
       const { data: students } = await supabase
         .from('students')
         .select('family_id')
+        .eq('tenant_id', tenantId!)
         .in('family_id', familyIds)
         .eq('status', 'active')
 
@@ -112,7 +113,7 @@ export function useManualPayFamilies() {
       const locIds = [...new Set(families.map(f => f.primary_location_id).filter(Boolean))]
       const locMap = new Map<string, string>()
       if (locIds.length > 0) {
-        const { data: locs } = await supabase.from('locations').select('id, name').in('id', locIds)
+        const { data: locs } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
         locs?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
       }
 

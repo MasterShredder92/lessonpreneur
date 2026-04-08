@@ -7,6 +7,7 @@ import { useLocations } from '../../hooks/useLocations'
 import { useTeachers } from '../../hooks/useTeachers'
 import { useScheduleGrid, useAssignStudent, useUnassignBlock, useChangeBlockType, useStudentsForAssignment, type GridBlock, type BlockType } from '../../hooks/useScheduleGrid'
 import { useRooms } from '../../hooks/useRooms'
+import { useTeacherRoomAssignmentsForDay, useSetTeacherRoomAssignment, useRemoveTeacherRoomAssignment } from '../../hooks/useTeacherRoomAssignments'
 import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import SeriesControlModal from '../../components/scheduling/SeriesControlModal'
@@ -161,6 +162,12 @@ export default function Schedule() {
   const { data: allStudents } = useStudentsForAssignment()
   const { data: rooms } = useRooms(effectiveLocation || undefined)
 
+  // Teacher daily room assignments
+  const { data: dailyRoomMap = {} } = useTeacherRoomAssignmentsForDay(effectiveLocation || undefined, selectedDate || undefined)
+  const setTeacherRoom = useSetTeacherRoomAssignment()
+  const removeTeacherRoom = useRemoveTeacherRoomAssignment()
+  const [roomPopoverTeacher, setRoomPopoverTeacher] = useState<string | null>(null)
+
   // Build schedule context for Star AI — gives it full awareness of current view
   const activeLocationName = locations?.find((l: any) => l.id === effectiveLocation)?.name?.replace(' Music Lessons', '') ?? ''
   const starContext: ScheduleContext | null = useMemo(() => {
@@ -192,12 +199,34 @@ export default function Schedule() {
   const starEndRef = useRef<HTMLDivElement>(null)
   const gridWrapperRef = useRef<HTMLDivElement>(null)
   const [, forceUpdate] = useState(0)
-  // Re-render once after grid mounts so time indicator can measure DOM, then every minute
+  // Re-render once after grid mounts so time indicator can measure DOM
   useEffect(() => {
     const t1 = setTimeout(() => forceUpdate(n => n + 1), 100)
-    const t2 = setInterval(() => forceUpdate(n => n + 1), 60000)
-    return () => { clearTimeout(t1); clearInterval(t2) }
+    return () => { clearTimeout(t1) }
   }, [selectedDate, effectiveLocation])
+  // Close room popover on outside click — uses ref to avoid leaked listeners
+  const popoverListenerRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    // Clean up any previous listener
+    if (popoverListenerRef.current) {
+      document.removeEventListener('click', popoverListenerRef.current)
+      popoverListenerRef.current = null
+    }
+    if (!roomPopoverTeacher) return
+    const handler = () => setRoomPopoverTeacher(null)
+    popoverListenerRef.current = handler
+    // Delay add so the opening click doesn't immediately close
+    const t = setTimeout(() => {
+      if (popoverListenerRef.current === handler) {
+        document.addEventListener('click', handler)
+      }
+    }, 10)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('click', handler)
+      if (popoverListenerRef.current === handler) popoverListenerRef.current = null
+    }
+  }, [roomPopoverTeacher])
   // Auto-scroll to current time indicator on mount/navigation
   const hasAutoScrolled = useRef(false)
   useEffect(() => { hasAutoScrolled.current = false }, [selectedDate, effectiveLocation])
@@ -216,7 +245,7 @@ export default function Schedule() {
     const targetScroll = Math.max(0, progress * scrollWidth - clientWidth / 2)
     gridWrapperRef.current.scrollTo({ left: targetScroll, behavior: 'smooth' })
     hasAutoScrolled.current = true
-  })
+  }, [selectedDate, timeSlots])
   useEffect(() => { starEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [starMessages])
   const assignStudent = useAssignStudent()
   const unassignBlock = useUnassignBlock()
@@ -392,15 +421,18 @@ export default function Schedule() {
 
   const handleAssign = async () => {
     if (!assignModal || !selectedStudentId) return
-    // If room selected, check for conflict then update
-    if (assignRoom) {
-      const room = rooms?.find((r: any) => r.id === assignRoom)
+    // Resolve effective room: explicit selection > daily teacher assignment > none
+    const teacherDailyRoomId = dailyRoomMap?.[assignModal.teacher_id]?.roomId ?? ''
+    const effectiveRoomId = assignRoom || teacherDailyRoomId
+    // If room selected (explicit or from daily default), check for conflict then update
+    if (effectiveRoomId) {
+      const room = rooms?.find((r: any) => r.id === effectiveRoomId)
       const { data: conflict } = await supabase
         .from('schedule_blocks')
         .select('id')
         .eq('block_date', assignModal.block_date)
         .eq('start_time', assignModal.start_time)
-        .eq('room_id', assignRoom)
+        .eq('room_id', effectiveRoomId)
         .neq('id', assignModal.block_id)
         .not('student_id', 'is', null)
         .limit(1)
@@ -408,7 +440,7 @@ export default function Schedule() {
         toast(`Room "${room?.name ?? 'selected'}" is already booked at this time. Pick another room.`, 'error')
         return
       }
-      const { error: roomErr } = await supabase.from('schedule_blocks').update({ room_id: assignRoom, room: room?.name ?? null }).eq('id', assignModal.block_id)
+      const { error: roomErr } = await supabase.from('schedule_blocks').update({ room_id: effectiveRoomId, room: room?.name ?? null }).eq('id', assignModal.block_id)
       if (roomErr) { toast('Failed to set room: ' + roomErr.message, 'error'); return }
     }
     try {
@@ -767,8 +799,8 @@ export default function Schedule() {
         <button onClick={() => { setCalloutPreselectedTeacherId(undefined); setShowCalloutWizard(true) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><PhoneOff size={12} /> Call Out</button>
         <button onClick={() => setBulkVirtualOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(0,188,212,0.4)', background: 'rgba(0,188,212,0.1)', color: '#00BCD4', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}><DoorOpen size={12} /> Go Virtual</button>
 
-        {/* Center — date nav + calendar (absolutely centered in the row) */}
-        <div data-guide-id="date-nav" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Center — date nav + calendar */}
+        <div data-guide-id="date-nav" style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', marginRight: 'auto' }}>
           <button onClick={() => navigateDate(-1)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}><ChevronLeft size={16} /></button>
           <button onClick={() => setSelectedDate(toDateString(new Date()))} style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: isToday ? locColor : 'rgba(255,255,255,0.06)', color: isToday ? '#fff' : '#A0A0C8', border: isToday ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>Today</button>
           <button onClick={() => navigateDate(1)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#A0A0C8' }}><ChevronRight size={16} /></button>
@@ -984,11 +1016,11 @@ export default function Schedule() {
             {/* Header Row — Clean teacher names like Square */}
             <div style={{ padding: '16px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' }} />
             {teachers.map((t) => {
-              // Find the most common room for this teacher today
-              const teacherBlocks = blocks.filter(b => b.teacher_id === t.id && b.room)
-              const roomCounts = new Map<string, number>()
-              teacherBlocks.forEach(b => { if (b.room) roomCounts.set(b.room, (roomCounts.get(b.room) ?? 0) + 1) })
-              const teacherRoom = roomCounts.size > 0 ? [...roomCounts.entries()].sort((a, b) => b[1] - a[1])[0][0] : null
+              // Daily room assignment from teacher_room_assignments table
+              const dailyAssignment = dailyRoomMap?.[t.id] ?? null
+              const teacherRoom = dailyAssignment?.roomName ?? null
+              const isPopoverOpen = roomPopoverTeacher === t.id
+              const activeRoomsForHeader = rooms?.filter((r: any) => r.is_active && r.status === 'active') ?? []
               // Sub = teacher does NOT have availability at this location on this day
               const hasAvailToday = teacherAvailability ? teacherAvailability.has(t.id) : true
               const isSub = !hasAvailToday
@@ -1004,11 +1036,23 @@ export default function Schedule() {
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 2 }}>
                     {isSub && <span style={{ fontSize: 8, padding: '1px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.15)', color: '#22C55E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sub</span>}
-                    {teacherRoom && <span style={{ fontSize: 13, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${getLocationColor(effectiveLocation)}25`, color: getLocationColor(effectiveLocation) }}>{abbreviateRoom(teacherRoom)}</span>}
+                    {/* Room badge — shows daily assignment or "+ Assign Room" tap target */}
+                    {teacherRoom ? (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); setRoomPopoverTeacher(isPopoverOpen ? null : t.id) }}
+                        style={{ fontSize: 13, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${getLocationColor(effectiveLocation)}25`, color: getLocationColor(effectiveLocation), cursor: 'pointer' }}
+                        title={`${t.name}'s room today: ${teacherRoom}`}
+                      >{abbreviateRoom(teacherRoom)}</span>
+                    ) : (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); setRoomPopoverTeacher(isPopoverOpen ? null : t.id) }}
+                        style={{ fontSize: 10, color: '#606088', cursor: 'pointer', padding: '1px 4px', borderRadius: 4, border: '1px dashed rgba(96,96,136,0.3)' }}
+                        title={`Assign a room for ${t.name} today`}
+                      >+ Room</span>
+                    )}
                     {isSub && (
                       <button
                         onClick={async () => {
-                          // Remove all blocks for this sub teacher on this date at this location
                           const { error } = await supabase.from('schedule_blocks').delete()
                             .eq('teacher_id', t.id)
                             .eq('block_date', selectedDate)
@@ -1024,6 +1068,70 @@ export default function Schedule() {
                       </button>
                     )}
                   </div>
+                  {/* Room assignment popover */}
+                  {isPopoverOpen && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+                        zIndex: 50, width: 200, padding: 12, borderRadius: 12,
+                        background: 'rgba(18,17,32,0.98)', border: '1px solid rgba(255,255,255,0.1)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.6)', textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Room for Today</div>
+                      {activeRoomsForHeader.map((r: any) => (
+                        <button
+                          key={r.id}
+                          onClick={async () => {
+                            try {
+                              await setTeacherRoom.mutateAsync({
+                                teacherId: t.id,
+                                roomId: r.id,
+                                roomName: r.name,
+                                date: selectedDate,
+                                locationId: effectiveLocation,
+                              })
+                              toast(`${t.name} → ${r.name} for today`, 'success')
+                              setRoomPopoverTeacher(null)
+                            } catch (err: any) {
+                              toast(err.message || 'Failed to assign room', 'error')
+                            }
+                          }}
+                          style={{
+                            display: 'block', width: '100%', padding: '8px 10px', marginBottom: 4,
+                            borderRadius: 8, border: dailyAssignment?.roomId === r.id ? `1px solid ${getLocationColor(effectiveLocation)}` : '1px solid rgba(255,255,255,0.06)',
+                            background: dailyAssignment?.roomId === r.id ? `${getLocationColor(effectiveLocation)}15` : 'rgba(255,255,255,0.03)',
+                            color: '#E0E0F4', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+                          }}
+                        >
+                          {r.name}
+                          {dailyAssignment?.roomId === r.id && <span style={{ float: 'right', color: getLocationColor(effectiveLocation) }}>✓</span>}
+                        </button>
+                      ))}
+                      {dailyAssignment && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await removeTeacherRoom.mutateAsync({ teacherId: t.id, date: selectedDate })
+                              toast(`Room assignment removed for ${t.name}`, 'success')
+                              setRoomPopoverTeacher(null)
+                            } catch (err: any) {
+                              toast(err.message || 'Failed to remove assignment', 'error')
+                            }
+                          }}
+                          style={{
+                            display: 'block', width: '100%', padding: '6px 10px', marginTop: 6,
+                            borderRadius: 8, border: '1px solid rgba(239,68,68,0.15)',
+                            background: 'rgba(239,68,68,0.06)', color: '#EF4444',
+                            fontSize: 11, fontWeight: 600, cursor: 'pointer', textAlign: 'center',
+                          }}
+                        >
+                          Remove Assignment
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -1494,7 +1602,7 @@ export default function Schedule() {
                       setAssignError(null)
                       try {
                         const lockPromise = (async () => {
-                          const { error: lockErr } = await supabase.from('schedule_blocks').update({ block_type: 'not_bookable', notes: `[Locked] ${lockReason.trim()}` }).eq('id', assignModal.block_id)
+                          const { error: lockErr } = await supabase.from('schedule_blocks').update({ block_type: 'not_bookable', notes: `[Locked] ${lockReason.trim()}`, is_recurring: lockRecurring }).eq('id', assignModal.block_id)
                           if (lockErr) throw new Error(lockErr.message)
                           if (lockRecurring) {
                             const dow = new Date(assignModal.block_date + 'T00:00:00').getDay()
@@ -1504,7 +1612,7 @@ export default function Schedule() {
                               .filter((fb: any) => new Date(fb.block_date + 'T00:00:00').getDay() === dow)
                               .map((fb: any) => fb.id)
                             if (sameDayIds.length > 0) {
-                              const { error: recurErr } = await supabase.from('schedule_blocks').update({ block_type: 'not_bookable', notes: `[Locked] ${lockReason.trim()}` }).in('id', sameDayIds)
+                              const { error: recurErr } = await supabase.from('schedule_blocks').update({ block_type: 'not_bookable', notes: `[Locked] ${lockReason.trim()}`, is_recurring: true }).in('id', sameDayIds)
                               if (recurErr) throw new Error(recurErr.message)
                             }
                           }
@@ -1623,18 +1731,32 @@ export default function Schedule() {
                         </select>
                       </div>
 
-                      {/* Room */}
-                      {availableRoomsForAssign.length > 0 && (
-                        <div style={{ marginBottom: 12 }}>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Room</label>
-                          <select value={assignRoom} onChange={(e) => setAssignRoom(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 13, outline: 'none' }}>
-                            <option value="">No room</option>
-                            {availableRoomsForAssign.map((r: any) => (
-                              <option key={r.id} value={r.id} disabled={r.taken}>{r.name}{r.taken ? ' (taken)' : ''}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+                      {/* Room — defaults to teacher's daily assignment if one exists */}
+                      {availableRoomsForAssign.length > 0 && (() => {
+                        const teacherDailyRoom = assignModal ? dailyRoomMap?.[assignModal.teacher_id] : null
+                        const effectiveRoom = assignRoom || (teacherDailyRoom?.roomId ?? '')
+                        return (
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Room</label>
+                            {teacherDailyRoom && !assignRoom && (
+                              <div style={{ fontSize: 11, color: getLocationColor(effectiveLocation), marginBottom: 6, padding: '4px 8px', borderRadius: 6, background: `${getLocationColor(effectiveLocation)}10`, border: `1px solid ${getLocationColor(effectiveLocation)}20` }}>
+                                Defaulting to {assignModal?.teacher_name?.split(' ')[0]}'s room today ({teacherDailyRoom.roomName})
+                              </div>
+                            )}
+                            {!teacherDailyRoom && (
+                              <div style={{ fontSize: 11, color: '#606088', marginBottom: 6, fontStyle: 'italic' }}>
+                                No daily room set — assign one from the column header
+                              </div>
+                            )}
+                            <select value={effectiveRoom} onChange={(e) => setAssignRoom(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 13, outline: 'none' }}>
+                              <option value="">No room</option>
+                              {availableRoomsForAssign.map((r: any) => (
+                                <option key={r.id} value={r.id} disabled={r.taken}>{r.name}{r.taken ? ' (taken)' : ''}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      })()}
 
                       {/* Recurring — default ON, reason required if OFF */}
                       <div style={{ marginBottom: 14 }}>
@@ -1683,15 +1805,17 @@ export default function Schedule() {
                                 performed_by: profile?.id ?? null,
                               })
                             }
-                            if (assignRoom) {
-                              const room = rooms?.find((r: any) => r.id === assignRoom)
+                            const bookTeacherDailyRoomId = dailyRoomMap?.[assignModal.teacher_id]?.roomId ?? ''
+                            const bookEffectiveRoomId = assignRoom || bookTeacherDailyRoomId
+                            if (bookEffectiveRoomId) {
+                              const room = rooms?.find((r: any) => r.id === bookEffectiveRoomId)
                               // Check room conflict
                               const { data: conflict } = await supabase
                                 .from('schedule_blocks')
                                 .select('id, teacher_id')
                                 .eq('block_date', assignModal.block_date)
                                 .eq('start_time', assignModal.start_time)
-                                .eq('room_id', assignRoom)
+                                .eq('room_id', bookEffectiveRoomId)
                                 .neq('id', assignModal.block_id)
                                 .not('student_id', 'is', null)
                                 .limit(1)
@@ -1699,7 +1823,7 @@ export default function Schedule() {
                                 setAssignError(`Room "${room?.name ?? 'selected'}" is already booked at this time. Pick another room.`)
                                 return
                               }
-                              const { error: roomErr } = await supabase.from('schedule_blocks').update({ room_id: assignRoom, room: room?.name ?? null }).eq('id', assignModal.block_id)
+                              const { error: roomErr } = await supabase.from('schedule_blocks').update({ room_id: bookEffectiveRoomId, room: room?.name ?? null }).eq('id', assignModal.block_id)
                               if (roomErr) throw new Error('Failed to set room: ' + roomErr.message)
                             }
                             // Update block type if not default

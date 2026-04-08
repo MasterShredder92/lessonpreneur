@@ -15,7 +15,7 @@ export function useOnboardingMode() {
   const { data } = useQuery({
     queryKey: ['onboarding-mode', tenantId],
     enabled: !!tenantId,
-    staleTime: 30_000,
+    staleTime: 60_000,
     queryFn: async () => {
       // Check if tenant is new (no students, no teachers = fresh account)
       const [{ count: studentCount }, { count: teacherCount }, { data: tenant }] = await Promise.all([

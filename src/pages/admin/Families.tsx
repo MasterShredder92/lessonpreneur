@@ -10,7 +10,7 @@ import { formatRate, getRateTierColor } from '../../hooks/useFamilyRate'
 import { useAI } from '../../hooks/useAI'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
-import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send, Plus } from 'lucide-react'
+import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send, Plus, Download, Check, XCircle, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { useReactivateStudent } from '../../hooks/useRetention'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
@@ -106,12 +106,14 @@ export default function Families() {
   const rateFilter = Number(getParam('rate') || '0')
   const sortBy = (getParam('sort') || 'az') as 'az' | 'za' | 'newest' | 'oldest'
   const showNeedsAttention = getParam('needs_attention') === '1'
+  const agreementFilter = (getParam('agreement') || 'all') as 'all' | 'has' | 'missing'
   const setSearch = (v: string) => setParam('q', v)
   const setFamilyTab = (v: 'active' | 'inactive' | 'all') => setParam('tab', v === 'active' ? '' : v)
   const setLocationFilter = (v: string) => setParam('location', v)
   const setRateFilter = (v: number) => setParam('rate', v === 0 ? '' : String(v))
   const setSortBy = (v: 'az' | 'za' | 'newest' | 'oldest') => setParam('sort', v === 'az' ? '' : v)
   const setShowNeedsAttention = (v: boolean) => setParam('needs_attention', v ? '1' : '')
+  const setAgreementFilter = (v: 'all' | 'has' | 'missing') => setParam('agreement', v === 'all' ? '' : v)
   const initialFamily = searchParams.get('family')
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(initialFamily)
 
@@ -137,6 +139,8 @@ export default function Families() {
       if (locationFilter && f.locationName !== locationFilter) return false
       if (rateFilter && f.rate_tier !== rateFilter) return false
       if (showNeedsAttention && !familyNeedsAttention(f)) return false
+      if (agreementFilter === 'has' && !f.has_enrollment_agreement) return false
+      if (agreementFilter === 'missing' && f.has_enrollment_agreement) return false
       if (search) {
         const q = search.toLowerCase()
         const haystack = `${f.name} ${f.parent_name ?? ''} ${f.primary_contact_name ?? ''} ${f.primary_email ?? ''} ${f.primary_phone ?? ''}`.toLowerCase()
@@ -154,7 +158,7 @@ export default function Families() {
       }
     })
     return list
-  }, [baseList, search, locationFilter, rateFilter, sortBy, showNeedsAttention])
+  }, [baseList, search, locationFilter, rateFilter, sortBy, showNeedsAttention, agreementFilter])
 
   const needsAttentionCount = useMemo(() => baseList.filter(familyNeedsAttention).length, [baseList])
 
@@ -233,6 +237,11 @@ export default function Families() {
           <select value={rateFilter} onChange={e => setRateFilter(Number(e.target.value))} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
             <option value={0}>All Rates</option>
             {RATE_OPTIONS.filter(r => r.value).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
+          <select value={agreementFilter} onChange={e => setAgreementFilter(e.target.value as any)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
+            <option value="all">All Agreements</option>
+            <option value="has">Has Agreement</option>
+            <option value="missing">Missing Agreement</option>
           </select>
         </div>
         <div className="student-filter-row-2" style={{ marginTop: 6 }}>
@@ -414,6 +423,15 @@ function FamilyCard({ family: f, onClick, guideId }: { family: Family; onClick: 
             {f.card_last_four ? `${f.card_brand ?? 'Card'} ····${f.card_last_four}` : 'No Card'}
           </span>
           <PaymentBadge status={f.paymentStatus} overdueAmount={f.overdueAmountDisplay} />
+          {f.has_enrollment_agreement ? (
+            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <Check size={8} /> Agreement
+            </span>
+          ) : (
+            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, background: 'rgba(239,68,68,0.12)', color: '#F87171', border: '1px solid rgba(239,68,68,0.3)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <XCircle size={8} /> No Agreement
+            </span>
+          )}
         </div>
         {/* Row 5: Latest invoice line */}
         {f.latestInvoice && <InvoiceLine invoice={f.latestInvoice} />}
@@ -607,6 +625,7 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   const { isStudioDirector: sdFromPerm } = usePermissions()
   const { data: family, isLoading } = useFamilyDetail(familyId)
   const { data: files } = useFamilyFiles(familyId)
+  const hasEnrollmentAgreement = (files ?? []).some(f => f.file_type === 'enrollment_agreement')
   const updateFamily = useUpdateFamilyInfo()
   const changeBillingStatus = useChangeFamilyBillingStatus()
   const uploadFile = useUploadFamilyFile()
@@ -1268,6 +1287,15 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 })()}
               </div>
 
+              {/* DOCUMENTS — on Account tab for visibility */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 20, paddingTop: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <FileText size={14} style={{ color: '#8080A8' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Documents</span>
+                </div>
+                <DocumentsSection files={files ?? []} hasEnrollmentAgreement={hasEnrollmentAgreement} canUpload={canUpload} onUpload={() => { setUploadType('enrollment_agreement'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />
+              </div>
+
               {/* ACTIVITY LOG */}
               {canEdit && (
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 20, paddingTop: 16 }}>
@@ -1366,19 +1394,8 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   {txt('scheduling_notes', 'Scheduling Notes', 'e.g. No Mondays after 6pm, prefers same teacher for siblings...')}
 
                   <div data-guide-id="family-files-section">
-                  <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Files</div>
-                  <FileSection label="Contract" fileType="contract" files={files ?? []} canUpload={canUpload} onUpload={() => { setUploadType('contract'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />
-                  <FileSection label="Enrollment Form" fileType="enrollment_form" files={files ?? []} canUpload={canUpload} onUpload={() => { setUploadType('enrollment_form'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />
-                  {(files ?? []).filter(f => !['contract', 'enrollment_form'].includes(f.file_type)).map((f) => (
-                    <FileRow key={f.id} file={f} canDelete={canUpload} onDelete={() => setDeleteConfirm(f)} />
-                  ))}
-                  {canUpload && (
-                    <button onClick={() => { setUploadType('other'); setShowUploadModal(true) }} style={{
-                      display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '8px 16px',
-                      borderRadius: 8, background: 'rgba(34,197,94,0.06)', border: '1px dashed rgba(34,197,94,0.2)',
-                      color: '#22C55E', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    }}><Upload size={12} /> Add Document</button>
-                  )}
+                  <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Documents</div>
+                  <DocumentsSection files={files ?? []} hasEnrollmentAgreement={hasEnrollmentAgreement} canUpload={canUpload} onUpload={() => { setUploadType('enrollment_agreement'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />
                   </div>
                 </div>
               </div>
@@ -1409,20 +1426,22 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
       {showUploadModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowUploadModal(false)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#1A1830', borderRadius: 16, padding: 24, width: 400, border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#E0E0F4', marginBottom: 16 }}>Upload {uploadType.replace('_', ' ')}</h3>
-            {uploadType === 'other' && (
-              <div style={{ marginBottom: 12 }}>
-                <span style={labelStyle}>Type</span>
-                <select value={uploadType} onChange={(e) => setUploadType(e.target.value)} className="filter-select" style={{ width: '100%', marginTop: 4 }}>
-                  <option value="id">ID</option><option value="insurance">Insurance</option><option value="other">Other</option>
-                </select>
-              </div>
-            )}
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#E0E0F4', marginBottom: 16 }}>Upload Document</h3>
+            <div style={{ marginBottom: 12 }}>
+              <span style={labelStyle}>Document Type</span>
+              <select value={uploadType} onChange={(e) => setUploadType(e.target.value)} className="filter-select" style={{ width: '100%', marginTop: 4 }}>
+                <option value="enrollment_agreement">Enrollment Agreement</option>
+                <option value="contract">Contract</option>
+                <option value="id">ID</option>
+                <option value="insurance">Insurance</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
             <div style={{ marginBottom: 12 }}>
               <span style={labelStyle}>Notes (optional)</span>
               <input value={uploadNotes} onChange={(e) => setUploadNotes(e.target.value)} className="filter-select" style={{ width: '100%', marginTop: 4 }} placeholder="Optional notes..." />
             </div>
-            <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f) }} />
+            <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f) }} />
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn-ghost" onClick={() => setShowUploadModal(false)}>Cancel</button>
               <button className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploadFile.isPending}>{uploadFile.isPending ? 'Uploading...' : 'Choose File'}</button>
@@ -1470,50 +1489,110 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
 }
 
 // ═══════════════════════════════════════
-// FILE HELPERS
+// DOCUMENTS SECTION (enrollment agreement badge + file list)
 // ═══════════════════════════════════════
 
-function FileSection({ label, fileType, files, canUpload, onUpload, onDelete }: {
-  label: string; fileType: string; files: FamilyFile[]; canUpload: boolean
-  onUpload: () => void; onDelete: (f: FamilyFile) => void
-}) {
-  const match = files.filter(f => f.file_type === fileType)
-  return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={sectionLabelStyle}>{label}</div>
-      {match.length > 0 ? match.map((f) => (
-        <FileRow key={f.id} file={f} canDelete={canUpload} onDelete={() => onDelete(f)} />
-      )) : (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
-          <span style={{ fontSize: 12, color: '#EF4444', opacity: 0.7 }}>Missing</span>
-          {canUpload && (
-            <button onClick={onUpload} style={{ fontSize: 11, fontWeight: 600, color: '#22C55E', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Upload size={11} /> Upload {label}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
+const FILE_TYPE_LABELS: Record<string, string> = {
+  enrollment_agreement: 'Enrollment Agreement',
+  contract: 'Contract',
+  enrollment_form: 'Enrollment Form',
+  id: 'ID',
+  insurance: 'Insurance',
+  other: 'Other',
 }
 
-function FileRow({ file, canDelete, onDelete }: { file: FamilyFile; canDelete: boolean; onDelete: () => void }) {
+const SOURCE_LABELS: Record<string, string> = {
+  migration: 'Migration',
+  manual: 'Manual',
+  signwell: 'SignWell',
+}
+
+function DocumentsSection({ files, hasEnrollmentAgreement, canUpload, onUpload, onDelete }: {
+  files: FamilyFile[]
+  hasEnrollmentAgreement: boolean
+  canUpload: boolean
+  onUpload: () => void
+  onDelete: (f: FamilyFile) => void
+}) {
+  const agreementFile = files.find(f => f.file_type === 'enrollment_agreement')
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)', marginBottom: 6 }}>
-      <FileText size={14} style={{ color: '#8080A8', flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#C0C0E0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.file_name}</div>
-        <div style={{ fontSize: 10, color: '#606088' }}>
-          {file.uploader_name} · {new Date(file.created_at).toLocaleDateString()}
-          {file.notes && <span> · {file.notes}</span>}
+    <div>
+      {/* Enrollment Agreement Status Badge */}
+      {hasEnrollmentAgreement ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, marginBottom: 12,
+          background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)',
+        }}>
+          <ShieldCheck size={16} style={{ color: '#22C55E', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#22C55E' }}>Enrollment Agreement on file</div>
+            {agreementFile && (
+              <div style={{ fontSize: 10, color: '#8080A8', marginTop: 1 }}>
+                Signed {new Date(agreementFile.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-      <a href={file.file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#38BDF8', fontWeight: 600, textDecoration: 'none' }}>View</a>
-      {canDelete && (
-        <button onClick={(e) => { e.stopPropagation(); onDelete() }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#606088', padding: 2 }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')} onMouseLeave={e => (e.currentTarget.style.color = '#606088')}>
-          <Trash2 size={12} />
-        </button>
+      ) : (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, marginBottom: 12,
+          background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)',
+        }}>
+          <AlertTriangle size={16} style={{ color: '#FFB800', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#FFB800' }}>No enrollment agreement on file</div>
+            <div style={{ fontSize: 10, color: '#8080A8', marginTop: 1 }}>Upload one below or collect a signature</div>
+          </div>
+        </div>
+      )}
+
+      {/* File List */}
+      {files.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+          {files.map((f) => (
+            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <FileText size={14} style={{ color: '#8080A8', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#C0C0E0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file_name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#606088', marginTop: 1, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600 }}>{FILE_TYPE_LABELS[f.file_type] ?? f.file_type}</span>
+                  <span>·</span>
+                  <span>{new Date(f.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  {f.source && SOURCE_LABELS[f.source] && (
+                    <>
+                      <span>·</span>
+                      <span style={{
+                        fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#8080A8',
+                      }}>{SOURCE_LABELS[f.source]}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <a href={f.file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: '#38BDF8', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>View</a>
+              <a href={f.file_url} download style={{ fontSize: 10, color: '#8080A8', fontWeight: 600, textDecoration: 'none', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Download size={10} />
+              </a>
+              {canUpload && (
+                <button onClick={(e) => { e.stopPropagation(); onDelete(f) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#606088', padding: 2 }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')} onMouseLeave={e => (e.currentTarget.style.color = '#606088')}>
+                  <Trash2 size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: '#606088', padding: '8px 0', marginBottom: 8 }}>No documents on file</div>
+      )}
+
+      {canUpload && (
+        <button onClick={onUpload} style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', width: '100%',
+          borderRadius: 8, background: 'rgba(34,197,94,0.06)', border: '1px dashed rgba(34,197,94,0.2)',
+          color: '#22C55E', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+        }}><Upload size={12} /> Upload Document</button>
       )}
     </div>
   )
@@ -1920,7 +1999,7 @@ function FamilyMessagesTab({ familyId, locationId, familyPhone }: {
         .limit(500)
       return (data ?? []) as StudioMessageRow[]
     },
-    refetchInterval: 15000,
+    refetchInterval: 60_000,
   })
 
   useEffect(() => {

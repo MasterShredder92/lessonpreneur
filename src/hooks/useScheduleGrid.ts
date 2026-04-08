@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { sendAppointmentNotification, buildBlockContext } from '../lib/appointmentNotifications'
+import { useAuthContext } from '../app/AuthContext'
 
 export type BlockType = 'open_time' | 'student_session' | 'first_day' | 'last_day' | 'not_bookable' | 'sub' | 'call_out' | 'meet_greet' | 'teacher_training' | 'makeup_session'
 
@@ -50,9 +51,10 @@ export interface GridBlock {
 }
 
 export function useScheduleGrid(date: string, locationId: string | null) {
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['schedule-grid', date, locationId],
-    enabled: !!date,
+    queryKey: ['schedule-grid', tenantId, date, locationId],
+    enabled: !!date && !!tenantId,
     queryFn: async () => {
       let query = supabase
         .from('schedule_blocks')
@@ -64,6 +66,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
           is_virtual, meet_link, meet_event_id,
           callout_reason, is_family_callout, callout_id, is_makeup_session, makeup_session_id
         `)
+        .eq('tenant_id', tenantId!)
         .eq('block_date', date)
         .order('start_time')
 
@@ -81,6 +84,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
       const { data: teachers } = await supabase
         .from('teachers')
         .select('id, first_name, last_name, photo_url, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+        .eq('tenant_id', tenantId!)
         .in('id', teacherIds)
 
       const teacherMap = new Map<string, string>()
@@ -98,6 +102,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
         const { data: students } = await supabase
           .from('students')
           .select('id, first_name, last_name, instrument')
+          .eq('tenant_id', tenantId!)
           .in('id', studentIds)
         students?.forEach((s: any) => {
           studentMap.set(s.id, { name: `${s.first_name} ${s.last_name}`, instrument: s.instrument })
@@ -108,7 +113,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
       const roomIds = blocks.filter((b: any) => b.room_id).map((b: any) => b.room_id)
       const roomMap = new Map<string, string>()
       if (roomIds.length > 0) {
-        const { data: rooms } = await supabase.from('rooms').select('id, name').in('id', [...new Set(roomIds)])
+        const { data: rooms } = await supabase.from('rooms').select('id, name').eq('tenant_id', tenantId!).in('id', [...new Set(roomIds)])
         rooms?.forEach((r: any) => roomMap.set(r.id, r.name))
       }
 
@@ -116,7 +121,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
       const locId = locationId || blocks[0]?.location_id
       let locationName = ''
       if (locId) {
-        const { data: loc } = await supabase.from('locations').select('name').eq('id', locId).single()
+        const { data: loc } = await supabase.from('locations').select('name').eq('tenant_id', tenantId!).eq('id', locId).single()
         locationName = loc?.name ?? ''
       }
 
@@ -127,6 +132,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
         const { data: logs } = await supabase
           .from('session_log')
           .select('id, schedule_block_id, worked_on, engagement_level, progress_indicator, teacher_note, parent_update_status')
+          .eq('tenant_id', tenantId!)
           .in('schedule_block_id', blockIds)
         logs?.forEach((l: any) => {
           sessionLogMap.set(l.schedule_block_id, {
@@ -230,6 +236,7 @@ export function useAssignStudent() {
             .eq('teacher_id', block.teacher_id)
             .eq('start_time', block.start_time)
             .eq('status', 'available')
+            .eq('block_type', 'open_time')
             .gt('block_date', block.block_date)
 
           // Filter to same day of week
@@ -303,9 +310,13 @@ export function useChangeBlockType() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ blockId, blockType, runLastDayRevert, runFirstDayLock }: { blockId: string; blockType: BlockType; runLastDayRevert?: boolean; runFirstDayLock?: boolean }) => {
+      const updatePayload: Record<string, any> = { block_type: blockType }
+      // When admin changes a student block to call_out, flag as family callout
+      // so it renders as a student callout (not a teacher-wide lockout)
+      if (blockType === 'call_out') updatePayload.is_family_callout = true
       const { error } = await supabase
         .from('schedule_blocks')
-        .update({ block_type: blockType })
+        .update(updatePayload)
         .eq('id', blockId)
       if (error) throw error
 
@@ -345,13 +356,16 @@ export interface AssignableStudent {
 }
 
 export function useStudentsForAssignment() {
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['students-for-assignment'],
+    queryKey: ['students-for-assignment', tenantId],
+    enabled: !!tenantId,
     queryFn: async () => {
       // Fetch ALL active students across all locations
       const { data: students, error } = await supabase
         .from('students')
         .select('id, first_name, last_name, instrument, location_id, teacher_id, family_id')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'active')
         .order('last_name')
       if (error) throw error
@@ -363,6 +377,7 @@ export function useStudentsForAssignment() {
         const { data: teachers } = await supabase
           .from('teachers')
           .select('id, first_name, last_name, status, is_active, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+          .eq('tenant_id', tenantId!)
           .in('id', teacherIds)
         teachers?.forEach((t: any) => {
           // Filter out inactive teachers from the assignment dropdown
@@ -376,7 +391,7 @@ export function useStudentsForAssignment() {
       const locIds = [...new Set(students.filter((s: any) => s.location_id).map((s: any) => s.location_id))]
       const locMap = new Map<string, string>()
       if (locIds.length > 0) {
-        const { data: locations } = await supabase.from('locations').select('id, name').in('id', locIds)
+        const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
         locations?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
       }
 
@@ -384,7 +399,7 @@ export function useStudentsForAssignment() {
       const famIds = [...new Set(students.filter((s: any) => s.family_id).map((s: any) => s.family_id))]
       const famMap = new Map<string, string>()
       if (famIds.length > 0) {
-        const { data: families } = await supabase.from('families').select('id, name').in('id', famIds)
+        const { data: families } = await supabase.from('families').select('id, name').eq('tenant_id', tenantId!).in('id', famIds)
         families?.forEach((f: any) => famMap.set(f.id, f.name))
       }
 

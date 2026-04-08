@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useAuthContext } from '../app/AuthContext'
 
 export interface DashboardData {
   activeStudents: number
@@ -43,8 +44,10 @@ export interface DashboardData {
  *   null = all locations (owner view). Used for director scoping.
  */
 export function useDashboard(locationIds?: string[] | null) {
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['dashboard', locationIds ?? 'all'],
+    queryKey: ['dashboard', tenantId, locationIds ?? 'all'],
+    enabled: !!tenantId,
     queryFn: async (): Promise<DashboardData> => {
       const now = new Date()
       const today = now.toISOString().split('T')[0]
@@ -66,14 +69,14 @@ export function useDashboard(locationIds?: string[] | null) {
         { data: recentLeads },
         { data: recentStudents },
       ] = await Promise.all([
-        supabase.from('students').select('id, status, location_id'),
-        supabase.from('leads').select('id, stage, parent_name, first_name, updated_at, created_at, instrument'),
-        supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').gte('block_date', mondayStr).lte('block_date', sundayStr),
-        supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('block_date', today),
-        supabase.from('teachers').select('id, is_active, ai_context, profile:profiles!teachers_profile_id_fkey(first_name, last_name)'),
-        supabase.from('locations').select('id, name'),
-        supabase.from('leads').select('first_name, parent_name, instrument, created_at, stage').order('created_at', { ascending: false }).limit(5),
-        supabase.from('students').select('first_name, last_name, instrument, created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('students').select('id, status, location_id').eq('tenant_id', tenantId!),
+        supabase.from('leads').select('id, stage, parent_name, first_name, updated_at, created_at, instrument').eq('tenant_id', tenantId!),
+        supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).gte('block_date', mondayStr).lte('block_date', sundayStr),
+        supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).eq('block_date', today),
+        supabase.from('teachers').select('id, is_active, ai_context, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!),
+        supabase.from('locations').select('id, name').eq('tenant_id', tenantId!),
+        supabase.from('leads').select('first_name, parent_name, instrument, created_at, stage').eq('tenant_id', tenantId!).order('created_at', { ascending: false }).limit(5),
+        supabase.from('students').select('first_name, last_name, instrument, created_at').eq('tenant_id', tenantId!).order('created_at', { ascending: false }).limit(5),
       ])
 
       const locMap = new Map(locations?.map((l: any) => [l.id, l.name?.replace(' Music Lessons', '')]) ?? [])
@@ -124,7 +127,7 @@ export function useDashboard(locationIds?: string[] | null) {
 
       // Teacher location mapping via teacher_locations
       const teacherIds = activeTeachers.map((t: any) => t.id)
-      const { data: profLocs } = await supabase.from('teacher_locations').select('teacher_id, location_id').in('teacher_id', teacherIds)
+      const { data: profLocs } = await supabase.from('teacher_locations').select('teacher_id, location_id').in('teacher_id', teacherIds).eq('tenant_id', tenantId!)
       const teachersByLoc: Record<string, number> = {}
 
       // Location summary
@@ -165,7 +168,7 @@ export function useDashboard(locationIds?: string[] | null) {
       activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
       // Flagged inventory count
-      const { count: flaggedCount } = await supabase.from('room_inventory').select('*', { count: 'exact', head: true }).eq('is_flagged', true)
+      const { count: flaggedCount } = await supabase.from('room_inventory').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!).eq('is_flagged', true)
 
       // New leads today
       const newLeadsToday = leads?.filter((l: any) => l.created_at.startsWith(today)).length ?? 0
@@ -175,6 +178,7 @@ export function useDashboard(locationIds?: string[] | null) {
       const { data: monthSessions } = await supabase
         .from('session_log')
         .select('teacher_rate')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'completed')
         .gte('block_date', monthStart)
       const teacherPayThisMonth = (monthSessions ?? []).reduce((sum: number, s: any) => sum + Number(s.teacher_rate), 0)
@@ -183,6 +187,7 @@ export function useDashboard(locationIds?: string[] | null) {
       const { count: reactivationDueCount } = await supabase
         .from('students')
         .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId!)
         .eq('status', 'former')
         .not('reactivation_date', 'is', null)
         .lte('reactivation_date', today)
@@ -207,13 +212,13 @@ export function useDashboard(locationIds?: string[] | null) {
       const bookedToday = todayBlocks?.filter((b: any) => b.status === 'booked').slice(0, 12) ?? []
       const snippetTeacherIds = [...new Set(bookedToday.map((b: any) => b.teacher_id))]
       const { data: snippetTeachers } = snippetTeacherIds.length > 0
-        ? await supabase.from('teachers').select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').in('id', snippetTeacherIds)
+        ? await supabase.from('teachers').select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!).in('id', snippetTeacherIds)
         : { data: [] }
       const snippetTeacherMap = new Map((snippetTeachers ?? []).map((t: any) => [t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim()]))
 
       const snippetStudentIds = bookedToday.filter((b: any) => b.student_id).map((b: any) => b.student_id)
       const { data: snippetStudents } = snippetStudentIds.length > 0
-        ? await supabase.from('students').select('id, first_name, last_name').in('id', [...new Set(snippetStudentIds)])
+        ? await supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', [...new Set(snippetStudentIds)])
         : { data: [] }
       const snippetStudentMap = new Map((snippetStudents ?? []).map((s: any) => [s.id, `${s.first_name} ${s.last_name}`]))
 
@@ -237,6 +242,7 @@ export function useDashboard(locationIds?: string[] | null) {
         const { data: recentLogs } = await supabase
           .from('session_log')
           .select('student_id, block_date')
+          .eq('tenant_id', tenantId!)
           .in('student_id', activeStudentIds)
           .order('block_date', { ascending: false })
 
@@ -249,6 +255,7 @@ export function useDashboard(locationIds?: string[] | null) {
         const { data: atRiskStudentRows } = await supabase
           .from('students')
           .select('id, first_name, last_name, instrument, location_id')
+          .eq('tenant_id', tenantId!)
           .in('id', activeStudentIds.filter((id: string) => {
             const lastDate = lastSessionByStudent.get(id)
             return !lastDate || lastDate < fourteenDaysAgoStr
@@ -274,16 +281,17 @@ export function useDashboard(locationIds?: string[] | null) {
       const { data: recentLogRows } = await supabase
         .from('session_log')
         .select('student_id, teacher_id, worked_on, progress_indicator, block_date, instrument')
+        .eq('tenant_id', tenantId!)
         .order('created_at', { ascending: false })
         .limit(10)
 
       const logStudentIds = [...new Set((recentLogRows ?? []).map((l: any) => l.student_id))]
       const logTeacherIds = [...new Set((recentLogRows ?? []).map((l: any) => l.teacher_id))]
       const { data: logStudents } = logStudentIds.length > 0
-        ? await supabase.from('students').select('id, first_name, last_name').in('id', logStudentIds)
+        ? await supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', logStudentIds)
         : { data: [] }
       const { data: logTeachers } = logTeacherIds.length > 0
-        ? await supabase.from('teachers').select('id, first_name, last_name').in('id', logTeacherIds)
+        ? await supabase.from('teachers').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', logTeacherIds)
         : { data: [] }
       const logStudentMap = new Map((logStudents ?? []).map((s: any) => [s.id, `${s.first_name} ${s.last_name}`.trim()]))
       const logTeacherMap = new Map((logTeachers ?? []).map((t: any) => [t.id, `${t.first_name} ${t.last_name}`.trim()]))

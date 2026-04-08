@@ -36,7 +36,7 @@ export function useScheduleIntelligence(weekStart: string, weekEnd: string) {
   return useQuery<{ utilization: LocationUtilization[]; overall: OverallUtilization; insights: ScheduleInsight[] }>({
     queryKey: ['schedule-intelligence', weekStart, weekEnd],
     enabled: !!weekStart && !!weekEnd,
-    staleTime: 0,
+    staleTime: 60_000,
     queryFn: async () => {
       // Get all blocks for the week
       const { data: blocks } = await supabase

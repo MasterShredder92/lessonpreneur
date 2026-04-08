@@ -2,6 +2,7 @@
  * Content moderation for filenames and teacher notes.
  * Client-side fast check + server-side full check.
  */
+import { EDGE_FUNCTIONS } from './config'
 
 // Basic blocked words — client-side fast check (catches obvious stuff)
 const BASIC_BLOCKED = [
@@ -70,7 +71,7 @@ export async function serverModerateContent(
 ): Promise<{ approved: boolean; severity?: string; reason?: string; word?: string }> {
   try {
     const res = await fetch(
-      'https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/moderate-content',
+      EDGE_FUNCTIONS.moderateContent,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

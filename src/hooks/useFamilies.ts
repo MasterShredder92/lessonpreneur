@@ -33,6 +33,9 @@ export interface FamilyFile {
   uploaded_by: string | null
   notes: string | null
   created_at: string
+  source?: string
+  signwell_document_id?: string | null
+  signwell_status?: string | null
   uploader_name?: string
 }
 
@@ -80,6 +83,7 @@ export interface Family {
   locationColor: string | null
   sessionDays?: string[]
   totalSessionsPerMonth?: number
+  has_enrollment_agreement?: boolean
 }
 
 // ═══════════════════════════════════════
@@ -87,13 +91,16 @@ export interface Family {
 // ═══════════════════════════════════════
 
 export function useFamiliesPage() {
+  const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['families_page'],
+    queryKey: ['families_page', tenantId],
     placeholderData: keepPreviousData,
+    enabled: !!tenantId,
     queryFn: async () => {
       const { data: families, error } = await supabase
         .from('families')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .order('name')
       if (error) throw error
 
@@ -101,6 +108,7 @@ export function useFamiliesPage() {
       const { data: students } = await supabase
         .from('students')
         .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id')
+        .eq('tenant_id', tenantId!)
         .order('last_name')
 
       // Get teacher names
@@ -110,6 +118,7 @@ export function useFamiliesPage() {
         const { data: teachers } = await supabase
           .from('teachers')
           .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+          .eq('tenant_id', tenantId!)
           .in('id', teacherIds)
         teachers?.forEach((t: any) => {
           teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
@@ -120,6 +129,7 @@ export function useFamiliesPage() {
       const { data: locations } = await supabase
         .from('locations')
         .select('id, name, color')
+        .eq('tenant_id', tenantId!)
       const locMap = new Map<string, { name: string; color: string }>()
       locations?.forEach((l: any) => locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? '#D4226A' }))
 
@@ -128,6 +138,7 @@ export function useFamiliesPage() {
       const { data: overdueTokens } = await supabase
         .from('invoice_tokens')
         .select('family_id')
+        .eq('tenant_id', tenantId!)
         .not('status', 'in', '("paid","cancelled","expired")')
         .lt('due_date', today)
       const overdueSet = new Set((overdueTokens ?? []).map((t: any) => t.family_id))
@@ -136,6 +147,7 @@ export function useFamiliesPage() {
       const { data: effectiveRates } = await supabase
         .from('student_effective_rate')
         .select('family_id, monthly_cents')
+        .eq('tenant_id', tenantId!)
       const monthlyByFamily = new Map<string, number>()
       for (const r of (effectiveRates ?? [])) {
         monthlyByFamily.set(r.family_id, (monthlyByFamily.get(r.family_id) ?? 0) + (r.monthly_cents ?? 0))
@@ -145,6 +157,7 @@ export function useFamiliesPage() {
       const { data: squareInvoices } = await supabase
         .from('square_invoices')
         .select('family_id, status, requested_amount, amount_paid, due_date, invoice_date')
+        .eq('tenant_id', tenantId!)
         .not('family_id', 'is', null)
         .not('status', 'in', '("CANCELED","DRAFT")')
         .order('invoice_date', { ascending: false })
@@ -165,6 +178,14 @@ export function useFamiliesPage() {
         }
         squareByFamily.set(inv.family_id, entry)
       }
+
+      // Enrollment agreement status per family
+      const { data: agreementFiles } = await supabase
+        .from('family_files')
+        .select('family_id')
+        .eq('tenant_id', tenantId!)
+        .eq('file_type', 'enrollment_agreement')
+      const agreementSet = new Set((agreementFiles ?? []).map((f: any) => f.family_id))
 
       // Group students by family
       const familyStudents = new Map<string, FamilyStudent[]>()
@@ -218,6 +239,7 @@ export function useFamiliesPage() {
           })(),
           monthlyTotalCents: monthlyByFamily.get(f.id) ?? 0,
           latestInvoice: squareByFamily.get(f.id)?.latest ?? null,
+          has_enrollment_agreement: agreementSet.has(f.id),
         } as Family
       })
     },
@@ -229,6 +251,7 @@ export function useFamiliesPage() {
 // ═══════════════════════════════════════
 
 export function useFamilyDetail(familyId: string | undefined) {
+  const { tenantId } = useAuthContext()
   return useQuery({
     queryKey: ['family_detail', familyId],
     enabled: !!familyId,
@@ -236,6 +259,7 @@ export function useFamilyDetail(familyId: string | undefined) {
       const { data: family, error } = await supabase
         .from('families')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .eq('id', familyId!)
         .single()
       if (error) throw error
@@ -243,6 +267,7 @@ export function useFamilyDetail(familyId: string | undefined) {
       const { data: students } = await supabase
         .from('students')
         .select('id, first_name, last_name, instrument, status, teacher_id, sessions_per_month, pause_reason, deactivated_at, created_at')
+        .eq('tenant_id', tenantId!)
         .eq('family_id', familyId!)
         .order('status')
         .order('last_name')
@@ -254,6 +279,7 @@ export function useFamilyDetail(familyId: string | undefined) {
         const { data: teachers } = await supabase
           .from('teachers')
           .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+          .eq('tenant_id', tenantId!)
           .in('id', teacherIds)
         teachers?.forEach((t: any) => {
           teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
@@ -275,7 +301,8 @@ export function useFamilyDetail(familyId: string | undefined) {
       if (activeStudentIds.length > 0) {
         const todayStr = new Date().toISOString().split('T')[0]
         const blocks = await batchIn('schedule_blocks', 'block_date', 'student_id', activeStudentIds, (q: any) =>
-          q.eq('status', 'booked').gte('block_date', todayStr)
+          q.eq('status', 'booked').gte('block_date', todayStr),
+          80, tenantId!
         )
         if (blocks && blocks.length > 0) {
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -288,7 +315,7 @@ export function useFamilyDetail(familyId: string | undefined) {
       const totalSessionsPerMonth = activeStuds.reduce((sum, s) => sum + (s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH), 0)
 
       // Resolve location name
-      const { data: locations } = await supabase.from('locations').select('id, name, color')
+      const { data: locations } = await supabase.from('locations').select('id, name, color').eq('tenant_id', tenantId!)
       const locMap = new Map<string, { name: string; color: string }>()
       locations?.forEach((l: any) => locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? '#D4226A' }))
       const loc = family.primary_location_id ? locMap.get(family.primary_location_id) : null
@@ -385,6 +412,7 @@ export function useChangeFamilyBillingStatus() {
 // ═══════════════════════════════════════
 
 export function useFamilyFiles(familyId: string | undefined) {
+  const { tenantId } = useAuthContext()
   return useQuery({
     queryKey: ['family_files', familyId],
     enabled: !!familyId,
@@ -392,6 +420,7 @@ export function useFamilyFiles(familyId: string | undefined) {
       const { data, error } = await supabase
         .from('family_files')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .eq('family_id', familyId!)
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -515,6 +544,7 @@ export interface ActivityEvent {
 }
 
 export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
+  const { tenantId } = useAuthContext()
   return useQuery({
     queryKey: ['family_activity', familyId, limit],
     enabled: !!familyId,
@@ -523,6 +553,7 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
       const { data: students } = await supabase
         .from('students')
         .select('id, first_name, last_name, instrument')
+        .eq('tenant_id', tenantId!)
         .eq('family_id', familyId!)
       const studentIds = (students ?? []).map((s) => s.id)
       const studentMap = new Map((students ?? []).map((s) => [s.id, s]))
@@ -531,6 +562,7 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
       const { data: allTeachers } = await supabase
         .from('teachers')
         .select('id, first_name, last_name')
+        .eq('tenant_id', tenantId!)
       const teacherMap = new Map((allTeachers ?? []).map((t: any) => [t.id, `${t.first_name ?? ''} ${t.last_name ?? ''}`.trim()]))
 
       const events: ActivityEvent[] = []
@@ -541,7 +573,8 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
           'schedule_blocks',
           'id, block_date, status, checked_in, callout_reason, fifth_week, teacher_id, student_id, original_teacher_id, original_teacher_name, block_type',
           'student_id', studentIds,
-          (q: any) => q.order('block_date', { ascending: false }).limit(limit * 2)
+          (q: any) => q.order('block_date', { ascending: false }).limit(limit * 2),
+          80, tenantId!
         )
 
         for (const b of blocks) {
@@ -602,6 +635,7 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
       const { data: auditRows } = await supabase
         .from('audit_log')
         .select('id, action, old_value, new_value, reason, performed_by, created_at')
+        .eq('tenant_id', tenantId!)
         .in('record_id', recordIds)
         .order('created_at', { ascending: false })
         .limit(limit)
@@ -659,6 +693,7 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
         const { data: familyBlocks } = await supabase
           .from('schedule_blocks')
           .select('id')
+          .eq('tenant_id', tenantId!)
           .in('student_id', studentIds)
           .limit(200)
         const blockIds = (familyBlocks ?? []).map((b: any) => b.id)
@@ -668,7 +703,8 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
             'appointment_notifications',
             'id, event_type, channel, recipient_type, recipient_name, success, sent_at',
             'block_id', blockIds,
-            (q: any) => q.order('sent_at', { ascending: false }).limit(limit)
+            (q: any) => q.order('sent_at', { ascending: false }).limit(limit),
+            80, tenantId!
           )
 
           const eventLabels: Record<string, string> = {

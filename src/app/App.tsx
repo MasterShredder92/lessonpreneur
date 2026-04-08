@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useEffect, lazy, Suspense } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, QueryCache } from '@tanstack/react-query'
 import { AuthProvider } from './AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -93,21 +93,61 @@ function LocationLanding({ loc }: { loc: LocKey }) {
   )
 }
 
+// Detect auth/JWT errors that cause the app to spin indefinitely
+function isAuthError(error: unknown): boolean {
+  if (!error) return false
+  const msg = (error as any)?.message ?? (error as any)?.hint ?? ''
+  const code = (error as any)?.code ?? ''
+  return (
+    code === 'PGRST301' ||
+    code === '401' ||
+    /jwt|token.*expired|not authenticated|invalid.*claim/i.test(msg)
+  )
+}
+
+let authRedirectScheduled = false
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,       // 5 minutes — data stays fresh
       gcTime: 10 * 60 * 1000,         // 10 minutes — cache kept alive
-      retry: 2,
+      retry: (failureCount, error) => {
+        // Never retry auth errors — they just spin until the user refreshes
+        if (isAuthError(error)) return false
+        return failureCount < 1
+      },
       refetchOnWindowFocus: false,    // never refetch on tab switch (preserves form state)
-      refetchOnReconnect: true,
+      refetchOnReconnect: false,
       networkMode: 'offlineFirst',
+      throwOnError: false,
     },
     mutations: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        if (isAuthError(error)) return false
+        return failureCount < 1
+      },
       networkMode: 'offlineFirst',
     },
   },
+  queryCache: new QueryCache({
+    onError: (_error) => {
+      // If multiple queries hit auth errors simultaneously, only redirect once
+      if (isAuthError(_error) && !authRedirectScheduled) {
+        authRedirectScheduled = true
+        // Brief delay so the user sees the state, then force a fresh session
+        setTimeout(() => {
+          authRedirectScheduled = false
+          // Only redirect if we're on an authenticated route
+          if (window.location.pathname.startsWith('/admin') ||
+              window.location.pathname.startsWith('/teacher') ||
+              window.location.pathname.startsWith('/parent')) {
+            window.location.href = '/login'
+          }
+        }, 1500)
+      }
+    },
+  }),
 })
 
 export default function App() {

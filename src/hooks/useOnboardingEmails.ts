@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 /**
  * Onboarding email sequence for new tenants.
@@ -99,7 +100,7 @@ export function useProcessOnboardingEmails() {
           const token = session.data.session?.access_token
 
           try {
-            await fetch('https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/send-email', {
+            await fetch(EDGE_FUNCTIONS.sendEmail, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({

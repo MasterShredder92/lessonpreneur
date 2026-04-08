@@ -13,24 +13,32 @@ interface Props {
 }
 
 // ═══════════════════════════════════════
-// AES-256-GCM ENCRYPTION
+// TIN ENCRYPTION — via Edge Function
 // ═══════════════════════════════════════
 
 async function encryptTIN(tin: string): Promise<string> {
-  const key = import.meta.env.VITE_W9_ENCRYPTION_KEY || ''
-  const encoder = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', encoder.encode(key.padEnd(32).slice(0, 32)),
-    { name: 'AES-GCM' }, false, ['encrypt']
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('Not authenticated')
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/w9-handler`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action: 'encrypt-tin', tin }),
+    },
   )
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv }, keyMaterial, encoder.encode(tin)
-  )
-  const combined = new Uint8Array(iv.length + new Uint8Array(encrypted).byteLength)
-  combined.set(iv)
-  combined.set(new Uint8Array(encrypted), iv.length)
-  return btoa(String.fromCharCode(...combined))
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error ?? 'TIN encryption failed')
+  }
+
+  const data = await res.json()
+  return data.encrypted
 }
 
 // ═══════════════════════════════════════

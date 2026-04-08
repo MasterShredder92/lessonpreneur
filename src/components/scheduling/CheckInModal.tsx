@@ -88,6 +88,7 @@ export default function CheckInModal({ block, onClose }: Props) {
   const [undoReason, setUndoReason] = useState('')
   const [undoSubmitting, setUndoSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [unlocking, setUnlocking] = useState(false)
 
   // Substitute teacher change
   const [selectedSubTeacherId, setSelectedSubTeacherId] = useState<string>(block.teacher_id)
@@ -238,7 +239,7 @@ export default function CheckInModal({ block, onClose }: Props) {
     try {
       if (cancelType === 'call_out') {
         // Today only — change to call_out, future stays
-        const { error: e } = await supabase.from('schedule_blocks').update({ block_type: 'call_out', notes: logNote }).eq('id', block.block_id)
+        const { error: e } = await supabase.from('schedule_blocks').update({ block_type: 'call_out', is_family_callout: true, notes: logNote }).eq('id', block.block_id)
         if (e) throw new Error(e.message)
       } else if (cancelType === 'student_leaving') {
         // Mark as last day, revert all future recurring to open
@@ -406,6 +407,96 @@ export default function CheckInModal({ block, onClose }: Props) {
                 <button onClick={() => { setCancelType(null); setCancelReason('') }} style={{ width: '100%', marginTop: 6, padding: '8px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Go Back</button>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Locked time view — show unlock options with series awareness
+  const isLockedTime = block.block_type === 'not_bookable' && !block.callout_id
+  if (isLockedTime) {
+    const dayLabel = new Date(block.block_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+
+    const handleUnlock = async (scope: 'single' | 'future' | 'all') => {
+      setUnlocking(true)
+      setError(null)
+      try {
+        if (scope === 'single') {
+          const { error: e } = await supabase.from('schedule_blocks').update({ block_type: 'open_time', notes: null, is_recurring: false }).eq('id', block.block_id)
+          if (e) throw new Error(e.message)
+        } else {
+          // Find sibling blocks: same teacher, same time, same day-of-week, not_bookable
+          const dow = new Date(block.block_date + 'T00:00:00').getDay()
+          const dateFilter = scope === 'future' ? block.block_date : '1970-01-01'
+          const { data: siblings } = await supabase.from('schedule_blocks').select('id, block_date')
+            .eq('teacher_id', block.teacher_id).eq('start_time', block.start_time).eq('block_type', 'not_bookable')
+            .gte('block_date', dateFilter)
+          const targetIds = (siblings ?? [])
+            .filter((s: any) => new Date(s.block_date + 'T00:00:00').getDay() === dow)
+            .map((s: any) => s.id)
+          if (targetIds.length > 0) {
+            const { error: e } = await supabase.from('schedule_blocks').update({ block_type: 'open_time', notes: null, is_recurring: false }).in('id', targetIds)
+            if (e) throw new Error(e.message)
+          }
+        }
+        qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+        qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+        toast('Time unlocked', 'success')
+        onClose()
+      } catch (err: any) {
+        setError(err.message || 'Failed to unlock')
+        setUnlocking(false)
+      }
+    }
+
+    return (
+      <div className={isMobile ? undefined : 'modal-overlay'} style={overlayStyle} onClick={onClose}>
+        <div className="modal" onClick={(e) => e.stopPropagation()} style={isMobile ? { ...modalStyle } : { maxWidth: 400 }}>
+          {isMobile && (
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+            </div>
+          )}
+          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>Locked Time</span>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 4, minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+          </div>
+          <div style={{ padding: '16px 20px' }}>
+            <div style={{ fontSize: 13, color: '#A0A0C8', marginBottom: 6 }}>
+              {block.teacher_name} · {formatTime(block.start_time)} · {dayLabel}
+            </div>
+            {block.notes && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(100,100,140,0.08)', border: '1px solid rgba(100,100,140,0.15)', marginBottom: 16, fontSize: 12, color: '#C0C0E0' }}>
+                {block.notes.replace('[Locked] ', '')}
+              </div>
+            )}
+
+            {block.is_recurring ? (
+              <div>
+                <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 10 }}>This is a recurring locked time. How should the unlock apply?</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button onClick={() => handleUnlock('single')} disabled={unlocking} style={{ width: '100%', padding: isMobile ? '14px 16px' : '10px 16px', borderRadius: 10, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#22C55E', fontSize: 13, fontWeight: 700, cursor: unlocking ? 'default' : 'pointer', textAlign: 'left', minHeight: isMobile ? 48 : undefined }}>
+                    Just this one
+                    <div style={{ fontSize: 11, fontWeight: 400, color: '#8080A8', marginTop: 2 }}>Unlock only {dateStr}. All other locked times remain.</div>
+                  </button>
+                  <button onClick={() => handleUnlock('future')} disabled={unlocking} style={{ width: '100%', padding: isMobile ? '14px 16px' : '10px 16px', borderRadius: 10, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#22C55E', fontSize: 13, fontWeight: 700, cursor: unlocking ? 'default' : 'pointer', textAlign: 'left', minHeight: isMobile ? 48 : undefined }}>
+                    This and all future
+                    <div style={{ fontSize: 11, fontWeight: 400, color: '#8080A8', marginTop: 2 }}>Unlock every {dayLabel} at {formatTime(block.start_time)} from {dateStr} forward.</div>
+                  </button>
+                  <button onClick={() => handleUnlock('all')} disabled={unlocking} style={{ width: '100%', padding: isMobile ? '14px 16px' : '10px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', fontSize: 13, fontWeight: 700, cursor: unlocking ? 'default' : 'pointer', textAlign: 'left', minHeight: isMobile ? 48 : undefined }}>
+                    Entire series
+                    <div style={{ fontSize: 11, fontWeight: 400, color: '#8080A8', marginTop: 2 }}>Unlock all past and future locked times in this series.</div>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => handleUnlock('single')} disabled={unlocking} style={{ width: '100%', padding: isMobile ? '14px 16px' : '10px 16px', borderRadius: 10, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#22C55E', fontSize: 13, fontWeight: 700, cursor: unlocking ? 'default' : 'pointer', minHeight: isMobile ? 48 : undefined }}>
+                {unlocking ? 'Unlocking...' : 'Unlock This Time'}
+              </button>
+            )}
+
+            {error && <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, fontSize: 12, color: '#EF4444', marginTop: 10 }}>{error}</div>}
           </div>
         </div>
       </div>

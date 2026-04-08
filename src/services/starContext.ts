@@ -21,7 +21,7 @@ export interface StarContextData {
  * Fetches the raw JSONB from get_star_context() RPC.
  * Returns both the raw data (for charts) and formatted prompt (for AI).
  */
-export async function fetchStarContext(tenantId: string): Promise<StarContextData | null> {
+export async function fetchStarContext(tenantId: string, role?: string | null): Promise<StarContextData | null> {
   const { data, error } = await supabase.rpc('get_star_context', {
     p_tenant_id: tenantId,
   })
@@ -31,7 +31,16 @@ export async function fetchStarContext(tenantId: string): Promise<StarContextDat
     return null
   }
 
-  return data as StarContextData
+  const ctx = data as StarContextData
+
+  // Strip sensitive data based on role
+  if (role === 'teacher' || role === 'parent') {
+    // Teachers and parents should not see financial data
+    ctx.billing = { estimated_mrr_cents: 0, mrr_by_location: [] }
+    ctx.families = { ...ctx.families, total_overdue_cents: 0, families_overdue: 0 }
+  }
+
+  return ctx
 }
 
 /**
@@ -142,7 +151,7 @@ and suggest what page in the app would have more detail.`
 
 // Legacy compat — used by old callers
 export async function getStarContext(tenantId: string, role?: string | null): Promise<string> {
-  const ctx = await fetchStarContext(tenantId)
+  const ctx = await fetchStarContext(tenantId, role)
   if (!ctx) return 'Business context unavailable — answer only from what the user tells you.'
   return formatStarPrompt(ctx, role)
 }

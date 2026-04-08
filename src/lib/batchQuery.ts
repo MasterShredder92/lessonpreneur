@@ -11,10 +11,12 @@ export async function batchIn<T = any>(
   ids: string[],
   extraFilters?: (query: any) => any,
   chunkSize = 80,
+  tenantId?: string,
 ): Promise<T[]> {
   if (ids.length === 0) return []
   if (ids.length <= chunkSize) {
     let q = supabase.from(table).select(selectCols).in(filterCol, ids)
+    if (tenantId) q = q.eq('tenant_id', tenantId)
     if (extraFilters) q = extraFilters(q)
     const { data } = await q
     return (data ?? []) as T[]
@@ -24,6 +26,7 @@ export async function batchIn<T = any>(
   for (let i = 0; i < ids.length; i += chunkSize) {
     const chunk = ids.slice(i, i + chunkSize)
     let q = supabase.from(table).select(selectCols).in(filterCol, chunk)
+    if (tenantId) q = q.eq('tenant_id', tenantId)
     if (extraFilters) q = extraFilters(q)
     const { data } = await q
     if (data) results.push(...(data as T[]))

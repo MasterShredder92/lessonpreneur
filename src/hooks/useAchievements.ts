@@ -53,11 +53,12 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
 // ─── Get earned achievements for a student ───────────
 
 export function useStudentAchievements(studentId: string | undefined) {
+  const { tenantId } = useAuthContext()
   return useQuery<EarnedAchievement[]>({
     queryKey: ['student-achievements', studentId],
-    enabled: !!studentId,
+    enabled: !!studentId && !!tenantId,
     queryFn: async () => {
-      const { data } = await supabase.from('student_achievements').select('*').eq('student_id', studentId!).order('earned_at', { ascending: false })
+      const { data } = await supabase.from('student_achievements').select('*').eq('student_id', studentId!).eq('tenant_id', tenantId!).order('earned_at', { ascending: false })
       return data ?? []
     },
   })
@@ -74,9 +75,9 @@ export function useCheckAchievements() {
       if (!tenantId) return []
 
       // Gather student data
-      const { data: sessions } = await supabase.from('session_log').select('block_date, worked_on').eq('student_id', studentId).order('block_date', { ascending: false })
-      const { data: practices } = await supabase.from('practice_sessions').select('created_at').eq('student_id', studentId)
-      const { data: existing } = await supabase.from('student_achievements').select('achievement_key').eq('student_id', studentId)
+      const { data: sessions } = await supabase.from('session_log').select('block_date, worked_on').eq('student_id', studentId).eq('tenant_id', tenantId!).order('block_date', { ascending: false })
+      const { data: practices } = await supabase.from('practice_sessions').select('created_at').eq('student_id', studentId).eq('tenant_id', tenantId!)
+      const { data: existing } = await supabase.from('student_achievements').select('achievement_key').eq('student_id', studentId).eq('tenant_id', tenantId!)
 
       const existingKeys = new Set((existing ?? []).map(a => a.achievement_key))
       const sessionCount = (sessions ?? []).length

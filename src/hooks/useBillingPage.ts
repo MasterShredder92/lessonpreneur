@@ -110,11 +110,14 @@ export function getMonthAfterNext(): string {
 // ══════════════════════════════════════════
 
 export function useBillingOverview(locationFilter: string) {
+  const { tenantId, profile } = useAuthContext()
   return useQuery<BillingOverview>({
-    queryKey: ['billing_overview', locationFilter],
+    queryKey: ['billing_overview', tenantId, locationFilter],
+    enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let ratesQuery = supabase.from('student_effective_rate')
         .select('student_id, family_id, monthly_cents, sessions_per_month, location_id, billing_status')
+        .eq('tenant_id', tenantId!)
       if (locationFilter) ratesQuery = ratesQuery.eq('location_id', locationFilter)
       const { data: rates } = await ratesQuery
 
@@ -125,6 +128,7 @@ export function useBillingOverview(locationFilter: string) {
       const monthStart = getMonthStart()
       let paidQuery = supabase.from('payment_history')
         .select('amount_cents, family_id')
+        .eq('tenant_id', tenantId!)
         .gte('created_at', monthStart)
         .eq('status', 'completed')
       if (locationFilter && familyIds.length > 0) {
@@ -135,6 +139,7 @@ export function useBillingOverview(locationFilter: string) {
 
       let overdueQuery = supabase.from('families')
         .select('id, overdue_balance_cents')
+        .eq('tenant_id', tenantId!)
         .gt('overdue_balance_cents', 0)
         .eq('billing_status', 'active')
       if (locationFilter) overdueQuery = overdueQuery.eq('primary_location_id', locationFilter)
@@ -159,11 +164,14 @@ export function useBillingOverview(locationFilter: string) {
 // ══════════════════════════════════════════
 
 export function useBillingFamilies(locationFilter: string) {
+  const { tenantId, profile } = useAuthContext()
   return useQuery<BillingFamily[]>({
-    queryKey: ['billing_families', locationFilter],
+    queryKey: ['billing_families', tenantId, locationFilter],
+    enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let ratesQuery = supabase.from('student_effective_rate')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'active')
       if (locationFilter) ratesQuery = ratesQuery.eq('location_id', locationFilter)
       const { data: rates } = await ratesQuery
@@ -179,6 +187,7 @@ export function useBillingFamilies(locationFilter: string) {
 
       const { data: families } = await supabase.from('families')
         .select('id, name, parent_name, primary_email, billing_status, billing_day, rate_tier, card_last_four, card_brand, balance, overdue_balance_cents, square_customer_id, primary_location_id')
+        .eq('tenant_id', tenantId!)
         .in('id', [...familyMap.keys()])
         .eq('billing_status', 'active')
 
@@ -211,11 +220,14 @@ export function useBillingFamilies(locationFilter: string) {
 // ══════════════════════════════════════════
 
 export function useNextCycle(locationFilter: string) {
+  const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_next_cycle', locationFilter],
+    queryKey: ['billing_next_cycle', tenantId, locationFilter],
+    enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let ratesQuery = supabase.from('student_effective_rate')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'active')
       if (locationFilter) ratesQuery = ratesQuery.eq('location_id', locationFilter)
       const { data: rates } = await ratesQuery
@@ -231,12 +243,14 @@ export function useNextCycle(locationFilter: string) {
 
       const { data: families } = await supabase.from('families')
         .select('id, name, parent_name, billing_status, billing_day, card_last_four, card_brand')
+        .eq('tenant_id', tenantId!)
         .in('id', [...familyMap.keys()])
         .eq('billing_status', 'active')
 
       const nextMonth = getNextCycleMonth()
       const { data: adjustments } = await supabase.from('billing_adjustments')
         .select('*')
+        .eq('tenant_id', tenantId!)
         .eq('applied', false)
         .lte('applies_to_cycle', nextMonth)
 
@@ -285,11 +299,14 @@ export function useNextCycle(locationFilter: string) {
 // ══════════════════════════════════════════
 
 export function useRemainingToCollect(locationFilter: string) {
+  const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_remaining', locationFilter],
+    queryKey: ['billing_remaining', tenantId, locationFilter],
+    enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let query = supabase.from('families')
         .select('id, name, parent_name, balance, card_last_four, card_brand, billing_day')
+        .eq('tenant_id', tenantId!)
         .gt('balance', 0)
         .eq('billing_status', 'active')
       if (locationFilter) query = query.eq('primary_location_id', locationFilter)
@@ -308,11 +325,14 @@ export function useRemainingToCollect(locationFilter: string) {
 // ══════════════════════════════════════════
 
 export function useOverdueFamilies(locationFilter: string) {
+  const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_overdue', locationFilter],
+    queryKey: ['billing_overdue', tenantId, locationFilter],
+    enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let query = supabase.from('families')
         .select('id, name, parent_name, overdue_balance_cents, billing_day, card_last_four, card_brand')
+        .eq('tenant_id', tenantId!)
         .gt('overdue_balance_cents', 0)
         .eq('billing_status', 'active')
       if (locationFilter) query = query.eq('primary_location_id', locationFilter)
@@ -331,12 +351,15 @@ export function useOverdueFamilies(locationFilter: string) {
 // ══════════════════════════════════════════
 
 export function usePaidThisMonth(locationFilter: string) {
+  const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_paid', locationFilter],
+    queryKey: ['billing_paid', tenantId, locationFilter],
+    enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       const monthStart = getMonthStart()
       const query = supabase.from('payment_history')
         .select('id, family_id, amount_cents, status, card_last_four, card_brand, created_at, billing_period_id')
+        .eq('tenant_id', tenantId!)
         .gte('created_at', monthStart)
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
@@ -348,6 +371,7 @@ export function usePaidThisMonth(locationFilter: string) {
       const familyIds = [...new Set(payments.map((p: any) => p.family_id))]
       const { data: families } = await supabase.from('families')
         .select('id, name, parent_name, primary_location_id')
+        .eq('tenant_id', tenantId!)
         .in('id', familyIds)
       const familyMap = new Map<string, any>()
       families?.forEach((f: any) => familyMap.set(f.id, f))
@@ -376,11 +400,14 @@ export function usePaidThisMonth(locationFilter: string) {
 // ══════════════════════════════════════════
 
 export function useCreditsLedger(locationFilter: string) {
+  const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_credits', locationFilter],
+    queryKey: ['billing_credits', tenantId, locationFilter],
+    enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       const { data } = await supabase.from('billing_adjustments')
         .select('id, family_id, student_id, adjustment_type, amount_cents, percent, reason, applies_to_cycle, applied, created_at, created_by, status')
+        .eq('tenant_id', tenantId!)
         .order('created_at', { ascending: false })
         .limit(100)
 
@@ -389,6 +416,7 @@ export function useCreditsLedger(locationFilter: string) {
       const familyIds = [...new Set(data.map((a: any) => a.family_id))]
       const { data: families } = await supabase.from('families')
         .select('id, name, primary_location_id')
+        .eq('tenant_id', tenantId!)
         .in('id', familyIds)
       const familyMap = new Map<string, any>()
       families?.forEach((f: any) => familyMap.set(f.id, f))
@@ -398,6 +426,7 @@ export function useCreditsLedger(locationFilter: string) {
       if (studentIds.length > 0) {
         const { data: students } = await supabase.from('students')
           .select('id, first_name, last_name')
+          .eq('tenant_id', tenantId!)
           .in('id', studentIds)
         students?.forEach((s: any) => studentMap.set(s.id, `${s.first_name} ${s.last_name}`.trim()))
       }
@@ -504,7 +533,7 @@ export function useBillingHeroStats(locationId?: string) {
   return useQuery<BillingHeroStats>({
     queryKey: ['billing_hero_stats', tenantId, monthStart, locKey],
     enabled: !!tenantId,
-    staleTime: 0,
+    staleTime: 60_000,
     queryFn: async (): Promise<BillingHeroStats> => {
       const today = new Date().toISOString().split('T')[0]
 

@@ -57,6 +57,7 @@ export function useChurnRiskScores() {
       const { data: students } = await supabase
         .from('students')
         .select('id, first_name, last_name, instrument, location_id, teacher_id, family_id, created_at, start_date')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'active')
 
       if (!students || students.length === 0) return []
@@ -65,7 +66,7 @@ export function useChurnRiskScores() {
       const familyIds = [...new Set(students.map(s => s.family_id).filter(Boolean))]
 
       // 2. Get last session date per student (batched to avoid URL length limits)
-      const sessionLogs = await batchIn('session_log', 'student_id, block_date', 'student_id', studentIds)
+      const sessionLogs = await batchIn('session_log', 'student_id, block_date', 'student_id', studentIds, undefined, 80, tenantId!)
 
       const lastSessionMap = new Map<string, string>()
       sessionLogs?.forEach((l: any) => {
@@ -75,8 +76,8 @@ export function useChurnRiskScores() {
       // 3. Get missed sessions (booked blocks not checked in, in the past) — batched
       const thirtyDaysAgo = new Date(now - 30 * 86400000).toISOString().split('T')[0]
       const missedBlocks = await batchIn('schedule_blocks', 'student_id', 'student_id', studentIds, (q: any) =>
-        q.eq('status', 'booked').neq('block_type', 'call_out').eq('checked_in', false).lt('block_date', today).gte('block_date', thirtyDaysAgo)
-      )
+        q.eq('status', 'booked').neq('block_type', 'call_out').eq('checked_in', false).lt('block_date', today).gte('block_date', thirtyDaysAgo),
+      80, tenantId!)
 
       const missedCountMap = new Map<string, number>()
       missedBlocks?.forEach((b: any) => {
@@ -84,7 +85,7 @@ export function useChurnRiskScores() {
       })
 
       // 4. Get last communication per student — batched
-      const comms = await batchIn('communications', 'student_id, created_at', 'student_id', studentIds)
+      const comms = await batchIn('communications', 'student_id, created_at', 'student_id', studentIds, undefined, 80, tenantId!)
 
       const lastCommMap = new Map<string, string>()
       comms?.forEach((c: any) => {
@@ -97,6 +98,7 @@ export function useChurnRiskScores() {
         const { data: overdueInv } = await supabase
           .from('square_invoices')
           .select('family_id, due_date, amount_paid')
+          .eq('tenant_id', tenantId!)
           .in('family_id', familyIds)
           .eq('amount_paid', 0)
 
@@ -112,14 +114,14 @@ export function useChurnRiskScores() {
       const teacherIds = [...new Set(students.map(s => s.teacher_id).filter(Boolean))]
       const teacherMap = new Map<string, string>()
       if (teacherIds.length > 0) {
-        const { data: teachers } = await supabase.from('teachers').select('id, first_name, last_name').in('id', teacherIds)
+        const { data: teachers } = await supabase.from('teachers').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', teacherIds)
         teachers?.forEach((t: any) => teacherMap.set(t.id, `${t.first_name} ${t.last_name}`.trim()))
       }
 
       const locIds = [...new Set(students.map(s => s.location_id).filter(Boolean))]
       const locMap = new Map<string, string>()
       if (locIds.length > 0) {
-        const { data: locs } = await supabase.from('locations').select('id, name').in('id', locIds)
+        const { data: locs } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
         locs?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
       }
 

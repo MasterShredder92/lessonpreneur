@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 export interface StripeConnectStatus {
   accountId: string | null
@@ -32,7 +33,7 @@ export function useStripeConnectOnboard() {
     mutationFn: async () => {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      const res = await fetch('https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/stripe-connect-onboard', {
+      const res = await fetch(EDGE_FUNCTIONS.stripeConnectOnboard, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ tenant_id: tenantId }),
@@ -51,7 +52,7 @@ export function useCreateStudentInvoice() {
     mutationFn: async (params: { familyId: string; amountCents: number; description: string }) => {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      const res = await fetch('https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/create-student-invoice', {
+      const res = await fetch(EDGE_FUNCTIONS.createStudentInvoice, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ tenant_id: tenantId, ...params }),
@@ -73,7 +74,7 @@ export function useSetupAutoPay() {
     mutationFn: async (params: { familyId: string }) => {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      const res = await fetch('https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/setup-autopay', {
+      const res = await fetch(EDGE_FUNCTIONS.setupAutopay, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ tenant_id: tenantId, family_id: params.familyId }),

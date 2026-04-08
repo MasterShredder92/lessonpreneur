@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthContext } from '../app/AuthContext'
 import { supabase } from '../lib/supabase'
+import { EDGE_FUNCTIONS } from '../lib/config'
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -194,7 +195,7 @@ export function useGenerateValueCard() {
       const skillsStr = [...workedOn, ...skillsProgressing].slice(0, 5).join(', ') || 'building foundations'
       const highlightsStr = teacherNotes.slice(0, 2).join(' | ') || ''
 
-      const aiResponse = await fetch(`https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/ai-assistant`, {
+      const aiResponse = await fetch(EDGE_FUNCTIONS.aiAssistant, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({

@@ -129,6 +129,7 @@ export function useAutoCreateTasks() {
       const { data: newLeads } = await supabase
         .from('leads')
         .select('id, first_name, last_name, location_id, created_at')
+        .eq('tenant_id', tenantId!)
         .eq('stage', 'inquiry')
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
@@ -153,6 +154,7 @@ export function useAutoCreateTasks() {
       const { data: missed } = await supabase
         .from('schedule_blocks')
         .select('id, student_id, teacher_id, block_date')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'booked')
         .eq('checked_in', false)
         .eq('block_date', yesterday)
@@ -160,7 +162,7 @@ export function useAutoCreateTasks() {
 
       const missedStudentIds = [...new Set((missed ?? []).map(m => m.student_id).filter(Boolean))]
       if (missedStudentIds.length > 0) {
-        const { data: missedStudents } = await supabase.from('students').select('id, first_name, last_name').in('id', missedStudentIds)
+        const { data: missedStudents } = await supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', missedStudentIds)
         const nameMap = new Map((missedStudents ?? []).map((s: any) => [s.id, `${s.first_name} ${s.last_name}`.trim()]))
 
         for (const studentId of missedStudentIds) {
@@ -252,20 +254,20 @@ export function useWeeklyLocationSummaries() {
         '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#00A651',
       }
 
-      const { data: locations } = await supabase.from('locations').select('id, name').eq('is_active', true)
-      const { data: students } = await supabase.from('students').select('id, location_id, status')
-      const { data: sessions } = await supabase.from('session_log').select('location_id').gte('block_date', mondayStr).lte('block_date', todayStr)
-      const { data: leads } = await supabase.from('leads').select('location_id').gte('created_at', mondayStr + 'T00:00:00')
+      const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).eq('is_active', true)
+      const { data: students } = await supabase.from('students').select('id, location_id, status').eq('tenant_id', tenantId!)
+      const { data: sessions } = await supabase.from('session_log').select('location_id').eq('tenant_id', tenantId!).gte('block_date', mondayStr).lte('block_date', todayStr)
+      const { data: leads } = await supabase.from('leads').select('location_id').eq('tenant_id', tenantId!).gte('created_at', mondayStr + 'T00:00:00')
 
       // At-risk: active students with no session in 14 days
       const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0]
-      const { data: recentSessions } = await supabase.from('session_log').select('student_id').gte('block_date', fourteenDaysAgo)
+      const { data: recentSessions } = await supabase.from('session_log').select('student_id').eq('tenant_id', tenantId!).gte('block_date', fourteenDaysAgo)
       const recentStudentIds = new Set((recentSessions ?? []).map(s => s.student_id))
       const activeStudents = (students ?? []).filter(s => s.status === 'active')
 
       // Overdue invoices
       const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
-      const { data: overdueInv } = await supabase.from('square_invoices').select('location_id').eq('amount_paid', 0).lt('due_date', sevenDaysAgo)
+      const { data: overdueInv } = await supabase.from('square_invoices').select('location_id').eq('tenant_id', tenantId!).eq('amount_paid', 0).lt('due_date', sevenDaysAgo)
 
       return (locations ?? []).map((loc: any): WeeklyLocationSummary => {
         const locName = loc.name?.replace(' Music Lessons', '') ?? ''
