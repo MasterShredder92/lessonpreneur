@@ -353,12 +353,24 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                         border: '1px solid rgba(217,119,6,0.25)',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 700, color: '#D97706' }}>
-                        <Lock size={13} /> Called Out
+                      <div style={{
+                        fontSize: 14, fontWeight: 700, color: '#fff',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}>
+                        {block!.student_name ?? 'Student'}
                       </div>
-                      {block!.callout_reason && (
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          — {block!.callout_reason}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>
+                        <Lock size={11} style={{ color: '#D97706' }} />
+                        <span style={{ fontWeight: 600, color: '#D97706' }}>Called Out</span>
+                        {block!.callout_reason && (
+                          <span style={{ color: 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            — {block!.callout_reason}
+                          </span>
+                        )}
+                      </div>
+                      {block!.instrument && (
+                        <div title={block!.instrument} style={{ fontSize: 16, marginTop: 2 }}>
+                          {getInstrumentEmoji(block!.instrument)}
                         </div>
                       )}
                     </div>

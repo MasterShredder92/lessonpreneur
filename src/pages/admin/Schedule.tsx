@@ -1347,11 +1347,15 @@ export default function Schedule() {
                           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
                           padding: '4px 6px', textAlign: 'center', position: 'relative',
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Lock size={12} style={{ color: '#D97706' }} />
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#D97706' }}>Called Out</span>
+                          <div style={{ fontWeight: 700, fontSize: '14px', color: '#ffffff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                            {block.student_name || 'Student'}
                           </div>
-                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{formatTime(block.start_time)}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                            <Lock size={10} style={{ color: '#D97706' }} />
+                            <span style={{ fontWeight: 600, color: '#D97706' }}>Called Out</span>
+                            {block.instrument && <span title={block.instrument}>{getInstrumentEmoji(block.instrument)}</span>}
+                            {formatTime(block.start_time)}
+                          </div>
                           {block.callout_reason && (
                             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                               — {block.callout_reason}
