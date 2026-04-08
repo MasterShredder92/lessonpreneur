@@ -157,11 +157,15 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
 
   const brandColor = getLocationColor(effectiveLocation)
 
+  const minFloors = activeLocationObj?.min_floors ?? 1
+
   const floors = useMemo(() => {
     const set = new Set(allBlocks.map(b => b.floor))
+    // Ensure at least minFloors grids render (e.g. Bellevue = 2 floors)
+    for (let f = 1; f <= minFloors; f++) set.add(f)
     if (set.size === 0) set.add(1)
     return [...set].sort()
-  }, [allBlocks])
+  }, [allBlocks, minFloors])
 
   const isMultiFloor = floors.length > 1
 
@@ -434,7 +438,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         {canEdit && !isMobile && (
           <>
-            <button className="btn-outline" onClick={() => setShowAddSpace(true)} style={{ fontSize: 13 }}>+ Add Space</button>
+            <button className="btn-outline" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setShowAddSpace(true) }} style={{ fontSize: 13 }}>+ Add Space</button>
             <button
               className="btn-primary"
               onClick={handleSave}
@@ -1181,6 +1185,12 @@ function AddSpaceModal({ onClose, onAdd, isMultiFloor, defaultFloor }: {
     setSubmitting(false)
   }
 
+  const nameRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    // Focus without scrolling
+    nameRef.current?.focus({ preventScroll: true })
+  }, [])
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -1198,11 +1208,11 @@ function AddSpaceModal({ onClose, onAdd, isMultiFloor, defaultFloor }: {
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Name</label>
             <input
+              ref={nameRef}
               className="form-input"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Front Lobby"
-              autoFocus
               style={{ width: '100%' }}
             />
           </div>

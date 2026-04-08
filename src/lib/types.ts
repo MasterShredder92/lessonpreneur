@@ -30,6 +30,7 @@ export interface Location {
   is_active: boolean
   floorplan_cols: number | null
   floorplan_rows: number | null
+  min_floors: number | null
 }
 
 export interface Teacher {
