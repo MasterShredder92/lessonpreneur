@@ -50,7 +50,6 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
   const running = useRef(false)
 
   useEffect(() => {
-    // Guard: don't fire if locationId is empty/missing
     if (!locationId) return
 
     const selStr = selectedDate.toISOString().split('T')[0]
@@ -60,14 +59,13 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
       running.current = true
       try {
         const ct = getCentralTime()
-        // Only run when viewing today
         if (selStr !== ct.dateStr) return
         const nowMinutes = ct.hours * 60 + ct.minutes
 
-        // Find ended, unchecked blocks of eligible types
+        // Fetch unchecked blocks — double-filter: DB-side AND client-side
         const { data: blocks } = await supabase
           .from('schedule_blocks')
-          .select('id, end_time')
+          .select('id, end_time, checked_in')
           .eq('block_date', ct.dateStr)
           .eq('location_id', locationId)
           .eq('tenant_id', TENANT_ID)
@@ -79,9 +77,8 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
         if (!blocks || blocks.length === 0) return
 
         const eligible = blocks.filter((b: any) => {
-          // Skip if already attempted this session
+          if (b.checked_in) return false
           if (attemptedBlockIds.has(b.id)) return false
-          // Only check in blocks whose end_time has passed
           return timeToMinutes(b.end_time) <= nowMinutes
         })
 
@@ -89,22 +86,20 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
 
         let checked = 0
         for (const block of eligible) {
-          // Mark as attempted BEFORE calling — prevents retries even on failure
           attemptedBlockIds.add(block.id)
           try {
-            await supabase.rpc('check_in_block', {
+            const { data } = await supabase.rpc('check_in_block', {
               p_block_id: block.id,
               p_action: 'check_in',
               p_user_id: SYSTEM_USER_ID,
             })
-            checked++
-          } catch (err) {
-            console.warn('[AutoCheckIn] Failed for block', block.id, err)
+            if (data?.ok) checked++
+          } catch {
+            // Individual failures don't stop the batch
           }
         }
 
         if (checked > 0) {
-          console.log(`[AutoCheckIn] Auto-checked ${checked} block(s)`)
           qc.invalidateQueries({ queryKey: ['schedule-grid'] })
           qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
           qc.invalidateQueries({ queryKey: ['teachers-monthly-tally'] })
@@ -115,7 +110,6 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
       }
     }
 
-    // Only set up interval if viewing today
     const ct = getCentralTime()
     if (selStr !== ct.dateStr) return
 

@@ -125,9 +125,9 @@ export function useDashboard(locationIds?: string[] | null) {
       const activeTeachers = teachers?.filter((t: any) => t.is_active) ?? []
       const needsReview = activeTeachers.filter((t: any) => t.ai_context?.instruments_need_review).length
 
-      // Teacher location mapping via teacher_locations
-      const teacherIds = activeTeachers.map((t: any) => t.id)
-      const { data: profLocs } = await supabase.from('teacher_locations').select('teacher_id, location_id').in('teacher_id', teacherIds).eq('tenant_id', tenantId!)
+      // Teacher location mapping via RPC (avoids oversized URL from .in() with many UUIDs)
+      const teacherIdSet = new Set(activeTeachers.map((t: any) => t.id))
+      const { data: profLocs } = await supabase.rpc('get_teacher_locations_for_tenant', { p_tenant_id: tenantId! })
       const teachersByLoc: Record<string, number> = {}
 
       // Location summary
@@ -137,8 +137,8 @@ export function useDashboard(locationIds?: string[] | null) {
         const locOpenToday = todayBlocks?.filter((b: any) => b.location_id === loc.id && b.status === 'available').length ?? 0
         const locTeacherIds = new Set(todayBlocks?.filter((b: any) => b.location_id === loc.id).map((b: any) => b.teacher_id) ?? [])
 
-        // Count teachers at location
-        const teachersAtLoc = profLocs?.filter((pl: any) => pl.location_id === loc.id).length ?? 0
+        // Count active teachers at location
+        const teachersAtLoc = profLocs?.filter((pl: any) => pl.location_id === loc.id && teacherIdSet.has(pl.teacher_id)).length ?? 0
         teachersByLoc[locName] = teachersAtLoc
 
         return {
