@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Bug, X, Upload, AlertTriangle } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import { useIssueContext } from '../../contexts/IssueContext'
-import { useCreateIssue, CATEGORIES, SEVERITIES, checkForDuplicateIssue } from '../../hooks/useIssues'
+import { useCreateIssue, CATEGORIES, SEVERITIES, DESCRIPTION_MAX_LENGTH, checkForDuplicateIssue } from '../../hooks/useIssues'
 import { toast } from './Toast'
 
 const ALLOWED_ROLES = ['owner', 'admin', 'company_director']
@@ -51,6 +51,7 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [description, setDescription] = useState('')
+  const [stepsToReproduce, setStepsToReproduce] = useState('')
   const [category, setCategory] = useState('bug')
   const [severity, setSeverity] = useState('normal')
   const [screenshot, setScreenshot] = useState<File | null>(null)
@@ -89,6 +90,7 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
         category,
         severity: canSetSeverity ? severity : 'normal',
         description: description.trim(),
+        steps_to_reproduce: stepsToReproduce.trim() || null,
         screenshotFile: screenshot,
       })
       toast('Issue reported — fix pipeline activated', 'success')
@@ -161,7 +163,7 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Bug size={16} style={{ color: '#D4226A' }} />
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>Report Issue</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>How can we help?</span>
           </div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#8080A8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
@@ -170,7 +172,7 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
 
         {/* Breadcrumb */}
         <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 16, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reporting on</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Where did this occur?</span>
           <div style={{ marginTop: 3, color: '#A0A0C8', fontWeight: 600 }}>{breadcrumb}</div>
         </div>
 
@@ -197,13 +199,13 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
 
         {/* Description */}
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>What's wrong?</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>What happened?</div>
           <textarea
             value={description}
             onChange={e => { setDescription(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
-            placeholder="Describe the issue..."
-            maxLength={1500}
-            rows={6}
+            placeholder="Tell us what went wrong or what you expected to happen..."
+            maxLength={DESCRIPTION_MAX_LENGTH}
+            rows={4}
             style={{
               width: '100%', fontSize: 13, padding: '10px 12px', borderRadius: 10,
               background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
@@ -211,7 +213,25 @@ function ReportModal({ role, onClose }: { role: string; onClose: () => void }) {
               lineHeight: 1.5, boxSizing: 'border-box',
             }}
           />
-          <div style={{ fontSize: 10, color: (1500 - description.length) < 100 ? '#D4226A' : '#55516E', marginTop: 3, textAlign: 'right' }}>{1500 - description.length} characters remaining</div>
+          <div style={{ fontSize: 10, color: '#55516E', marginTop: 3, textAlign: 'right' }}>{DESCRIPTION_MAX_LENGTH - description.length}</div>
+        </div>
+
+        {/* Steps to reproduce */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>How can we reproduce it? <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></div>
+          <textarea
+            value={stepsToReproduce}
+            onChange={e => setStepsToReproduce(e.target.value)}
+            placeholder="e.g. 1. Go to Schedule  2. Tap on a block  3. Nothing happens"
+            maxLength={1000}
+            rows={2}
+            style={{
+              width: '100%', fontSize: 13, padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+              color: '#D0D0E8', resize: 'vertical', fontFamily: 'inherit', outline: 'none',
+              lineHeight: 1.5, boxSizing: 'border-box',
+            }}
+          />
         </div>
 
         {/* Screenshot */}

@@ -165,6 +165,12 @@ export const CATEGORIES = [
   { value: 'feature_request', label: 'Feature idea', helper: 'A new feature or change you\'d like to see', pillLabel: 'Feature idea', color: '#8B5CF6', friendlyLabel: "I have an idea" },
 ] as const
 
+export const DESCRIPTION_MAX_LENGTH = 1500
+
+export function getFriendlyCategory(categoryValue: string): string {
+  return CATEGORIES.find(c => c.value === categoryValue)?.friendlyLabel ?? categoryValue
+}
+
 export const SEVERITIES = [
   { value: 'critical', label: 'Critical', color: '#EF4444', hint: 'App is unusable or data is being lost' },
   { value: 'high', label: 'High', color: '#fb923c', hint: 'Major feature broken, app still works' },
@@ -270,7 +276,7 @@ export function useCreateIssue() {
           severity: params.severity,
           description: params.description,
           steps_to_reproduce: params.steps_to_reproduce ?? null,
-          user_friendly_category: params.user_friendly_category ?? null,
+          user_friendly_category: params.user_friendly_category ?? getFriendlyCategory(params.category) ?? null,
           reported_from_url: window.location.pathname,
           reported_screen_width: window.innerWidth,
           reported_screen_height: window.innerHeight,
