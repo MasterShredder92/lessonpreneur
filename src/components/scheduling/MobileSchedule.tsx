@@ -722,6 +722,16 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                 const colors = BLOCK_COLORS[block.block_type] ?? BLOCK_COLORS.student_session
                 const isCheckedIn = block.checked_in
                 const isPendingTally = block.checked_in && !block.teacher_tally
+
+                // Block colors — never use location brand colors.
+                // Checked-in: faded block color. Not checked-in: solid block color.
+                const blockBg = isCheckedIn ? `${colors.bg}50` : colors.bg
+                const blockBorder = isCheckedIn
+                  ? isPendingTally
+                    ? `1px dashed ${colors.bg}`
+                    : `1px solid ${colors.bg}`
+                  : '1px solid transparent'
+
                 return (
                   <div
                     key={`${t.id}-${slot}`}
@@ -729,16 +739,12 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                     style={{
                       height: rowH, display: 'flex', flexDirection: 'column', justifyContent: 'center',
                       alignItems: 'center',
-                      background: isCheckedIn
-                        ? isPendingTally ? `${colors.bg}40` : `${locColor}18`
-                        : colors.bg,
+                      background: blockBg,
                       borderRadius: 4, margin: '2px 1px',
                       cursor: 'pointer', overflow: 'hidden', padding: '0 3px', position: 'relative',
                       transition: 'height 150ms ease',
-                      border: isCheckedIn
-                        ? isPendingTally ? `1px dashed ${locColor}` : `1px solid ${locColor}`
-                        : '1px solid transparent',
-                      opacity: isPendingTally ? 0.7 : 1,
+                      border: blockBorder,
+                      boxShadow: isCheckedIn ? 'none' : undefined,
                     }}
                   >
                     {/* Current time bar */}
@@ -765,10 +771,7 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                       </div>
                     )}
                     {isCheckedIn && !isPendingTally && (
-                      <span style={{ position: 'absolute', top: 1, right: 2, fontSize: 8, lineHeight: 1 }}>✓</span>
-                    )}
-                    {isPendingTally && (
-                      <span style={{ position: 'absolute', top: 1, right: 2, fontSize: 7, lineHeight: 1 }}>⏳</span>
+                      <span style={{ position: 'absolute', top: 1, right: 2, fontSize: 8, lineHeight: 1, color: '#FFB800' }}>✓</span>
                     )}
                   </div>
                 )

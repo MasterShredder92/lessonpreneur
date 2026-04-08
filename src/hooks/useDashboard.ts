@@ -69,7 +69,7 @@ export function useDashboard(locationIds?: string[] | null) {
         { data: recentLeads },
         { data: recentStudents },
       ] = await Promise.all([
-        supabase.from('students').select('id, status, location_id').eq('tenant_id', tenantId!).limit(5000),
+        supabase.from('students').select('id, status, location_id').eq('tenant_id', tenantId!).limit(2000),
         supabase.from('leads').select('id, stage, parent_name, first_name, updated_at, created_at, instrument').eq('tenant_id', tenantId!).limit(2000),
         supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).gte('block_date', mondayStr).lte('block_date', sundayStr),
         supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).eq('block_date', today),
@@ -245,6 +245,11 @@ export function useDashboard(locationIds?: string[] | null) {
       const activeStudentIds = active.map((s: any) => s.id)
       let atRiskStudents: DashboardData['atRiskStudents'] = []
       if (activeStudentIds.length > 0) {
+        // Only look back 60 days for at-risk detection (avoids pulling entire session_log table)
+        const sixtyDaysAgo = new Date(now)
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+        const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0]
+
         const { data: recentLogs } = await supabase
           .from('session_log')
           .select('student_id, block_date')

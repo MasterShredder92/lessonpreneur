@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
-import { useLocations } from '../../hooks/useLocations'
+import { LOCATIONS } from '../../config/locations'
 
 const ROLE_ROUTES: Record<string, string> = {
   owner: '/admin/dashboard',
@@ -15,23 +15,18 @@ const ROLE_ROUTES: Record<string, string> = {
 const PREVIEW_ROLES = [
   { key: 'owner', label: 'Owner', emoji: '\uD83D\uDC51', minRole: 'owner' },
   { key: 'company_director', label: 'Co. Director', emoji: '\uD83D\uDCCB', minRole: 'owner' },
-  { key: 'studio_director', label: 'Studio Dir.', emoji: '\uD83C\uDFB5', minRole: 'company_director' },
+  { key: 'studio_director', label: 'Studio Director', emoji: '\uD83C\uDFB5', minRole: 'owner' },
   { key: 'site', label: 'Location', emoji: '\uD83C\uDF10', minRole: 'company_director' },
   { key: 'teacher', label: 'Teacher', emoji: '\uD83D\uDC68\u200D\uD83C\uDFEB', minRole: 'company_director' },
   { key: 'parent', label: 'Parent', emoji: '\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67', minRole: 'company_director' },
 ]
 
-/** Map DB location name → public marketing route slug */
-function locationSlug(name: string): string {
-  return name.replace(/ Music Lessons$/i, '').trim().toLowerCase()
-}
 
 const ROLE_LEVEL: Record<string, number> = { owner: 100, admin: 80, company_director: 80, studio_director: 60, teacher: 20, parent: 10 }
 
 export default function RoleSwitcher() {
   const { role } = useAuthContext()
   const { preview, startPreview, stopPreview } = usePreviewMode()
-  const { data: locations } = useLocations()
   const navigate = useNavigate()
   const [showPicker, setShowPicker] = useState(false)
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
@@ -67,9 +62,9 @@ export default function RoleSwitcher() {
     navigate(ROLE_ROUTES[roleKey] ?? '/admin/dashboard')
   }
 
-  const handleLocationPick = (locName: string) => {
+  const handleLocationPick = (domain: string) => {
     setShowPicker(false)
-    navigate(`/${locationSlug(locName)}`)
+    window.open(`https://${domain}`, '_blank', 'noopener')
   }
 
   const effectiveRole = preview.active ? preview.role : role
@@ -101,9 +96,9 @@ export default function RoleSwitcher() {
           background: '#101018', border: '1px solid #1a1a28', borderRadius: 10,
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)', padding: 4, minWidth: 180,
         }}>
-          <div style={{ padding: '6px 10px', fontSize: 10, color: '#8080A8', fontWeight: 600 }}>Preview site at which location?</div>
-          {locations?.filter((l: any) => l.is_active).map((l: any) => (
-            <button key={l.id} onClick={() => handleLocationPick(l.name)} style={{
+          <div style={{ padding: '6px 10px', fontSize: 10, color: '#8080A8', fontWeight: 600 }}>Open website for which location?</div>
+          {Object.values(LOCATIONS).map(loc => (
+            <button key={loc.key} onClick={() => handleLocationPick(loc.domain)} style={{
               display: 'block', width: '100%', padding: '8px 10px', borderRadius: 6,
               background: 'none', border: 'none', color: '#E0E0F4', fontSize: 12,
               cursor: 'pointer', textAlign: 'left',
@@ -111,7 +106,8 @@ export default function RoleSwitcher() {
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
             >
-              {l.name.replace(' Music Lessons', '')}
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: loc.accentColor, marginRight: 8 }} />
+              {loc.name}
             </button>
           ))}
           <button onClick={() => setShowPicker(false)} style={{ display: 'block', width: '100%', padding: '6px 10px', borderRadius: 6, background: 'none', border: 'none', color: '#606088', fontSize: 11, cursor: 'pointer', textAlign: 'left' }}>Cancel</button>

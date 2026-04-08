@@ -1748,9 +1748,10 @@ function IssuesTab() {
           <div style={{ fontSize: 12, color: '#8080A8' }}>{totalCount} issues{statusFilter === 'open' ? '' : ` · ${openCount} open`}</div>
         </div>
 
-        {/* Filter pills */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-          {([['all', 'All'], ['open', 'Open'], ['resolved', 'Resolved'], ['failed', 'Failed'], ['wont_fix', "Won't Fix"]] as const).map(([key, label]) => (
+        {/* Filter pills — Status */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: '#55516E', fontWeight: 600, marginRight: 4 }}>Status</span>
+          {([['all', 'All'], ['open', 'New'], ['resolved', 'Fixed'], ['failed', 'Needs Attention']] as [StatusGroup, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setStatusFilter(key)} style={{
               padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
               background: statusFilter === key ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.03)',
@@ -1952,6 +1953,21 @@ function IssueReportForm({ isOwner }: { isOwner: boolean }) {
             ))}
           </div>
         </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Field 1 — What happened? */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 6, display: 'block' }}>What happened? *</label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Describe what went wrong in plain English. Don't worry about technical details."
+              maxLength={1500}
+              rows={5}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5, fontFamily: 'inherit' }}
+            />
+            <div style={{ fontSize: 10, color: (1500 - description.length) < 100 ? '#D4226A' : '#55516E', marginTop: 3, textAlign: 'right' }}>{1500 - description.length} characters remaining</div>
+          </div>
 
         {/* Element */}
         <div>

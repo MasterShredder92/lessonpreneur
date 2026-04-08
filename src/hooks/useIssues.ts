@@ -159,10 +159,10 @@ export const PAGE_SECTION_MAP = Object.fromEntries(
 )
 
 export const CATEGORIES = [
-  { value: 'bug', label: "Something's not working", helper: "A button, form, or feature isn't doing what it should", pillLabel: 'Not working', color: '#D4226A', friendlyLabel: "Something's broken" },
-  { value: 'display', label: "Doesn't look right", helper: 'Something is off-screen, overlapping, or hard to read', pillLabel: 'Looks wrong', color: '#fb923c', friendlyLabel: "Looks wrong" },
-  { value: 'data', label: 'Wrong or missing info', helper: 'Data is incorrect, missing, or not saving', pillLabel: 'Wrong info', color: '#FFB800', friendlyLabel: "Wrong or missing info" },
-  { value: 'feature_request', label: 'Feature idea', helper: 'A new feature or change you\'d like to see', pillLabel: 'Feature idea', color: '#8B5CF6', friendlyLabel: "I have an idea" },
+  { value: 'bug', label: "Something's not working", helper: "A button, page, or feature isn't doing what it should", pillLabel: 'Not working', color: '#D4226A' },
+  { value: 'display', label: "Doesn't look right", helper: 'Something looks off, overlapping, or hard to read', pillLabel: 'Looks wrong', color: '#fb923c' },
+  { value: 'data', label: 'Wrong or missing info', helper: 'Information is incorrect, missing, or not saving', pillLabel: 'Wrong info', color: '#FFB800' },
+  { value: 'feature_request', label: 'Feature idea', helper: 'A new feature or change you\'d like to see', pillLabel: 'Feature idea', color: '#8B5CF6' },
 ] as const
 
 export const DESCRIPTION_MAX_LENGTH = 1500
@@ -172,10 +172,10 @@ export function getFriendlyCategory(categoryValue: string): string {
 }
 
 export const SEVERITIES = [
-  { value: 'critical', label: 'Critical', color: '#EF4444', hint: 'App is unusable or data is being lost' },
-  { value: 'high', label: 'High', color: '#fb923c', hint: 'Major feature broken, app still works' },
-  { value: 'normal', label: 'Normal', color: '#8080A8', hint: 'Something wrong, has a workaround' },
-  { value: 'low', label: 'Low', color: '#55516E', hint: 'Minor visual or cosmetic issue' },
+  { value: 'critical', label: "Can't do my job", color: '#EF4444', hint: 'Something is completely broken and blocking work' },
+  { value: 'high', label: 'Slowing me down', color: '#fb923c', hint: 'A big feature is broken but the app still works' },
+  { value: 'normal', label: 'Annoying', color: '#8080A8', hint: "Something's off but I can work around it" },
+  { value: 'low', label: 'Minor', color: '#55516E', hint: 'Small visual or cosmetic issue' },
 ] as const
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -192,14 +192,14 @@ export const STATUS_COLORS: Record<string, string> = {
 
 export const STATUS_LABELS: Record<string, string> = {
   reported: 'New',
-  queued: 'In Progress',
-  diagnosing: 'In Progress',
-  fixing: 'In Progress',
-  deploying: 'In Progress',
+  queued: 'Working on it',
+  diagnosing: 'Looking into it',
+  fixing: 'Working on it',
+  deploying: 'Almost done',
   resolved: 'Fixed',
-  failed_build: 'In Progress',
+  failed_build: 'Needs attention',
   wont_fix: "Won't Fix",
-  duplicate: 'Duplicate',
+  duplicate: 'Already reported',
 }
 
 // ─── Query: list issues ─────────────────────────────
@@ -210,8 +210,8 @@ export function useIssues(statusGroup: StatusGroup = 'all') {
   return useQuery<Issue[]>({
     queryKey: ['issues', tenantId, statusGroup],
     enabled: !!tenantId,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 1000 * 30,
+    refetchOnMount: true,
     queryFn: async () => {
       let q = supabase
         .from('issues')
