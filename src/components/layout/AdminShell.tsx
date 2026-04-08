@@ -9,7 +9,7 @@ import { ADMIN_NAV_ITEMS } from '../../lib/constants'
 import { useTheme } from '../../hooks/useTheme'
 import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Star, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound } from 'lucide-react'
 import ChangePasswordModal from '../shared/ChangePasswordModal'
-import RoleSwitcher from '../shared/RoleSwitcher'
+import TopViewTabs from '../shared/TopViewTabs'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
 import StarModal from '../ai/StarModal'
 import { OnboardingProvider } from '../../contexts/OnboardingContext'
@@ -278,8 +278,8 @@ export default function AdminShell() {
       </aside>
 
       <main className="admin-main">
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px 0', maxWidth: '100%', overflowX: 'visible', overflow: 'visible' }}>
-          <RoleSwitcher />
+        <div style={{ padding: '8px 16px 0', maxWidth: '100%' }}>
+          <TopViewTabs />
         </div>
         <PageTransition><Outlet /></PageTransition>
       </main>
