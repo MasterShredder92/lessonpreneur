@@ -50,13 +50,13 @@ export default function TeacherDetail() {
   const { data: blocks } = useTeacherBlocks(id)
   const { data: locations } = useLocations()
   const updateTeacher = useUpdateTeacher()
-  const { canViewTeacherCompensation, canViewTeacherDocuments, isStudioDirector: isSD, locationIds: sdLocationIds } = usePermissions()
+  const { canViewTeacherCompensation, canViewTeacherDocuments, isStudioDirector: isSD, locationIds: sdLocationIds, isAtLeast } = usePermissions()
   const { data: paySummary } = useTeacherPaySummary(id)
   const { data: calloutTally } = useTeacherCalloutTally(id)
   const { data: calloutHistory } = useTeacherCalloutHistory(id)
   const [showCalloutHistory, setShowCalloutHistory] = useState(false)
   const qc = useQueryClient()
-  const canEdit = role === 'owner' || role === 'admin'
+  const canEdit = isAtLeast('studio_director')
   const photoInputRef = useRef<HTMLInputElement>(null)
 
   // ─── State ───
