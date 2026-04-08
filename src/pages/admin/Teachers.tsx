@@ -42,8 +42,8 @@ export default function Teachers() {
   const { data: locations } = useLocations()
   const { data: monthlyTally } = useTeachersMonthlyTally()
   const navigate = useNavigate()
-  const { isStudioDirector, canViewTeacherCompensation, canViewTeacherDocuments } = usePermissions()
-  const canEdit = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
+  const { isStudioDirector, canViewTeacherCompensation, canViewTeacherDocuments, isAtLeast } = usePermissions()
+  const canEdit = isAtLeast('studio_director')
   const { saveScroll } = useScrollRestore('teachers')
 
   const [showForm, setShowForm] = useState(false)
