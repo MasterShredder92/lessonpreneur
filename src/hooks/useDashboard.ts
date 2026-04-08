@@ -236,6 +236,12 @@ export function useDashboard(locationIds?: string[] | null) {
       const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0]
 
       // Get the most recent session_log date per active student
+      // Only fetch logs from the last 60 days — enough to compute daysSinceSession
+      // for at-risk students while avoiding an unbounded full-table scan.
+      const sixtyDaysAgo = new Date(now)
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+      const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0]
+
       const activeStudentIds = active.map((s: any) => s.id)
       let atRiskStudents: DashboardData['atRiskStudents'] = []
       if (activeStudentIds.length > 0) {
@@ -244,6 +250,7 @@ export function useDashboard(locationIds?: string[] | null) {
           .select('student_id, block_date')
           .eq('tenant_id', tenantId!)
           .in('student_id', activeStudentIds)
+          .gte('block_date', sixtyDaysAgoStr)
           .order('block_date', { ascending: false })
 
         const lastSessionByStudent = new Map<string, string>()
