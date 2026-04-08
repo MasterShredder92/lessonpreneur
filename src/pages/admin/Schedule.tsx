@@ -230,22 +230,6 @@ export default function Schedule() {
   // Auto-scroll to current time indicator on mount/navigation
   const hasAutoScrolled = useRef(false)
   useEffect(() => { hasAutoScrolled.current = false }, [selectedDate, effectiveLocation])
-  useEffect(() => {
-    if (hasAutoScrolled.current || !gridWrapperRef.current || !timeSlots?.length) return
-    const isViewingToday = toDateString(new Date()) === selectedDate
-    if (!isViewingToday) return
-    const nowP = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date())
-    const nowM = parseInt(nowP.find(p => p.type === 'hour')?.value ?? '0') * 60 + parseInt(nowP.find(p => p.type === 'minute')?.value ?? '0')
-    const firstM = parseInt(timeSlots[0].split(':')[0]) * 60 + parseInt(timeSlots[0].split(':')[1])
-    const lastM = parseInt(timeSlots[timeSlots.length - 1].split(':')[0]) * 60 + parseInt(timeSlots[timeSlots.length - 1].split(':')[1]) + 30
-    if (nowM < firstM || nowM > lastM) return
-    const progress = (nowM - firstM) / (lastM - firstM)
-    const scrollWidth = gridWrapperRef.current.scrollWidth
-    const clientWidth = gridWrapperRef.current.clientWidth
-    const targetScroll = Math.max(0, progress * scrollWidth - clientWidth / 2)
-    gridWrapperRef.current.scrollTo({ left: targetScroll, behavior: 'smooth' })
-    hasAutoScrolled.current = true
-  }, [selectedDate, timeSlots])
   useEffect(() => { starEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [starMessages])
   const assignStudent = useAssignStudent()
   const unassignBlock = useUnassignBlock()
@@ -625,6 +609,24 @@ export default function Schedule() {
   }
   const allTimeSet = new Set([...defaultSlots, ...gridTimeSlots])
   const timeSlots = [...allTimeSet].sort()
+
+  // Auto-scroll to current time indicator (must be after timeSlots declaration)
+  useEffect(() => {
+    if (hasAutoScrolled.current || !gridWrapperRef.current || !timeSlots?.length) return
+    const isViewingToday = toDateString(new Date()) === selectedDate
+    if (!isViewingToday) return
+    const nowP = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date())
+    const nowM = parseInt(nowP.find(p => p.type === 'hour')?.value ?? '0') * 60 + parseInt(nowP.find(p => p.type === 'minute')?.value ?? '0')
+    const firstM = parseInt(timeSlots[0].split(':')[0]) * 60 + parseInt(timeSlots[0].split(':')[1])
+    const lastM = parseInt(timeSlots[timeSlots.length - 1].split(':')[0]) * 60 + parseInt(timeSlots[timeSlots.length - 1].split(':')[1]) + 30
+    if (nowM < firstM || nowM > lastM) return
+    const progress = (nowM - firstM) / (lastM - firstM)
+    const scrollWidth = gridWrapperRef.current.scrollWidth
+    const clientWidth = gridWrapperRef.current.clientWidth
+    const targetScroll = Math.max(0, progress * scrollWidth - clientWidth / 2)
+    gridWrapperRef.current.scrollTo({ left: targetScroll, behavior: 'smooth' })
+    hasAutoScrolled.current = true
+  })
 
   const scheduledTeacherIds = new Set<string>()
   const subTeacherIds = new Set<string>()
