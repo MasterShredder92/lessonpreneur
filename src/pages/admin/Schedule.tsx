@@ -1412,15 +1412,16 @@ export default function Schedule() {
                           <div style={{ fontWeight: 700, fontSize: '16px', color: textColor, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                             {isMakeup
                               ? <>Makeup {'\uD83C\uDF3A'}</>
-                              : isFamilyCallout
-                                ? <>Call Out — Family</>
-                                : (block.student_name || 'Student')}
+                              : (block.student_name || 'Student')}
                           </div>
                           <div style={{ fontSize: '14px', color: textColorMuted, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                             {isVirtual && <span title="Virtual — Google Meet" style={{ fontSize: 12 }}>{'\uD83D\uDCF9'}</span>}
                             {block.instrument && <span title={block.instrument} style={{ fontSize: 14 }}>{getInstrumentEmoji(block.instrument)}</span>}
                             {formatTime(block.start_time)}
-                            {(isMakeup || isFamilyCallout) && block.student_name && (
+                            {isFamilyCallout && (
+                              <span style={{ fontSize: 11, opacity: 0.85 }}>{'\u00B7'} Call Out</span>
+                            )}
+                            {isMakeup && block.student_name && (
                               <span style={{ fontSize: 11, opacity: 0.85 }}>{'\u00B7'} {block.student_name.split(' ')[0]}</span>
                             )}
                             {block.has_session_log && <span title="Session logged" style={{ fontSize: 10, opacity: 0.8 }}>&#9998;</span>}

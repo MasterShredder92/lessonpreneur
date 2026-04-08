@@ -398,7 +398,7 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                         {block!.block_type === 'makeup_session'
                           ? `Makeup \u00B7 ${block!.student_name ?? ''}`.trim()
                           : block!.block_type === 'call_out' && block!.is_family_callout
-                            ? `Call Out — Family`
+                            ? `${block!.student_name ?? 'Student'} \u00B7 Call Out`
                             : (block!.student_name ?? block!.block_type.replace(/_/g, ' '))}
                       </div>
                       {block!.instrument && (
@@ -756,7 +756,7 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
                       {block.block_type === 'makeup_session'
                         ? '\u{1F33A} Makeup'
                         : block.block_type === 'call_out' && block.is_family_callout
-                          ? '\u{1F468}\u200D\u{1F469}\u200D\u{1F467} Family'
+                          ? `\u{1F468}\u200D\u{1F469}\u200D\u{1F467} ${block.student_name ?? 'Call Out'}`
                           : (block.student_name ?? (block.block_type === 'not_bookable' ? 'Locked' : block.block_type.replace(/_/g, ' ')))}
                     </div>
                     {isExpanded && block.instrument && (

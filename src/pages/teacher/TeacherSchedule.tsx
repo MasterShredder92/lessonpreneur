@@ -146,7 +146,7 @@ export default function TeacherSchedule() {
               const label = isOpen
                 ? 'Open'
                 : isFamilyCallout
-                  ? `Call Out — Family${block.student_first_name ? ` · ${block.student_first_name}` : ''}`
+                  ? `${block.student_first_name ?? 'Student'} · Call Out`
                   : block.block_type.replace(/_/g, ' ')
               const color = isOpen ? '#22C55E' : isFamilyCallout ? '#F97316' : '#606088'
               return (
