@@ -149,7 +149,6 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   const gridRows = activeLocationObj?.floorplan_rows ?? DEFAULT_ROWS
 
   const [allBlocks, setAllBlocks] = useState<LayoutBlock[]>([])
-  const [activeFloor, setActiveFloor] = useState(1)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showAddSpace, setShowAddSpace] = useState(false)
@@ -165,11 +164,6 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   }, [allBlocks])
 
   const isMultiFloor = floors.length > 1
-
-  const floorBlocks = useMemo(
-    () => allBlocks.filter(b => b.floor === activeFloor),
-    [allBlocks, activeFloor],
-  )
 
   const selectedRoom = useMemo(
     () => rooms?.find(r => r.id === selectedRoomId) ?? null,
@@ -190,7 +184,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   }, [])
 
   useEffect(() => {
-    if (!rooms?.length) { setAllBlocks([]); setActiveFloor(1); return }
+    if (!rooms?.length) { setAllBlocks([]); return }
     const byFloor = new Map<number, Room[]>()
     for (const r of rooms) {
       const f = r.floor ?? 1
@@ -203,14 +197,14 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
     }
     setAllBlocks(all)
     setDirty(false)
-    setActiveFloor(1)
   }, [rooms, gridCols])
 
   // --------------- DRAG ---------------
-  const gridRef = useRef<HTMLDivElement>(null)
+  const gridRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const didDrag = useRef(false)
   const dragState = useRef<{
     blockId: string
+    floor: number
     startMouseX: number
     startMouseY: number
     startBlockX: number
@@ -225,12 +219,13 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
     if (isMobile || !canEdit) return
     e.preventDefault()
     e.stopPropagation()
-    const block = floorBlocks.find(b => b.id === blockId)
+    const block = allBlocks.find(b => b.id === blockId)
     if (!block) return
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     didDrag.current = false
     dragState.current = {
       blockId,
+      floor: block.floor,
       startMouseX: e.clientX,
       startMouseY: e.clientY,
       startBlockX: block.x,
@@ -240,14 +235,15 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
       startH: block.h,
       origBlock: { ...block },
     }
-  }, [floorBlocks, isMobile, canEdit])
+  }, [allBlocks, isMobile, canEdit])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const ds = dragState.current
-    if (!ds || !gridRef.current) return
+    const gridEl = ds ? gridRefs.current.get(ds.floor) : null
+    if (!ds || !gridEl) return
     e.preventDefault()
 
-    const rect = gridRef.current.getBoundingClientRect()
+    const rect = gridEl.getBoundingClientRect()
     const scale = rect.width / (gridCols * CELL_SIZE)
     const cellPx = CELL_SIZE * scale
     const deltaX = Math.round((e.clientX - ds.startMouseX) / cellPx)
@@ -300,8 +296,9 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
 
   // Click empty canvas → close panel
   const handleCanvasClick = useCallback((e: React.PointerEvent) => {
-    // Only handle clicks directly on the canvas, not on blocks
-    if (e.target === gridRef.current || (e.target as HTMLElement).tagName === 'svg' || (e.target as HTMLElement).tagName === 'line') {
+    const el = e.target as HTMLElement
+    const isGrid = [...gridRefs.current.values()].some(g => g === el)
+    if (isGrid || el.tagName === 'svg' || el.tagName === 'line') {
       setSelectedRoomId(null)
     }
   }, [])
@@ -335,12 +332,17 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   // --------------- RESET ---------------
   const handleReset = () => {
     if (!rooms?.length) return
-    const floorRooms = rooms.filter(r => (r.floor ?? 1) === activeFloor)
-    const resetBlocks = resetArrangeFloor(floorRooms, gridCols, gridRows)
-    setAllBlocks(prev => [
-      ...prev.filter(b => b.floor !== activeFloor),
-      ...resetBlocks,
-    ])
+    const byFloor = new Map<number, Room[]>()
+    for (const r of rooms) {
+      const f = r.floor ?? 1
+      if (!byFloor.has(f)) byFloor.set(f, [])
+      byFloor.get(f)!.push(r)
+    }
+    const all: LayoutBlock[] = []
+    for (const [, floorRooms] of byFloor) {
+      all.push(...resetArrangeFloor(floorRooms, gridCols, gridRows))
+    }
+    setAllBlocks(all)
     setDirty(true)
   }
 
@@ -428,44 +430,11 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
         </div>
       )}
 
-      {/* Floor tabs */}
-      {isMultiFloor && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {floors.map(f => (
-            <button
-              key={f}
-              onClick={() => { setActiveFloor(f); setSelectedRoomId(null) }}
-              style={{
-                padding: '6px 16px',
-                borderRadius: 8,
-                border: `1.5px solid ${activeFloor === f ? brandColor : 'rgba(255,255,255,0.1)'}`,
-                background: activeFloor === f ? `${brandColor}20` : 'transparent',
-                color: activeFloor === f ? '#fff' : 'var(--text-muted)',
-                fontFamily: 'var(--font-display)',
-                fontWeight: 800,
-                fontSize: 13,
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              Floor {f}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {isMultiFloor && (
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-          {FLOOR_LABELS[activeFloor] ?? `Floor ${activeFloor}`}
-        </p>
-      )}
-
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         {canEdit && !isMobile && (
           <>
             <button className="btn-outline" onClick={() => setShowAddSpace(true)} style={{ fontSize: 13 }}>+ Add Space</button>
-            <button className="btn-outline" onClick={handleReset} style={{ fontSize: 13 }}>Reset Layout</button>
             <button
               className="btn-primary"
               onClick={handleSave}
@@ -487,133 +456,159 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
         </p>
       )}
 
-      {/* Canvas + Panel layout */}
+      {/* Stacked grids — one per floor */}
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        {/* Grid */}
-        <div
-          style={{
-            width: '100%',
-            maxWidth: gridWidth,
-            aspectRatio: `${gridCols} / ${gridRows}`,
-            position: 'relative',
-            borderRadius: 14,
-            overflow: 'hidden',
-            background: '#020209',
-            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)',
-            backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
-            border: '1px solid rgba(255,255,255,0.08)',
-            touchAction: 'none',
-            flexShrink: 0,
-          }}
-          ref={gridRef}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerDown={handleCanvasClick}
-        >
-          <svg
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-            viewBox={`0 0 ${gridWidth} ${gridHeight}`}
-            preserveAspectRatio="none"
-          >
-            {Array.from({ length: gridCols + 1 }, (_, i) => (
-              <line key={`v${i}`} x1={i * CELL_SIZE} y1={0} x2={i * CELL_SIZE} y2={gridHeight}
-                stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
-            ))}
-            {Array.from({ length: gridRows + 1 }, (_, i) => (
-              <line key={`h${i}`} x1={0} y1={i * CELL_SIZE} x2={gridWidth} y2={i * CELL_SIZE}
-                stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
-            ))}
-          </svg>
-
-          {floorBlocks.map(block => {
-            const blockColor = block.color || (block.isSpace ? '#666' : brandColor)
-            const isDragging = dragState.current?.blockId === block.id
-            const isSelected = block.id === selectedRoomId
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {floors.map((f, idx) => {
+            const blocksOnFloor = allBlocks.filter(b => b.floor === f)
             return (
-              <div
-                key={block.id}
-                style={{
-                  position: 'absolute',
-                  left: `${(block.x / gridCols) * 100}%`,
-                  top: `${(block.y / gridRows) * 100}%`,
-                  width: `${(block.w / gridCols) * 100}%`,
-                  height: `${(block.h / gridRows) * 100}%`,
-                  background: `${blockColor}30`,
-                  border: `2px solid ${blockColor}`,
-                  borderRadius: 8,
-                  padding: '6px 8px',
-                  boxSizing: 'border-box',
-                  cursor: canEdit && !isMobile ? 'grab' : 'pointer',
-                  userSelect: 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                  transition: isDragging ? 'none' : 'left 0.15s, top 0.15s, width 0.15s, height 0.15s',
-                  zIndex: isDragging ? 10 : isSelected ? 5 : 1,
-                  outline: isSelected ? `2px solid #fff` : 'none',
-                  outlineOffset: 1,
-                }}
-                onPointerDown={e => {
-                  if (canEdit && !isMobile) {
-                    handlePointerDown(e, block.id, 'move')
-                  } else {
-                    // Mobile: just select
-                    e.stopPropagation()
-                    setSelectedRoomId(block.id)
-                  }
-                }}
-              >
-                <span style={{
-                  fontSize: 12, fontWeight: 800, color: '#fff', lineHeight: 1.2,
-                  fontFamily: 'var(--font-display)',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                  {block.name}
-                </span>
-
-                {!block.isSpace && block.instruments.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
-                    {block.instruments.slice(0, 3).map(inst => (
-                      <span key={inst} style={{
-                        fontSize: 9, background: 'rgba(255,255,255,0.1)', borderRadius: 4,
-                        padding: '1px 4px', color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap',
-                      }}>
-                        {instrumentWithEmojiTitle(inst)}
-                      </span>
-                    ))}
+              <div key={f} style={{ marginBottom: idx < floors.length - 1 ? 24 : 0 }}>
+                {/* Floor label + divider */}
+                {isMultiFloor && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10,
+                    borderTop: idx > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                    paddingTop: idx > 0 ? 20 : 0,
+                  }}>
+                    <span style={{
+                      fontSize: 14, fontWeight: 800, color: '#E0E0F4',
+                      fontFamily: 'var(--font-display)',
+                    }}>
+                      {FLOOR_LABELS[f] ?? `Floor ${f}`}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {blocksOnFloor.length} room{blocksOnFloor.length !== 1 ? 's' : ''}
+                    </span>
                   </div>
                 )}
 
-                {!block.isSpace && block.inventoryCount > 0 && (
-                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 'auto' }}>
-                    {block.inventoryCount} item{block.inventoryCount !== 1 ? 's' : ''}
-                  </span>
-                )}
-
-                {canEdit && !isMobile && (
-                  <div
-                    style={{ position: 'absolute', bottom: 0, right: 0, width: 14, height: 14, cursor: 'nwse-resize' }}
-                    onPointerDown={e => handlePointerDown(e, block.id, 'resize')}
+                {/* Grid canvas */}
+                <div
+                  style={{
+                    width: '100%',
+                    maxWidth: gridWidth,
+                    aspectRatio: `${gridCols} / ${gridRows}`,
+                    position: 'relative',
+                    borderRadius: 14,
+                    overflow: 'hidden',
+                    background: '#020209',
+                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)',
+                    backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    touchAction: 'none',
+                  }}
+                  ref={el => { if (el) gridRefs.current.set(f, el); else gridRefs.current.delete(f) }}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerDown={handleCanvasClick}
+                >
+                  <svg
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+                    viewBox={`0 0 ${gridWidth} ${gridHeight}`}
+                    preserveAspectRatio="none"
                   >
-                    <svg viewBox="0 0 14 14" width="14" height="14" style={{ opacity: 0.4 }}>
-                      <line x1="4" y1="14" x2="14" y2="4" stroke="white" strokeWidth="1.5" />
-                      <line x1="8" y1="14" x2="14" y2="8" stroke="white" strokeWidth="1.5" />
-                      <line x1="12" y1="14" x2="14" y2="12" stroke="white" strokeWidth="1.5" />
-                    </svg>
-                  </div>
-                )}
+                    {Array.from({ length: gridCols + 1 }, (_, i) => (
+                      <line key={`v${i}`} x1={i * CELL_SIZE} y1={0} x2={i * CELL_SIZE} y2={gridHeight}
+                        stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+                    ))}
+                    {Array.from({ length: gridRows + 1 }, (_, i) => (
+                      <line key={`h${i}`} x1={0} y1={i * CELL_SIZE} x2={gridWidth} y2={i * CELL_SIZE}
+                        stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+                    ))}
+                  </svg>
+
+                  {blocksOnFloor.map(block => {
+                    const blockColor = block.color || (block.isSpace ? '#666' : brandColor)
+                    const isDragging = dragState.current?.blockId === block.id
+                    const isSelected = block.id === selectedRoomId
+                    return (
+                      <div
+                        key={block.id}
+                        style={{
+                          position: 'absolute',
+                          left: `${(block.x / gridCols) * 100}%`,
+                          top: `${(block.y / gridRows) * 100}%`,
+                          width: `${(block.w / gridCols) * 100}%`,
+                          height: `${(block.h / gridRows) * 100}%`,
+                          background: `${blockColor}30`,
+                          border: `2px solid ${blockColor}`,
+                          borderRadius: 8,
+                          padding: '6px 8px',
+                          boxSizing: 'border-box',
+                          cursor: canEdit && !isMobile ? 'grab' : 'pointer',
+                          userSelect: 'none',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          overflow: 'hidden',
+                          transition: isDragging ? 'none' : 'left 0.15s, top 0.15s, width 0.15s, height 0.15s',
+                          zIndex: isDragging ? 10 : isSelected ? 5 : 1,
+                          outline: isSelected ? '2px solid #fff' : 'none',
+                          outlineOffset: 1,
+                        }}
+                        onPointerDown={e => {
+                          if (canEdit && !isMobile) {
+                            handlePointerDown(e, block.id, 'move')
+                          } else {
+                            e.stopPropagation()
+                            setSelectedRoomId(block.id)
+                          }
+                        }}
+                      >
+                        <span style={{
+                          fontSize: 12, fontWeight: 800, color: '#fff', lineHeight: 1.2,
+                          fontFamily: 'var(--font-display)',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {block.name}
+                        </span>
+
+                        {!block.isSpace && block.instruments.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
+                            {block.instruments.slice(0, 3).map(inst => (
+                              <span key={inst} style={{
+                                fontSize: 9, background: 'rgba(255,255,255,0.1)', borderRadius: 4,
+                                padding: '1px 4px', color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap',
+                              }}>
+                                {instrumentWithEmojiTitle(inst)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {!block.isSpace && block.inventoryCount > 0 && (
+                          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 'auto' }}>
+                            {block.inventoryCount} item{block.inventoryCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+
+                        {canEdit && !isMobile && (
+                          <div
+                            style={{ position: 'absolute', bottom: 0, right: 0, width: 14, height: 14, cursor: 'nwse-resize' }}
+                            onPointerDown={e => handlePointerDown(e, block.id, 'resize')}
+                          >
+                            <svg viewBox="0 0 14 14" width="14" height="14" style={{ opacity: 0.4 }}>
+                              <line x1="4" y1="14" x2="14" y2="4" stroke="white" strokeWidth="1.5" />
+                              <line x1="8" y1="14" x2="14" y2="8" stroke="white" strokeWidth="1.5" />
+                              <line x1="12" y1="14" x2="14" y2="12" stroke="white" strokeWidth="1.5" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {blocksOnFloor.length === 0 && !isLoading && (
+                    <div style={{
+                      position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--text-muted)', fontSize: 14,
+                    }}>
+                      {isMultiFloor ? `No rooms on Floor ${f}` : 'No rooms at this location'}
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })}
-
-          {floorBlocks.length === 0 && !isLoading && (
-            <div style={{
-              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-muted)', fontSize: 14,
-            }}>
-              {isMultiFloor ? `No rooms on Floor ${activeFloor}` : 'No rooms at this location'}
-            </div>
-          )}
         </div>
 
         {/* Side Panel — desktop */}
@@ -648,7 +643,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
           onClose={() => setShowAddSpace(false)}
           onAdd={handleAddSpace}
           isMultiFloor={isMultiFloor}
-          defaultFloor={activeFloor}
+          defaultFloor={floors[floors.length - 1] ?? 1}
         />
       )}
     </div>
@@ -886,7 +881,40 @@ function RoomPanelContent({ room, brandColor, block, onClose, onNameChange, onDe
 
         <div style={s.field}>
           <label style={s.label}>Floor</label>
-          <span style={{ fontSize: 13, color: '#fff' }}>Floor {block.floor}</span>
+          {canEdit ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                onClick={async () => {
+                  const newFloor = Math.max(1, block.floor - 1)
+                  if (newFloor === block.floor) return
+                  await supabase.from('rooms').update({ floor: newFloor }).eq('id', room.id).eq('tenant_id', TENANT_ID)
+                  qc.invalidateQueries({ queryKey: ['rooms'] })
+                }}
+                style={{
+                  width: 28, height: 28, borderRadius: 6, fontSize: 14, fontWeight: 700,
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >−</button>
+              <span style={{ fontSize: 13, color: '#fff', fontWeight: 700, minWidth: 50, textAlign: 'center' }}>
+                Floor {block.floor}
+              </span>
+              <button
+                onClick={async () => {
+                  const newFloor = block.floor + 1
+                  await supabase.from('rooms').update({ floor: newFloor }).eq('id', room.id).eq('tenant_id', TENANT_ID)
+                  qc.invalidateQueries({ queryKey: ['rooms'] })
+                }}
+                style={{
+                  width: 28, height: 28, borderRadius: 6, fontSize: 14, fontWeight: 700,
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >+</button>
+            </div>
+          ) : (
+            <span style={{ fontSize: 13, color: '#fff' }}>Floor {block.floor}</span>
+          )}
         </div>
 
         <div style={s.field}>

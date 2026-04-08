@@ -244,14 +244,14 @@ function LocationsConsolidatedTab({ isOwner, tenantId }: { isOwner: boolean; ten
       <CollapsibleSection title="Locations">
         <LocationsTab isOwner={isOwner} tenantId={tenantId} />
       </CollapsibleSection>
-      <CollapsibleSection title="Teacher Locations">
-        <TeacherLocationsTab />
-      </CollapsibleSection>
       <CollapsibleSection title="Studio Floor Plan">
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
           Drag rooms to match your physical layout
         </p>
         <FloorPlanEditor />
+      </CollapsibleSection>
+      <CollapsibleSection title="Teacher Locations" defaultOpen={false}>
+        <TeacherLocationsTab />
       </CollapsibleSection>
       <CollapsibleSection title="School Closures & Holidays" defaultOpen={false}>
         <StudioClosuresManager locationId={null} />
@@ -1072,6 +1072,8 @@ function OperatingHoursEditor({ locationId, isOwner, expanded, onToggle }: { loc
 function TeacherLocationsTab() {
   const { data: teachers, isLoading: loadingTeachers } = useTeachers()
   const { data: locations, isLoading: loadingLocations } = useLocations()
+  const [search, setSearch] = useState('')
+  const [activeTab, setActiveTab] = useState<'active' | 'inactive'>('active')
 
   if (loadingTeachers || loadingLocations) {
     return <div className="loading-screen" style={{ height: 200 }}><MusicLoader /></div>
@@ -1085,18 +1087,63 @@ function TeacherLocationsTab() {
     )
   }
 
+  const activeTeachers = teachers.filter((t: any) => t.status === 'active' || t.status === 'at_capacity')
+  const inactiveTeachers = teachers.filter((t: any) => t.status === 'inactive' || t.status === 'archived')
+  const tabTeachers = activeTab === 'active' ? activeTeachers : inactiveTeachers
+  const filtered = search.trim()
+    ? tabTeachers.filter((t: any) => {
+        const name = `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.toLowerCase()
+        return name.includes(search.toLowerCase())
+      })
+    : tabTeachers
+
   return (
     <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <p style={{ fontSize: 12, color: '#686890', margin: 0 }}>
         Assign teachers to locations and mark who is available as a substitute.
       </p>
-      {teachers.map((teacher: any) => (
-        <TeacherLocationRow
-          key={teacher.id}
-          teacher={teacher}
-          locations={locations ?? []}
-        />
-      ))}
+
+      {/* Search */}
+      <input
+        className="form-input"
+        placeholder="Search teachers…"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ fontSize: 13, maxWidth: 320 }}
+      />
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {([
+          { key: 'active' as const, label: 'Active', count: activeTeachers.length },
+          { key: 'inactive' as const, label: 'Inactive', count: inactiveTeachers.length },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+              border: activeTab === tab.key ? '1.5px solid #D4226A' : '1px solid rgba(255,255,255,0.1)',
+              background: activeTab === tab.key ? 'rgba(212,34,106,0.15)' : 'transparent',
+              color: activeTab === tab.key ? '#fff' : 'var(--text-muted)',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            {tab.label} ({tab.count})
+          </button>
+        ))}
+      </div>
+
+      {/* Teacher rows */}
+      {filtered.length === 0 ? (
+        <div style={{ padding: 20, textAlign: 'center', color: '#686890', fontSize: 13 }}>
+          {search.trim() ? 'No teachers match your search' : `No ${activeTab} teachers`}
+        </div>
+      ) : (
+        filtered.map((teacher: any) => (
+          <TeacherLocationRow key={teacher.id} teacher={teacher} locations={locations ?? []} />
+        ))
+      )}
     </div>
   )
 }
