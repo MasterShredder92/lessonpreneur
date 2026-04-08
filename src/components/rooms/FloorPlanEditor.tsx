@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRooms, useCreateRoom, type Room, type InventoryItem } from '../../hooks/useRooms'
+import { useRooms, type Room, type InventoryItem } from '../../hooks/useRooms'
 import { useLocations } from '../../hooks/useLocations'
 import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -81,41 +81,57 @@ function roomToBlock(r: Room): LayoutBlock {
   }
 }
 
-function autoArrangeFloor(rooms: Room[], cols: number): LayoutBlock[] {
-  const blocks: LayoutBlock[] = []
-  let col = 0
-  let row = 0
-  for (const r of rooms) {
-    const block = roomToBlock(r)
-    if (isDefaultPosition(r)) {
-      if (col + block.w > cols) { col = 0; row += 2 }
-      block.x = col
-      block.y = row
-      col += block.w
+function findOpenCell(placed: LayoutBlock[], w: number, h: number, cols: number, rows: number): { x: number; y: number } {
+  for (let row = 0; row + h <= rows; row++) {
+    for (let col = 0; col + w <= cols; col++) {
+      const candidate = { x: col, y: row, w, h, id: '', name: '', floor: 0, isSpace: false, instruments: [], inventoryCount: 0, status: '', color: null }
+      if (!hasCollision(placed, candidate, '')) return { x: col, y: row }
     }
-    blocks.push(block)
   }
-  return blocks
+  // Fallback: place beyond grid bottom (will be visible but not overlapping)
+  return { x: 0, y: rows }
+}
+
+function autoArrangeFloor(rooms: Room[], cols: number, rows: number): LayoutBlock[] {
+  // First pass: collect rooms that already have saved positions
+  const placed: LayoutBlock[] = []
+  const needsPlacement: Room[] = []
+
+  for (const r of rooms) {
+    if (isDefaultPosition(r)) {
+      needsPlacement.push(r)
+    } else {
+      placed.push(roomToBlock(r))
+    }
+  }
+
+  // Second pass: place default-position rooms in open cells, checking against already-placed rooms
+  for (const r of needsPlacement) {
+    const block = roomToBlock(r)
+    const pos = findOpenCell(placed, block.w, block.h, cols, rows)
+    block.x = pos.x
+    block.y = pos.y
+    placed.push(block)
+  }
+
+  return placed
 }
 
 function resetArrangeFloor(rooms: Room[], cols: number, rows: number): LayoutBlock[] {
-  const blocks: LayoutBlock[] = []
-  let col = 0
-  let row = 0
+  const placed: LayoutBlock[] = []
   const sorted = [...rooms].sort((a, b) => a.display_order - b.display_order)
   for (const r of sorted) {
     const def = defaultBlockSize(r)
-    if (col + def.w > cols) { col = 0; row += 2 }
-    if (row + def.h > rows) break
     const block = roomToBlock(r)
-    block.x = col
-    block.y = row
     block.w = def.w
     block.h = def.h
-    blocks.push(block)
-    col += def.w
+    const pos = findOpenCell(placed, block.w, block.h, cols, rows)
+    if (pos.y + block.h > rows) break
+    block.x = pos.x
+    block.y = pos.y
+    placed.push(block)
   }
-  return blocks
+  return placed
 }
 
 function hasCollision(blocks: LayoutBlock[], moving: LayoutBlock, ignoreId: string): boolean {
@@ -189,19 +205,65 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
 
   useEffect(() => {
     if (!rooms?.length) { setAllBlocks([]); return }
-    const byFloor = new Map<number, Room[]>()
-    for (const r of rooms) {
-      const f = r.floor ?? 1
-      if (!byFloor.has(f)) byFloor.set(f, [])
-      byFloor.get(f)!.push(r)
-    }
-    const all: LayoutBlock[] = []
-    for (const [, floorRooms] of byFloor) {
-      all.push(...autoArrangeFloor(floorRooms, gridCols))
-    }
-    setAllBlocks(all)
-    setDirty(false)
-  }, [rooms, gridCols])
+
+    setAllBlocks(prev => {
+      // Build a map of existing block positions so we preserve dragged-but-unsaved state
+      const existingMap = new Map(prev.map(b => [b.id, b]))
+
+      const byFloor = new Map<number, Room[]>()
+      for (const r of rooms) {
+        const f = r.floor ?? 1
+        if (!byFloor.has(f)) byFloor.set(f, [])
+        byFloor.get(f)!.push(r)
+      }
+
+      const all: LayoutBlock[] = []
+      for (const [, floorRooms] of byFloor) {
+        // Separate rooms that already have a block in local state vs new rooms
+        const knownRooms: Room[] = []
+        const newRooms: Room[] = []
+        for (const r of floorRooms) {
+          if (existingMap.has(r.id)) {
+            knownRooms.push(r)
+          } else {
+            newRooms.push(r)
+          }
+        }
+
+        // Keep existing blocks for known rooms (preserves drag positions)
+        const placed: LayoutBlock[] = []
+        for (const r of knownRooms) {
+          const existing = existingMap.get(r.id)!
+          // Update metadata from refetch but keep position from local state
+          placed.push({
+            ...existing,
+            name: r.name,
+            instruments: r.primary_instruments ?? [],
+            inventoryCount: r.inventory?.length ?? 0,
+            status: r.status,
+            color: r.color,
+            floor: r.floor ?? 1,
+            isSpace: r.status === 'storage' && !r.is_active,
+          })
+        }
+
+        // Place new rooms in open cells
+        for (const r of newRooms) {
+          const block = roomToBlock(r)
+          if (isDefaultPosition(r)) {
+            const pos = findOpenCell(placed, block.w, block.h, gridCols, gridRows)
+            block.x = pos.x
+            block.y = pos.y
+          }
+          placed.push(block)
+        }
+
+        all.push(...placed)
+      }
+
+      return all
+    })
+  }, [rooms, gridCols, gridRows])
 
   // --------------- DRAG ---------------
   const gridRefs = useRef<Map<number, HTMLDivElement>>(new Map())
@@ -351,32 +413,29 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
   }
 
   // --------------- ADD SPACE ---------------
-  const createRoom = useCreateRoom()
   const handleAddSpace = async (name: string, type: SpaceType, floor: number) => {
     if (!tenantId || !effectiveLocation) return
     try {
-      await createRoom.mutateAsync({
+      // Find an open position on the target floor
+      const floorBlocks = allBlocks.filter(b => b.floor === floor)
+      const pos = findOpenCell(floorBlocks, 2, 2, gridCols, gridRows)
+
+      const { error } = await supabase.from('rooms').insert({
         tenant_id: tenantId,
         location_id: effectiveLocation,
         name: `${name} (${type})`,
         primary_instruments: [],
         notes: `Non-teaching space: ${type}`,
+        status: 'storage',
+        is_active: false,
+        floor,
+        layout_x: pos.x,
+        layout_y: pos.y,
+        layout_w: 2,
+        layout_h: 2,
       })
-      const { data: newRoom } = await supabase
-        .from('rooms')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('location_id', effectiveLocation)
-        .eq('name', `${name} (${type})`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+      if (error) throw error
 
-      if (newRoom) {
-        await supabase.from('rooms').update({
-          status: 'storage', is_active: false, floor,
-        }).eq('id', newRoom.id)
-      }
       qc.invalidateQueries({ queryKey: ['rooms'] })
       setShowAddSpace(false)
       toast.success(`${name} added to Floor ${floor}`)
