@@ -183,13 +183,13 @@ export const STATUS_COLORS: Record<string, string> = {
 }
 
 export const STATUS_LABELS: Record<string, string> = {
-  reported: 'Reported',
-  queued: 'Queued',
-  diagnosing: 'Diagnosing',
-  fixing: 'Fixing',
-  deploying: 'Deploying',
-  resolved: 'Resolved',
-  failed_build: 'Build Failed',
+  reported: 'New',
+  queued: 'In Progress',
+  diagnosing: 'In Progress',
+  fixing: 'In Progress',
+  deploying: 'In Progress',
+  resolved: 'Fixed',
+  failed_build: 'In Progress',
   wont_fix: "Won't Fix",
   duplicate: 'Duplicate',
 }
@@ -202,6 +202,8 @@ export function useIssues(statusGroup: StatusGroup = 'all') {
   return useQuery<Issue[]>({
     queryKey: ['issues', tenantId, statusGroup],
     enabled: !!tenantId,
+    staleTime: 0,
+    refetchOnMount: 'always',
     queryFn: async () => {
       let q = supabase
         .from('issues')

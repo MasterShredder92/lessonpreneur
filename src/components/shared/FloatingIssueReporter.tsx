@@ -1,129 +1,127 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Bug, X, Send, AlertTriangle } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
+import { Bug, X, Upload } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { checkForDuplicateIssue } from '../../hooks/useIssues'
 import { toast } from './Toast'
 
-const PAGE_MAP: Record<string, string> = {
-  '/admin/dashboard': 'Dashboard',
-  '/admin/schedule': 'Schedule',
-  '/admin/students': 'Students',
-  '/admin/leads': 'Leads',
-  '/admin/families': 'Families',
-  '/admin/teachers': 'Teachers',
-  '/admin/billing': 'Billing',
-  '/admin/payroll': 'Payroll',
-  '/admin/retention': 'Retention',
-  '/admin/financials': 'Financials',
-  '/admin/recruitment': 'Recruitment',
-  '/admin/settings': 'Settings',
-  '/admin/workflows': 'Workflows',
-  '/admin/analytics': 'Analytics',
-  '/admin/integrations': 'Integrations',
-  '/admin/import': 'Import',
-  '/admin/platform': 'Platform',
-}
+const PAGE_OPTIONS = [
+  'Dashboard',
+  'Schedule',
+  'Students',
+  'Families',
+  'Teachers',
+  'Billing',
+  'Settings',
+  'Something else',
+]
 
-const CATEGORIES = [
-  { value: 'bug', label: "Something's not working" },
-  { value: 'display', label: "Doesn't look right" },
-  { value: 'data', label: 'Wrong or missing info' },
-  { value: 'feature', label: 'Feature idea' },
+const SEVERITY_OPTIONS = [
+  { value: 'normal', label: "It's annoying but I can work around it", icon: '🟡' },
+  { value: 'high', label: "It's slowing me down", icon: '🟠' },
+  { value: 'critical', label: "I can't do my job right now", icon: '🔴' },
 ]
 
 export default function FloatingIssueReporter() {
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const location = useLocation()
+  const [submitted, setSubmitted] = useState(false)
   const { profile, tenantId, role } = useAuthContext()
+  const qc = useQueryClient()
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('bug')
-  const [section, setSection] = useState('')
+  const [page, setPage] = useState('')
+  const [severity, setSeverity] = useState('normal')
+  const [screenshot, setScreenshot] = useState<File | null>(null)
 
-  // Duplicate warning state
-  const [duplicateWarning, setDuplicateWarning] = useState<{ id: string; title: string } | null>(null)
-  const [duplicateChecked, setDuplicateChecked] = useState(false)
-
-  const currentPage = PAGE_MAP[location.pathname] ?? 'Unknown'
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
   const resetForm = () => {
-    setTitle('')
     setDescription('')
-    setCategory('bug')
-    setSection('')
-    setDuplicateWarning(null)
-    setDuplicateChecked(false)
+    setPage('')
+    setSeverity('normal')
+    setScreenshot(null)
+    setSubmitted(false)
   }
 
-  const doSubmit = async () => {
+  const handleClose = () => {
+    if (!submitting) {
+      setOpen(false)
+      resetForm()
+    }
+  }
+
+  const handleScreenshot = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Screenshot must be under 5MB', 'error')
+      return
+    }
+    setScreenshot(file)
+  }
+
+  const handleSubmit = async () => {
+    if (!description.trim() || !page) return
+    if (!tenantId || !profile) return
+
     setSubmitting(true)
     try {
-      const { error } = await supabase.from('issues').insert({
+      const title = description.trim().slice(0, 100)
+      const platform = window.innerWidth < 768 ? 'mobile' : 'desktop'
+
+      // 1. Insert the issue
+      const { data: issue, error } = await supabase.from('issues').insert({
         tenant_id: tenantId,
-        reported_by: profile?.id,
+        reported_by: profile.id,
         reported_by_role: role ?? 'unknown',
-        page: currentPage,
-        section: section.trim() || (isMobile ? `Mobile ${currentPage}` : currentPage),
+        page,
+        section: page,
         element_description: 'User-reported',
-        title: title.trim(),
+        title,
         description: description.trim(),
-        category,
-        severity: 'normal',
-        platform: isMobile ? 'mobile' : 'desktop',
-        reported_from_url: location.pathname,
+        category: 'bug',
+        severity,
+        status: 'reported',
+        deploy_status: 'pending',
+        platform,
+        reported_from_url: window.location.href,
         reported_screen_width: window.innerWidth,
         reported_screen_height: window.innerHeight,
-      })
+      }).select().single()
+
       if (error) throw error
-      toast('Issue reported — thank you!', 'success')
-      resetForm()
-      setOpen(false)
-    } catch {
-      toast('Failed to submit issue. Please try again.', 'error')
+
+      // 2. Upload screenshot if provided
+      if (screenshot && issue) {
+        const path = `${tenantId}/${issue.id}/${screenshot.name}`
+        const { error: uploadErr } = await supabase.storage
+          .from('issue-screenshots')
+          .upload(path, screenshot)
+        if (!uploadErr) {
+          await supabase.from('issues').update({ screenshot_path: path }).eq('id', issue.id)
+        }
+      }
+
+      // 3. Invalidate issues query so it shows immediately
+      qc.invalidateQueries({ queryKey: ['issues'] })
+
+      // 4. Show success state
+      setSubmitted(true)
+      setTimeout(() => {
+        setOpen(false)
+        resetForm()
+      }, 1500)
+    } catch (err: any) {
+      toast(err.message ?? 'Failed to submit. Please try again.', 'error')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const handleSubmit = async () => {
-    if (!title.trim() || !description.trim()) return
-
-    // If already confirmed past duplicate warning, submit directly
-    if (duplicateChecked) {
-      await doSubmit()
-      return
-    }
-
-    // Check for duplicates (soft warning only)
-    if (tenantId && currentPage) {
-      setSubmitting(true)
-      try {
-        const dup = await checkForDuplicateIssue(tenantId, currentPage, description.trim())
-        if (dup) {
-          setDuplicateWarning(dup)
-          setSubmitting(false)
-          return
-        }
-      } catch {
-        // If check fails, proceed
-      }
-      setSubmitting(false)
-    }
-
-    await doSubmit()
-  }
-
-  const handleSubmitAnyway = async () => {
-    setDuplicateWarning(null)
-    setDuplicateChecked(true)
-    await doSubmit()
-  }
+  const canSubmit = description.trim().length >= 10 && page && !submitting
 
   return (
     <>
@@ -166,12 +164,12 @@ export default function FloatingIssueReporter() {
             alignItems: isMobile ? 'flex-end' : 'center',
             justifyContent: 'center',
           }}
-          onClick={() => { if (!submitting) { setOpen(false); resetForm() } }}
+          onClick={handleClose}
         >
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              width: isMobile ? '100%' : 420,
+              width: isMobile ? '100%' : 440,
               maxHeight: '85vh',
               overflowY: 'auto',
               background: 'rgba(16, 14, 30, 0.99)',
@@ -181,183 +179,155 @@ export default function FloatingIssueReporter() {
               boxShadow: '0 24px 80px rgba(0,0,0,0.8)',
             }}
           >
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  background: 'rgba(212, 34, 106, 0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Bug size={16} style={{ color: '#D4226A' }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#E8E8FC' }}>Report an Issue</div>
-                  <div style={{ fontSize: 11, color: '#8080A8' }}>Page: {currentPage}</div>
+            {submitted ? (
+              /* Success state */
+              <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                <div style={{ fontSize: 28, marginBottom: 12 }}>✓</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#22C55E', fontFamily: 'var(--font-display)' }}>
+                  Got it — we're on it.
                 </div>
               </div>
-              <button
-                onClick={() => { setOpen(false); resetForm() }}
-                style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 4 }}
-              >
-                <X size={18} />
-              </button>
-            </div>
+            ) : (
+              <>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      background: 'rgba(212, 34, 106, 0.15)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Bug size={16} style={{ color: '#D4226A' }} />
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#E8E8FC' }}>Report an Issue</div>
+                  </div>
+                  <button
+                    onClick={handleClose}
+                    style={{ background: 'none', border: 'none', color: '#8080A8', cursor: 'pointer', padding: 4 }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
 
-            {/* Form */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>What kind of issue?</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {CATEGORIES.map(c => (
-                    <button
-                      key={c.value}
-                      onClick={() => setCategory(c.value)}
+                {/* Form */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Field 1 — What happened? */}
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 6, display: 'block' }}>
+                      What happened? *
+                    </label>
+                    <textarea
+                      value={description}
+                      onChange={e => setDescription(e.target.value)}
+                      placeholder="Describe what went wrong in plain English. Don't worry about technical details."
+                      maxLength={1500}
+                      rows={5}
                       style={{
-                        flex: 1,
-                        padding: '7px 0',
-                        borderRadius: 8,
-                        border: `1px solid ${category === c.value ? 'rgba(212,34,106,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                        background: category === c.value ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.03)',
-                        color: category === c.value ? '#E8488A' : '#8080A8',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 150ms ease',
+                        width: '100%', fontSize: 13, padding: '12px 14px', borderRadius: 10,
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                        color: '#E0E0F4', resize: 'vertical', fontFamily: 'inherit', outline: 'none',
+                        lineHeight: 1.5, boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  {/* Field 2 — Where were you? */}
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 6, display: 'block' }}>
+                      Where were you in the app? *
+                    </label>
+                    <select
+                      value={page}
+                      onChange={e => setPage(e.target.value)}
+                      style={{
+                        width: '100%', padding: '12px 14px', borderRadius: 10, fontSize: 13,
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                        color: page ? '#E0E0F4' : '#55516E', outline: 'none', cursor: 'pointer',
+                        boxSizing: 'border-box',
                       }}
                     >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      <option value="">Select a page...</option>
+                      {PAGE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
 
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>What's going on? *</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={e => { setTitle(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
-                  placeholder="Brief summary of what's wrong"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    background: 'rgba(255,255,255,0.04)',
-                    color: '#E8E8FC',
-                    fontSize: 13,
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>Where on the page? (optional)</label>
-                <input
-                  type="text"
-                  value={section}
-                  onChange={e => setSection(e.target.value)}
-                  placeholder={`e.g. "Mobile Schedule", "Billing Tab"`}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    background: 'rgba(255,255,255,0.04)',
-                    color: '#E8E8FC',
-                    fontSize: 13,
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8', marginBottom: 4, display: 'block' }}>Description *</label>
-                <textarea
-                  value={description}
-                  onChange={e => { setDescription(e.target.value); setDuplicateWarning(null); setDuplicateChecked(false) }}
-                  placeholder="What happened? What did you expect? The more detail you provide, the faster we can fix it."
-                  maxLength={1500}
-                  rows={6}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    background: 'rgba(255,255,255,0.04)',
-                    color: '#E8E8FC',
-                    fontSize: 13,
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                    resize: 'vertical',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <div style={{ fontSize: 10, color: (1500 - description.length) < 100 ? '#D4226A' : '#606088', marginTop: 3, textAlign: 'right' }}>{1500 - description.length} characters remaining</div>
-              </div>
-
-              {/* Duplicate Warning */}
-              {duplicateWarning && (
-                <div style={{
-                  padding: '12px 14px', borderRadius: 10,
-                  background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
-                    <AlertTriangle size={16} style={{ color: '#D97706', flexShrink: 0, marginTop: 1 }} />
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#D97706', marginBottom: 3 }}>Possible duplicate</div>
-                      <div style={{ fontSize: 11, color: '#D4C5A0', lineHeight: 1.4 }}>
-                        This may be similar to: <strong>"{duplicateWarning.title}"</strong>
-                      </div>
+                  {/* Field 3 — How bad is it? */}
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 8, display: 'block' }}>
+                      How bad is it? *
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {SEVERITY_OPTIONS.map(s => (
+                        <button
+                          key={s.value}
+                          onClick={() => setSeverity(s.value)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                            cursor: 'pointer', textAlign: 'left', width: '100%',
+                            background: severity === s.value ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                            color: severity === s.value ? '#E0E0F4' : '#8080A8',
+                            border: severity === s.value ? '1.5px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.06)',
+                            transition: 'all 150ms ease',
+                          }}
+                        >
+                          <span style={{ fontSize: 16 }}>{s.icon}</span>
+                          <span>{s.label}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={handleSubmitAnyway} disabled={submitting} style={{
-                      flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      background: 'rgba(217,119,6,0.15)', border: '1px solid rgba(217,119,6,0.3)', color: '#D97706',
-                    }}>{submitting ? 'Submitting...' : 'Submit Anyway'}</button>
-                    <button onClick={() => setDuplicateWarning(null)} style={{
-                      flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                      background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8',
-                    }}>Edit Report</button>
-                  </div>
-                </div>
-              )}
 
-              {!duplicateWarning && (
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting || !title.trim() || !description.trim()}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: 10,
-                    border: 'none',
-                    background: submitting || !title.trim() || !description.trim()
-                      ? 'rgba(212,34,106,0.3)'
-                      : '#D4226A',
-                    color: '#fff',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    cursor: submitting ? 'wait' : 'pointer',
-                    fontFamily: 'inherit',
-                    transition: 'background 150ms ease',
-                  }}
-                >
-                  <Send size={14} />
-                  {submitting ? 'Submitting...' : 'Submit Issue'}
-                </button>
-              )}
-            </div>
+                  {/* Field 4 — Screenshot (optional) */}
+                  <div>
+                    <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleScreenshot} style={{ display: 'none' }} />
+                    {screenshot ? (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+                        background: 'rgba(255,255,255,0.03)', borderRadius: 10,
+                        border: '1px solid rgba(255,255,255,0.06)',
+                      }}>
+                        <span style={{ fontSize: 12, color: '#A0A0C8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {screenshot.name}
+                        </span>
+                        <button onClick={() => setScreenshot(null)} style={{
+                          background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: 2, display: 'flex',
+                        }}>
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => fileRef.current?.click()}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10,
+                          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                          color: '#8080A8', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%',
+                        }}
+                      >
+                        <Upload size={14} /> Add a screenshot (optional)
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    style={{
+                      width: '100%', padding: '14px 0', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                      cursor: canSubmit ? 'pointer' : 'not-allowed',
+                      background: canSubmit ? '#D4226A' : 'rgba(212,34,106,0.2)',
+                      color: canSubmit ? '#fff' : '#8080A8',
+                      border: 'none', fontFamily: 'inherit',
+                      transition: 'background 150ms ease',
+                    }}
+                  >
+                    {submitting ? 'Submitting...' : 'Submit'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>,
         document.body

@@ -14,7 +14,7 @@ import { Upload, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
 import type { Location } from '../../lib/types'
 import { useTenantBilling, useCreateCheckout, useCustomerPortal } from '../../hooks/useTenantBilling'
-import { useIssues, useCreateIssue, useUpdateIssue, useScreenshotUrl, checkForDuplicateIssue, PAGES, PAGE_SECTION_MAP, CATEGORIES, SEVERITIES, STATUS_COLORS, STATUS_LABELS, getSectionsForPage, getSubsectionsForSection, type StatusGroup } from '../../hooks/useIssues'
+import { useIssues, useUpdateIssue, useScreenshotUrl, STATUS_COLORS, STATUS_LABELS, type StatusGroup } from '../../hooks/useIssues'
 import { useStripeConnectStatus, useStripeConnectOnboard } from '../../hooks/useStripeConnect'
 import { getTierByKey, TRIAL_DAYS } from '../../lib/pricing'
 import { IssueContextProvider } from '../../contexts/IssueContext'
@@ -1774,25 +1774,32 @@ function PaymentsTab() {
 function IssuesTab() {
   const { role } = useAuthContext()
   const isOwner = role === 'owner' || role === 'admin'
-  const [statusFilter, setStatusFilter] = useState<StatusGroup>('open')
+  const [statusFilter, setStatusFilter] = useState<StatusGroup>('all')
+  const [severityFilter, setSeverityFilter] = useState<string>('all')
   const { data: issues, isLoading } = useIssues(statusFilter)
-  const totalCount = issues?.length ?? 0
-  const openCount = issues?.filter(i => ['reported', 'queued', 'diagnosing', 'fixing', 'deploying'].includes(i.status)).length ?? 0
+
+  // Client-side severity filter
+  const filtered = severityFilter === 'all'
+    ? issues
+    : issues?.filter(i => i.severity === severityFilter)
+
+  const totalCount = filtered?.length ?? 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <IssueReportForm isOwner={isOwner} />
+      <IssueReportForm />
 
       {/* Issue Log */}
       <div style={{ padding: '20px 22px', borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>Issue Log</div>
-          <div style={{ fontSize: 12, color: '#8080A8' }}>{totalCount} issues{statusFilter === 'open' ? '' : ` · ${openCount} open`}</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', fontFamily: 'var(--font-display)', marginBottom: 4 }}>Issue Log</div>
+          <div style={{ fontSize: 12, color: '#8080A8' }}>{totalCount} issue{totalCount !== 1 ? 's' : ''}</div>
         </div>
 
-        {/* Filter pills */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-          {([['all', 'All'], ['open', 'Open'], ['resolved', 'Resolved'], ['failed', 'Failed'], ['wont_fix', "Won't Fix"]] as const).map(([key, label]) => (
+        {/* Filter pills — Status */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: '#55516E', fontWeight: 600, marginRight: 4 }}>Status</span>
+          {([['all', 'All'], ['open', 'New'], ['resolved', 'Fixed']] as [StatusGroup, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setStatusFilter(key)} style={{
               padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
               background: statusFilter === key ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.03)',
@@ -1802,11 +1809,24 @@ function IssuesTab() {
           ))}
         </div>
 
-        {isLoading ? <MusicLoader /> : !issues?.length ? (
+        {/* Filter pills — Severity */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: '#55516E', fontWeight: 600, marginRight: 4 }}>Severity</span>
+          {[['all', 'All'], ['critical', 'Critical'], ['high', 'High'], ['normal', 'Normal']].map(([key, label]) => (
+            <button key={key} onClick={() => setSeverityFilter(key)} style={{
+              padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              background: severityFilter === key ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.03)',
+              color: severityFilter === key ? '#D4226A' : '#8080A8',
+              border: severityFilter === key ? '1px solid rgba(212,34,106,0.25)' : '1px solid rgba(255,255,255,0.06)',
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {isLoading ? <MusicLoader /> : !filtered?.length ? (
           <div style={{ textAlign: 'center', padding: 40, color: '#55516E', fontSize: 13 }}>No issues found.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {issues.map(issue => <IssueRow key={issue.id} issue={issue} isOwner={isOwner} />)}
+            {filtered.map(issue => <IssueRow key={issue.id} issue={issue} isOwner={isOwner} />)}
           </div>
         )}
       </div>
@@ -1814,114 +1834,91 @@ function IssuesTab() {
   )
 }
 
-// ─── Report Form ─────────────────────────────────────
+// ─── Report Form (simple 4-field version) ────────────
 
-function IssueReportForm({ isOwner }: { isOwner: boolean }) {
-  const { tenantId: formTenantId } = useAuthContext()
-  const createIssue = useCreateIssue()
-  const [title, setTitle] = useState('')
-  const [page, setPage] = useState('')
-  const [section, setSection] = useState('')
-  const [subsection, setSubsection] = useState('')
-  const [otherPage, setOtherPage] = useState('')
-  const [otherSection, setOtherSection] = useState('')
-  const [otherSubsection, setOtherSubsection] = useState('')
-  const [element, setElement] = useState('')
-  const [platform, setPlatform] = useState('both')
-  const [category, setCategory] = useState('')
-  const [severity, setSeverity] = useState('normal')
-  const [desc, setDesc] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [duplicateWarning, setDuplicateWarning] = useState<{ id: string; title: string } | null>(null)
-  const [duplicateChecked, setDuplicateChecked] = useState(false)
+const REPORT_PAGE_OPTIONS = [
+  'Dashboard', 'Schedule', 'Students', 'Families',
+  'Teachers', 'Billing', 'Settings', 'Something else',
+]
+
+const REPORT_SEVERITY_OPTIONS = [
+  { value: 'normal', label: "It's annoying but I can work around it", icon: '🟡' },
+  { value: 'high', label: "It's slowing me down", icon: '🟠' },
+  { value: 'critical', label: "I can't do my job right now", icon: '🔴' },
+]
+
+function IssueReportForm() {
+  const { tenantId, profile, role } = useAuthContext()
+  const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const categories = isOwner ? CATEGORIES : CATEGORIES.filter(c => c.value !== 'feature_request')
-  const selectedSeverity = SEVERITIES.find(s => s.value === severity)
-
-  const sections = getSectionsForPage(page)
-  const subsections = getSubsectionsForSection(page, section)
-  const hasSubsections = subsections !== null && subsections.length > 0
+  const [description, setDescription] = useState('')
+  const [page, setPage] = useState('')
+  const [severity, setSeverity] = useState('normal')
+  const [screenshot, setScreenshot] = useState<File | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
 
   const clearForm = () => {
-    setTitle(''); setPage(''); setSection(''); setSubsection('')
-    setOtherPage(''); setOtherSection(''); setOtherSubsection('')
-    setPlatform('both'); setElement('')
-    setCategory(''); setSeverity('normal'); setDesc('')
-    setFile(null); setPreview(null)
+    setDescription('')
+    setPage('')
+    setSeverity('normal')
+    setScreenshot(null)
+    setSubmitted(false)
   }
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
     if (f.size > 5 * 1024 * 1024) { toast('Screenshot must be under 5MB', 'error'); return }
-    setFile(f)
-    const reader = new FileReader()
-    reader.onload = () => setPreview(reader.result as string)
-    reader.readAsDataURL(f)
+    setScreenshot(f)
   }
 
   const handleSubmit = async () => {
-    if (!title.trim()) { toast('Title is required', 'error'); return }
+    if (!description.trim() || description.trim().length < 10) { toast('Please describe the issue (at least 10 characters)', 'error'); return }
     if (!page) { toast('Select a page', 'error'); return }
-    if (page === 'Other' && !otherPage.trim()) { toast('Describe the page', 'error'); return }
-    if (!section) { toast('Select a section', 'error'); return }
-    if (section === 'Other' && !otherSection.trim()) { toast('Describe the section', 'error'); return }
-    if (hasSubsections && subsection === 'Other' && !otherSubsection.trim()) { toast('Describe the subsection', 'error'); return }
-    if (!element.trim()) { toast('Describe the element', 'error'); return }
-    if (!category) { toast('Select a category', 'error'); return }
-    if (desc.trim().length < 20) { toast('Description must be at least 20 characters', 'error'); return }
-
-    // "Other" saves as just "Other" — the user's typed description goes into element_description
-    const finalPage = page === 'Other' ? 'Other' : page
-    const finalSection = section === 'Other' ? 'Other' : section
-    const finalSubsection = !hasSubsections ? null
-      : subsection === 'Other' ? 'Other'
-      : subsection || null
-
-    // Build element_description with any "Other" context
-    const otherContext = [
-      page === 'Other' && otherPage.trim() ? `Page: ${otherPage.trim()}` : '',
-      section === 'Other' && otherSection.trim() ? `Section: ${otherSection.trim()}` : '',
-      subsection === 'Other' && otherSubsection.trim() ? `Subsection: ${otherSubsection.trim()}` : '',
-    ].filter(Boolean).join('; ')
-    const fullElement = otherContext
-      ? `${element.trim()}${element.trim() ? ' — ' : ''}${otherContext}`
-      : element.trim()
-
-    // Check for duplicates (soft warning, never blocks)
-    if (!duplicateChecked && formTenantId && finalPage) {
-      setIsSubmitting(true)
-      try {
-        const dup = await checkForDuplicateIssue(formTenantId, finalPage, desc.trim())
-        if (dup) {
-          setDuplicateWarning(dup)
-          setIsSubmitting(false)
-          return
-        }
-      } catch {
-        // If duplicate check fails, proceed
-      }
-      setIsSubmitting(false)
-    }
+    if (!tenantId || !profile) return
 
     setIsSubmitting(true)
     try {
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Request timed out — please try again')), 15000))
-      await Promise.race([
-        createIssue.mutateAsync({
-          title: title.trim(), page: finalPage, section: finalSection, subsection: finalSubsection,
-          platform, element_description: fullElement,
-          category, severity, description: desc.trim(), screenshotFile: file,
-        }),
-        timeout,
-      ])
-      toast('Issue reported — fix pipeline activated', 'success')
-      clearForm()
-      setDuplicateWarning(null)
-      setDuplicateChecked(false)
+      const title = description.trim().slice(0, 100)
+      const platform = window.innerWidth < 768 ? 'mobile' : 'desktop'
+
+      const { data: issue, error } = await supabase.from('issues').insert({
+        tenant_id: tenantId,
+        reported_by: profile.id,
+        reported_by_role: role ?? 'unknown',
+        page,
+        section: page,
+        element_description: 'User-reported',
+        title,
+        description: description.trim(),
+        category: 'bug',
+        severity,
+        status: 'reported',
+        deploy_status: 'pending',
+        platform,
+        reported_from_url: window.location.href,
+        reported_screen_width: window.innerWidth,
+        reported_screen_height: window.innerHeight,
+      }).select().single()
+
+      if (error) throw error
+
+      // Upload screenshot if provided
+      if (screenshot && issue) {
+        const path = `${tenantId}/${issue.id}/${screenshot.name}`
+        const { error: uploadErr } = await supabase.storage
+          .from('issue-screenshots')
+          .upload(path, screenshot)
+        if (!uploadErr) {
+          await supabase.from('issues').update({ screenshot_path: path }).eq('id', issue.id)
+        }
+      }
+
+      qc.invalidateQueries({ queryKey: ['issues'] })
+      setSubmitted(true)
+      setTimeout(clearForm, 3000)
     } catch (err: any) {
       toast(err.message ?? 'Failed to submit issue', 'error')
     } finally {
@@ -1929,179 +1926,149 @@ function IssueReportForm({ isOwner }: { isOwner: boolean }) {
     }
   }
 
+  const canSubmit = description.trim().length >= 10 && page && !isSubmitting
+
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13,
+    width: '100%', padding: '12px 14px', borderRadius: 10, fontSize: 13,
     background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-    color: '#E0E0F4', outline: 'none',
+    color: '#E0E0F4', outline: 'none', boxSizing: 'border-box',
   }
-  const disabledStyle: React.CSSProperties = { ...inputStyle, opacity: 0.4, cursor: 'not-allowed' }
 
   return (
     <div style={{ padding: '20px 22px', borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>Report an Issue</div>
-      <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 18 }}>Describe what's wrong and we'll fix it.</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', fontFamily: 'var(--font-display)', marginBottom: 4 }}>Report an Issue</div>
+      <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 18 }}>Tell us what's wrong and we'll fix it.</div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Title */}
-        <div>
-          <input value={title} onChange={e => setTitle(e.target.value.slice(0, 100))} maxLength={100} placeholder="Brief summary of the issue" style={inputStyle} />
-          <div style={{ fontSize: 11, marginTop: 4, color: (100 - title.length) === 0 ? '#D4226A' : (100 - title.length) < 20 ? '#FF5500' : '#55516E' }}>{100 - title.length} characters remaining</div>
+      {submitted ? (
+        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#22C55E', fontFamily: 'var(--font-display)' }}>
+            Got it — we're on it.
+          </div>
         </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Field 1 — What happened? */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 6, display: 'block' }}>What happened? *</label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Describe what went wrong in plain English. Don't worry about technical details."
+              maxLength={1500}
+              rows={5}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5, fontFamily: 'inherit' }}
+            />
+          </div>
 
-        {/* Page → Section → Subsection cascade */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 11, color: '#8080A8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Where is the issue?</div>
-          <select value={page} onChange={e => { setPage(e.target.value); setSection(''); setSubsection(''); setOtherPage(''); setOtherSection(''); setOtherSubsection('') }} style={inputStyle}>
-            <option value="">Select page...</option>
-            {PAGES.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-          {page === 'Other' && (
-            <input value={otherPage} onChange={e => setOtherPage(e.target.value.slice(0, 100))} maxLength={100} placeholder="Describe the page..." style={{ ...inputStyle, borderColor: 'rgba(251,146,60,0.3)' }} />
-          )}
-          <select value={section} onChange={e => { setSection(e.target.value); setSubsection(''); setOtherSection(''); setOtherSubsection('') }} disabled={!page} style={page ? inputStyle : disabledStyle}>
-            <option value="">Select section...</option>
-            {sections.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {section === 'Other' && (
-            <input value={otherSection} onChange={e => setOtherSection(e.target.value.slice(0, 100))} maxLength={100} placeholder="Describe the section..." style={{ ...inputStyle, borderColor: 'rgba(251,146,60,0.3)' }} />
-          )}
-          {hasSubsections && (
-            <select value={subsection} onChange={e => { setSubsection(e.target.value); setOtherSubsection('') }} style={inputStyle}>
-              <option value="">Select subsection (optional)...</option>
-              {subsections.map(s => <option key={s} value={s}>{s}</option>)}
+          {/* Field 2 — Where were you? */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 6, display: 'block' }}>Where were you in the app? *</label>
+            <select value={page} onChange={e => setPage(e.target.value)} style={{ ...inputStyle, cursor: 'pointer', color: page ? '#E0E0F4' : '#55516E' }}>
+              <option value="">Select a page...</option>
+              {REPORT_PAGE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
-          )}
-          {hasSubsections && subsection === 'Other' && (
-            <input value={otherSubsection} onChange={e => setOtherSubsection(e.target.value.slice(0, 100))} maxLength={100} placeholder="Describe the subsection..." style={{ ...inputStyle, borderColor: 'rgba(251,146,60,0.3)' }} />
-          )}
-        </div>
-
-        {/* Platform */}
-        <div>
-          <div style={{ fontSize: 11, color: '#8080A8', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[{ value: 'mobile', label: 'Mobile' }, { value: 'desktop', label: 'Desktop' }, { value: 'both', label: 'Both' }].map(p => (
-              <button key={p.value} onClick={() => setPlatform(p.value)} style={{
-                padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: platform === p.value ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
-                color: platform === p.value ? '#E0E0F4' : '#8080A8',
-                border: `1px solid ${platform === p.value ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)'}`,
-              }}>{p.label}</button>
-            ))}
           </div>
-        </div>
 
-        {/* Element */}
-        <div>
-          <input value={element} onChange={e => setElement(e.target.value.slice(0, 200))} maxLength={200} placeholder="Which specific element? (e.g. the Save button, the name column)" style={inputStyle} />
-          <div style={{ fontSize: 11, marginTop: 4, color: (200 - element.length) === 0 ? '#D4226A' : (200 - element.length) < 20 ? '#FF5500' : '#55516E' }}>{200 - element.length} characters remaining</div>
-        </div>
-
-        {/* Category dropdown */}
-        <CategoryDropdown categories={categories} value={category} onChange={setCategory} />
-
-        {/* Severity pills */}
-        <div>
-          <div style={{ fontSize: 11, color: '#8080A8', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Severity</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {SEVERITIES.map(s => (
-              <button key={s.value} onClick={() => setSeverity(s.value)} style={{
-                padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: severity === s.value ? `${s.color}18` : 'rgba(255,255,255,0.03)',
-                color: severity === s.value ? s.color : '#8080A8',
-                border: `1px solid ${severity === s.value ? `${s.color}30` : 'rgba(255,255,255,0.06)'}`,
-              }}>{s.label}</button>
-            ))}
-          </div>
-          {selectedSeverity && <div style={{ fontSize: 11, color: '#55516E', marginTop: 4 }}>{selectedSeverity.hint}</div>}
-        </div>
-
-        {/* Description */}
-        <div>
-          <textarea value={desc} onChange={e => setDesc(e.target.value.slice(0, 1500))} maxLength={1500} placeholder="What were you doing? What happened? What should have happened? The more detail you provide, the faster we can fix it." rows={6} style={{ ...inputStyle, resize: 'vertical', minHeight: 120 }} />
-          <div style={{ fontSize: 11, marginTop: 4, color: (1500 - desc.length) === 0 ? '#D4226A' : (1500 - desc.length) < 100 ? '#FF5500' : '#55516E' }}>{1500 - desc.length} characters remaining</div>
-        </div>
-
-        {/* Screenshot */}
-        <div>
-          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} style={{ display: 'none' }} />
-          {!preview ? (
-            <button onClick={() => fileRef.current?.click()} style={{
-              padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              background: 'rgba(255,255,255,0.03)', color: '#8080A8', border: '1px solid rgba(255,255,255,0.08)',
-            }}>📷 Add Screenshot</button>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img src={preview} alt="Screenshot" style={{ height: 48, borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)' }} />
-              <button onClick={() => { setFile(null); setPreview(null) }} style={{
-                background: 'none', border: 'none', color: '#EF4444', fontSize: 16, cursor: 'pointer',
-              }}>✕</button>
-            </div>
-          )}
-        </div>
-
-        {/* Duplicate Warning */}
-        {duplicateWarning && (
-          <div style={{
-            padding: '12px 14px', borderRadius: 10,
-            background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)',
-          }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#D97706', marginBottom: 4 }}>Possible duplicate</div>
-            <div style={{ fontSize: 11, color: '#D4C5A0', lineHeight: 1.4, marginBottom: 10 }}>
-              This may be similar to: <strong>"{duplicateWarning.title}"</strong>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setDuplicateWarning(null); setDuplicateChecked(true); handleSubmit() }} disabled={isSubmitting} style={{
-                padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: 'rgba(217,119,6,0.15)', border: '1px solid rgba(217,119,6,0.3)', color: '#D97706',
-              }}>{isSubmitting ? 'Submitting...' : 'Submit Anyway'}</button>
-              <button onClick={() => setDuplicateWarning(null)} style={{
-                padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8',
-              }}>Edit Report</button>
+          {/* Field 3 — How bad is it? */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 8, display: 'block' }}>How bad is it? *</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {REPORT_SEVERITY_OPTIONS.map(s => (
+                <button key={s.value} onClick={() => setSeverity(s.value)} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', textAlign: 'left', width: '100%',
+                  background: severity === s.value ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                  color: severity === s.value ? '#E0E0F4' : '#8080A8',
+                  border: severity === s.value ? '1.5px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.06)',
+                }}>
+                  <span style={{ fontSize: 16 }}>{s.icon}</span>
+                  <span>{s.label}</span>
+                </button>
+              ))}
             </div>
           </div>
-        )}
 
-        {/* Actions */}
-        {!duplicateWarning && (
+          {/* Field 4 — Screenshot (optional) */}
+          <div>
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} style={{ display: 'none' }} />
+            {screenshot ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: 12, color: '#A0A0C8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{screenshot.name}</span>
+                <button onClick={() => setScreenshot(null)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 2, fontSize: 14 }}>✕</button>
+              </div>
+            ) : (
+              <button onClick={() => fileRef.current?.click()} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10,
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                color: '#8080A8', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%',
+              }}>
+                Add a screenshot (optional)
+              </button>
+            )}
+          </div>
+
+          {/* Submit */}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
             <button onClick={clearForm} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'none', color: '#8080A8', border: 'none' }}>Cancel</button>
-            <button onClick={handleSubmit} disabled={isSubmitting} style={{
-              padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              background: '#D4226A', color: '#fff', border: 'none', opacity: isSubmitting ? 0.5 : 1,
-            }}>{isSubmitting ? 'Submitting...' : 'Submit Issue'}</button>
+            <button onClick={handleSubmit} disabled={!canSubmit} style={{
+              padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed',
+              background: canSubmit ? '#D4226A' : 'rgba(212,34,106,0.2)', color: canSubmit ? '#fff' : '#8080A8', border: 'none',
+            }}>{isSubmitting ? 'Submitting...' : 'Submit'}</button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── Issue Row (expandable) ─────────────────────────
+// ─── Issue Row (expandable, human-readable) ──────────
+
+const ISSUE_PAGE_LABELS: Record<string, string> = {
+  'Studio Overview (Dashboard)': 'Dashboard',
+  'New Members (Leads)': 'Leads',
+  'Schedule': 'Schedule',
+  'Roster — Students': 'Students',
+  'Roster — Families': 'Families',
+  'Backstage — Retention': 'Retention',
+  'Backstage — Recruitment': 'Recruitment',
+  'The Band — Teachers': 'Teachers',
+  'The Band — Payroll': 'Payroll',
+  'Your Books — Billing': 'Billing',
+  'Your Books — Financials': 'Financials',
+  'Settings': 'Settings',
+  'Login / Auth': 'Login',
+  'Bottom Navigation (Mobile)': 'Mobile Nav',
+  'Other': 'Other',
+}
+
+function humanPageLabel(page: string): string {
+  return ISSUE_PAGE_LABELS[page] ?? page
+}
+
+function timeAgo(d: string): string {
+  const diff = (Date.now() - new Date(d).getTime()) / 1000
+  if (diff < 60) return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 7200) return '1 hour ago'
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`
+  if (diff < 172800) return 'yesterday'
+  return `${Math.floor(diff / 86400)} days ago`
+}
 
 function IssueRow({ issue, isOwner }: { issue: any; isOwner: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const [actionModal, setActionModal] = useState<string | null>(null)
   const [actionNotes, setActionNotes] = useState('')
-  const [promptOpen, setPromptOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
   const updateIssue = useUpdateIssue()
   const { data: screenshotUrl } = useScreenshotUrl(issue.screenshot_path)
   const [lightbox, setLightbox] = useState(false)
 
+  const statusLabel = STATUS_LABELS[issue.status] ?? issue.status
   const statusColor = STATUS_COLORS[issue.status] ?? '#55516E'
-  const isPulsing = ['diagnosing', 'fixing'].includes(issue.status)
-  const catMeta = CATEGORIES.find(c => c.value === issue.category)
-  const sevMeta = SEVERITIES.find(s => s.value === issue.severity)
-
-  const timeAgo = (d: string) => {
-    const diff = (Date.now() - new Date(d).getTime()) / 1000
-    if (diff < 60) return 'just now'
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-    return `${Math.floor(diff / 86400)}d ago`
-  }
+  const sevColor = issue.severity === 'critical' ? '#EF4444' : issue.severity === 'high' ? '#fb923c' : issue.severity === 'normal' ? '#8080A8' : '#55516E'
+  const sevLabel = issue.severity === 'critical' ? 'Critical' : issue.severity === 'high' ? 'High' : issue.severity === 'normal' ? 'Normal' : 'Low'
 
   const handleAction = async (action: string) => {
     try {
@@ -2109,12 +2076,10 @@ function IssueRow({ issue, isOwner }: { issue: any; isOwner: boolean }) {
         await updateIssue.mutateAsync({ id: issue.id, status: 'wont_fix', resolution_notes: actionNotes, resolved_at: new Date().toISOString(), resolved_by: 'admin' })
       } else if (action === 'resolve') {
         await updateIssue.mutateAsync({ id: issue.id, status: 'resolved', resolution_notes: actionNotes, resolved_at: new Date().toISOString(), resolved_by: 'admin' })
-      } else if (action === 'retry') {
-        await updateIssue.mutateAsync({ id: issue.id, status: 'reported', resolution_notes: null, pipeline_prompt: null, pipeline_started_at: null, pipeline_completed_at: null, deploy_status: 'pending' })
       } else if (action === 'duplicate') {
         await updateIssue.mutateAsync({ id: issue.id, status: 'duplicate', resolution_notes: actionNotes })
       }
-      toast(`Issue updated`, 'success')
+      toast('Issue updated', 'success')
       setActionModal(null)
       setActionNotes('')
     } catch (err: any) {
@@ -2125,108 +2090,77 @@ function IssueRow({ issue, isOwner }: { issue: any; isOwner: boolean }) {
   return (
     <>
       <div onClick={() => setExpanded(!expanded)} style={{
-        padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
-        transition: 'border-color 0.2s',
+        padding: '12px 16px', borderRadius: 12, cursor: 'pointer',
+        background: expanded ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.015)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        transition: 'background 0.15s',
       }}>
-        {/* Collapsed */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0,
-            ...(isPulsing ? { animation: 'issue-pulse 1.5s infinite' } : {}),
-          }} />
+        {/* Collapsed view */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{issue.title}</div>
-            <div style={{ fontSize: 11, color: '#55516E', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span>{issue.page} → {issue.section}{issue.subsection ? ` → ${issue.subsection}` : ''}</span>
-              {catMeta && <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700, background: `${catMeta.color}15`, color: catMeta.color }}>{catMeta.pillLabel}</span>}
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', lineHeight: 1.3, marginBottom: 6 }}>
+              {issue.title}
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Status badge */}
+              <span style={{
+                padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                background: `${statusColor}18`, color: statusColor,
+              }}>{statusLabel}</span>
+              {/* Severity badge */}
+              <span style={{
+                padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                background: `${sevColor}15`, color: sevColor,
+              }}>{sevLabel}</span>
+              {/* Page */}
+              <span style={{ fontSize: 11, color: '#55516E' }}>{humanPageLabel(issue.page)}</span>
             </div>
           </div>
-          {sevMeta && sevMeta.value !== 'normal' && (
-            <span style={{ padding: '2px 8px', borderRadius: 5, fontSize: 9, fontWeight: 700, background: `${sevMeta.color}15`, color: sevMeta.color }}>{sevMeta.label}</span>
-          )}
-          <div style={{ fontSize: 10, color: '#55516E', textAlign: 'right', flexShrink: 0 }}>
-            <div>{issue.reporter_name?.split(' ')[0]}</div>
+          <div style={{ fontSize: 11, color: '#55516E', textAlign: 'right', flexShrink: 0, lineHeight: 1.4 }}>
+            <div style={{ fontWeight: 600 }}>{issue.reporter_name?.split(' ')[0] ?? 'Unknown'}</div>
             <div>{timeAgo(issue.created_at)}</div>
           </div>
         </div>
 
-        {/* Expanded */}
+        {/* Expanded detail view */}
         {expanded && (
-          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.65, marginBottom: 10 }}>{issue.description}</div>
-            <div style={{ fontSize: 11, color: '#55516E', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div><strong style={{ color: '#8080A8' }}>Element:</strong> {issue.element_description}</div>
-              {issue.platform && <div><strong style={{ color: '#8080A8' }}>Platform:</strong> {issue.platform === 'both' ? 'Both' : issue.platform === 'mobile' ? 'Mobile' : 'Desktop'}</div>}
-              {issue.reported_from_url && <div><strong style={{ color: '#8080A8' }}>Reported from:</strong> {issue.reported_from_url}</div>}
-              {issue.reported_screen_width && issue.reported_screen_height && <div><strong style={{ color: '#8080A8' }}>Screen:</strong> {issue.reported_screen_width} × {issue.reported_screen_height}px</div>}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }} onClick={e => e.stopPropagation()}>
+            {/* Description */}
+            <div style={{ fontSize: 13, color: '#B0B0D0', lineHeight: 1.65, marginBottom: 12 }}>
+              {issue.description}
             </div>
 
+            {/* Screenshot */}
             {screenshotUrl && (
-              <div style={{ marginBottom: 10 }}>
-                <img src={screenshotUrl} alt="Screenshot" onClick={() => setLightbox(true)} style={{ maxHeight: 80, borderRadius: 6, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)' }} />
+              <div style={{ marginBottom: 12 }}>
+                <img
+                  src={screenshotUrl}
+                  alt="Screenshot"
+                  onClick={() => setLightbox(true)}
+                  style={{ maxHeight: 120, borderRadius: 8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)' }}
+                />
               </div>
             )}
 
-            {issue.status === 'resolved' && (
-              <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)', marginBottom: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#22C55E', marginBottom: 3 }}>Resolved</div>
-                {issue.resolution_notes && <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.5 }}>{issue.resolution_notes}</div>}
-                <div style={{ fontSize: 10, color: '#55516E', marginTop: 4 }}>
-                  {issue.resolved_at && timeAgo(issue.resolved_at)} by {issue.resolved_by === 'system:claude_code' ? 'Auto-fix pipeline' : issue.resolved_by ?? 'admin'}
-                </div>
+            {/* Resolution notes */}
+            {issue.status === 'resolved' && issue.resolution_notes && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#22C55E', marginBottom: 4 }}>Resolution</div>
+                <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.5 }}>{issue.resolution_notes}</div>
               </div>
             )}
 
-            {issue.status === 'failed_build' && (
-              <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', marginBottom: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', marginBottom: 3 }}>Build failed — awaiting manual review</div>
-                {issue.resolution_notes && <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.5, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{issue.resolution_notes}</div>}
-              </div>
-            )}
+            {/* Metadata — submitted by + timestamp */}
+            <div style={{ fontSize: 11, color: '#55516E', marginBottom: 10 }}>
+              Submitted by {issue.reporter_name ?? 'Unknown'} · {new Date(issue.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(issue.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </div>
 
-            {isOwner && issue.pipeline_prompt && (
-              <div style={{ marginTop: 8 }}>
-                <button onClick={() => setPromptOpen(!promptOpen)} style={{
-                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                  color: '#8080A8', display: 'flex', alignItems: 'center', gap: 4, padding: 0,
-                }}>
-                  {promptOpen ? '▾' : '▸'} View Pipeline Prompt
-                </button>
-                {promptOpen && (
-                  <div style={{ marginTop: 6, position: 'relative' }}>
-                    <button onClick={() => {
-                      navigator.clipboard.writeText(issue.pipeline_prompt!)
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 2000)
-                    }} style={{
-                      position: 'absolute', top: 6, right: 6, padding: '3px 10px', borderRadius: 6,
-                      fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                      background: copied ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.06)',
-                      color: copied ? '#22C55E' : '#8080A8',
-                      border: `1px solid ${copied ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.08)'}`,
-                    }}>{copied ? 'Copied!' : 'Copy to Clipboard'}</button>
-                    <pre style={{
-                      fontSize: 11, lineHeight: 1.5, color: '#A0A0C8', fontFamily: 'monospace',
-                      whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                      padding: '12px 14px', borderRadius: 8, maxHeight: 400, overflowY: 'auto',
-                      background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)',
-                    }}>{issue.pipeline_prompt}</pre>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {isOwner && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                {!['resolved', 'wont_fix', 'duplicate'].includes(issue.status) && (
-                  <>
-                    <button onClick={() => setActionModal('wont_fix')} style={actionBtnStyle}>Won't Fix</button>
-                    <button onClick={() => setActionModal('duplicate')} style={actionBtnStyle}>Duplicate</button>
-                    <button onClick={() => setActionModal('retry')} style={actionBtnStyle}>Retry Pipeline</button>
-                    <button onClick={() => setActionModal('resolve')} style={actionBtnStyle}>Resolve Manually</button>
-                  </>
-                )}
+            {/* Admin actions */}
+            {isOwner && !['resolved', 'wont_fix', 'duplicate'].includes(issue.status) && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => setActionModal('resolve')} style={actionBtnStyle}>Mark Fixed</button>
+                <button onClick={() => setActionModal('wont_fix')} style={actionBtnStyle}>Won't Fix</button>
+                <button onClick={() => setActionModal('duplicate')} style={actionBtnStyle}>Duplicate</button>
               </div>
             )}
           </div>
@@ -2254,81 +2188,29 @@ function IssueRow({ issue, isOwner }: { issue: any; isOwner: boolean }) {
             background: '#12121E', border: '1px solid rgba(255,255,255,0.08)',
           }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#E0E0F4', marginBottom: 12 }}>
-              {actionModal === 'wont_fix' && "Mark as Won't Fix"}
+              {actionModal === 'wont_fix' && "Won't Fix"}
               {actionModal === 'duplicate' && 'Mark as Duplicate'}
-              {actionModal === 'retry' && 'Retry Pipeline'}
-              {actionModal === 'resolve' && 'Resolve Manually'}
+              {actionModal === 'resolve' && 'Mark as Fixed'}
             </div>
 
-            {actionModal === 'retry' ? (
-              <div style={{ fontSize: 13, color: '#A0A0C8', marginBottom: 16 }}>Re-send this issue to the fix pipeline?</div>
-            ) : (
-              <textarea value={actionNotes} onChange={e => setActionNotes(e.target.value)} placeholder={actionModal === 'duplicate' ? 'Which issue is this a duplicate of?' : 'Resolution notes...'} rows={3} style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13,
-                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-                color: '#E0E0F4', outline: 'none', resize: 'vertical', marginBottom: 16,
-              }} />
-            )}
+            <textarea value={actionNotes} onChange={e => setActionNotes(e.target.value)} placeholder={actionModal === 'duplicate' ? 'Which issue is this a duplicate of?' : 'Notes...'} rows={3} style={{
+              width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13,
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+              color: '#E0E0F4', outline: 'none', resize: 'vertical', marginBottom: 16, boxSizing: 'border-box',
+            }} />
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => { setActionModal(null); setActionNotes('') }} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 12, background: 'none', color: '#8080A8', border: 'none', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => handleAction(actionModal)} disabled={updateIssue.isPending || (actionModal !== 'retry' && !actionNotes.trim())} style={{
+              <button onClick={() => handleAction(actionModal)} disabled={updateIssue.isPending || !actionNotes.trim()} style={{
                 padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: actionModal === 'wont_fix' ? '#55516E' : '#D4226A', color: '#fff', border: 'none',
-                opacity: updateIssue.isPending || (actionModal !== 'retry' && !actionNotes.trim()) ? 0.4 : 1,
+                background: '#D4226A', color: '#fff', border: 'none',
+                opacity: updateIssue.isPending || !actionNotes.trim() ? 0.4 : 1,
               }}>Confirm</button>
             </div>
           </div>
         </div>
       )}
     </>
-  )
-}
-
-function CategoryDropdown({ categories, value, onChange }: { categories: readonly { value: string; label: string; helper: string; color: string }[]; value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const selected = categories.find(c => c.value === value)
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <div style={{ fontSize: 11, color: '#8080A8', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</div>
-      <button onClick={() => setOpen(!open)} style={{
-        width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 13, textAlign: 'left',
-        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-        color: selected ? '#E0E0F4' : '#55516E', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <span>{selected ? selected.label : 'What kind of issue is this?'}</span>
-        <ChevronDown size={14} style={{ color: '#55516E', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 50,
-          background: '#12121E', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden',
-        }}>
-          {categories.map(c => (
-            <button key={c.value} onClick={() => { onChange(c.value); setOpen(false) }} style={{
-              display: 'block', width: '100%', padding: '10px 14px', textAlign: 'left', cursor: 'pointer',
-              background: value === c.value ? 'rgba(255,255,255,0.04)' : 'transparent', border: 'none',
-              borderBottom: '1px solid rgba(255,255,255,0.04)',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-              onMouseLeave={e => e.currentTarget.style.background = value === c.value ? 'rgba(255,255,255,0.04)' : 'transparent'}
-            >
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#E0E0F4' }}>{c.label}</div>
-              <div style={{ fontSize: 11, color: '#55516E', marginTop: 2 }}>{c.helper}</div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   )
 }
 
