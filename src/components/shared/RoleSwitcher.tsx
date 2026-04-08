@@ -7,6 +7,7 @@ import { useLocations } from '../../hooks/useLocations'
 const ROLE_ROUTES: Record<string, string> = {
   owner: '/admin/dashboard',
   company_director: '/admin/dashboard',
+  studio_director: '/admin/dashboard',
   teacher: '/teacher/dashboard',
   parent: '/parent/dashboard',
 }
@@ -14,6 +15,7 @@ const ROLE_ROUTES: Record<string, string> = {
 const PREVIEW_ROLES = [
   { key: 'owner', label: 'Owner', emoji: '\uD83D\uDC51', minRole: 'owner' },
   { key: 'company_director', label: 'Co. Director', emoji: '\uD83D\uDCCB', minRole: 'owner' },
+  { key: 'studio_director', label: 'Studio Dir.', emoji: '\uD83C\uDFB5', minRole: 'company_director' },
   { key: 'site', label: 'Location', emoji: '\uD83C\uDF10', minRole: 'company_director' },
   { key: 'teacher', label: 'Teacher', emoji: '\uD83D\uDC68\u200D\uD83C\uDFEB', minRole: 'company_director' },
   { key: 'parent', label: 'Parent', emoji: '\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67', minRole: 'company_director' },
