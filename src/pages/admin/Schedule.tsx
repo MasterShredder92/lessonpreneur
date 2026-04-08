@@ -1382,18 +1382,13 @@ export default function Schedule() {
                       <div style={{
                         height: '100%',
                         borderRadius: 8,
-                        background: isCheckedIn
-                          ? isPendingTally
-                            ? `${bgColor}40`
-                            : `${getLocationColor(effectiveLocation)}18`
-                          : bgColor,
+                        background: isCheckedIn ? `${bgColor}50` : bgColor,
                         boxShadow: isCheckedIn ? 'none' : `0 2px 8px ${bgColor}40`,
                         border: isCheckedIn
                           ? isPendingTally
-                            ? `2px dashed ${getLocationColor(effectiveLocation)}`
-                            : `2px solid ${getLocationColor(effectiveLocation)}`
+                            ? `2px dashed ${bgColor}`
+                            : `2px solid ${bgColor}`
                           : '2px solid transparent',
-                        opacity: isPendingTally ? 0.7 : 1,
                         transition: 'transform 120ms, box-shadow 120ms',
                         position: 'relative',
                       }}>
@@ -1401,13 +1396,8 @@ export default function Schedule() {
                         {isCheckedIn && !isPendingTally && (
                           <span title="Session checked in — tally credited" style={{
                             position: 'absolute', top: 2, right: 3, fontSize: 10, lineHeight: 1,
-                            color: getLocationColor(effectiveLocation), fontWeight: 700,
+                            color: '#FFB800', fontWeight: 700,
                           }}>✓</span>
-                        )}
-                        {isPendingTally && (
-                          <span title="Session complete — tally held (billing inactive)" style={{
-                            position: 'absolute', top: 2, right: 3, fontSize: 9, lineHeight: 1,
-                          }}>⏳</span>
                         )}
                         {isFamilyCallout && (
                           <span title="Family initiated via parent portal" style={{
