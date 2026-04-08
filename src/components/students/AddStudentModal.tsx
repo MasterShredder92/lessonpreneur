@@ -27,13 +27,29 @@ interface FamilyResult {
 const DIRECTOR_ROLES = ['owner', 'admin', 'company_director', 'studio_director']
 
 const AGE_RANGES = ['Under 5', '5-10', '11-17', '18-25', '26 or older']
-const EXPERIENCE_OPTIONS = ['None', '1-2 years', '2-4 years', '4+ years']
-const HAS_INSTRUMENT_OPTIONS = ['Yes', 'No', 'Need Help Purchasing', 'N/A']
+const EXPERIENCE_OPTIONS = [
+  { label: 'No Experience', value: 'none' },
+  { label: '1-2 Years', value: '1-2 years' },
+  { label: '2-4 Years', value: '2-4 years' },
+  { label: '4+ Years', value: '4+ years' },
+]
+const HAS_INSTRUMENT_OPTIONS = [
+  { label: 'Yes', value: 'yes' },
+  { label: 'No', value: 'no' },
+  { label: 'Need Help', value: 'need_help' },
+  { label: 'N/A', value: 'na' },
+]
 const PREFERRED_DAYS = [
   'Monday 3:30-9p', 'Tuesday 3:30-9p', 'Wednesday 3:30-9p',
   'Thursday 3:30-9p', 'Saturday 10am-3p', 'Any of These Work', 'None of These Work',
 ]
-const SOURCE_OPTIONS = ['Facebook/Instagram', 'Google', 'Signage/Driving By', 'Referral', 'Other']
+const SOURCE_OPTIONS = [
+  { label: 'Facebook/Instagram', value: 'facebook_instagram' },
+  { label: 'Google', value: 'google' },
+  { label: 'Signage', value: 'signage' },
+  { label: 'Referral', value: 'referral' },
+  { label: 'Other', value: 'other' },
+]
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 14px', borderRadius: 10,
@@ -47,6 +63,11 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
       {children}{required && <span style={{ color: '#E8488A' }}> *</span>}
     </label>
   )
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null
+  return <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{message}</div>
 }
 
 function Pill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
@@ -96,11 +117,11 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
   // Legacy student detail fields (preferences tab)
   const [ageRange, setAgeRange] = useState('')
   const [selectedInstruments, setSelectedInstruments] = useState<string[]>([])
-  const [experience, setExperience] = useState('')
-  const [hasInstrument, setHasInstrument] = useState('')
+  const [experience, setExperience] = useState('none')
+  const [hasInstrument, setHasInstrument] = useState('na')
   const [preferredDays, setPreferredDays] = useState<string[]>([])
   const [bio, setBio] = useState('')
-  const [source, setSource] = useState('')
+  const [source, setSource] = useState('other')
 
   // Prorate
   const [showProrate, setShowProrate] = useState(false)
@@ -121,6 +142,7 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
   const [isMilitary, setIsMilitary] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
@@ -176,26 +198,29 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
 
   const handleSave = async () => {
     setError(null)
+    const errs: Record<string, string> = {}
 
-    if (!firstName.trim()) { setError('Student first name is required.'); return }
-    if (!lastName.trim()) { setError('Student last name is required.'); return }
-    if (!instrument && selectedInstruments.length === 0) { setError('Instrument is required.'); return }
-    if (!locationId) { setError('Location is required.'); return }
-    if (!ratePerSession || ratePerSession <= 0) { setError('Rate per session is required.'); return }
-    if (!startDate) { setError('Start date is required.'); return }
+    if (!firstName.trim()) errs.firstName = 'First name is required.'
+    if (!lastName.trim()) errs.lastName = 'Last name is required.'
+    if (!instrument && selectedInstruments.length === 0) errs.instrument = 'Instrument is required.'
+    if (!locationId) errs.locationId = 'Location is required.'
+    if (!ratePerSession || ratePerSession <= 0) errs.ratePerSession = 'Rate per session must be greater than 0.'
+    if (!sessionsPerMonth || sessionsPerMonth <= 0) errs.sessionsPerMonth = 'Sessions per month must be greater than 0.'
+    if (!startDate) errs.startDate = 'Start date is required.'
 
-    // Validate family — switch to details tab so user can see family section
-    if (familyMode === 'search' && !selectedFamily) {
-      setActiveTab('details')
-      setError('Please search and select a family, or create a new one.')
-      return
-    }
+    // Validate family
+    if (familyMode === 'search' && !selectedFamily) errs.family = 'Please search and select a family, or create a new one.'
     if (familyMode === 'create') {
-      if (!parentFirst.trim() || !parentLast.trim() || !email.trim() || !phone.trim()) {
-        setActiveTab('details')
-        setError('All parent/family fields are required when creating a new family.')
-        return
-      }
+      if (!parentFirst.trim()) errs.parentFirst = 'Parent first name is required.'
+      if (!parentLast.trim()) errs.parentLast = 'Parent last name is required.'
+      if (!email.trim()) errs.email = 'Email is required.'
+      if (!phone.trim()) errs.phone = 'Phone is required.'
+    }
+
+    setFieldErrors(errs)
+    if (Object.keys(errs).length > 0) {
+      setError('Please fix the highlighted fields.')
+      return
     }
 
     setSaving(true)
@@ -278,11 +303,11 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
           notes: stampedNotes,
           status: 'active',
           age: ageRange || null,
-          experience: experience || null,
-          has_instrument: hasInstrument || null,
+          experience: experience || 'none',
+          has_instrument: hasInstrument || 'na',
           preferred_days: preferredDays.length > 0 ? preferredDays : null,
           bio: bio.trim() || null,
-          source: source || null,
+          source: source || 'other',
         })
         .select()
         .single()
@@ -382,23 +407,26 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <FieldLabel required>Student First Name</FieldLabel>
-                  <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" style={inputStyle} />
+                  <input value={firstName} onChange={e => { setFirstName(e.target.value); setFieldErrors(p => ({ ...p, firstName: '' })) }} placeholder="First name" style={{ ...inputStyle, borderColor: fieldErrors.firstName ? '#EF4444' : undefined }} />
+                  <FieldError message={fieldErrors.firstName} />
                 </div>
                 <div>
                   <FieldLabel required>Student Last Name</FieldLabel>
-                  <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" style={inputStyle} />
+                  <input value={lastName} onChange={e => { setLastName(e.target.value); setFieldErrors(p => ({ ...p, lastName: '' })) }} placeholder="Last name" style={{ ...inputStyle, borderColor: fieldErrors.lastName ? '#EF4444' : undefined }} />
+                  <FieldError message={fieldErrors.lastName} />
                 </div>
               </div>
 
               {/* Instrument */}
               <div style={{ marginBottom: 12 }}>
                 <FieldLabel required>Instrument</FieldLabel>
-                <select value={instrument} onChange={e => setInstrument(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <select value={instrument} onChange={e => { setInstrument(e.target.value); setFieldErrors(p => ({ ...p, instrument: '' })) }} style={{ ...inputStyle, cursor: 'pointer', borderColor: fieldErrors.instrument ? '#EF4444' : undefined }}>
                   <option value="">Select instrument...</option>
                   {ALL_INSTRUMENTS.map(i => (
                     <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>
                   ))}
                 </select>
+                <FieldError message={fieldErrors.instrument} />
               </div>
 
               {/* Location */}
@@ -409,13 +437,14 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
                     {activeLocations.find((l: any) => l.id === locationId)?.name?.replace(' Music Lessons', '') ?? 'Your Location'}
                   </div>
                 ) : (
-                  <select value={locationId} onChange={e => { setLocationId(e.target.value); setTeacherId('') }} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <select value={locationId} onChange={e => { setLocationId(e.target.value); setTeacherId(''); setFieldErrors(p => ({ ...p, locationId: '' })) }} style={{ ...inputStyle, cursor: 'pointer', borderColor: fieldErrors.locationId ? '#EF4444' : undefined }}>
                     <option value="">Select location...</option>
                     {activeLocations.map((l: any) => (
                       <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>
                     ))}
                   </select>
                 )}
+                <FieldError message={fieldErrors.locationId} />
               </div>
 
               {/* Teacher */}
@@ -433,11 +462,13 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <FieldLabel required>Sessions / Month</FieldLabel>
-                  <input type="number" min={1} max={16} value={sessionsPerMonth} onChange={e => setSessionsPerMonth(parseInt(e.target.value) || 0)} style={inputStyle} />
+                  <input type="number" min={1} max={16} value={sessionsPerMonth} onChange={e => { setSessionsPerMonth(parseInt(e.target.value) || 0); setFieldErrors(p => ({ ...p, sessionsPerMonth: '' })) }} style={{ ...inputStyle, borderColor: fieldErrors.sessionsPerMonth ? '#EF4444' : undefined }} />
+                  <FieldError message={fieldErrors.sessionsPerMonth} />
                 </div>
                 <div>
                   <FieldLabel required>Rate / Session ($)</FieldLabel>
-                  <input type="number" min={0} step={0.01} value={ratePerSession} onChange={e => setRatePerSession(parseFloat(e.target.value) || 0)} style={inputStyle} />
+                  <input type="number" min={0} step={0.01} value={ratePerSession} onChange={e => { setRatePerSession(parseFloat(e.target.value) || 0); setFieldErrors(p => ({ ...p, ratePerSession: '' })) }} style={{ ...inputStyle, borderColor: fieldErrors.ratePerSession ? '#EF4444' : undefined }} />
+                  <FieldError message={fieldErrors.ratePerSession} />
                 </div>
               </div>
 
@@ -446,6 +477,7 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
                 <FieldLabel required>Start Date</FieldLabel>
                 <input type="date" value={startDate} onChange={e => {
                   setStartDate(e.target.value)
+                  setFieldErrors(p => ({ ...p, startDate: '' }))
                   if (e.target.value) {
                     const day = new Date(e.target.value).getDate()
                     setShowProrate(day > 1)
@@ -634,7 +666,7 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
               <div style={{ marginBottom: 14 }}>
                 <FieldLabel>Experience</FieldLabel>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {EXPERIENCE_OPTIONS.map(e => <Pill key={e} label={e} active={experience === e} onClick={() => setExperience(experience === e ? '' : e)} />)}
+                  {EXPERIENCE_OPTIONS.map(e => <Pill key={e.value} label={e.label} active={experience === e.value} onClick={() => setExperience(e.value)} />)}
                 </div>
               </div>
 
@@ -642,7 +674,7 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
               <div style={{ marginBottom: 14 }}>
                 <FieldLabel>Has Instrument?</FieldLabel>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {HAS_INSTRUMENT_OPTIONS.map(h => <Pill key={h} label={h} active={hasInstrument === h} onClick={() => setHasInstrument(hasInstrument === h ? '' : h)} />)}
+                  {HAS_INSTRUMENT_OPTIONS.map(h => <Pill key={h.value} label={h.label} active={hasInstrument === h.value} onClick={() => setHasInstrument(h.value)} />)}
                 </div>
               </div>
 
@@ -669,7 +701,7 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
               <div>
                 <FieldLabel>How Did You Hear?</FieldLabel>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {SOURCE_OPTIONS.map(s => <Pill key={s} label={s} active={source === s} onClick={() => setSource(source === s ? '' : s)} />)}
+                  {SOURCE_OPTIONS.map(s => <Pill key={s.value} label={s.label} active={source === s.value} onClick={() => setSource(s.value)} />)}
                 </div>
               </div>
             </>
