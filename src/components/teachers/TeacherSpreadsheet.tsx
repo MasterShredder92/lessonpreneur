@@ -233,7 +233,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
             update.phone = values[i]
           }
           if (Object.keys(update).length === 0) continue
-          const { error: pasteErr } = await supabase.from('teachers').update(update).eq('id', editCell.id)
+          const { error: pasteErr } = await supabase.from('teachers').update(update).eq('id', editCell.id).eq('tenant_id', tenantId!)
           if (pasteErr) { toast('Paste failed: ' + pasteErr.message, 'error'); break }
         }
       } else {
@@ -261,7 +261,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
             update.phone = values[i]
           }
           if (Object.keys(update).length === 0) continue
-          const { error: colPasteErr } = await supabase.from('teachers').update(update).eq('id', teacher.id)
+          const { error: colPasteErr } = await supabase.from('teachers').update(update).eq('id', teacher.id).eq('tenant_id', tenantId!)
           if (colPasteErr) { toast('Paste failed: ' + colPasteErr.message, 'error'); break }
         }
       }
@@ -319,26 +319,26 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
 
     // Build update payload based on column key
     if (key === 'first_name') {
-      updateResult = await supabase.from('teachers').update({ first_name: value }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ first_name: value }).eq('id', teacherId).eq('tenant_id', tenantId!)
     } else if (key === 'last_name') {
-      updateResult = await supabase.from('teachers').update({ last_name: value }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ last_name: value }).eq('id', teacherId).eq('tenant_id', tenantId!)
     } else if (key === 'email') {
-      updateResult = await supabase.from('teachers').update({ email: value }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ email: value }).eq('id', teacherId).eq('tenant_id', tenantId!)
     } else if (key === 'phone') {
-      updateResult = await supabase.from('teachers').update({ phone: value }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ phone: value }).eq('id', teacherId).eq('tenant_id', tenantId!)
     } else if (key === 'role') {
-      updateResult = await supabase.from('teachers').update({ teacher_role: value }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ teacher_role: value }).eq('id', teacherId).eq('tenant_id', tenantId!)
     } else if (key === 'rate_per_block') {
       const numVal = parseFloat(value) || 0
-      updateResult = await supabase.from('teachers').update({ rate_per_block: numVal, pay_rate_per_half_hour: numVal }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ rate_per_block: numVal, pay_rate_per_half_hour: numVal }).eq('id', teacherId).eq('tenant_id', tenantId!)
     } else if (key === 'status_col') {
-      updateResult = await supabase.from('teachers').update({ status: value, is_active: value !== 'inactive' }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ status: value, is_active: value !== 'inactive' }).eq('id', teacherId).eq('tenant_id', tenantId!)
     } else if (key === 'needs_1099') {
       const boolVal = value === 'Yes' || value === 'true'
-      updateResult = await supabase.from('teachers').update({ needs_1099: boolVal }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ needs_1099: boolVal }).eq('id', teacherId).eq('tenant_id', tenantId!)
     } else if (DIRECT_TEXT_COLUMNS.has(key)) {
       // All 16 new columns + personality/lesson_style write directly to their DB column
-      updateResult = await supabase.from('teachers').update({ [key]: value }).eq('id', teacherId)
+      updateResult = await supabase.from('teachers').update({ [key]: value }).eq('id', teacherId).eq('tenant_id', tenantId!)
     }
 
     if (updateResult.error) {

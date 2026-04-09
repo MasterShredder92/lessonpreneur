@@ -129,7 +129,7 @@ export default function TeacherDetail() {
       const path = `${tenantId}/teachers/${id}.${ext}`
       await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true })
       const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path)
-      await supabase.from('teachers').update({ photo_url: urlData.publicUrl }).eq('id', id)
+      await supabase.from('teachers').update({ photo_url: urlData.publicUrl }).eq('id', id).eq('tenant_id', tenantId!)
       qc.invalidateQueries({ queryKey: ['teacher', id] })
     } catch (err) { toast('Photo upload failed', 'error') }
     finally { setPhotoUploading(false) }

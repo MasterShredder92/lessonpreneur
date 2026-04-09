@@ -89,7 +89,7 @@ export default function TeacherFormModal({ teacher, onClose }: Props) {
           lesson_style: form.lesson_style.trim() || null,
           best_age_range: form.best_age_range.trim() || null,
           is_active: form.status === 'active' || form.status === 'at_capacity',
-        }).eq('id', teacher.id)
+        }).eq('id', teacher.id).eq('tenant_id', tenantId!)
         if (updateErr) throw updateErr
 
         // Update profile if it exists

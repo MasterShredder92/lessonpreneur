@@ -214,7 +214,7 @@ export default function W9FormModal({ teacherId, teacherName, onClose }: Props) 
       await supabase.from('teachers').update({
         w9_status: 'complete',
         w9_completed_at: now,
-      }).eq('id', teacherId)
+      }).eq('id', teacherId).eq('tenant_id', tenantId!)
 
       // 4. Also save to teacher_documents
       if (pdfUrl) {
