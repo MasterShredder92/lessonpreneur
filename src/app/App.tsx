@@ -3,6 +3,7 @@ import { useEffect, lazy, Suspense } from 'react'
 import { QueryClient, QueryClientProvider, QueryCache } from '@tanstack/react-query'
 import { AuthProvider } from './AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { useLocationSEO } from '../hooks/useLocationSEO'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ToastProvider } from '../components/shared/Toast'
 import { RouteGuard } from './RouteGuard'
@@ -15,6 +16,7 @@ function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
   usePageTitle()
+  useLocationSEO()
   return null
 }
 
