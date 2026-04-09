@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
+import { EDGE_FUNCTIONS } from '../../lib/config'
+import { safeFetch } from '../../lib/safeFetch'
 import { sendAppointmentNotification, buildBlockContext } from '../../lib/appointmentNotifications'
 import { toast } from '../shared/Toast'
 import { Video, Check, X, AlertTriangle } from 'lucide-react'
@@ -49,18 +51,15 @@ export default function BulkVirtualModal({ blocks, date, tenantId, onClose }: Pr
     selected.forEach(id => { init[id] = 'pending' })
     setResults(init)
 
-    const token = (await supabase.auth.getSession()).data.session?.access_token
     const user = (await supabase.auth.getUser()).data.user
     let successCount = 0
 
     for (const blockId of selected) {
       try {
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-google-meet`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ block_id: blockId, tenant_id: tenantId, user_id: user?.id }),
-        })
-        const result = await res.json()
+        const result = await safeFetch<{ success?: boolean; error?: string; meet_link?: string }>(
+          EDGE_FUNCTIONS.createGoogleMeet,
+          { body: { block_id: blockId, tenant_id: tenantId, user_id: user?.id } },
+        )
         if (!result.success) throw new Error(result.error)
 
         // Send virtual notification
@@ -87,18 +86,15 @@ export default function BulkVirtualModal({ blocks, date, tenantId, onClose }: Pr
 
   const retryFailed = async () => {
     setStep('processing')
-    const token = (await supabase.auth.getSession()).data.session?.access_token
     const user = (await supabase.auth.getUser()).data.user
 
     for (const blockId of failedIds) {
       setResults(prev => ({ ...prev, [blockId]: 'pending' }))
       try {
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-google-meet`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ block_id: blockId, tenant_id: tenantId, user_id: user?.id }),
-        })
-        const result = await res.json()
+        const result = await safeFetch<{ success?: boolean; error?: string; meet_link?: string }>(
+          EDGE_FUNCTIONS.createGoogleMeet,
+          { body: { block_id: blockId, tenant_id: tenantId, user_id: user?.id } },
+        )
         if (!result.success) throw new Error(result.error)
         const ctx = await buildBlockContext(blockId)
         if (ctx) sendAppointmentNotification('virtual_converted', { ...ctx, meet_link: result.meet_link })
