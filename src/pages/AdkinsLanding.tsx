@@ -235,7 +235,10 @@ export default function AdkinsLanding() {
               <div className="ak-stat-card"><div className="ak-stat-num">{locStats.studentsTaughtTotal.toLocaleString()}+</div><div className="ak-stat-lbl">Taught Overall</div></div>
             </div>
           )}
-          <button className="ak-btnp ak-hero-cta" onClick={goEnroll} style={{ marginTop: 20 }}>Enroll Now {'\u{2192}'}</button>
+          <div className="ak-glow-wrap" style={{ marginTop: 20 }}>
+            <div className="ak-glow-orb" />
+            <button className="ak-btnp ak-hero-cta" onClick={goEnroll}>Enroll Now {'\u{2192}'}</button>
+          </div>
         </div>
       </section>
 
@@ -294,7 +297,10 @@ export default function AdkinsLanding() {
         <div className="ak-pcta-box">
           <h3>Stop Wondering. Start Playing.</h3>
           <p>We will match you with the perfect teacher and have your first lesson on the calendar within 24 hours.</p>
-          <button className="ak-btnp" onClick={goEnroll}>Check Availability Now {'\u{2192}'}</button>
+          <div className="ak-glow-wrap">
+            <div className="ak-glow-orb" />
+            <button className="ak-btnp" onClick={goEnroll}>Check Availability Now {'\u{2192}'}</button>
+          </div>
         </div>
       </section>
 
@@ -330,7 +336,10 @@ export default function AdkinsLanding() {
           </div>
         </div>
         <div style={{ textAlign: 'center', marginTop: 36 }}>
-          <button className="ak-btnp" onClick={goEnroll}>Get Started — Free to Try {'\u{2192}'}</button>
+          <div className="ak-glow-wrap">
+            <div className="ak-glow-orb" />
+            <button className="ak-btnp" onClick={goEnroll}>Get Started — Free to Try {'\u{2192}'}</button>
+          </div>
         </div>
       </section>
 
@@ -407,7 +416,10 @@ export default function AdkinsLanding() {
               <div className="ak-rpt" key={r}><div className="ak-rck">{'\u{2713}'}</div>{r}</div>
             ))}
           </div>
-          <button className="ak-btnp" onClick={goEnroll}>Start Month-to-Month {'\u{2192}'}</button>
+          <div className="ak-glow-wrap">
+            <div className="ak-glow-orb" />
+            <button className="ak-btnp" onClick={goEnroll}>Start Month-to-Month {'\u{2192}'}</button>
+          </div>
         </div>
       </section>
 
@@ -516,8 +528,10 @@ export default function AdkinsLanding() {
         <h2>Your <span>First Lesson</span><br />Is Waiting.</h2>
         <p>Join {locStats ? `${locStats.studentsTaughtTotal.toLocaleString()}+` : ''} students across the Omaha metro — kids, teens, and adults. Book in the next 60 seconds.</p>
         <div className="ak-fbtns">
-          <button className="ak-btnp" style={{ fontSize: 16, padding: '16px 34px' }} onClick={goEnroll}>Sign Up For Lessons Now {'\u{2192}'}</button>
-          <button className="ak-btng" onClick={goEnroll}>Or Text Us First</button>
+          <div className="ak-glow-wrap">
+            <div className="ak-glow-orb" style={{ width: 280, height: 80, opacity: 0.55 }} />
+            <button className="ak-btnp" style={{ fontSize: 16, padding: '16px 34px' }} onClick={goEnroll}>Sign Up For Lessons Now {'\u{2192}'}</button>
+          </div>
         </div>
       </section>
 
