@@ -1953,21 +1953,6 @@ function IssueReportForm({ isOwner }: { isOwner: boolean }) {
             ))}
           </div>
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Field 1 — What happened? */}
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', marginBottom: 6, display: 'block' }}>What happened? *</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Describe what went wrong in plain English. Don't worry about technical details."
-              maxLength={1500}
-              rows={5}
-              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5, fontFamily: 'inherit' }}
-            />
-            <div style={{ fontSize: 10, color: (1500 - description.length) < 100 ? '#D4226A' : '#55516E', marginTop: 3, textAlign: 'right' }}>{1500 - description.length} characters remaining</div>
-          </div>
 
         {/* Element */}
         <div>
