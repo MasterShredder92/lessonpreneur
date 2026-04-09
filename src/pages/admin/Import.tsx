@@ -8,6 +8,7 @@ import MusicLoader from '../../components/shared/MusicLoader'
 import { Upload, Check, AlertTriangle } from 'lucide-react'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import { qk } from '../../lib/queryKeys'
 
 type Step = 'upload' | 'map' | 'preview' | 'importing' | 'done'
 
@@ -183,16 +184,16 @@ export default function Import() {
     setResults(res)
     setStep('done')
     await Promise.all([
-      qc.invalidateQueries({ queryKey: ['students'] }),
-      qc.invalidateQueries({ queryKey: ['students_roster'] }),
-      qc.invalidateQueries({ queryKey: ['student-instruments'] }),
-      qc.invalidateQueries({ queryKey: ['student-tab-counts'] }),
-      qc.invalidateQueries({ queryKey: ['families'] }),
-      qc.invalidateQueries({ queryKey: ['families_page'] }),
-      qc.invalidateQueries({ queryKey: ['families_roster'] }),
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
+      qc.invalidateQueries({ queryKey: qk.students.all }),
+      qc.invalidateQueries({ queryKey: qk.students.roster }),
+      qc.invalidateQueries({ queryKey: qk.students.instruments }),
+      qc.invalidateQueries({ queryKey: qk.students.tabCounts }),
+      qc.invalidateQueries({ queryKey: qk.families.all }),
+      qc.invalidateQueries({ queryKey: qk.families.page }),
+      qc.invalidateQueries({ queryKey: qk.families.roster }),
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts }),
       qc.invalidateQueries({ queryKey: ['onboarding-mode'] }),
-      qc.invalidateQueries({ queryKey: ['onboarding-checklist'] }),
+      qc.invalidateQueries({ queryKey: qk.onboarding.checklist }),
     ])
   }
 

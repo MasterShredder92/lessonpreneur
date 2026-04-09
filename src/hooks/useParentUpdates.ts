@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../services/aiAssistantClient'
+import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetchBackground } from '../lib/safeFetch'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -185,21 +188,19 @@ Rules:
           workedOn: log.worked_on ?? [],
           progressIndicator: log.progress_indicator,
         })
-        // Queue email send (will no-op in dev)
-        fetch(EDGE_FUNCTIONS.sendEmail, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
-          body: JSON.stringify({ to: family.primary_email, subject: email.subject, html: email.html, from_name: emailBrand.studioName, tenant_id: tenantId }),
-        }).catch(() => {}) // silently fail — email is nice-to-have
+        // Queue email send (will no-op in dev) — fire-and-forget
+        safeFetchBackground(EDGE_FUNCTIONS.sendEmail, {
+          body: { to: family.primary_email, subject: email.subject, html: email.html, from_name: emailBrand.studioName, tenant_id: tenantId },
+        })
       }
 
       return { communicationId: comm.id, body }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher-day-blocks'] })
-      qc.invalidateQueries({ queryKey: ['student-communications'] })
-      qc.invalidateQueries({ queryKey: ['family-communications'] })
-      qc.invalidateQueries({ queryKey: ['session-log'] })
+      qc.invalidateQueries({ queryKey: qk.sessions.teacherDay })
+      qc.invalidateQueries({ queryKey: qk.communications.student })
+      qc.invalidateQueries({ queryKey: qk.communications.family })
+      qc.invalidateQueries({ queryKey: qk.sessions.all })
     },
   })
 }
@@ -209,7 +210,7 @@ Rules:
 export function useStudentCommunications(studentId: string | undefined, opts?: { enabled?: boolean }) {
   const queryEnabled = !!studentId && (opts?.enabled ?? true)
   return useQuery<ParentUpdate[]>({
-    queryKey: ['student-communications', studentId],
+    queryKey: qk.communications.student(studentId),
     enabled: queryEnabled,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -250,7 +251,7 @@ export function useStudentCommunications(studentId: string | undefined, opts?: {
 
 export function useFamilyCommunications(familyId: string | undefined) {
   return useQuery<ParentUpdate[]>({
-    queryKey: ['family-communications', familyId],
+    queryKey: qk.communications.family(familyId),
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase

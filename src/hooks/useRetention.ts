@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ═══════════════════════════════════════
 // TYPES
@@ -127,16 +128,17 @@ export function usePauseStudent() {
       })
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students_roster'] })
-      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.roster })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family_detail'] })
-      qc.invalidateQueries({ queryKey: ['student_followups'] })
+      qc.invalidateQueries({ queryKey: qk.students.followups })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+      qc.invalidateQueries({ queryKey: qk.retention.churnRisk })
+      qc.invalidateQueries({ queryKey: qk.billing.snapshot })
     },
   })
 }
@@ -184,17 +186,14 @@ export function useReactivateStudent() {
       })
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students_roster'] })
-      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.roster })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['family_detail'] })
-      qc.invalidateQueries({ queryKey: ['student_followups'] })
+      qc.invalidateQueries({ queryKey: qk.students.followups })
     },
   })
 }
@@ -205,7 +204,7 @@ export function useReactivateStudent() {
 
 export function useStudentFollowups(filters?: { status?: string; dueSoon?: boolean }) {
   return useQuery({
-    queryKey: ['student_followups', filters],
+    queryKey: [...qk.students.followups, filters] as const,
     queryFn: async () => {
       let query = supabase
         .from('student_followups')
@@ -226,30 +225,26 @@ export function useStudentFollowups(filters?: { status?: string; dueSoon?: boole
       const { data, error } = await query
       if (error) throw error
 
-      // Resolve student + family info
+      // Resolve student + family + location info in parallel
       const studentIds = [...new Set((data ?? []).map((f: any) => f.student_id))]
       const familyIds = [...new Set((data ?? []).map((f: any) => f.family_id))]
 
+      const [studentsResult, familiesResult, { data: locations }] = await Promise.all([
+        studentIds.length > 0
+          ? supabase.from('students').select('id, first_name, last_name, instrument, location_id, pause_reason, deactivated_at').in('id', studentIds)
+          : Promise.resolve({ data: [] }),
+        familyIds.length > 0
+          ? supabase.from('families').select('id, name, parent_name, parent_first_name, parent_last_name, primary_email, primary_phone').in('id', familyIds)
+          : Promise.resolve({ data: [] }),
+        supabase.from('locations').select('id, name'),
+      ])
+
       const studentMap = new Map<string, any>()
-      if (studentIds.length > 0) {
-        const { data: students } = await supabase
-          .from('students')
-          .select('id, first_name, last_name, instrument, location_id, pause_reason, deactivated_at')
-          .in('id', studentIds)
-        students?.forEach((s: any) => studentMap.set(s.id, s))
-      }
+      ;(studentsResult.data ?? []).forEach((s: any) => studentMap.set(s.id, s))
 
       const familyMap = new Map<string, any>()
-      if (familyIds.length > 0) {
-        const { data: families } = await supabase
-          .from('families')
-          .select('id, name, parent_name, parent_first_name, parent_last_name, primary_email, primary_phone')
-          .in('id', familyIds)
-        families?.forEach((f: any) => familyMap.set(f.id, f))
-      }
+      ;(familiesResult.data ?? []).forEach((f: any) => familyMap.set(f.id, f))
 
-      // Location names
-      const { data: locations } = await supabase.from('locations').select('id, name')
       const locMap = new Map((locations ?? []).map((l: any) => [l.id, l.name?.replace(' Music Lessons', '') ?? '']))
 
       return (data ?? []).map((fu: any) => {
@@ -287,7 +282,7 @@ export function useDismissFollowup() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['student_followups'] })
+      qc.invalidateQueries({ queryKey: qk.students.followups })
     },
   })
 }
@@ -309,7 +304,7 @@ export function useMarkFollowupSent() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['student_followups'] })
+      qc.invalidateQueries({ queryKey: qk.students.followups })
     },
   })
 }

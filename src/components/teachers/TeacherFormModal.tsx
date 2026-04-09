@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 
 import { CORE_INSTRUMENTS, OTHER_INSTRUMENTS, INSTRUMENT_PILL_STYLE } from '../../lib/constants'
+import { qk } from '../../lib/queryKeys'
 
 const ROLE_OPTIONS = ['Music Teacher', 'Voice Teacher', 'Studio Director']
 const STATUS_OPTIONS = [
@@ -144,10 +145,10 @@ export default function TeacherFormModal({ teacher, onClose }: Props) {
         }
       }
 
-      qc.invalidateQueries({ queryKey: ['teacher'] })
-      qc.invalidateQueries({ queryKey: ['teachers'] })
-      qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] })
-      qc.invalidateQueries({ queryKey: ['teacher-locations'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.record })
+      qc.invalidateQueries({ queryKey: qk.teachers.all })
+      qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet })
+      qc.invalidateQueries({ queryKey: qk.teachers.locations })
       qc.invalidateQueries({ queryKey: ['profile-locations'] })
       onClose()
     } catch (err: any) {

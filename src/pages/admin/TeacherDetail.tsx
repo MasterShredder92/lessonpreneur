@@ -19,6 +19,7 @@ import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import TeachersPageGuide from '../../components/admin/TeachersPageGuide'
 import { usePermissions } from '../../hooks/usePermissions'
+import { qk } from '../../lib/queryKeys'
 
 const DAYS_ORDERED = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
 const DAY_LABELS: Record<string, string> = {
@@ -130,7 +131,7 @@ export default function TeacherDetail() {
       await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true })
       const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path)
       await supabase.from('teachers').update({ photo_url: urlData.publicUrl }).eq('id', id).eq('tenant_id', tenantId!)
-      qc.invalidateQueries({ queryKey: ['teacher', id] })
+      qc.invalidateQueries({ queryKey: qk.teachers.record(id) })
     } catch (err) { toast('Photo upload failed', 'error') }
     finally { setPhotoUploading(false) }
   }

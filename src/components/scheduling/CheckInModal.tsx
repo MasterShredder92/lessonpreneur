@@ -5,12 +5,15 @@ import { useCheckIn } from '../../hooks/useCheckIn'
 import { useRooms } from '../../hooks/useRooms'
 import { useChangeBlockType, useUnassignBlock, type GridBlock, type BlockType } from '../../hooks/useScheduleGrid'
 import { supabase } from '../../lib/supabase'
+import { safeFetch } from '../../lib/safeFetch'
+import { EDGE_FUNCTIONS } from '../../lib/config'
 import { sendAppointmentNotification } from '../../lib/appointmentNotifications'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '../shared/Toast'
 import { Check, Phone, UserX, X, Bell, BellOff, RefreshCw, ExternalLink, Video } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
+import { qk } from '../../lib/queryKeys'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -163,7 +166,7 @@ export default function CheckInModal({ block, onClose }: Props) {
         performed_by: user?.id ?? null,
       }).then(() => {})
 
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
       toast('Substitute changed', 'success')
       onClose()
     } catch (err: any) { setError(err.message) }
@@ -292,7 +295,7 @@ export default function CheckInModal({ block, onClose }: Props) {
         teacher_id: block.teacher_id,
       })
 
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
       onClose()
     } catch (err: any) { setError(err.message) }
     finally { setCancelSubmitting(false) }
@@ -351,7 +354,7 @@ export default function CheckInModal({ block, onClose }: Props) {
                             location_name: block.location_name ?? 'Studio', block_date: block.block_date, start_time: block.start_time,
                             family_id: null, teacher_id: block.teacher_id,
                           })
-                          qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                          qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                           onClose()
                         } catch (err: any) { setError(err.message) }
                         finally { setCancelSubmitting(false) }
@@ -446,8 +449,8 @@ export default function CheckInModal({ block, onClose }: Props) {
             if (e) throw new Error(e.message)
           }
         }
-        qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-        qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+        qc.invalidateQueries({ queryKey: qk.schedule.all })
+        qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
         toast('Time unlocked', 'success')
         onClose()
       } catch (err: any) {
@@ -558,11 +561,11 @@ export default function CheckInModal({ block, onClose }: Props) {
                       .delete()
                       .eq('id', block.callout_id!)
                     if (deleteErr) throw deleteErr
-                    qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-                    qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-                    qc.invalidateQueries({ queryKey: ['dashboard'] })
-                    qc.invalidateQueries({ queryKey: ['teacher-callout-tally'] })
-                    qc.invalidateQueries({ queryKey: ['teacher-callout-history'] })
+                    qc.invalidateQueries({ queryKey: qk.schedule.all })
+                    qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+                    qc.invalidateQueries({ queryKey: qk.dashboard.all })
+                    qc.invalidateQueries({ queryKey: qk.teachers.calloutTally })
+                    qc.invalidateQueries({ queryKey: qk.teachers.calloutHistory })
                     toast('Callout removed — blocks restored to open time', 'success')
                     onClose()
                   } catch (err: any) {
@@ -764,18 +767,15 @@ export default function CheckInModal({ block, onClose }: Props) {
                           // Revert to in-person
                           const { error: vErr } = await supabase.from('schedule_blocks').update({ is_virtual: false, meet_link: null, meet_event_id: null }).eq('id', block.block_id)
                           if (vErr) throw new Error(vErr.message)
-                          qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                          qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                           toast('Converted back to in-person', 'success')
                         } else {
                           // Convert to virtual
-                          const token = (await supabase.auth.getSession()).data.session?.access_token
-                          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-google-meet`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                            body: JSON.stringify({ block_id: block.block_id, tenant_id: block.tenant_id, user_id: user?.id }),
-                          })
-                          const result = await res.json()
-                          if (!result.success) throw new Error(result.error)
+                          const result = await safeFetch<{ success?: boolean; error?: string; meet_link?: string }>(
+                            EDGE_FUNCTIONS.createGoogleMeet,
+                            { body: { block_id: block.block_id, tenant_id: block.tenant_id, user_id: user?.id } },
+                          )
+                          if (!result.success) throw new Error(result.error ?? 'Google Meet creation failed')
 
                           // Send virtual notification
                           sendAppointmentNotification('virtual_converted', {
@@ -789,7 +789,7 @@ export default function CheckInModal({ block, onClose }: Props) {
                             meet_link: result.meet_link,
                           })
 
-                          qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                          qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                           toast('Virtual session created. Link sent to teacher and parent.', 'success')
                         }
                         setShowVirtualConfirm(false)
@@ -836,7 +836,7 @@ export default function CheckInModal({ block, onClose }: Props) {
                               description: `Undo check-in: ${block.student_name} — ${block.teacher_name} @ ${formatTime(block.start_time)} on ${dateStr}. Reason: ${undoReason.trim()}`,
                               performed_by: user?.id ?? null,
                             }).then(() => {})
-                            qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                            qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                             onClose()
                           } catch (err: any) { setError(err.message) }
                           finally { setUndoSubmitting(false) }
@@ -976,7 +976,7 @@ function RoomSelector({ block }: { block: GridBlock }) {
     const { error: roomErr } = await supabase.from('schedule_blocks').update({ room_id: roomId || null, room: room?.name ?? null }).eq('id', block.block_id)
     if (roomErr) { toast('Failed to update room: ' + roomErr.message, 'error'); return }
     setCurrentRoom(roomId)
-    qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+    qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
     toast(roomId ? `Moved to ${room?.name}` : 'Room removed', 'success')
   }
 

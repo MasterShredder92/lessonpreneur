@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface LeadRow {
   id: string
@@ -51,7 +52,7 @@ export interface LeadRow {
 export function useLeads(filters?: { locationId?: string; instrument?: string }) {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['leads', tenantId, filters],
+    queryKey: qk.leads.list(tenantId, filters),
     enabled: !!tenantId,
     queryFn: async () => {
       let query = supabase
@@ -111,7 +112,10 @@ export function useUpdateLeadStage() {
         if (error) throw error
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leads'] }) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.leads.all })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+    },
   })
 }
 
@@ -122,7 +126,10 @@ export function useUpdateLead() {
       const { error } = await supabase.from('leads').update(updates).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leads'] }) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.leads.all })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+    },
   })
 }
 
@@ -158,6 +165,9 @@ export function useCreateLead() {
       if (error) throw error
       return data
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leads'] }) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.leads.all })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+    },
   })
 }

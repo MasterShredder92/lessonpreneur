@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../shared/Toast'
 import { X, Search, Users, Plus, Check } from 'lucide-react'
+import { qk } from '../../lib/queryKeys'
 
 interface Props {
   studentId: string
@@ -99,21 +100,22 @@ export default function LinkFamilyModal({ studentId, studentName, onClose, onLin
       const { error: upErr } = await supabase.from('students').update({ family_id: selectedFamily.id }).eq('id', studentId)
       if (upErr) throw upErr
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['students'] }),
-        qc.invalidateQueries({ queryKey: ['students_roster'] }),
-        qc.invalidateQueries({ queryKey: ['student-instruments'] }),
-        qc.invalidateQueries({ queryKey: ['student-tab-counts'] }),
-        qc.invalidateQueries({ queryKey: ['student-detail'] }),
-        qc.invalidateQueries({ queryKey: ['families'] }),
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-        qc.invalidateQueries({ queryKey: ['family_detail'] }),
+        qc.invalidateQueries({ queryKey: qk.students.all }),
+        qc.invalidateQueries({ queryKey: qk.students.roster }),
+        qc.invalidateQueries({ queryKey: qk.students.instruments }),
+        qc.invalidateQueries({ queryKey: qk.students.tabCounts }),
+        qc.invalidateQueries({ queryKey: qk.students.detail }),
+        qc.invalidateQueries({ queryKey: qk.families.all }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
+        qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
       ])
       toast(`${studentName} linked to ${selectedFamily.name}`, 'success')
       onLinked?.(selectedFamily.id)
       onClose()
     } catch (err: any) {
       setError(err.message || 'Failed to link family.')
+    } finally {
       setSaving(false)
     }
   }
@@ -156,23 +158,24 @@ export default function LinkFamilyModal({ studentId, studentName, onClose, onLin
       if (upErr) throw upErr
 
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['students'] }),
-        qc.invalidateQueries({ queryKey: ['students_roster'] }),
-        qc.invalidateQueries({ queryKey: ['student-instruments'] }),
-        qc.invalidateQueries({ queryKey: ['student-tab-counts'] }),
-        qc.invalidateQueries({ queryKey: ['student-detail'] }),
-        qc.invalidateQueries({ queryKey: ['families'] }),
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-        qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
-        qc.invalidateQueries({ queryKey: ['family_detail'] }),
-        qc.invalidateQueries({ queryKey: ['tasks'] }),
+        qc.invalidateQueries({ queryKey: qk.students.all }),
+        qc.invalidateQueries({ queryKey: qk.students.roster }),
+        qc.invalidateQueries({ queryKey: qk.students.instruments }),
+        qc.invalidateQueries({ queryKey: qk.students.tabCounts }),
+        qc.invalidateQueries({ queryKey: qk.students.detail }),
+        qc.invalidateQueries({ queryKey: qk.families.all }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
+        qc.invalidateQueries({ queryKey: qk.families.tabCounts }),
+        qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
+        qc.invalidateQueries({ queryKey: qk.tasks.all }),
       ])
       toast(`Family created and linked to ${studentName}`, 'success')
       onLinked?.(newFamily.id)
       onClose()
     } catch (err: any) {
       setError(err.message || 'Failed to create family.')
+    } finally {
       setSaving(false)
     }
   }

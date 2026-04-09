@@ -110,8 +110,8 @@ export async function exportSessionLogs(tenantId: string, dateFrom?: string, dat
   const tIds = [...new Set((logs ?? []).map(l => l.teacher_id))]
   const stuMap = new Map<string, string>()
   const tMap = new Map<string, string>()
-  if (stuIds.length) { const { data } = await supabase.from('students').select('id, first_name, last_name').in('id', stuIds); data?.forEach((s: any) => stuMap.set(s.id, `${s.first_name} ${s.last_name}`.trim())) }
-  if (tIds.length) { const { data } = await supabase.from('teachers').select('id, first_name, last_name').in('id', tIds); data?.forEach((t: any) => tMap.set(t.id, `${t.first_name} ${t.last_name}`.trim())) }
+  if (stuIds.length) { const { data } = await supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId).in('id', stuIds); data?.forEach((s: any) => stuMap.set(s.id, `${s.first_name} ${s.last_name}`.trim())) }
+  if (tIds.length) { const { data } = await supabase.from('teachers').select('id, first_name, last_name').eq('tenant_id', tenantId).in('id', tIds); data?.forEach((t: any) => tMap.set(t.id, `${t.first_name} ${t.last_name}`.trim())) }
 
   const headers = ['Date', 'Student', 'Teacher', 'Instrument', 'Worked On', 'Progress', 'Engagement', 'Note']
   const rows = (logs ?? []).map((l: any) => [

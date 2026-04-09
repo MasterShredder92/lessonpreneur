@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { useTeacherRecord } from './useTeacherDashboard'
+import { qk } from '../lib/queryKeys'
 
 export interface TeacherBlock {
   block_id: string
@@ -189,13 +190,13 @@ export function useSubmitSessionLog() {
       return { sessionLogId: log.id }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher-day-blocks'] })
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-      qc.invalidateQueries({ queryKey: ['student-blocks'] })
-      qc.invalidateQueries({ queryKey: ['dashboard'] })
-      qc.invalidateQueries({ queryKey: ['teacher-pay-summary'] })
-      qc.invalidateQueries({ queryKey: ['session-log'] })
+      qc.invalidateQueries({ queryKey: qk.sessions.teacherDay })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+      qc.invalidateQueries({ queryKey: qk.teachers.paySummary })
+      qc.invalidateQueries({ queryKey: qk.sessions.all })
     },
   })
 }

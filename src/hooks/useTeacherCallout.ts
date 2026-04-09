@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 /* ══════════════════════════════════════════
    MARK TEACHER CALLED OUT
@@ -67,11 +68,11 @@ export function useMarkTeacherCalledOut() {
       return { blocksAffected: blockIds.length, calloutId: calloutRecord.id }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-      qc.invalidateQueries({ queryKey: ['dashboard'] })
-      qc.invalidateQueries({ queryKey: ['teacher-callout-tally'] })
-      qc.invalidateQueries({ queryKey: ['teacher-callout-history'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+      qc.invalidateQueries({ queryKey: qk.teachers.calloutTally })
+      qc.invalidateQueries({ queryKey: qk.teachers.calloutHistory })
     },
   })
 }
@@ -143,11 +144,11 @@ export function useUndoTeacherCallout() {
       return { blocksRestored: blockIds.length }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-      qc.invalidateQueries({ queryKey: ['dashboard'] })
-      qc.invalidateQueries({ queryKey: ['teacher-callout-tally'] })
-      qc.invalidateQueries({ queryKey: ['teacher-callout-history'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+      qc.invalidateQueries({ queryKey: qk.teachers.calloutTally })
+      qc.invalidateQueries({ queryKey: qk.teachers.calloutHistory })
     },
   })
 }
@@ -198,7 +199,7 @@ export interface CalloutRecord {
 
 export function useTeacherCalloutHistory(teacherId: string | undefined) {
   return useQuery({
-    queryKey: ['teacher-callout-history', teacherId],
+    queryKey: qk.teachers.calloutHistory(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       const { data, error } = await supabase

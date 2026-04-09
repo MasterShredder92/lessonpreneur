@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ═══════════════════════════════════════
 // FAMILY RATE TIER
@@ -8,7 +9,7 @@ import { useAuthContext } from '../app/AuthContext'
 
 export function useFamilyRate(familyId: string | undefined) {
   return useQuery({
-    queryKey: ['family_rate', familyId],
+    queryKey: qk.families.rate(familyId),
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -44,9 +45,12 @@ export function useOverrideFamilyRate() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['family_rate', vars.familyId] })
-      qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['family_billing', vars.familyId] })
+      qc.invalidateQueries({ queryKey: qk.families.rate(vars.familyId) })
+      qc.invalidateQueries({ queryKey: qk.families.all })
+      qc.invalidateQueries({ queryKey: qk.families.billing(vars.familyId) })
+      qc.invalidateQueries({ queryKey: qk.billing.snapshot })
+      qc.invalidateQueries({ queryKey: qk.billing.overview })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
     },
   })
 }
@@ -72,9 +76,12 @@ export function useRemoveFamilyRateOverride() {
       if (rpcError) throw rpcError
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['family_rate', vars.familyId] })
-      qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['family_billing', vars.familyId] })
+      qc.invalidateQueries({ queryKey: qk.families.rate(vars.familyId) })
+      qc.invalidateQueries({ queryKey: qk.families.all })
+      qc.invalidateQueries({ queryKey: qk.families.billing(vars.familyId) })
+      qc.invalidateQueries({ queryKey: qk.billing.snapshot })
+      qc.invalidateQueries({ queryKey: qk.billing.overview })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
     },
   })
 }
@@ -107,7 +114,11 @@ export function useAddSessionCredit() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['billing_adjustments', vars.familyId] })
+      qc.invalidateQueries({ queryKey: [...qk.billing.adjustments, vars.familyId] })
+      qc.invalidateQueries({ queryKey: qk.billing.snapshot })
+      qc.invalidateQueries({ queryKey: qk.billing.overview })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
+      qc.invalidateQueries({ queryKey: qk.families.billing(vars.familyId) })
     },
   })
 }

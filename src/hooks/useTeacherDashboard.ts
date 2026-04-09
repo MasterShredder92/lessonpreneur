@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ─── Helper: get teacher ID from profile ─────────────
 async function getTeacherId(profileId: string): Promise<string | null> {
@@ -13,7 +14,7 @@ export function useTeacherRecord() {
   const { profile } = useAuthContext()
 
   return useQuery<string | null>({
-    queryKey: ['teacher_record', profile?.id],
+    queryKey: qk.teachers.record(profile?.id),
     enabled: !!profile?.id,
     staleTime: Infinity,
     queryFn: () => getTeacherId(profile!.id),
@@ -39,7 +40,7 @@ export function useTeacherTodaySchedule() {
   const today = new Date().toISOString().split('T')[0]
 
   return useQuery<TodayBlock[]>({
-    queryKey: ['teacher_today', teacherId, today],
+    queryKey: qk.teachers.today(teacherId, today),
     enabled: !!teacherId,
     queryFn: async () => {
       if (!teacherId) return []
@@ -111,7 +112,7 @@ export function useTeacherTasks() {
   const { locationIds } = useAuthContext()
 
   return useQuery<TeacherTask[]>({
-    queryKey: ['teacher_tasks', teacherId],
+    queryKey: qk.teachers.tasks(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       if (!teacherId) return []
@@ -181,8 +182,8 @@ export function useCompleteTeacherTask() {
       })
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher_tasks'] })
-      qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.tasks })
+      qc.invalidateQueries({ queryKey: qk.tasks.all })
     },
   })
 }
@@ -326,7 +327,7 @@ export interface StudentCardData {
 
 export function useTeacherStudentCard(studentId: string | null) {
   return useQuery<StudentCardData | null>({
-    queryKey: ['teacher_student', studentId],
+    queryKey: qk.teachers.student(studentId!),
     enabled: !!studentId,
     queryFn: async () => {
       if (!studentId) return null
@@ -396,7 +397,7 @@ export function useTeacherDocuments() {
   const { data: teacherId } = useTeacherRecord()
 
   return useQuery<TeacherDocument[]>({
-    queryKey: ['teacher_documents', teacherId],
+    queryKey: qk.teachers.documentsAlt(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       if (!teacherId) return []
@@ -425,7 +426,7 @@ export function useTeacherW9Status() {
   const { data: teacherId } = useTeacherRecord()
 
   return useQuery<TeacherW9Status>({
-    queryKey: ['teacher_w9_status', teacherId],
+    queryKey: qk.teachers.w9Status(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       if (!teacherId) return { has_w9: false, status: null, signed_at: null, pdf_url: null }
@@ -468,7 +469,7 @@ export function useTeacherStudents() {
   const { data: teacherId } = useTeacherRecord()
 
   return useQuery<TeacherStudentItem[]>({
-    queryKey: ['teacher_students', teacherId],
+    queryKey: qk.teachers.studentsAlt(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       if (!teacherId) return []
@@ -589,7 +590,7 @@ export function useTeacherStudentFiles(studentId: string | null) {
   const { profile } = useAuthContext()
 
   return useQuery<StudentFileItem[]>({
-    queryKey: ['teacher_student_files', profile?.id, studentId],
+    queryKey: qk.teachers.studentFiles(profile?.id, studentId),
     enabled: !!profile?.id && !!studentId,
     queryFn: async () => {
       if (!studentId || !profile) return []
@@ -655,7 +656,7 @@ export function useUploadStudentFile() {
       return { success: true }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher_student_files'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.studentFiles })
     },
   })
 }
@@ -792,9 +793,9 @@ export function useSaveTeacherNoteWithAudit() {
       return { noteId: note.id }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher-student-notes'] })
-      qc.invalidateQueries({ queryKey: ['missing_notes'] })
-      qc.invalidateQueries({ queryKey: ['teacher_students'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.studentNotes })
+      qc.invalidateQueries({ queryKey: qk.sessions.missingNotes })
+      qc.invalidateQueries({ queryKey: qk.teachers.all })
     },
   })
 }
@@ -849,9 +850,9 @@ export function useUploadTeacherDocument() {
       return { success: true }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher_documents'] })
-      qc.invalidateQueries({ queryKey: ['teacher_tasks'] })
-      qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.documentsAlt })
+      qc.invalidateQueries({ queryKey: qk.teachers.tasks })
+      qc.invalidateQueries({ queryKey: qk.tasks.all })
     },
   })
 }

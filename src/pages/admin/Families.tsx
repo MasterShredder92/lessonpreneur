@@ -23,6 +23,7 @@ import { IssueContextProvider } from '../../contexts/IssueContext'
 import { logAudit } from '../../lib/auditLog'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import FamiliesPageGuide from '../../components/admin/FamiliesPageGuide'
+import { qk } from '../../lib/queryKeys'
 import AddFamilyModal from '../../components/admin/AddFamilyModal'
 import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
 import { useLastReviewRequest } from '../../hooks/useReviewRequest'
@@ -660,8 +661,8 @@ function MobileNotificationPrefs({ family, toggleStyle, thumbStyle }: {
         reminder_1hr: rem1hr,
       }).eq('id', family.id)
       if (err) throw err
-      qc.invalidateQueries({ queryKey: ['family_detail'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.families.fileDetail })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       toast('Notification preferences saved', 'success')
     } catch (e: any) {
       setError(e.message ?? 'Failed to save')
@@ -1800,8 +1801,8 @@ function CreateInvoiceFromFamily({ family, onClose }: { family: any; onClose: ()
       })
 
       toast(`Invoice created for ${formatDollars(totalCents)}`, 'success')
-      qc.invalidateQueries({ queryKey: ['invoice_tokens_list'] })
-      qc.invalidateQueries({ queryKey: ['invoice_pending_count'] })
+      qc.invalidateQueries({ queryKey: qk.invoices.tokensList })
+      qc.invalidateQueries({ queryKey: qk.invoices.pendingCount })
       onClose()
     } catch (err) {
       toast('Failed to create invoice', 'error')
@@ -1932,8 +1933,8 @@ function NotificationPrefs({ family }: { family: any }) {
         reminder_1hr: rem1hr,
       }).eq('id', family.id)
       if (err) throw err
-      qc.invalidateQueries({ queryKey: ['family_detail'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.families.fileDetail })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       toast('Notification preferences saved', 'success')
     } catch (e: any) {
       setError(e.message ?? 'Failed to save')
@@ -2036,7 +2037,7 @@ function FamilyMessagesTab({ familyId, locationId, familyPhone }: {
   const [text, setText] = useState('')
 
   const { data: location } = useQuery({
-    queryKey: ['admin-family-msg-location', locationId],
+    queryKey: qk.communications.adminFamilyLocation(locationId),
     enabled: !!locationId,
     queryFn: async () => {
       const { data } = await supabase.from('locations').select('id, phone, name').eq('id', locationId!).single()
@@ -2045,7 +2046,7 @@ function FamilyMessagesTab({ familyId, locationId, familyPhone }: {
   })
 
   const { data: messages, isLoading } = useQuery<StudioMessageRow[]>({
-    queryKey: ['admin-family-messages', familyId],
+    queryKey: qk.communications.adminFamily(familyId),
     queryFn: async () => {
       const { data } = await supabase
         .from('studio_messages')
@@ -2087,7 +2088,7 @@ function FamilyMessagesTab({ familyId, locationId, familyPhone }: {
         if (error) return
       }
       if (!cancelled) {
-        qc.invalidateQueries({ queryKey: ['admin-family-messages', familyId] })
+        qc.invalidateQueries({ queryKey: qk.communications.adminFamily(familyId) })
       }
     })()
 
@@ -2115,7 +2116,7 @@ function FamilyMessagesTab({ familyId, locationId, familyPhone }: {
     },
     onSuccess: () => {
       setText('')
-      qc.invalidateQueries({ queryKey: ['admin-family-messages', familyId] })
+      qc.invalidateQueries({ queryKey: qk.communications.adminFamily(familyId) })
       toast('Message queued for delivery', 'success')
     },
     onError: (err: any) => toast(err.message ?? 'Failed to send', 'error'),

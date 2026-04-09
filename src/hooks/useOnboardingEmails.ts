@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetch } from '../lib/safeFetch'
 
 /**
  * Onboarding email sequence for new tenants.
@@ -95,15 +96,9 @@ export function useProcessOnboardingEmails() {
           if (sent[template.key]) continue // already sent
           if (daysSinceCreation < template.day) continue // not time yet
 
-          // Send email
-          const session = await supabase.auth.getSession()
-          const token = session.data.session?.access_token
-
           try {
-            await fetch(EDGE_FUNCTIONS.sendEmail, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({
+            await safeFetch(EDGE_FUNCTIONS.sendEmail, {
+              body: {
                 to: email,
                 subject: template.subject,
                 html: `<div style="font-family:-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;background:#101018;border-radius:16px;color:#E0E0F4;">
@@ -116,10 +111,9 @@ export function useProcessOnboardingEmails() {
                   <div style="text-align:center;margin-top:16px;font-size:11px;color:#606088;">Lessonpreneur — The Operating System for Music Schools</div>
                 </div>`,
                 from_name: 'Lessonpreneur',
-              }),
+              },
             })
 
-            // Mark as sent
             sent[template.key] = true
             await supabase.from('tenants').update({ onboarding_emails_sent: sent }).eq('id', tenant.id)
             processed++

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 /**
  * Family Call-Out System
@@ -24,7 +25,7 @@ export interface StudioClosure {
 /** All closures for the tenant (location-specific or tenant-wide) across the upcoming window. */
 export function useStudioClosures(tenantId: string | null, locationIds: string[]) {
   return useQuery<StudioClosure[]>({
-    queryKey: ['studio-closures', tenantId, locationIds.sort().join(',')],
+    queryKey: [...qk.locations.closures, tenantId, locationIds.sort().join(',')],
     enabled: !!tenantId && locationIds.length > 0,
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
@@ -94,7 +95,7 @@ export function useSessionsOnDate(
   enabled: boolean
 ) {
   return useQuery<SessionInDay[]>({
-    queryKey: ['sessions-on-date', date, familyStudentIds.sort().join(',')],
+    queryKey: qk.schedule.sessionsOnDate(date, familyStudentIds.sort().join(',')),
     enabled: enabled && !!date && familyStudentIds.length > 0,
     queryFn: async () => {
       const { data: blocks } = await supabase
@@ -360,7 +361,7 @@ export function useConfirmCallout() {
       return { calloutId: callout.id, makeupId }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['parent-sessions'] })
+      qc.invalidateQueries({ queryKey: qk.parent.sessions })
       qc.invalidateQueries({ queryKey: ['sessions-on-date'] })
     },
   })

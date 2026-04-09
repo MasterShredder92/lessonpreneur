@@ -5,6 +5,7 @@ import { usePermissions } from './usePermissions'
 import { formatStarPrompt, type StarPromptContext } from '../services/starContext'
 import type { BillingSnapshotData } from '../services/billingSnapshotQuery'
 import { buildStarUserScope, loadStarGlobalContext } from '../star'
+import { qk } from '../lib/queryKeys'
 
 /**
  * Global Star context only (layer 1): live `get_star_context` + billing snapshot for the current user scope.
@@ -39,7 +40,7 @@ export function useStarGlobalContext() {
   const billingScopeKey = scope?.billingLocationId ?? 'all'
 
   return useQuery<StarContext>({
-    queryKey: ['star-context', tenantId, effectiveRole ?? 'unknown', locationScopeKey, billingScopeKey],
+    queryKey: qk.star.context(tenantId, effectiveRole ?? 'unknown', locationScopeKey, billingScopeKey),
     enabled: !!scope,
     staleTime: 2 * 60_000,
     queryFn: async () => {

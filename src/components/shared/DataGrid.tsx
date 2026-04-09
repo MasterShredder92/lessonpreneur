@@ -4,6 +4,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { X, Trash2, Plus, Lock, ScrollText } from 'lucide-react'
+import { qk } from '../../lib/queryKeys'
 
 interface ColDef {
   key: string
@@ -47,7 +48,7 @@ export default function DataGrid({
   onClose,
   filterFn,
 }: DataGridProps) {
-  const { role, profile } = useAuthContext()
+  const { role, profile, tenantId } = useAuthContext()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [editCell, setEditCell] = useState<{ id: string; key: string } | null>(null)
@@ -105,7 +106,7 @@ export default function DataGrid({
 
   // Audit log query
   const { data: auditLog } = useQuery({
-    queryKey: ['master-editor-log', table],
+    queryKey: [...qk.activity.masterEditor, table],
     enabled: showLog,
     queryFn: async () => {
       const { data } = await supabase
@@ -120,12 +121,15 @@ export default function DataGrid({
 
   // Main data query
   const { data: rows, isLoading } = useQuery({
-    queryKey: ['datagrid', table],
+    queryKey: [...qk.datagrid.all, table, tenantId],
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from(table)
         .select(query)
         .order(orderBy, { ascending: orderBy === 'created_at' ? false : true })
+      if (tenantId) q = q.eq('tenant_id', tenantId)
+      const { data, error } = await q
+      if (error) throw new Error(`DataGrid(${table}): ${error.message}`)
       return data ?? []
     },
   })
@@ -183,14 +187,16 @@ export default function DataGrid({
 
     setSavedCell(`${rowId}-${key}`)
     setTimeout(() => setSavedCell(null), 1500)
-    qc.invalidateQueries({ queryKey: ['datagrid', table] })
+    qc.invalidateQueries({ queryKey: [...qk.datagrid.all, table] })
     setEditCell(null)
   }
 
   const handleDeleteRow = async (id: string, name: string) => {
     const ok = confirm(`Are you sure you want to delete ${name}? This cannot be undone.`)
     if (!ok) return
-    const { error: delErr } = await supabase.from(table).delete().eq('id', id)
+    let delQuery = supabase.from(table).delete().eq('id', id)
+    if (tenantId) delQuery = delQuery.eq('tenant_id', tenantId)
+    const { error: delErr } = await delQuery
     if (delErr) {
       const { toast } = await import('./Toast')
       toast(delErr.message ?? 'Failed to delete row', 'error')
@@ -205,7 +211,7 @@ export default function DataGrid({
       description: `${profile?.first_name ?? 'Unknown'} deleted row from ${title}: ${name}`,
       performed_by: profile?.id ?? null,
     }).then(() => {})
-    qc.invalidateQueries({ queryKey: ['datagrid', table] })
+    qc.invalidateQueries({ queryKey: [...qk.datagrid.all, table] })
   }
 
   const handleAddRow = async () => {
@@ -246,7 +252,7 @@ export default function DataGrid({
       toast(insertErr.message ?? 'Failed to add row', 'error')
       return
     }
-    qc.invalidateQueries({ queryKey: ['datagrid', table] })
+    qc.invalidateQueries({ queryKey: [...qk.datagrid.all, table] })
   }
 
   const handleAddColumn = () => {

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 export interface StudentInstrument {
   id: string
@@ -15,7 +16,7 @@ export interface StudentInstrument {
 
 export function useStudentInstruments(studentId: string | undefined) {
   return useQuery({
-    queryKey: ['student-instruments', studentId],
+    queryKey: qk.students.instruments(studentId),
     enabled: !!studentId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -78,9 +79,9 @@ export function useSaveStudentInstruments() {
       }
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['student-instruments', vars.studentId] })
-      qc.invalidateQueries({ queryKey: ['student-detail'] })
-      qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: qk.students.instruments(vars.studentId) })
+      qc.invalidateQueries({ queryKey: qk.students.detail })
+      qc.invalidateQueries({ queryKey: qk.students.all })
     },
   })
 }

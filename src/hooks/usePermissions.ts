@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuthContext } from '../app/AuthContext'
 import { usePreviewMode } from './usePreviewMode'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 // Role hierarchy — higher number = more access
 const ROLE_LEVEL: Record<string, number> = {
@@ -22,7 +23,7 @@ export function usePermissions() {
   const effectiveRole = (preview.active && preview.role) ? preview.role : actualRole
 
   const { data: permissionData } = useQuery({
-    queryKey: ['permissions', tenantId, profile?.id],
+    queryKey: [...qk.permissions.all, tenantId, profile?.id],
     enabled: !!tenantId && !!profile?.id,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     queryFn: async () => {

@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 // Get family + active students
 export function usePortalFamily(familyId: string | undefined) {
   return useQuery({
-    queryKey: ['portal-family', familyId],
+    queryKey: [...qk.portal.family, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data: family } = await supabase
@@ -55,7 +56,7 @@ export function usePortalFamily(familyId: string | undefined) {
 // Get upcoming schedule for all students in family
 export function usePortalSchedule(studentIds: string[]) {
   return useQuery({
-    queryKey: ['portal-schedule', studentIds],
+    queryKey: [...qk.portal.schedule, studentIds],
     enabled: studentIds.length > 0,
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
@@ -115,7 +116,7 @@ export function usePortalSchedule(studentIds: string[]) {
 // Session notes for a student (parent-visible only)
 export function usePortalNotes(studentId: string | undefined) {
   return useQuery({
-    queryKey: ['portal-notes', studentId],
+    queryKey: [...qk.portal.notes, studentId],
     enabled: !!studentId,
     queryFn: async () => {
       const { data } = await supabase
@@ -147,7 +148,7 @@ export function usePortalNotes(studentId: string | undefined) {
 // Milestones for a student
 export function usePortalMilestones(studentId: string | undefined) {
   return useQuery({
-    queryKey: ['portal-milestones', studentId],
+    queryKey: [...qk.portal.milestones, studentId],
     enabled: !!studentId,
     queryFn: async () => {
       const { data } = await supabase
@@ -163,7 +164,7 @@ export function usePortalMilestones(studentId: string | undefined) {
 // Progress reports for a student
 export function usePortalReports(studentId: string | undefined) {
   return useQuery({
-    queryKey: ['portal-reports', studentId],
+    queryKey: [...qk.portal.reports, studentId],
     enabled: !!studentId,
     queryFn: async () => {
       const { data } = await supabase
@@ -180,7 +181,7 @@ export function usePortalReports(studentId: string | undefined) {
 // Sessions this month count per student
 export function usePortalSessionCount(studentIds: string[]) {
   return useQuery({
-    queryKey: ['portal-session-count', studentIds],
+    queryKey: [...qk.portal.sessionCount, studentIds],
     enabled: studentIds.length > 0,
     queryFn: async () => {
       const now = new Date()
@@ -206,7 +207,7 @@ export function usePortalSessionCount(studentIds: string[]) {
 // Family files (teacher uploads for family students)
 export function usePortalFiles(studentIds: string[]) {
   return useQuery({
-    queryKey: ['portal-files', studentIds],
+    queryKey: [...qk.portal.files, studentIds],
     enabled: studentIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface MonthlyMetric {
   month: string // YYYY-MM
@@ -27,7 +28,7 @@ export function useAnalytics(months = 12, locationId?: string) {
   const { tenantId } = useAuthContext()
 
   return useQuery<AnalyticsData>({
-    queryKey: ['analytics', tenantId, months, locationId],
+    queryKey: [...qk.analytics.all, tenantId, months, locationId],
     enabled: !!tenantId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -36,7 +37,7 @@ export function useAnalytics(months = 12, locationId?: string) {
       const startStr = startDate.toISOString().split('T')[0]
 
       // Get all students with created_at and status
-      let stuQuery = supabase.from('students').select('id, status, instrument, created_at, deactivated_at, location_id').eq('tenant_id', tenantId!)
+      let stuQuery = supabase.from('students').select('id, status, instrument, created_at, deactivated_at, location_id').eq('tenant_id', tenantId!).limit(5000)
       if (locationId) stuQuery = stuQuery.eq('location_id', locationId)
       const { data: students } = await stuQuery
 
@@ -46,6 +47,7 @@ export function useAnalytics(months = 12, locationId?: string) {
         .select('invoice_date, requested_amount, amount_paid, location_id')
         .eq('tenant_id', tenantId!)
         .gte('invoice_date', startStr)
+        .lte('invoice_date', new Date().toISOString().split('T')[0])
 
       // Build monthly metrics
       const enrollmentByMonth = new Map<string, number>()

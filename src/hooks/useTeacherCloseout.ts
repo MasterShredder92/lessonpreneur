@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { useTeacherRecord } from './useTeacherDashboard'
+import { qk } from '../lib/queryKeys'
 
 export interface SessionNeedingRecap {
   block_id: string
@@ -159,7 +160,7 @@ export function useCompleteTeacherCloseout() {
       return { closedAt }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher-closeout-status'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.closeoutStatus })
     },
   })
 }

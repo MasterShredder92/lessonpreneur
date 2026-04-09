@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface Achievement {
   key: string
@@ -55,8 +56,9 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
 export function useStudentAchievements(studentId: string | undefined) {
   const { tenantId } = useAuthContext()
   return useQuery<EarnedAchievement[]>({
-    queryKey: ['student-achievements', studentId],
+    queryKey: qk.students.achievements(studentId),
     enabled: !!studentId && !!tenantId,
+    staleTime: 60_000,
     queryFn: async () => {
       const { data } = await supabase.from('student_achievements').select('*').eq('student_id', studentId!).eq('tenant_id', tenantId!).order('earned_at', { ascending: false })
       return data ?? []
@@ -134,6 +136,6 @@ export function useCheckAchievements() {
 
       return newAchievements
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['student-achievements'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.students.achievements }) },
   })
 }

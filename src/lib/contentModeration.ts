@@ -3,6 +3,7 @@
  * Client-side fast check + server-side full check.
  */
 import { EDGE_FUNCTIONS } from './config'
+import { safeFetch } from './safeFetch'
 
 // Basic blocked words — client-side fast check (catches obvious stuff)
 const BASIC_BLOCKED = [
@@ -67,19 +68,13 @@ export function checkNoteText(text: string): { ok: boolean; severity?: 'block' |
 export async function serverModerateContent(
   content: string,
   type: 'filename' | 'note',
-  token: string
+  _token?: string
 ): Promise<{ approved: boolean; severity?: string; reason?: string; word?: string }> {
   try {
-    const res = await fetch(
+    return await safeFetch<{ approved: boolean; severity?: string; reason?: string; word?: string }>(
       EDGE_FUNCTIONS.moderateContent,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ content, type }),
-      }
+      { body: { content, type } },
     )
-    if (!res.ok) return { approved: true } // fail open on server error
-    return await res.json()
   } catch {
     return { approved: true } // fail open
   }

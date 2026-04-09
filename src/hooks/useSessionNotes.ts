@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { useTeacherRecord } from './useTeacherDashboard'
 import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../services/aiAssistantClient'
+import { qk } from '../lib/queryKeys'
 
 export interface SessionNote {
   id: string
@@ -25,7 +26,7 @@ export interface SessionNote {
 // Fetch session notes for a student (teacher's view)
 export function useStudentSessionNotes(studentId: string | undefined) {
   return useQuery<SessionNote[]>({
-    queryKey: ['session-notes', studentId],
+    queryKey: qk.sessions.notes(studentId),
     enabled: !!studentId,
     queryFn: async () => {
       const { data } = await supabase
@@ -82,9 +83,10 @@ export function useSaveSessionNote() {
       return data
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['session-notes', vars.studentId] })
-      qc.invalidateQueries({ queryKey: ['portal-notes', vars.studentId] })
-      qc.invalidateQueries({ queryKey: ['teacher-day-blocks'] })
+      qc.invalidateQueries({ queryKey: qk.sessions.notes(vars.studentId) })
+      qc.invalidateQueries({ queryKey: [...qk.portal.notes, vars.studentId] })
+      qc.invalidateQueries({ queryKey: qk.sessions.teacherDay })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
     },
   })
 }
@@ -121,8 +123,9 @@ export function useUpdateSessionNote() {
       if (error) throw error
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['session-notes', vars.studentId] })
-      qc.invalidateQueries({ queryKey: ['portal-notes', vars.studentId] })
+      qc.invalidateQueries({ queryKey: qk.sessions.notes(vars.studentId) })
+      qc.invalidateQueries({ queryKey: [...qk.portal.notes, vars.studentId] })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
     },
   })
 }

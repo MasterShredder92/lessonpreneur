@@ -6,6 +6,7 @@ import { X, FileText, Upload, Shield, FileSignature, FolderOpen, ExternalLink, A
 import W9FormModal from './W9FormModal'
 import PinModal from './PinModal'
 import { useAuthContext } from '../../app/AuthContext'
+import { qk } from '../../lib/queryKeys'
 
 interface Props {
   teacherId: string
@@ -31,7 +32,7 @@ export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status
 
   // Fetch documents
   const { data: docs } = useQuery({
-    queryKey: ['teacher_documents', teacherId],
+    queryKey: qk.teachers.documentsAlt(teacherId),
     queryFn: async () => {
       const { data } = await supabase.from('teacher_documents').select('*').eq('teacher_id', teacherId).order('uploaded_at', { ascending: false })
       return data ?? []
@@ -40,7 +41,7 @@ export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status
 
   // Fetch W-9 record
   const { data: w9Record } = useQuery({
-    queryKey: ['teacher_w9', teacherId],
+    queryKey: qk.teachers.w9(teacherId),
     queryFn: async () => {
       const { data } = await supabase.from('teacher_w9').select('*').eq('teacher_id', teacherId).order('created_at', { ascending: false }).limit(1).single()
       return data
@@ -69,7 +70,7 @@ export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status
         uploaded_by: 'Admin',
         uploaded_at: new Date().toISOString(),
       })
-      qc.invalidateQueries({ queryKey: ['teacher_documents', teacherId] })
+      qc.invalidateQueries({ queryKey: qk.teachers.documentsAlt(teacherId) })
       toast('File uploaded', 'success')
     } catch (err) {
       toast('Upload failed', 'error')
@@ -85,7 +86,7 @@ export default function TeacherDocumentsModal({ teacherId, teacherName, w9Status
   }
 
   if (showW9Form) {
-    return <W9FormModal teacherId={teacherId} teacherName={teacherName} onClose={() => { setShowW9Form(false); qc.invalidateQueries({ queryKey: ['teacher'] }); qc.invalidateQueries({ queryKey: ['teacher_w9', teacherId] }); qc.invalidateQueries({ queryKey: ['teacher_documents', teacherId] }) }} />
+    return <W9FormModal teacherId={teacherId} teacherName={teacherName} onClose={() => { setShowW9Form(false); qc.invalidateQueries({ queryKey: qk.teachers.record }); qc.invalidateQueries({ queryKey: qk.teachers.w9(teacherId) }); qc.invalidateQueries({ queryKey: qk.teachers.documentsAlt(teacherId) }) }} />
   }
 
   if (showPin && profile) {

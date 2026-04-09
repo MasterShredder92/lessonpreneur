@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { createNotification } from './useNotifications'
+import { qk } from '../lib/queryKeys'
 
 export interface PendingReminder {
   blockId: string
@@ -116,7 +117,7 @@ export function useSendReminders() {
       return { sent }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['pending-reminders'] })
+      qc.invalidateQueries({ queryKey: qk.reminders.pending })
     },
   })
 }

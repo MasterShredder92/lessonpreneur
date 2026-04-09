@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface ReviewRow {
   id: string
@@ -17,7 +18,7 @@ export interface ReviewRow {
 export function useAdminReviews() {
   const { tenantId } = useAuthContext()
   return useQuery<ReviewRow[]>({
-    queryKey: ['admin-reviews', tenantId],
+    queryKey: [...qk.reviews.admin, tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data } = await supabase.from('reviews').select('*').eq('tenant_id', tenantId!).order('created_at', { ascending: false }).limit(200)
@@ -32,7 +33,7 @@ export function useToggleReviewApproval() {
     mutationFn: async ({ id, approved }: { id: string; approved: boolean }) => {
       await supabase.from('reviews').update({ approved }).eq('id', id)
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-reviews'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.reviews.admin }) },
   })
 }
 
@@ -42,7 +43,7 @@ export function useToggleReviewFeatured() {
     mutationFn: async ({ id, featured }: { id: string; featured: boolean }) => {
       await supabase.from('reviews').update({ featured }).eq('id', id)
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-reviews'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.reviews.admin }) },
   })
 }
 
@@ -92,7 +93,7 @@ export function useCreateReviewPrompt() {
 
 export function useFeaturedReviews(tenantId: string | undefined) {
   return useQuery<ReviewRow[]>({
-    queryKey: ['featured-reviews', tenantId],
+    queryKey: [...qk.reviews.featured, tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data } = await supabase.from('reviews').select('*').eq('tenant_id', tenantId!).eq('approved', true).eq('featured', true).eq('shareable', true).order('created_at', { ascending: false }).limit(6)

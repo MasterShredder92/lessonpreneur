@@ -9,6 +9,7 @@ import {
   type SquareSeriesRow,
   type ParsedFamily,
 } from '../lib/squareCsvParser'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -90,7 +91,7 @@ export function useSquareSync() {
   const qc = useQueryClient()
 
   return useQuery<SquareSyncData>({
-    queryKey: ['square-sync', tenantId],
+    queryKey: qk.square.sync(tenantId),
     enabled: !!tenantId,
     staleTime: 5 * 60 * 1000, // cache for 5 min
     queryFn: async (): Promise<SquareSyncData> => {
@@ -274,19 +275,19 @@ export function useImportSquareFamily() {
       return { familyId: family.id, familyName: `The ${parsed.familyLastName} Family` }
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['square-sync'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.square.sync })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students_roster'] })
-      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['billing_families'] })
-      qc.invalidateQueries({ queryKey: ['billing_dashboard'] })
-      qc.invalidateQueries({ queryKey: ['billing_hero_stats'] })
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.roster })
+      qc.invalidateQueries({ queryKey: qk.students.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
+      qc.invalidateQueries({ queryKey: qk.billing.dashboard })
+      qc.invalidateQueries({ queryKey: qk.billing.heroStats })
     },
   })
 }
@@ -352,19 +353,19 @@ export function useBulkImportSquareFamilies() {
       return results
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['square-sync'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.square.sync })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students_roster'] })
-      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['billing_families'] })
-      qc.invalidateQueries({ queryKey: ['billing_dashboard'] })
-      qc.invalidateQueries({ queryKey: ['billing_hero_stats'] })
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.roster })
+      qc.invalidateQueries({ queryKey: qk.students.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
+      qc.invalidateQueries({ queryKey: qk.billing.dashboard })
+      qc.invalidateQueries({ queryKey: qk.billing.heroStats })
     },
   })
 }
@@ -381,15 +382,15 @@ export function useUpdateFamilyStatus() {
       if (error) throw error
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['square-sync'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.square.sync })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['billing_families'] })
-      qc.invalidateQueries({ queryKey: ['billing_hero_stats'] })
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
+      qc.invalidateQueries({ queryKey: qk.billing.heroStats })
     },
   })
 }

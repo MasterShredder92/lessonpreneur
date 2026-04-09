@@ -7,6 +7,7 @@ import { calculatePreviewRate, getRateTierLabel, getRateTierColor } from '../../
 import SearchableCombobox from '../shared/SearchableCombobox'
 import type { LeadRow } from '../../hooks/useLeads'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
+import { qk } from '../../lib/queryKeys'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -82,6 +83,7 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
     supabase
       .from('families')
       .select('id, name, primary_email')
+      .eq('tenant_id', tenantId)
       .order('name')
       .then(({ data, error: queryErr }) => {
         if (cancelled) return
@@ -99,7 +101,7 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
         }
       })
     return () => { cancelled = true }
-  }, [lead.email])
+  }, [lead.email, tenantId])
 
   // Load teachers at lead's location
   useEffect(() => {
@@ -196,20 +198,20 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
       }
 
       // Invalidate all relevant caches
-      qc.invalidateQueries({ queryKey: ['leads'] })
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students_roster'] })
-      qc.invalidateQueries({ queryKey: ['student-instruments'] })
-      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.leads.all })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.roster })
+      qc.invalidateQueries({ queryKey: qk.students.instruments })
+      qc.invalidateQueries({ queryKey: qk.students.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-      qc.invalidateQueries({ queryKey: ['student-blocks'] })
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
 
       onConverted(data.student_id)
     } catch (err: any) {
@@ -507,8 +509,8 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
                         })
                         if (invErr) throw invErr
                         setInvoiceCreated(true)
-                        qc.invalidateQueries({ queryKey: ['invoice_tokens_list'] })
-                        qc.invalidateQueries({ queryKey: ['invoice_pending_count'] })
+                        qc.invalidateQueries({ queryKey: qk.invoices.tokensList })
+                        qc.invalidateQueries({ queryKey: qk.invoices.pendingCount })
                       } catch (err: any) {
                         setError(err.message ?? 'Failed to create invoice')
                       } finally {

@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 // ─── Payroll Periods ───────────────────────────────────────────
 
 export function usePayrollPeriods() {
   return useQuery({
-    queryKey: ['payroll-periods'],
+    queryKey: qk.payroll.periods,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('payroll_periods')
@@ -19,7 +20,7 @@ export function usePayrollPeriods() {
 
 export function usePayrollPeriod(id: string | undefined) {
   return useQuery({
-    queryKey: ['payroll-period', id],
+    queryKey: [...qk.payroll.period, id],
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -56,7 +57,7 @@ export function useCreatePayrollPeriod() {
       return data as PayrollPeriod
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['payroll-periods'] })
+      qc.invalidateQueries({ queryKey: qk.payroll.periods })
     },
   })
 }
@@ -85,8 +86,8 @@ export function useUpdatePayrollPeriod() {
       return data as PayrollPeriod
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['payroll-periods'] })
-      qc.invalidateQueries({ queryKey: ['payroll-period'] })
+      qc.invalidateQueries({ queryKey: qk.payroll.periods })
+      qc.invalidateQueries({ queryKey: qk.payroll.period })
     },
   })
 }
@@ -95,7 +96,7 @@ export function useUpdatePayrollPeriod() {
 
 export function usePayrollEntries(periodId: string | undefined) {
   return useQuery({
-    queryKey: ['payroll-entries', periodId],
+    queryKey: [...qk.payroll.entries, periodId],
     enabled: !!periodId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -145,7 +146,7 @@ export function useCreatePayrollEntry() {
       return data as PayrollEntry
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['payroll-entries', vars.period_id] })
+      qc.invalidateQueries({ queryKey: [...qk.payroll.entries, vars.period_id] })
     },
   })
 }
@@ -178,7 +179,7 @@ export function useUpdatePayrollEntry() {
       return data as PayrollEntry
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['payroll-entries', vars.period_id] })
+      qc.invalidateQueries({ queryKey: [...qk.payroll.entries, vars.period_id] })
     },
   })
 }
@@ -187,7 +188,7 @@ export function useUpdatePayrollEntry() {
 
 export function useTips(periodId: string | undefined) {
   return useQuery({
-    queryKey: ['tips', periodId],
+    queryKey: [...qk.payroll.tips, periodId],
     enabled: !!periodId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -239,8 +240,8 @@ export function useCreateTip() {
       return tip as Tip
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['tips', vars.period_id] })
-      qc.invalidateQueries({ queryKey: ['payroll-entries', vars.period_id] })
+      qc.invalidateQueries({ queryKey: [...qk.payroll.tips, vars.period_id] })
+      qc.invalidateQueries({ queryKey: [...qk.payroll.entries, vars.period_id] })
     },
   })
 }
@@ -249,7 +250,7 @@ export function useCreateTip() {
 
 export function useTeacherDocuments(teacherId: string | undefined) {
   return useQuery({
-    queryKey: ['teacher-documents', teacherId],
+    queryKey: qk.teachers.documents(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -290,7 +291,7 @@ export function useUploadTeacherDocument() {
       return data as TeacherDocument
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['teacher-documents', vars.teacher_id] })
+      qc.invalidateQueries({ queryKey: qk.teachers.documents(vars.teacher_id) })
     },
   })
 }
@@ -306,7 +307,7 @@ export function useDeleteTeacherDocument() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['teacher-documents', vars.teacher_id] })
+      qc.invalidateQueries({ queryKey: qk.teachers.documents(vars.teacher_id) })
     },
   })
 }

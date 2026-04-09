@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -27,7 +28,7 @@ export interface AutoPayStats {
 export function useAutoPayStats() {
   const { tenantId } = useAuthContext()
   return useQuery<AutoPayStats>({
-    queryKey: ['autopay-stats', tenantId],
+    queryKey: [...qk.billing.autopayStats, tenantId],
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -66,7 +67,7 @@ export function useAutoPayStats() {
 export function useManualPayFamilies() {
   const { tenantId } = useAuthContext()
   return useQuery<AutoPayFamily[]>({
-    queryKey: ['manual-pay-families', tenantId],
+    queryKey: [...qk.billing.manualPay, tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       // Families without card on file
@@ -187,9 +188,9 @@ export function useSendAutoPayNudge() {
       return { waveNumber }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['autopay-stats'] })
-      qc.invalidateQueries({ queryKey: ['manual-pay-families'] })
-      qc.invalidateQueries({ queryKey: ['family-communications'] })
+      qc.invalidateQueries({ queryKey: qk.billing.autopayStats })
+      qc.invalidateQueries({ queryKey: qk.billing.manualPay })
+      qc.invalidateQueries({ queryKey: qk.communications.family })
     },
   })
 }
@@ -243,8 +244,8 @@ export function useBulkAutoPayNudge() {
       return { sent, skipped }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['autopay-stats'] })
-      qc.invalidateQueries({ queryKey: ['manual-pay-families'] })
+      qc.invalidateQueries({ queryKey: qk.billing.autopayStats })
+      qc.invalidateQueries({ queryKey: qk.billing.manualPay })
     },
   })
 }

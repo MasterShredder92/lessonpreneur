@@ -5,6 +5,7 @@ import {
   fetchBillingSnapshotData,
   type BillingSnapshotData,
 } from '../services/billingSnapshotQuery'
+import { qk } from '../lib/queryKeys'
 
 export type { BillingSnapshotData }
 
@@ -19,7 +20,7 @@ export function useBillingSnapshot(locationId?: string) {
   const locKey = locationId || 'all'
 
   return useQuery<BillingSnapshotData>({
-    queryKey: ['billing_snapshot', tenantId, monthStart, locKey],
+    queryKey: [...qk.billing.snapshot, tenantId, monthStart, locKey],
     enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     staleTime: 60_000,
     queryFn: () => fetchBillingSnapshotData(tenantId!, locationId),

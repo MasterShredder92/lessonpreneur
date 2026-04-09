@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useContext, createContext, useCallback, type ReactNode } from 'react'
+import { useState, useRef, useEffect, useContext, createContext, useCallback, lazy, Suspense, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import PageTransition from '../shared/PageTransition'
 import MobileTabBar from './MobileTabBar'
@@ -11,7 +11,7 @@ import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, Lo
 import ChangePasswordModal from '../shared/ChangePasswordModal'
 import TopViewTabs from '../shared/TopViewTabs'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
-import StarModal from '../ai/StarModal'
+const StarModal = lazy(() => import('../ai/StarModal'))
 import { OnboardingProvider } from '../../contexts/OnboardingContext'
 import StudioDirectorIssueButton from '../shared/StudioDirectorIssueButton'
 
@@ -287,7 +287,9 @@ export default function AdminShell() {
       <MobileTabBar />
       <FloatingIssueReporter />
 
-      <StarModal open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
+      <Suspense fallback={null}>
+        <StarModal open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
+      </Suspense>
     </div>
     </OnboardingProvider>
   )

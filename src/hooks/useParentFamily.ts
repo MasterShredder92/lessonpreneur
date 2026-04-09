@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface FamilyStudent {
   id: string
@@ -17,7 +18,7 @@ export function useParentFamily() {
   const { profile, tenantId } = useAuthContext()
 
   const { data: familyId, isLoading: familyLoading } = useQuery({
-    queryKey: ['parent-family-id', profile?.id],
+    queryKey: [...qk.parent.familyId, profile?.id],
     enabled: !!profile,
     queryFn: async () => {
       // Primary: lookup via families.profile_id
@@ -44,7 +45,7 @@ export function useParentFamily() {
   })
 
   const { data: students, isLoading: studentsLoading } = useQuery<FamilyStudent[]>({
-    queryKey: ['parent-students', familyId],
+    queryKey: [...qk.parent.students, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data } = await supabase

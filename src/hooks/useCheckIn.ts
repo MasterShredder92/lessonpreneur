@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 export interface CheckInResult {
   session_id: string
@@ -23,22 +24,23 @@ export function useCheckIn() {
       return data as CheckInResult
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-      qc.invalidateQueries({ queryKey: ['student-blocks'] })
-      qc.invalidateQueries({ queryKey: ['dashboard'] })
-      qc.invalidateQueries({ queryKey: ['teacher-pay-summary'] })
-      qc.invalidateQueries({ queryKey: ['teachers-monthly-tally'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+      qc.invalidateQueries({ queryKey: qk.teachers.paySummary })
+      qc.invalidateQueries({ queryKey: qk.teachers.monthlyTally })
       // DB trigger updates students.teacher_id on check-in
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students_roster'] })
-      qc.invalidateQueries({ queryKey: ['student-detail'] })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.roster })
+      qc.invalidateQueries({ queryKey: qk.students.detail })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family_detail'] })
+      qc.invalidateQueries({ queryKey: qk.families.fileDetail })
       qc.invalidateQueries({ queryKey: ['family_activity'] })
+      qc.invalidateQueries({ queryKey: qk.billing.snapshot })
     },
   })
 }

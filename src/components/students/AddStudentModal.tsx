@@ -9,6 +9,7 @@ import { supabase, getCurrentBillingCycleId } from '../../lib/supabase'
 import { toast } from '../shared/Toast'
 import { ALL_INSTRUMENTS, CORE_INSTRUMENTS, OTHER_INSTRUMENTS, DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_PER_SESSION } from '../../lib/constants'
 import { Search, Plus, Check, X, Users } from 'lucide-react'
+import { qk } from '../../lib/queryKeys'
 
 interface AddStudentModalProps {
   onClose: () => void
@@ -347,22 +348,23 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
 
       // Invalidate
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['students'] }),
-        qc.invalidateQueries({ queryKey: ['students_roster'] }),
-        qc.invalidateQueries({ queryKey: ['student-instruments'] }),
-        qc.invalidateQueries({ queryKey: ['student-tab-counts'] }),
-        qc.invalidateQueries({ queryKey: ['families'] }),
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-        qc.invalidateQueries({ queryKey: ['family_detail'] }),
-        qc.invalidateQueries({ queryKey: ['tasks'] }),
-        qc.invalidateQueries({ queryKey: ['onboarding-pipeline'] }),
+        qc.invalidateQueries({ queryKey: qk.students.all }),
+        qc.invalidateQueries({ queryKey: qk.students.roster }),
+        qc.invalidateQueries({ queryKey: qk.students.instruments }),
+        qc.invalidateQueries({ queryKey: qk.students.tabCounts }),
+        qc.invalidateQueries({ queryKey: qk.families.all }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
+        qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
+        qc.invalidateQueries({ queryKey: qk.tasks.all }),
+        qc.invalidateQueries({ queryKey: qk.onboarding.pipeline }),
       ])
 
       toast('Student added successfully', 'success')
       onClose()
     } catch (err: any) {
       setError(err.message ?? 'Failed to add student.')
+    } finally {
       setSaving(false)
     }
   }

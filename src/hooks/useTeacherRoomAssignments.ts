@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -18,7 +19,7 @@ export interface TeacherRoomAssignment {
  */
 export function useTeacherRoomAssignment(teacherId: string | undefined, date: string | undefined) {
   return useQuery({
-    queryKey: ['teacher-room-assignment', teacherId, date],
+    queryKey: qk.teachers.roomAssignment(teacherId, date),
     enabled: !!teacherId && !!date,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -125,9 +126,9 @@ export function useSetTeacherRoomAssignment() {
       await propagateRoomToBlocks(params.teacherId, params.date, params.roomId, params.locationId)
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher-room-assignment'] })
-      qc.invalidateQueries({ queryKey: ['teacher-room-assignments-day'] })
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.roomAssignment })
+      qc.invalidateQueries({ queryKey: qk.teachers.roomAssignmentsDay })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
     },
   })
 }
@@ -150,9 +151,9 @@ export function useRemoveTeacherRoomAssignment() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher-room-assignment'] })
-      qc.invalidateQueries({ queryKey: ['teacher-room-assignments-day'] })
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.roomAssignment })
+      qc.invalidateQueries({ queryKey: qk.teachers.roomAssignmentsDay })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
     },
   })
 }

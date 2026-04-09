@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface Workflow {
   id: string
@@ -91,7 +92,7 @@ export function useToggleWorkflow() {
       const { error } = await supabase.from('ai_workflows').update({ enabled }).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ai-workflows'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.ai.workflows }) },
   })
 }
 
@@ -113,6 +114,6 @@ export function useSeedWorkflows() {
       }))
       await supabase.from('ai_workflows').insert(inserts)
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ai-workflows'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.ai.workflows }) },
   })
 }

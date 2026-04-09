@@ -12,6 +12,7 @@ import { useLogBlockedCallout } from '../../hooks/useFamilyCallout'
 import { toast } from '../../components/shared/Toast'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { useAuthContext } from '../../app/AuthContext'
+import { qk } from '../../lib/queryKeys'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -40,7 +41,7 @@ export default function ParentSchedule() {
 
   // Family name (for alerts/notifications)
   const { data: familyName } = useQuery({
-    queryKey: ['parent-family-name', familyId],
+    queryKey: [...qk.parent.familyName, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data } = await supabase.from('families').select('name').eq('id', familyId!).single()
@@ -69,7 +70,7 @@ export default function ParentSchedule() {
   }, [urlStudent])
 
   const { data: sessions } = useQuery({
-    queryKey: ['parent-sessions', familyId, timeframe],
+    queryKey: [...qk.parent.sessions, familyId, timeframe],
     enabled: !!familyId && students.length > 0,
     queryFn: async () => {
       const studentIds = students.map(s => s.id)

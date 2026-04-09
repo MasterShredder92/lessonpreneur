@@ -10,11 +10,8 @@ export type { BillingSnapshotData }
  * Raw context data from `get_star_context()` RPC — used by StarModal charts (non-billing sections).
  *
  * SECURITY / TRUTH — read before changing callers:
- * - `fetchStarContext(..., role)` masking is **client-side only**; it is not authorization. Anyone who can
- *   call the RPC directly may still receive full JSON until SQL enforces role/location.
- * - Production RPC is **not in this repo**; `StarContextData` is the intended contract — drift is possible.
- * - Until SQL is fixed, snapshots are **tenant-wide**; studio director / location scoping is **not** enforced
- *   server-side here (see product backlog: scoped `get_star_context`).
+ * - Server-side RPC (`get_star_context`) now enforces auth, role verification, location scoping,
+ *   and field zeroing (teacher/director restrictions). Client-side masking below is defense-in-depth.
  * - Billing dollar amounts for Star **must** come from `billing_snapshot` (same queries as dashboard Billing Snapshot).
  * - Backend checklist: `app/docs/STAR_BACKEND_HANDOFF.md`
  */

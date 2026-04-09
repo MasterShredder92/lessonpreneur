@@ -5,6 +5,7 @@ import { toast } from '../shared/Toast'
 import { X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import jsPDF from 'jspdf'
+import { qk } from '../../lib/queryKeys'
 
 interface Props {
   teacherId: string
@@ -228,8 +229,8 @@ export default function W9FormModal({ teacherId, teacherName, onClose }: Props) 
         })
       }
 
-      qc.invalidateQueries({ queryKey: ['teacher'] })
-      qc.invalidateQueries({ queryKey: ['teacher_documents'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.record })
+      qc.invalidateQueries({ queryKey: qk.teachers.documentsAlt })
       qc.invalidateQueries({ queryKey: ['teacher_w9'] })
       toast('W-9 submitted successfully', 'success')
       onClose()

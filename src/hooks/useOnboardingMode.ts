@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface OnboardingProgress {
   step: string
@@ -13,7 +14,7 @@ export function useOnboardingMode() {
   const { tenantId } = useAuthContext()
 
   const { data } = useQuery({
-    queryKey: ['onboarding-mode', tenantId],
+    queryKey: [...qk.onboarding.mode, tenantId],
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -52,8 +53,8 @@ export function useUpdateOnboardingProgress() {
       await supabase.from('tenants').update({ onboarding_progress: progress }).eq('id', tenantId)
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['onboarding-mode'] })
-      qc.invalidateQueries({ queryKey: ['onboarding-checklist'] })
+      qc.invalidateQueries({ queryKey: qk.onboarding.mode })
+      qc.invalidateQueries({ queryKey: qk.onboarding.checklist })
     },
   })
 }

@@ -9,6 +9,7 @@ import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { toast } from '../shared/Toast'
 import MusicLoader from '../shared/MusicLoader'
 import { Trash2 } from 'lucide-react'
+import { qk } from '../../lib/queryKeys'
 
 // --------------- CONSTANTS ---------------
 const DEFAULT_COLS = 12
@@ -386,7 +387,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
       if (failed.length) throw new Error(failed[0].error!.message)
 
       setDirty(false)
-      qc.invalidateQueries({ queryKey: ['rooms'] })
+      qc.invalidateQueries({ queryKey: qk.rooms.all })
       toast.success('Floor plan saved')
     } catch (err: any) {
       toast.error(`Save failed: ${err.message}`)
@@ -436,7 +437,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
       })
       if (error) throw error
 
-      qc.invalidateQueries({ queryKey: ['rooms'] })
+      qc.invalidateQueries({ queryKey: qk.rooms.all })
       setShowAddSpace(false)
       toast.success(`${name} added to Floor ${floor}`)
     } catch (err: any) {
@@ -456,7 +457,7 @@ export default function FloorPlanEditor({ locationId }: { locationId?: string })
       const { error } = await supabase.from('rooms').delete().eq('id', roomId).eq('tenant_id', tenantId)
       if (error) throw error
       setSelectedRoomId(null)
-      qc.invalidateQueries({ queryKey: ['rooms'] })
+      qc.invalidateQueries({ queryKey: qk.rooms.all })
       toast.success('Room deleted')
     } catch (err: any) {
       toast.error(`Delete failed: ${err.message}`)
@@ -815,7 +816,7 @@ function RoomPanelContent({ room, brandColor, block, onClose, onNameChange, onDe
     if (!trimmed || trimmed === room.name) { setEditName(room.name); return }
     onNameChange(room.id, trimmed)
     await supabase.from('rooms').update({ name: trimmed }).eq('id', room.id).eq('tenant_id', TENANT_ID)
-    qc.invalidateQueries({ queryKey: ['rooms'] })
+    qc.invalidateQueries({ queryKey: qk.rooms.all })
   }
 
   const handleNameKey = (e: React.KeyboardEvent) => {
@@ -834,7 +835,7 @@ function RoomPanelContent({ room, brandColor, block, onClose, onNameChange, onDe
       }).eq('id', room.id).eq('tenant_id', TENANT_ID)
       if (error) throw error
       onNameChange(room.id, editName.trim() || room.name)
-      qc.invalidateQueries({ queryKey: ['rooms'] })
+      qc.invalidateQueries({ queryKey: qk.rooms.all })
       toast.success('Room saved')
     } catch (err: any) {
       toast.error(`Save failed: ${err.message}`)
@@ -951,7 +952,7 @@ function RoomPanelContent({ room, brandColor, block, onClose, onNameChange, onDe
                   const newFloor = Math.max(1, block.floor - 1)
                   if (newFloor === block.floor) return
                   await supabase.from('rooms').update({ floor: newFloor }).eq('id', room.id).eq('tenant_id', TENANT_ID)
-                  qc.invalidateQueries({ queryKey: ['rooms'] })
+                  qc.invalidateQueries({ queryKey: qk.rooms.all })
                 }}
                 style={{
                   width: 28, height: 28, borderRadius: 6, fontSize: 14, fontWeight: 700,
@@ -966,7 +967,7 @@ function RoomPanelContent({ room, brandColor, block, onClose, onNameChange, onDe
                 onClick={async () => {
                   const newFloor = block.floor + 1
                   await supabase.from('rooms').update({ floor: newFloor }).eq('id', room.id).eq('tenant_id', TENANT_ID)
-                  qc.invalidateQueries({ queryKey: ['rooms'] })
+                  qc.invalidateQueries({ queryKey: qk.rooms.all })
                 }}
                 style={{
                   width: 28, height: 28, borderRadius: 6, fontSize: 14, fontWeight: 700,
@@ -1029,7 +1030,7 @@ function RoomPanelContent({ room, brandColor, block, onClose, onNameChange, onDe
           <AddItemForm
             roomId={room.id}
             brandColor={brandColor}
-            onDone={() => { setShowAddItem(false); qc.invalidateQueries({ queryKey: ['rooms'] }) }}
+            onDone={() => { setShowAddItem(false); qc.invalidateQueries({ queryKey: qk.rooms.all }) }}
             onCancel={() => setShowAddItem(false)}
           />
         )}
@@ -1080,12 +1081,12 @@ function InventoryRow({ item, canEdit, brandColor }: { item: InventoryItem; canE
 
   const saveField = async (field: string, value: any) => {
     await supabase.from('room_inventory').update({ [field]: value }).eq('id', item.id).eq('tenant_id', TENANT_ID)
-    qc.invalidateQueries({ queryKey: ['rooms'] })
+    qc.invalidateQueries({ queryKey: qk.rooms.all })
   }
 
   const handleDelete = async () => {
     await supabase.from('room_inventory').delete().eq('id', item.id).eq('tenant_id', TENANT_ID)
-    qc.invalidateQueries({ queryKey: ['rooms'] })
+    qc.invalidateQueries({ queryKey: qk.rooms.all })
   }
 
   const condColor = cond === 'Good' ? '#22C55E' : cond === 'Fair' ? '#FFB800' : '#EF4444'
@@ -1240,8 +1241,13 @@ function AddSpaceModal({ onClose, onAdd, isMultiFloor, defaultFloor }: {
     e.preventDefault()
     if (!name.trim()) return
     setSubmitting(true)
-    await onAdd(name.trim(), type, floor)
-    setSubmitting(false)
+    try {
+      await onAdd(name.trim(), type, floor)
+    } catch {
+      // Error handling is done by the parent
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const nameRef = useRef<HTMLInputElement>(null)

@@ -136,6 +136,7 @@ export default function PayInvoice() {
   const [flagReason, setFlagReason] = useState('')
   const [flagSent, setFlagSent] = useState(false)
   const [flagSending, setFlagSending] = useState(false)
+  const [cardSaveWarning, setCardSaveWarning] = useState<string | null>(null)
   const cardContainerRef = useRef<HTMLDivElement>(null)
   const cardInstanceRef = useRef<any>(null)
   const cardInitRef = useRef(false)
@@ -311,8 +312,9 @@ export default function PayInvoice() {
               card_exp_year: savedCard.exp_year ?? null,
             }).eq('id', invoice.family.id)
           }
-        } catch {
-          // Card save failed — still proceed with one-time payment using nonce
+        } catch (err) {
+          console.error('[PayInvoice] Card save failed:', err)
+          setCardSaveWarning('Card saved for this payment, but autopay setup failed. You can set up autopay later from your parent portal.')
         }
       }
 
@@ -511,6 +513,11 @@ export default function PayInvoice() {
               <div style={{ fontSize: 32, marginBottom: 8, color: '#4ADE80' }}>&#10003;</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#4ADE80', marginBottom: 4, fontFamily: BEBAS, letterSpacing: '0.02em' }}>Payment Received — Thank You!</div>
               {invoice.paid_at && <div style={{ fontSize: 13, color: TEXT_MUTED }}>Paid on {formatDate(invoice.paid_at)}</div>}
+              {cardSaveWarning && (
+                <div style={{ marginTop: 14, padding: '12px 16px', borderRadius: 10, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', fontSize: 13, color: '#FBBF24', lineHeight: 1.5, textAlign: 'left' }}>
+                  {cardSaveWarning}
+                </div>
+              )}
             </div>
           ) : hasCard ? (
             <div style={{
@@ -612,14 +619,19 @@ export default function PayInvoice() {
                     disabled={!flagReason.trim() || flagSending}
                     onClick={async () => {
                       setFlagSending(true)
-                      await anonClient.from('invoice_flags').insert({
-                        tenant_id: tenantId!,
-                        invoice_token_id: invoice.id,
-                        family_id: invoice.family.id,
-                        reason: flagReason.trim(),
-                      })
-                      setFlagSending(false)
-                      setFlagSent(true)
+                      try {
+                        await anonClient.from('invoice_flags').insert({
+                          tenant_id: tenantId!,
+                          invoice_token_id: invoice.id,
+                          family_id: invoice.family.id,
+                          reason: flagReason.trim(),
+                        })
+                        setFlagSent(true)
+                      } catch {
+                        // Silent fail — user can retry
+                      } finally {
+                        setFlagSending(false)
+                      }
                     }}
                     style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: flagReason.trim() && !flagSending ? C : '#333', color: '#fff', fontSize: 12, fontWeight: 700, cursor: flagReason.trim() ? 'pointer' : 'default' }}
                   >

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthContext } from '../../app/AuthContext'
 import { Check } from 'lucide-react'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
+import { qk } from '../../lib/queryKeys'
 
 interface HappeningTodayFeedProps {
   userLocations: string[] | null | undefined
@@ -46,7 +47,7 @@ export default function HappeningTodayFeed({ userLocations }: HappeningTodayFeed
   const canView = role === 'owner' || role === 'admin' || role === 'studio_director' || role === 'company_director'
 
   const { data: alerts } = useQuery<AlertRow[]>({
-    queryKey: ['happening-today-feed', tenantId, userLocations],
+    queryKey: [...qk.dashboard.happeningToday, tenantId, userLocations],
     enabled: canView && !!tenantId,
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
@@ -161,7 +162,7 @@ export default function HappeningTodayFeed({ userLocations }: HappeningTodayFeed
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['happening-today-feed'] })
+      qc.invalidateQueries({ queryKey: qk.dashboard.happeningToday })
     },
   })
 

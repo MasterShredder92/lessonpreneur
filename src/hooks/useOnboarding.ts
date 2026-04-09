@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -54,7 +55,7 @@ export function useOnboardingPipeline() {
   const { tenantId } = useAuthContext()
 
   return useQuery<OnboardingSequence[]>({
-    queryKey: ['onboarding-pipeline', tenantId],
+    queryKey: [...qk.onboarding.pipeline, tenantId],
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -93,11 +94,12 @@ export function useOnboardingPipeline() {
         locs?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
       }
 
-      // Last session dates
+      // Last session dates (bounded to last 90 days)
       const { data: logs } = await supabase
         .from('session_log')
         .select('student_id, block_date')
         .in('student_id', studentIds)
+        .gte('block_date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
         .order('block_date', { ascending: false })
       const lastSessionMap = new Map<string, string>()
       logs?.forEach((l: any) => { if (!lastSessionMap.has(l.student_id)) lastSessionMap.set(l.student_id, l.block_date) })
@@ -208,7 +210,7 @@ export function useCreateOnboarding() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['onboarding-pipeline'] })
+      qc.invalidateQueries({ queryKey: qk.onboarding.pipeline })
     },
   })
 }
@@ -244,7 +246,7 @@ export function useCompleteTouchpoint() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['onboarding-pipeline'] })
+      qc.invalidateQueries({ queryKey: qk.onboarding.pipeline })
     },
   })
 }
@@ -263,7 +265,7 @@ export function useUpdateOnboardingRisk() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['onboarding-pipeline'] })
+      qc.invalidateQueries({ queryKey: qk.onboarding.pipeline })
     },
   })
 }

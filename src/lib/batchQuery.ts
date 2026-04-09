@@ -18,7 +18,8 @@ export async function batchIn<T = any>(
     let q = supabase.from(table).select(selectCols).in(filterCol, ids)
     if (tenantId) q = q.eq('tenant_id', tenantId)
     if (extraFilters) q = extraFilters(q)
-    const { data } = await q
+    const { data, error } = await q
+    if (error) throw new Error(`batchIn(${table}): ${error.message}`)
     return (data ?? []) as T[]
   }
 
@@ -28,7 +29,8 @@ export async function batchIn<T = any>(
     let q = supabase.from(table).select(selectCols).in(filterCol, chunk)
     if (tenantId) q = q.eq('tenant_id', tenantId)
     if (extraFilters) q = extraFilters(q)
-    const { data } = await q
+    const { data, error } = await q
+    if (error) throw new Error(`batchIn(${table}) chunk ${i}: ${error.message}`)
     if (data) results.push(...(data as T[]))
   }
   return results

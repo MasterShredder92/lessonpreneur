@@ -20,6 +20,7 @@ import { getTierByKey, TRIAL_DAYS } from '../../lib/pricing'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import { useOnboarding } from '../../contexts/OnboardingContext'
+import { qk } from '../../lib/queryKeys'
 
 interface LocationFormData {
   name: string; address: string; city: string; state: string; zip: string
@@ -432,7 +433,7 @@ function GeneralTab({ tenantId }: { tenantId: string | null }) {
   const [saved, setSaved] = useState(false)
 
   const { data: tenant, isLoading } = useQuery({
-    queryKey: ['tenant-settings', tenantId],
+    queryKey: [...qk.tenant.settings, tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data } = await supabase.from('tenants').select('*').eq('id', tenantId!).single()
@@ -446,7 +447,7 @@ function GeneralTab({ tenantId }: { tenantId: string | null }) {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tenant-settings'] })
+      qc.invalidateQueries({ queryKey: qk.tenant.settings })
       qc.invalidateQueries({ queryKey: ['tenant'] })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -741,7 +742,7 @@ function LocationCard({ loc, isOwner, tenantId, onEdit, onToggle, hoursExpanded,
       }
       const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path)
       await updateLocation.mutateAsync({ id: loc.id, logo_url: urlData.publicUrl } as any)
-      qc.invalidateQueries({ queryKey: ['locations'] })
+      qc.invalidateQueries({ queryKey: qk.locations.all })
     } catch (err) {
       toast('Location logo upload failed', 'error')
     } finally {
@@ -846,7 +847,7 @@ function OperatingHoursEditor({ locationId, isOwner, expanded, onToggle }: { loc
   const [saved, setSaved] = useState(false)
 
   const { data: fetchedHours, isLoading } = useQuery({
-    queryKey: ['location-hours', locationId],
+    queryKey: qk.locations.hours(locationId),
     enabled: expanded,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -890,7 +891,7 @@ function OperatingHoursEditor({ locationId, isOwner, expanded, onToggle }: { loc
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['location-hours', locationId] })
+      qc.invalidateQueries({ queryKey: qk.locations.hours(locationId) })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
@@ -1313,8 +1314,8 @@ function TeamMembers({ tenantId, myProfileId, myRole }: { tenantId: string | nul
       const { error } = await supabase.from('profiles').update({ role: confirmModal.to }).eq('id', confirmModal.id)
       if (error) throw error
       supabase.from('audit_log').insert({ tenant_id: tenantId, action: 'ROLE_CHANGED', table_name: 'profiles', record_id: confirmModal.id, old_value: { role: confirmModal.from }, new_value: { role: confirmModal.to }, performed_by: myProfileId }).then(() => {}).catch(() => {})
-      qc.invalidateQueries({ queryKey: ['team_members'] })
-      qc.invalidateQueries({ queryKey: ['teachers'] })
+      qc.invalidateQueries({ queryKey: qk.team.members })
+      qc.invalidateQueries({ queryKey: qk.teachers.all })
       toast(`${confirmModal.name}'s role updated to ${ROLE_LABELS[confirmModal.to] ?? confirmModal.to}`, 'success')
       setConfirmModal(null)
     } catch (err: any) { toast(err.message ?? 'Failed to change role', 'error') }
@@ -1399,7 +1400,7 @@ function BrandingTab({ tenantId }: { tenantId: string | null }) {
 
   // Load brand settings for selected location
   const { data: brandSettings, refetch } = useQuery({
-    queryKey: ['brand-settings', selectedLocId],
+    queryKey: [...qk.tenant.brand, selectedLocId],
     enabled: !!selectedLocId,
     queryFn: async () => {
       const { data } = await supabase.from('brand_settings').select('*').eq('location_id', selectedLocId).single()

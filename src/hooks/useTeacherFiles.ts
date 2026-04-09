@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { checkFilename, checkNoteText } from '../lib/contentModeration'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -29,7 +30,7 @@ export interface TeacherStudentNote {
 export function useTeacherUploads(studentId: string | undefined) {
   const { profile } = useAuthContext()
   return useQuery<TeacherUpload[]>({
-    queryKey: ['teacher-uploads', studentId, profile?.id],
+    queryKey: qk.teachers.uploads(studentId, profile?.id),
     enabled: !!studentId && !!profile?.id,
     queryFn: async () => {
       const { data: teacher } = await supabase.from('teachers').select('id').eq('profile_id', profile!.id).single()
@@ -83,7 +84,7 @@ export function useUploadTeacherFile() {
 
       return { success: true }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['teacher-uploads'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.teachers.uploads }) },
   })
 }
 
@@ -92,7 +93,7 @@ export function useUploadTeacherFile() {
 export function useTeacherStudentNotes(studentId: string | undefined) {
   const { profile } = useAuthContext()
   return useQuery<TeacherStudentNote[]>({
-    queryKey: ['teacher-student-notes', studentId, profile?.id],
+    queryKey: qk.teachers.studentNotes(studentId, profile?.id),
     enabled: !!studentId && !!profile?.id,
     queryFn: async () => {
       const { data: teacher } = await supabase.from('teachers').select('id').eq('profile_id', profile!.id).single()
@@ -138,7 +139,7 @@ export function useSaveTeacherNote() {
 
       return { moderated: !check.ok }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['teacher-student-notes'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.teachers.studentNotes }) },
   })
 }
 
@@ -147,7 +148,7 @@ export function useSaveTeacherNote() {
 export function useModerationQueue() {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['moderation-queue', tenantId],
+    queryKey: [...qk.moderation.queue, tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data: flaggedFiles } = await supabase.from('teacher_uploads').select('id, file_name_original, teacher_id, student_id, moderation_reason, uploaded_at').eq('tenant_id', tenantId!).eq('moderation_status', 'flagged')

@@ -6,6 +6,10 @@ export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as strin
 export const EDGE_FUNCTIONS = {
   aiAssistant: `${SUPABASE_URL}/functions/v1/ai-assistant`,
   aiScheduleAction: `${SUPABASE_URL}/functions/v1/ai-schedule-action`,
+  aiTeacherMatch: `${SUPABASE_URL}/functions/v1/ai-teacher-match`,
+  generateReviewMessage: `${SUPABASE_URL}/functions/v1/generate-review-message`,
+  generateStudentBio: `${SUPABASE_URL}/functions/v1/generate-student-bio`,
+  teacherHandoff: `${SUPABASE_URL}/functions/v1/teacher-handoff`,
   sendSms: `${SUPABASE_URL}/functions/v1/send-sms`,
   sendEmail: `${SUPABASE_URL}/functions/v1/send-email`,
   squareProxy: `${SUPABASE_URL}/functions/v1/square-proxy`,
@@ -18,4 +22,5 @@ export const EDGE_FUNCTIONS = {
   stripeConnectOnboard: `${SUPABASE_URL}/functions/v1/stripe-connect-onboard`,
   createStudentInvoice: `${SUPABASE_URL}/functions/v1/create-student-invoice`,
   setupAutopay: `${SUPABASE_URL}/functions/v1/setup-autopay`,
+  createGoogleMeet: `${SUPABASE_URL}/functions/v1/create-google-meet`,
 } as const
