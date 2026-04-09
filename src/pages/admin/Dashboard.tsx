@@ -21,9 +21,12 @@ import { getLocationColor } from '../../utils/locationColor'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import DashboardPageGuide from '../../components/admin/DashboardPageGuide'
+import { useDashboardRealtime } from '../../hooks/useDashboardRealtime'
+import { qk } from '../../lib/queryKeys'
 
 export default function Dashboard() {
   const { tenantId } = useAuthContext()
+  useDashboardRealtime()
   const { isStudioDirector, locationIds: allowedLocationIds } = usePermissions()
   const { data: userLocations } = useUserLocations()
   const { data, isLoading } = useDashboard(userLocations)
@@ -46,7 +49,7 @@ export default function Dashboard() {
 
   // Fetch tenant info for business name + logo
   const { data: tenant } = useQuery({
-    queryKey: ['tenant', tenantId],
+    queryKey: [...qk.tenant.info, tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data } = await supabase.from('tenants').select('name, slug, logo_url').eq('id', tenantId!).single()
