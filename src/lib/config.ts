@@ -23,4 +23,6 @@ export const EDGE_FUNCTIONS = {
   createStudentInvoice: `${SUPABASE_URL}/functions/v1/create-student-invoice`,
   setupAutopay: `${SUPABASE_URL}/functions/v1/setup-autopay`,
   createGoogleMeet: `${SUPABASE_URL}/functions/v1/create-google-meet`,
+  publicLeadSubmit: `${SUPABASE_URL}/functions/v1/public-lead-submit`,
+  publicTeacherMatch: `${SUPABASE_URL}/functions/v1/public-teacher-match`,
 } as const
