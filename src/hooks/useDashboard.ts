@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface DashboardData {
   activeStudents: number
@@ -46,7 +47,7 @@ export interface DashboardData {
 export function useDashboard(locationIds?: string[] | null) {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['dashboard', tenantId, locationIds ?? 'all'],
+    queryKey: qk.dashboard.data(tenantId, locationIds ?? 'all'),
     enabled: !!tenantId,
     queryFn: async (): Promise<DashboardData> => {
       const now = new Date()
@@ -72,7 +73,7 @@ export function useDashboard(locationIds?: string[] | null) {
         supabase.from('students').select('id, status, location_id').eq('tenant_id', tenantId!).limit(2000),
         supabase.from('leads').select('id, stage, parent_name, first_name, updated_at, created_at, instrument').eq('tenant_id', tenantId!).limit(2000),
         supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).gte('block_date', mondayStr).lte('block_date', sundayStr),
-        supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).eq('block_date', today),
+        supabase.from('schedule_blocks').select('id, status, location_id, teacher_id, student_id, start_time, block_type').eq('tenant_id', tenantId!).eq('block_date', today),
         supabase.from('teachers').select('id, is_active, ai_context, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!).limit(500),
         supabase.from('locations').select('id, name').eq('tenant_id', tenantId!),
         supabase.from('leads').select('first_name, parent_name, instrument, created_at, stage').eq('tenant_id', tenantId!).order('created_at', { ascending: false }).limit(5),
@@ -125,9 +126,63 @@ export function useDashboard(locationIds?: string[] | null) {
       const activeTeachers = teachers?.filter((t: any) => t.is_active) ?? []
       const needsReview = activeTeachers.filter((t: any) => t.ai_context?.instruments_need_review).length
 
-      // Teacher location mapping via RPC (avoids oversized URL from .in() with many UUIDs)
+      // Pre-compute values needed by parallel batch 2
       const teacherIdSet = new Set(activeTeachers.map((t: any) => t.id))
-      const { data: profLocs } = await supabase.rpc('get_teacher_locations_for_tenant', { p_tenant_id: tenantId! })
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+      const bookedToday = todayBlocks?.filter((b: any) => b.status === 'booked').slice(0, 12) ?? []
+      const snippetTeacherIds = [...new Set(bookedToday.map((b: any) => b.teacher_id))]
+      const snippetStudentIds = bookedToday.filter((b: any) => b.student_id).map((b: any) => b.student_id)
+      const activeStudentIds = active.map((s: any) => s.id)
+      const fourteenDaysAgo = new Date(now)
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+      const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0]
+      const sixtyDaysAgo = new Date(now)
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+      const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0]
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+      // Batch 2: All independent queries in parallel
+      const [
+        { data: profLocs },
+        { count: flaggedCount },
+        { data: monthSessions },
+        reactivationResult,
+        recentLogsResult,
+        recentLogRowsResult,
+        snippetTeachersResult,
+        snippetStudentsResult,
+      ] = await Promise.all([
+        // Teacher location mapping via RPC
+        supabase.rpc('get_teacher_locations_for_tenant', { p_tenant_id: tenantId! }),
+        // Flagged inventory count
+        supabase.from('room_inventory').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!).eq('is_flagged', true),
+        // Teacher pay this month
+        supabase.from('session_log').select('teacher_rate').eq('tenant_id', tenantId!).eq('status', 'completed').gte('block_date', monthStart),
+        // Reactivation-due former students
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!).eq('status', 'former').not('reactivation_date', 'is', null).lte('reactivation_date', today),
+        // At-risk: recent session logs for active students (60 day window)
+        activeStudentIds.length > 0
+          ? supabase.from('session_log').select('student_id, block_date').eq('tenant_id', tenantId!).in('student_id', activeStudentIds).gte('block_date', sixtyDaysAgoStr).order('block_date', { ascending: false })
+          : Promise.resolve({ data: [] }),
+        // Recent session logs (last 10 across all teachers)
+        supabase.from('session_log').select('student_id, teacher_id, worked_on, progress_indicator, block_date, instrument').eq('tenant_id', tenantId!).gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: false }).limit(10),
+        // Schedule snippet teachers
+        snippetTeacherIds.length > 0
+          ? supabase.from('teachers').select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!).in('id', snippetTeacherIds)
+          : Promise.resolve({ data: [] }),
+        // Schedule snippet students
+        snippetStudentIds.length > 0
+          ? supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', [...new Set(snippetStudentIds)])
+          : Promise.resolve({ data: [] }),
+      ])
+
+      const reactivationDueCount = reactivationResult.count
+      const recentLogs = recentLogsResult.data
+      const recentLogRows = (recentLogRowsResult as any).data
+      const snippetTeachers = (snippetTeachersResult as any).data
+      const snippetStudents = (snippetStudentsResult as any).data
+
       const teachersByLoc: Record<string, number> = {}
 
       // Location summary
@@ -167,30 +222,10 @@ export function useDashboard(locationIds?: string[] | null) {
       })
       activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
-      // Flagged inventory count
-      const { count: flaggedCount } = await supabase.from('room_inventory').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!).eq('is_flagged', true)
-
       // New leads today
       const newLeadsToday = leads?.filter((l: any) => l.created_at.startsWith(today)).length ?? 0
 
-      // Teacher pay this month (from session_log)
-      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-      const { data: monthSessions } = await supabase
-        .from('session_log')
-        .select('teacher_rate')
-        .eq('tenant_id', tenantId!)
-        .eq('status', 'completed')
-        .gte('block_date', monthStart)
       const teacherPayThisMonth = (monthSessions ?? []).reduce((sum: number, s: any) => sum + Number(s.teacher_rate), 0)
-
-      // Reactivation-due former students
-      const { count: reactivationDueCount } = await supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId!)
-        .eq('status', 'former')
-        .not('reactivation_date', 'is', null)
-        .lte('reactivation_date', today)
 
       // Sub-available teachers count per location
       const subTeachers = activeTeachers.filter((t: any) => t.is_sub_available)
@@ -208,18 +243,8 @@ export function useDashboard(locationIds?: string[] | null) {
         return { ...loc, locationId: locationObj?.id ?? '', subsAvailable: Math.max(0, subsAtLoc - teachingSubCount) }
       })
 
-      // Schedule snippet: first 12 booked blocks today across all locations
-      const bookedToday = todayBlocks?.filter((b: any) => b.status === 'booked').slice(0, 12) ?? []
-      const snippetTeacherIds = [...new Set(bookedToday.map((b: any) => b.teacher_id))]
-      const { data: snippetTeachers } = snippetTeacherIds.length > 0
-        ? await supabase.from('teachers').select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!).in('id', snippetTeacherIds)
-        : { data: [] }
+      // Schedule snippet
       const snippetTeacherMap = new Map((snippetTeachers ?? []).map((t: any) => [t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim()]))
-
-      const snippetStudentIds = bookedToday.filter((b: any) => b.student_id).map((b: any) => b.student_id)
-      const { data: snippetStudents } = snippetStudentIds.length > 0
-        ? await supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', [...new Set(snippetStudentIds)])
-        : { data: [] }
       const snippetStudentMap = new Map((snippetStudents ?? []).map((s: any) => [s.id, `${s.first_name} ${s.last_name}`]))
 
       const scheduleSnippet = bookedToday.map((b: any) => ({
@@ -230,84 +255,59 @@ export function useDashboard(locationIds?: string[] | null) {
         blockType: b.block_type ?? 'student_session',
       }))
 
-      // === Task 6: At-risk students (no session log in 14+ days) ===
-      const fourteenDaysAgo = new Date(now)
-      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
-      const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().split('T')[0]
-
-      // Get the most recent session_log date per active student
-      // Only fetch logs from the last 60 days — enough to compute daysSinceSession
-      // for at-risk students while avoiding an unbounded full-table scan.
-      const sixtyDaysAgo = new Date(now)
-      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
-      const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0]
-
-      const activeStudentIds = active.map((s: any) => s.id)
+      // === At-risk students (no session log in 14+ days) ===
       let atRiskStudents: DashboardData['atRiskStudents'] = []
       if (activeStudentIds.length > 0) {
-        // Only look back 60 days for at-risk detection (avoids pulling entire session_log table)
-        const sixtyDaysAgo = new Date(now)
-        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
-        const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0]
-
-        const { data: recentLogs } = await supabase
-          .from('session_log')
-          .select('student_id, block_date')
-          .eq('tenant_id', tenantId!)
-          .in('student_id', activeStudentIds)
-          .gte('block_date', sixtyDaysAgoStr)
-          .order('block_date', { ascending: false })
-
         const lastSessionByStudent = new Map<string, string>()
-        recentLogs?.forEach((l: any) => {
+        ;(recentLogs ?? []).forEach((l: any) => {
           if (!lastSessionByStudent.has(l.student_id)) lastSessionByStudent.set(l.student_id, l.block_date)
         })
 
         // Find students with no log or last log > 14 days ago
-        const { data: atRiskStudentRows } = await supabase
-          .from('students')
-          .select('id, first_name, last_name, instrument, location_id')
-          .eq('tenant_id', tenantId!)
-          .in('id', activeStudentIds.filter((id: string) => {
-            const lastDate = lastSessionByStudent.get(id)
-            return !lastDate || lastDate < fourteenDaysAgoStr
-          }))
-          .limit(20)
+        const atRiskIds = activeStudentIds.filter((id: string) => {
+          const lastDate = lastSessionByStudent.get(id)
+          return !lastDate || lastDate < fourteenDaysAgoStr
+        })
 
-        atRiskStudents = (atRiskStudentRows ?? []).map((s: any) => {
-          const lastDate = lastSessionByStudent.get(s.id)
-          const daysSince = lastDate
-            ? Math.floor((nowMs - new Date(lastDate).getTime()) / 86400000)
-            : 999
-          return {
-            id: s.id,
-            name: `${s.first_name} ${s.last_name}`.trim(),
-            instrument: s.instrument,
-            locationName: locMap.get(s.location_id) ?? 'Unknown',
-            daysSinceSession: daysSince,
-          }
-        }).sort((a, b) => b.daysSinceSession - a.daysSinceSession)
+        if (atRiskIds.length > 0) {
+          const { data: atRiskStudentRows } = await supabase
+            .from('students')
+            .select('id, first_name, last_name, instrument, location_id')
+            .eq('tenant_id', tenantId!)
+            .in('id', atRiskIds)
+            .limit(20)
+
+          atRiskStudents = (atRiskStudentRows ?? []).map((s: any) => {
+            const lastDate = lastSessionByStudent.get(s.id)
+            const daysSince = lastDate
+              ? Math.floor((nowMs - new Date(lastDate).getTime()) / 86400000)
+              : 999
+            return {
+              id: s.id,
+              name: `${s.first_name} ${s.last_name}`.trim(),
+              instrument: s.instrument,
+              locationName: locMap.get(s.location_id) ?? 'Unknown',
+              daysSinceSession: daysSince,
+            }
+          }).sort((a, b) => b.daysSinceSession - a.daysSinceSession)
+        }
       }
 
-      // === Task 6: Recent session logs (last 10 across all teachers) ===
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-      const { data: recentLogRows } = await supabase
-        .from('session_log')
-        .select('student_id, teacher_id, worked_on, progress_indicator, block_date, instrument')
-        .eq('tenant_id', tenantId!)
-        .gte('created_at', sevenDaysAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(10)
-
+      // === Recent session logs enrichment ===
       const logStudentIds = [...new Set((recentLogRows ?? []).map((l: any) => l.student_id))]
       const logTeacherIds = [...new Set((recentLogRows ?? []).map((l: any) => l.teacher_id))]
-      const { data: logStudents } = logStudentIds.length > 0
-        ? await supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', logStudentIds)
-        : { data: [] }
-      const { data: logTeachers } = logTeacherIds.length > 0
-        ? await supabase.from('teachers').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', logTeacherIds)
-        : { data: [] }
+
+      // Batch 3: Resolve log student + teacher names in parallel
+      const [logStudentsResult, logTeachersResult] = await Promise.all([
+        logStudentIds.length > 0
+          ? supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', logStudentIds)
+          : Promise.resolve({ data: [] }),
+        logTeacherIds.length > 0
+          ? supabase.from('teachers').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', logTeacherIds)
+          : Promise.resolve({ data: [] }),
+      ])
+      const logStudents = logStudentsResult.data
+      const logTeachers = logTeachersResult.data
       const logStudentMap = new Map((logStudents ?? []).map((s: any) => [s.id, `${s.first_name} ${s.last_name}`.trim()]))
       const logTeacherMap = new Map((logTeachers ?? []).map((t: any) => [t.id, `${t.first_name} ${t.last_name}`.trim()]))
 
