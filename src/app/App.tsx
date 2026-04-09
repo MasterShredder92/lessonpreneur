@@ -191,6 +191,7 @@ export default function App() {
                 <Route path="vocal-lessons" element={<VocalsLanding />} />
                 <Route path="violin-lessons" element={<ViolinLessonsLanding />} />
                 <Route path="flute-lessons" element={<FluteLessonsLanding />} />
+                <Route path="bass-guitar-lessons" element={<MoreLanding />} />
                 <Route path="signup" element={<SignupLanding />} />
               </Route>
             ))}

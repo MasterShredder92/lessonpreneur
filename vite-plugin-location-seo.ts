@@ -14,6 +14,8 @@ import { type Plugin } from 'vite'
 import { mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { join } from 'path'
 
+const TODAY = new Date().toISOString().slice(0, 10)
+
 const BASE_URL = 'https://www.lessonpreneur.io'
 
 interface LocSEO {
@@ -128,6 +130,12 @@ const LESSONS_PAGES: { slug: string; label: string; titlePrefix: string; descTem
     titlePrefix: 'Flute Lessons',
     descTemplate: (city) => `Private flute lessons in ${city}, NE for kids and adults. Band support, solo repertoire, audition prep. Background-checked instructors, flexible scheduling, no contracts.`,
   },
+  {
+    slug: 'bass-guitar-lessons',
+    label: 'Bass Guitar',
+    titlePrefix: 'Bass Guitar Lessons',
+    descTemplate: (city) => `Private bass guitar lessons in ${city}, NE for all ages. Rock, jazz, funk, and more. Experienced background-checked instructors, flexible scheduling, no contracts. Book today!`,
+  },
 ]
 
 function buildJsonLd(loc: LocSEO): string {
@@ -203,60 +211,119 @@ function buildInstrumentJsonLd(loc: LocSEO, instrument: string): string {
   })
 }
 
+function buildFaqJsonLd(loc: LocSEO): string {
+  const faqs = [
+    {
+      q: `Do you teach adults in ${loc.city}?`,
+      a: `Absolutely! Many of our ${loc.city} students are adults picking up an instrument for the first time — or getting back into music after years away. According to the National Association of Music Merchants, adult music learners are the fastest-growing segment, up 15% since 2020. Adults often progress faster than kids.`,
+    },
+    {
+      q: 'Do I need my own instrument?',
+      a: 'Not necessarily. We can help you find the right instrument for your budget. Some teachers have loaners available for the first few lessons.',
+    },
+    {
+      q: `How much do music lessons cost in ${loc.city}?`,
+      a: `Lesson pricing at Adkins Music in ${loc.city} is competitive and transparent. We offer month-to-month billing with no enrollment fees and no long-term contracts. Contact us at ${loc.phone} for current rates.`,
+    },
+    {
+      q: 'What if I need to cancel a lesson?',
+      a: 'We offer flexible rescheduling. Just give us advance notice and we will work with you to find another time.',
+    },
+    {
+      q: 'How long are lessons?',
+      a: 'Lessons are 30 minutes each. Students who want longer sessions can book back-to-back 30-minute slots for a full hour.',
+    },
+    {
+      q: `Are your ${loc.city} teachers background-checked?`,
+      a: `Yes — every single instructor at our ${loc.city} location passes a comprehensive background check before teaching. We also have cameras in every lesson room for added safety. Parent safety is our top priority.`,
+    },
+  ]
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(f => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  })
+}
+
 // ─── Static HTML body content for SSG crawlability ───
 // Injected into <div id="root"> so crawlers see real content.
 // React replaces this on hydrate — no visual flash.
 
 function buildLocationBody(loc: LocSEO): string {
-  const instrumentList = loc.instruments.map(i => `<li>${i} Lessons</li>`).join('\n          ')
+  // Instrument links with SEO-targeted landing pages
+  const instrumentLinks = loc.instruments.map(i => {
+    const slug = i.toLowerCase().replace(/ /g, '-')
+    const lessonsSlug = `${slug}-lessons`
+    // Link to -lessons page if one exists, otherwise instrument page
+    const hasLessonsPage = LESSONS_PAGES.some(lp => lp.slug === lessonsSlug)
+    const href = hasLessonsPage ? `/${loc.slug}/${lessonsSlug}` : `/${loc.slug}/${slug}`
+    return `<li><a href="${href}">${i} Lessons in ${loc.city}</a></li>`
+  }).join('\n          ')
+
+  // Cross-links to other locations
+  const otherLocations = LOCATIONS.filter(l => l.slug !== loc.slug)
+  const locationLinks = otherLocations.map(l =>
+    `<li><a href="/${l.slug}">Music Lessons in ${l.city}, ${l.state}</a></li>`
+  ).join('\n          ')
+
   return `
     <div data-ssg="true">
       <header>
-        <h1>${loc.brandName}</h1>
-        <p>${loc.title}</p>
+        <h1>Music Lessons in ${loc.city}, ${loc.state}</h1>
+        <p>Private Guitar, Piano, Drum, Vocal, Flute & Violin Lessons for All Ages — ${loc.brandName}</p>
       </header>
       <main>
         <section>
           <h2>Private Music Lessons in ${loc.city}, ${loc.state}</h2>
           <p>${loc.desc}</p>
+          <p>Founded by Zachary Adkins, 2017 National Guitar Competition winner, Adkins Music has grown to serve hundreds of students across the Omaha metro area. Research from the National Association of Music Merchants shows that students who take private lessons are 20% more likely to achieve academic excellence. Our ${loc.city} studio delivers that advantage with one-on-one instruction from professional, background-checked teachers.</p>
           <p>Private one-on-one lessons for kids, teens, and adults. No contracts. Month to month. Expert background-checked teachers who show up — every single time.</p>
         </section>
         <section>
           <h2>Instruments We Teach in ${loc.city}</h2>
           <ul>
-          ${instrumentList}
+          ${instrumentLinks}
           </ul>
         </section>
         <section>
           <h2>Why Families Choose Adkins Music in ${loc.city}</h2>
           <ul>
-            <li>Background-checked, professional instructors</li>
-            <li>AI-powered teacher-student matching — 95% compatibility</li>
-            <li>No long-term contracts — cancel anytime</li>
-            <li>No enrollment fees — month-to-month billing</li>
-            <li>Flexible scheduling — fits your busy life</li>
-            <li>Cameras in every room for student safety</li>
+            <li>Background-checked, professional instructors — 100% of our teachers pass comprehensive screening</li>
+            <li>AI-powered teacher-student matching — 95% compatibility rate across personality, schedule, and teaching style</li>
+            <li>No long-term contracts — cancel anytime, no penalties</li>
+            <li>No enrollment fees — month-to-month billing keeps it simple</li>
+            <li>Flexible scheduling — morning, afternoon, evening, and weekend slots available</li>
+            <li>Cameras in every room for student safety — peace of mind for parents</li>
+            <li>30+ professional instructors across all instruments</li>
           </ul>
         </section>
         <section>
           <h2>How It Works</h2>
           <ol>
-            <li><strong>Tell us about your student</strong> — takes 30 seconds</li>
-            <li><strong>We find your perfect teacher match</strong> — personality, schedule, teaching style</li>
-            <li><strong>Book your first lesson</strong> — within 24 hours</li>
+            <li><strong>Tell us about your student</strong> — takes 30 seconds. Share goals, schedule preferences, and experience level.</li>
+            <li><strong>We find your perfect teacher match</strong> — our AI matching system considers personality, schedule, teaching style, and musical goals.</li>
+            <li><strong>Book your first lesson</strong> — most students start within 24 hours of signing up.</li>
           </ol>
         </section>
         <section>
-          <h2>Frequently Asked Questions</h2>
+          <h2>Frequently Asked Questions About Music Lessons in ${loc.city}</h2>
           <dl>
-            <dt>Do you teach adults?</dt>
-            <dd>Absolutely! Many of our students are adults picking up an instrument for the first time — or getting back into music after years away. Adults often progress faster than kids.</dd>
+            <dt>Do you teach adults in ${loc.city}?</dt>
+            <dd>Absolutely! Many of our ${loc.city} students are adults picking up an instrument for the first time — or getting back into music after years away. According to the National Association of Music Merchants, adult music learners are the fastest-growing segment, up 15% since 2020. Adults often progress faster than kids.</dd>
             <dt>Do I need my own instrument?</dt>
             <dd>Not necessarily. We can help you find the right instrument for your budget. Some teachers have loaners available for the first few lessons.</dd>
+            <dt>How much do music lessons cost in ${loc.city}?</dt>
+            <dd>Lesson pricing at Adkins Music in ${loc.city} is competitive and transparent. We offer month-to-month billing with no enrollment fees and no long-term contracts. Contact us at ${loc.phone} for current rates.</dd>
             <dt>What if I need to cancel a lesson?</dt>
             <dd>We offer flexible rescheduling. Just give us advance notice and we will work with you to find another time.</dd>
             <dt>How long are lessons?</dt>
             <dd>Lessons are 30 minutes each. Students who want longer sessions can book back-to-back 30-minute slots for a full hour.</dd>
+            <dt>Are your ${loc.city} teachers background-checked?</dt>
+            <dd>Yes — every single instructor at our ${loc.city} location passes a comprehensive background check before teaching. We also have cameras in every lesson room for added safety.</dd>
           </dl>
         </section>
         <section>
@@ -268,6 +335,12 @@ function buildLocationBody(loc: LocSEO): string {
           </address>
           <p>Hours: Monday–Thursday 3:00 PM – 9:00 PM | Saturday–Sunday 10:00 AM – 3:00 PM</p>
         </section>
+        <nav>
+          <h2>Other Adkins Music Locations</h2>
+          <ul>
+          ${locationLinks}
+          </ul>
+        </nav>
         <section>
           <h2>Sign Up for Music Lessons in ${loc.city}</h2>
           <p>Your first lesson is waiting. Join hundreds of students already learning at Adkins Music in ${loc.city}.</p>
@@ -275,13 +348,22 @@ function buildLocationBody(loc: LocSEO): string {
         </section>
       </main>
       <footer>
-        <p>© ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
+        <p>&copy; ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
       </footer>
     </div>`
 }
 
 function buildInstrumentBody(loc: LocSEO, instrument: string): string {
   const instrumentLower = instrument.toLowerCase()
+
+  // Other instruments at this location for cross-linking
+  const otherInstruments = INSTRUMENT_PAGES
+    .filter(i => i !== instrumentLower)
+    .map(i => {
+      const cap = i.charAt(0).toUpperCase() + i.slice(1)
+      return `<li><a href="/${loc.slug}/${i}">${cap} Lessons in ${loc.city}</a></li>`
+    }).join('\n            ')
+
   return `
     <div data-ssg="true">
       <header>
@@ -322,6 +404,14 @@ function buildInstrumentBody(loc: LocSEO, instrument: string): string {
             <p>Email: <a href="mailto:${loc.email}">${loc.email}</a></p>
           </address>
         </section>
+        <nav>
+          <h2>More Lessons at ${loc.brandName}</h2>
+          <ul>
+            <li><a href="/${loc.slug}">All Music Lessons in ${loc.city}</a></li>
+            ${otherInstruments}
+            <li><a href="/${loc.slug}/more">Flute, Violin & More</a></li>
+          </ul>
+        </nav>
         <section>
           <h2>Start ${instrument} Lessons Today</h2>
           <p>Your first ${instrumentLower} lesson is waiting. Sign up in 30 seconds — no commitment required.</p>
@@ -329,13 +419,21 @@ function buildInstrumentBody(loc: LocSEO, instrument: string): string {
         </section>
       </main>
       <footer>
-        <p>© ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
+        <p>&copy; ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
       </footer>
     </div>`
 }
 
 function buildLessonsBody(loc: LocSEO, label: string, descText: string): string {
   const labelLower = label.toLowerCase()
+
+  // Cross-link to other lesson types at this location
+  const otherLessons = LESSONS_PAGES
+    .filter(lp => lp.label !== label)
+    .slice(0, 4)
+    .map(lp => `<li><a href="/${loc.slug}/${lp.slug}">${lp.label} Lessons in ${loc.city}</a></li>`)
+    .join('\n            ')
+
   return `
     <div data-ssg="true">
       <header>
@@ -352,7 +450,7 @@ function buildLessonsBody(loc: LocSEO, label: string, descText: string): string 
           <ul>
             <li>Expert, background-checked ${labelLower} instructors</li>
             <li>Personalized lesson plans for every skill level</li>
-            <li>AI-powered teacher-student matching</li>
+            <li>AI-powered teacher-student matching — 95% compatibility rate</li>
             <li>No contracts — flexible month-to-month billing</li>
             <li>Convenient ${loc.city} location with flexible scheduling</li>
           </ul>
@@ -366,6 +464,13 @@ function buildLessonsBody(loc: LocSEO, label: string, descText: string): string 
           </address>
           <p>Hours: Monday–Thursday 3:00 PM – 9:00 PM | Saturday–Sunday 10:00 AM – 3:00 PM</p>
         </section>
+        <nav>
+          <h2>More Lessons at ${loc.brandName}</h2>
+          <ul>
+            <li><a href="/${loc.slug}">All Music Lessons in ${loc.city}</a></li>
+            ${otherLessons}
+          </ul>
+        </nav>
         <section>
           <h2>Start ${label} Lessons in ${loc.city} Today</h2>
           <p>Join hundreds of students learning ${labelLower} at Adkins Music. Sign up in 30 seconds — no commitment required.</p>
@@ -373,7 +478,7 @@ function buildLessonsBody(loc: LocSEO, label: string, descText: string): string 
         </section>
       </main>
       <footer>
-        <p>© ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
+        <p>&copy; ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
       </footer>
     </div>`
 }
@@ -387,6 +492,7 @@ function rewriteHtml(html: string, opts: {
   desc: string
   canonical: string
   jsonLd: string
+  faqJsonLd?: string
   city: string
   state: string
   lat: number
@@ -444,14 +550,23 @@ function rewriteHtml(html: string, opts: {
     )
   }
 
+  // Add og:site_name after og:url
+  if (!result.includes('og:site_name')) {
+    result = result.replace(
+      /<meta property="og:type"/,
+      `<meta property="og:site_name" content="Adkins Music Lessons">\n    <meta property="og:type"`
+    )
+  }
+
   // Inject canonical, geo meta, and JSON-LD before </head>
+  const faqScript = opts.faqJsonLd ? `\n    <script type="application/ld+json">${opts.faqJsonLd}</script>` : ''
   const injection = `
     <link rel="canonical" href="${opts.canonical}">
     <meta name="geo.region" content="US-${opts.state}">
     <meta name="geo.placename" content="${opts.city}">
     <meta name="geo.position" content="${opts.lat};${opts.lng}">
     <meta name="ICBM" content="${opts.lat}, ${opts.lng}">
-    <script type="application/ld+json">${opts.jsonLd}</script>`
+    <script type="application/ld+json">${opts.jsonLd}</script>${faqScript}`
 
   result = result.replace('</head>', `${injection}\n  </head>`)
 
@@ -476,6 +591,7 @@ export default function locationSeoPlugin(): Plugin {
           desc: loc.desc,
           canonical: `${BASE_URL}/${loc.slug}`,
           jsonLd: buildJsonLd(loc),
+          faqJsonLd: buildFaqJsonLd(loc),
           city: loc.city,
           state: loc.state,
           lat: loc.lat,
@@ -536,9 +652,68 @@ export default function locationSeoPlugin(): Plugin {
         }
       }
 
+      // ─── Auto-generate sitemap.xml with all pages ───
+      const sitemapUrls: { loc: string; priority: string; changefreq: string }[] = [
+        { loc: `${BASE_URL}/`, priority: '1.0', changefreq: 'weekly' },
+      ]
+
+      for (const loc of LOCATIONS) {
+        // Location hub
+        sitemapUrls.push({ loc: `${BASE_URL}/${loc.slug}`, priority: '0.9', changefreq: 'weekly' })
+        // Instrument pages
+        for (const instrument of INSTRUMENT_PAGES) {
+          sitemapUrls.push({ loc: `${BASE_URL}/${loc.slug}/${instrument}`, priority: '0.8', changefreq: 'monthly' })
+        }
+        // More page
+        sitemapUrls.push({ loc: `${BASE_URL}/${loc.slug}/more`, priority: '0.7', changefreq: 'monthly' })
+        // -lessons landing pages
+        for (const lp of LESSONS_PAGES) {
+          sitemapUrls.push({ loc: `${BASE_URL}/${loc.slug}/${lp.slug}`, priority: '0.8', changefreq: 'monthly' })
+        }
+        // Signup page
+        sitemapUrls.push({ loc: `${BASE_URL}/${loc.slug}/signup`, priority: '0.6', changefreq: 'monthly' })
+      }
+
+      const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${sitemapUrls.map(u => `  <url>
+    <loc>${u.loc}</loc>
+    <lastmod>${TODAY}</lastmod>
+    <changefreq>${u.changefreq}</changefreq>
+    <priority>${u.priority}</priority>
+  </url>`).join('\n')}
+</urlset>`
+      writeFileSync(join(distDir, 'sitemap.xml'), sitemapXml)
+
+      // ─── Auto-generate robots.txt ───
+      const robotsTxt = `User-agent: *
+Allow: /
+
+# AI Search Engine Bots
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+Sitemap: ${BASE_URL}/sitemap.xml
+`
+      writeFileSync(join(distDir, 'robots.txt'), robotsTxt)
+
       const totalInstrument = LOCATIONS.length * (INSTRUMENT_PAGES.length + 1)
       const totalLessons = LOCATIONS.length * LESSONS_PAGES.length
+      const totalSitemap = sitemapUrls.length
       console.log(`[location-seo] Generated ${LOCATIONS.length} location pages + ${totalInstrument} instrument pages + ${totalLessons} lessons pages`)
+      console.log(`[location-seo] Sitemap: ${totalSitemap} URLs | robots.txt updated`)
     },
   }
 }

@@ -16,6 +16,7 @@ const INSTRUMENT_LABELS: Record<string, string> = {
   'vocal-lessons': 'Vocal',
   'violin-lessons': 'Violin',
   'flute-lessons': 'Flute',
+  'bass-guitar-lessons': 'Bass Guitar',
 }
 
 function setMeta(name: string, content: string, property = false) {
