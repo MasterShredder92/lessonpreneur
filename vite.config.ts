@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import locationSeoPlugin from './vite-plugin-location-seo'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), locationSeoPlugin()],
   server: {},
   build: {
     rollupOptions: {

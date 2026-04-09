@@ -1,63 +1,137 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Homepage -->
   <url>
     <loc>https://www.lessonpreneur.io/</loc>
-    <lastmod>2026-03-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
-  <url>
-    <loc>https://www.lessonpreneur.io/lessonpreneur</loc>
-    <lastmod>2026-03-31</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
-  </url>
+
+  <!-- ═══ OMAHA ═══ -->
   <url>
     <loc>https://www.lessonpreneur.io/omaha</loc>
-    <lastmod>2026-03-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/omaha/guitar</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/omaha/piano</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/omaha/drums</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/omaha/vocals</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/omaha/more</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- ═══ BELLEVUE ═══ -->
   <url>
     <loc>https://www.lessonpreneur.io/bellevue</loc>
-    <lastmod>2026-03-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/bellevue/guitar</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/bellevue/piano</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/bellevue/drums</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/bellevue/vocals</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/bellevue/more</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- ═══ ELKHORN ═══ -->
   <url>
     <loc>https://www.lessonpreneur.io/elkhorn</loc>
-    <lastmod>2026-03-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/elkhorn/guitar</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/elkhorn/piano</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/elkhorn/drums</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/elkhorn/vocals</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/elkhorn/more</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- ═══ GRETNA ═══ -->
   <url>
     <loc>https://www.lessonpreneur.io/gretna</loc>
-    <lastmod>2026-03-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.lessonpreneur.io/piano</loc>
-    <lastmod>2026-03-31</lastmod>
+    <loc>https://www.lessonpreneur.io/gretna/guitar</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.lessonpreneur.io/guitar</loc>
-    <lastmod>2026-03-31</lastmod>
+    <loc>https://www.lessonpreneur.io/gretna/piano</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.lessonpreneur.io/vocals</loc>
-    <lastmod>2026-03-31</lastmod>
+    <loc>https://www.lessonpreneur.io/gretna/drums</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.lessonpreneur.io/drums</loc>
-    <lastmod>2026-03-31</lastmod>
+    <loc>https://www.lessonpreneur.io/gretna/vocals</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.lessonpreneur.io/gretna/more</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
 </urlset>
