@@ -211,6 +211,20 @@ function rewriteHtml(html: string, opts: {
     `<meta name="twitter:description" content="${opts.desc}">`
   )
 
+  // Add og:image and twitter:image if not present
+  if (!result.includes('og:image')) {
+    result = result.replace(
+      /<meta property="og:type"/,
+      `<meta property="og:image" content="${BASE_URL}/og-image.png">\n    <meta property="og:image:width" content="1200">\n    <meta property="og:image:height" content="630">\n    <meta property="og:type"`
+    )
+  }
+  if (!result.includes('twitter:image')) {
+    result = result.replace(
+      '</head>',
+      `    <meta name="twitter:image" content="${BASE_URL}/og-image.png">\n  </head>`
+    )
+  }
+
   // Inject canonical, geo meta, and JSON-LD before </head>
   const injection = `
     <link rel="canonical" href="${opts.canonical}">
