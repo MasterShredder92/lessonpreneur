@@ -11,7 +11,7 @@
  */
 
 import { type Plugin } from 'vite'
-import { mkdirSync, writeFileSync, readFileSync } from 'fs'
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -141,7 +141,7 @@ const LESSONS_PAGES: { slug: string; label: string; titlePrefix: string; descTem
 function buildJsonLd(loc: LocSEO): string {
   return JSON.stringify({
     '@context': 'https://schema.org',
-    '@type': ['LocalBusiness', 'MusicSchool'],
+    '@type': ['LocalBusiness', 'EducationalOrganization'],
     '@id': `${BASE_URL}/${loc.slug}#business`,
     name: loc.brandName,
     alternateName: 'Adkins Music Lessons',
@@ -192,7 +192,7 @@ function buildInstrumentJsonLd(loc: LocSEO, instrument: string): string {
     '@type': 'Service',
     name: `${instrument} Lessons in ${loc.city}, ${loc.state}`,
     provider: {
-      '@type': ['LocalBusiness', 'MusicSchool'],
+      '@type': ['LocalBusiness', 'EducationalOrganization'],
       name: loc.brandName,
       url: `${BASE_URL}/${loc.slug}`,
       telephone: loc.phone,
@@ -483,6 +483,82 @@ function buildLessonsBody(loc: LocSEO, label: string, descText: string): string 
     </div>`
 }
 
+function buildSupportingPageBody(sp: {
+  slug: string; h1: string; desc: string; audience: string;
+  sections: Array<{ heading: string; body: string }>;
+  faqs: Array<{ q: string; a: string }>;
+}): string {
+  const sectionHtml = sp.sections.map(s => `
+        <section>
+          <h2>${s.heading}</h2>
+          <p>${s.body}</p>
+        </section>`).join('')
+
+  const faqHtml = sp.faqs.length > 0 ? `
+        <section>
+          <h2>Frequently Asked Questions</h2>
+          <dl>
+            ${sp.faqs.map(f => `<dt>${f.q}</dt>\n            <dd>${f.a}</dd>`).join('\n            ')}
+          </dl>
+        </section>` : ''
+
+  // Cross-links: location-specific instrument pages for this audience
+  const locationLinks = LOCATIONS.map(l =>
+    `<li><a href="/${l.slug}">Music lessons for ${sp.audience} in ${l.city}</a></li>`
+  ).join('\n            ')
+
+  // Cross-links to other supporting pages
+  const otherPages = [
+    { slug: 'kids-music-lessons', label: 'Kids Music Lessons' },
+    { slug: 'adult-music-lessons', label: 'Adult Music Lessons' },
+    { slug: 'beginner-music-lessons', label: 'Beginner Music Lessons' },
+    { slug: 'private-music-lessons', label: 'Private Music Lessons' },
+  ].filter(p => p.slug !== sp.slug)
+  const otherPageLinks = otherPages.map(p =>
+    `<li><a href="/${p.slug}">${p.label}</a></li>`
+  ).join('\n            ')
+
+  // Cross-links to instrument-specific lessons pages
+  const instrumentLinks = LESSONS_PAGES.slice(0, 4).map(lp => {
+    // Link to Omaha as default, but list all locations
+    return `<li><a href="/omaha/${lp.slug}">${lp.label} Lessons</a></li>`
+  }).join('\n            ')
+
+  return `
+    <div data-ssg="true">
+      <header>
+        <h1>${sp.h1}</h1>
+        <p>${sp.desc}</p>
+      </header>
+      <main>${sectionHtml}${faqHtml}
+        <section>
+          <h2>Find a Studio Near You</h2>
+          <ul>
+            ${locationLinks}
+          </ul>
+        </section>
+        <nav>
+          <h2>Explore by Instrument</h2>
+          <ul>
+            ${instrumentLinks}
+          </ul>
+          <h2>More Lesson Types</h2>
+          <ul>
+            ${otherPageLinks}
+          </ul>
+        </nav>
+        <section>
+          <h2>Start Your Music Journey Today</h2>
+          <p>Join hundreds of students learning at Adkins Music. Sign up in 30 seconds — no commitment required.</p>
+          <a href="/omaha/signup">Enroll Now</a>
+        </section>
+      </main>
+      <footer>
+        <p>&copy; ${new Date().getFullYear()} Adkins Music Lessons. Powered by Lessonpreneur.</p>
+      </footer>
+    </div>`
+}
+
 function injectBody(html: string, body: string): string {
   return html.replace('<div id="root"></div>', `<div id="root">${body}</div>`)
 }
@@ -558,10 +634,15 @@ function rewriteHtml(html: string, opts: {
     )
   }
 
-  // Inject canonical, geo meta, and JSON-LD before </head>
+  // Replace existing canonical
+  result = result.replace(
+    /<link rel="canonical" href="[^"]*" \/>/,
+    `<link rel="canonical" href="${opts.canonical}" />`
+  )
+
+  // Inject geo meta and JSON-LD before </head>
   const faqScript = opts.faqJsonLd ? `\n    <script type="application/ld+json">${opts.faqJsonLd}</script>` : ''
   const injection = `
-    <link rel="canonical" href="${opts.canonical}">
     <meta name="geo.region" content="US-${opts.state}">
     <meta name="geo.placename" content="${opts.city}">
     <meta name="geo.position" content="${opts.lat};${opts.lng}">
@@ -579,7 +660,12 @@ export default function locationSeoPlugin(): Plugin {
     apply: 'build',
     closeBundle() {
       const distDir = join(process.cwd(), 'dist')
-      const baseHtml = readFileSync(join(distDir, 'index.html'), 'utf-8')
+      const indexPath = join(distDir, 'index.html')
+      if (!existsSync(indexPath)) {
+        console.warn('[location-seo] dist/index.html not found — skipping SSG. Run build again if needed.')
+        return
+      }
+      const baseHtml = readFileSync(indexPath, 'utf-8')
 
       for (const loc of LOCATIONS) {
         // Location hub page: dist/{slug}/index.html
@@ -652,6 +738,111 @@ export default function locationSeoPlugin(): Plugin {
         }
       }
 
+      // ─── Generate static HTML for supporting SEO pages ───
+      const supportingPages = [
+        {
+          slug: 'kids-music-lessons',
+          title: 'Kids Music Lessons | Piano, Guitar, Vocals & Drums for Children — Adkins Music Lessons',
+          desc: 'Private music lessons for kids in Omaha, Bellevue, Elkhorn, and Gretna. Piano, guitar, vocals, drums, and more. Patient teachers, structured progress, beginner-friendly. All ages.',
+          h1: 'Kids Music Lessons',
+          audience: 'kids',
+          sections: [
+            { heading: 'What Kids Learn', body: 'Students start with fundamentals appropriate to their instrument and age — note reading, rhythm, hand positioning or posture, and basic music theory. From there, they progress to playing full songs, building repertoire, and understanding the language of music.' },
+            { heading: 'Which Instrument Is Right for Your Child?', body: 'Piano is the most common starting instrument for kids. Guitar is popular with kids drawn to songs they hear on the radio. Drums appeal to active, high-energy kids who respond to rhythm. Vocals work well for expressive children who love to sing.' },
+            { heading: 'Why Private Lessons Work for Kids', body: 'In a private lesson, every exercise, every song, and every conversation is about your child. The teacher adjusts tempo, difficulty, and material in real time — something impossible in a group class.' },
+          ],
+          faqs: [
+            { q: 'What age can kids start music lessons?', a: 'We accept students starting at age five for most instruments. For some instruments like piano, kids may start a bit earlier depending on their readiness.' },
+            { q: 'How often should kids take music lessons?', a: 'Most children take one lesson per week. Some advancing students move to twice weekly. Your child\'s teacher will recommend the right frequency.' },
+            { q: 'Do kids need to practice at home?', a: 'Practice makes a significant difference. Teachers assign manageable goals — usually 15 to 30 minutes per day depending on age.' },
+          ],
+        },
+        {
+          slug: 'adult-music-lessons',
+          title: 'Adult Music Lessons | Piano, Guitar, Vocals & Drums for Adults — Adkins Music Lessons',
+          desc: 'Private music lessons for adults in Omaha, Bellevue, Elkhorn, and Gretna. Learn piano, guitar, vocals, drums at any age. No experience needed. Flexible scheduling, no contracts.',
+          h1: 'Adult Music Lessons',
+          audience: 'adults',
+          sections: [
+            { heading: 'Why Adults Make Great Music Students', body: 'Adults have advantages kids don\'t — better focus, stronger motivation, more life experience for musical expression, and a clearer sense of goals. Our instructors design practice routines that fit your life.' },
+            { heading: 'Popular Instruments for Adult Learners', body: 'Piano provides immediate satisfaction — play chords and simple songs quickly while building deep music theory. Guitar lets you play popular songs and explore songwriting. Vocals and drums appeal to adults seeking creative expression.' },
+            { heading: 'What to Expect as an Adult Beginner', body: 'Your first lesson establishes where you are and where you want to go. Within the first month, adult students are typically playing simple songs. Within three months, most are working on pieces they\'re genuinely proud of.' },
+          ],
+          faqs: [
+            { q: 'Is it too late to learn an instrument as an adult?', a: 'No. We teach adults at every age, including beginners in their 50s, 60s, and beyond. Adults often progress efficiently because of their focus and motivation.' },
+            { q: 'How much time do I need to practice?', a: 'Even 20 minutes a day makes a meaningful difference. Consistency matters more than duration. Your teacher will give realistic practice goals based on your schedule.' },
+            { q: 'Will I feel out of place as an adult student?', a: 'Not at all. Adults make up a significant portion of our student body across all four locations.' },
+          ],
+        },
+        {
+          slug: 'beginner-music-lessons',
+          title: 'Beginner Music Lessons | Start From Zero — Adkins Music Lessons',
+          desc: 'Beginner-friendly private music lessons in Omaha, Bellevue, Elkhorn, and Gretna. Piano, guitar, vocals, drums. No experience needed. Start playing real music from day one.',
+          h1: 'Beginner Music Lessons',
+          audience: 'beginners',
+          sections: [
+            { heading: 'Your First Lesson', body: 'Your teacher introduces the instrument, shows you how to hold it properly, and walks you through your first sounds. By the end of 30 minutes, every beginner has played something recognizable.' },
+            { heading: 'How Beginners Progress', body: 'In the first month, students learn fundamentals — note reading, basic rhythm, proper technique, and their first several songs. By month six, most beginners are playing full pieces with confidence.' },
+            { heading: 'Best Instruments for Beginners', body: 'Piano gives the clearest visual representation of music. Guitar lets beginners play recognizable songs early. Vocals require no equipment purchase. Drums develop rhythm and provide a high-energy outlet.' },
+          ],
+          faqs: [
+            { q: 'Do I need any musical experience to start?', a: 'None at all. Most of our students begin with zero experience. Our teachers build every lesson plan from the ground up.' },
+            { q: 'How long does it take to learn an instrument?', a: 'You\'ll play your first songs within weeks. Solid intermediate skills typically take six months to a year of consistent lessons and practice.' },
+            { q: 'What if I\'m not naturally talented?', a: 'Talent is overrated. The students who progress fastest are the ones who show up consistently and practice regularly.' },
+          ],
+        },
+        {
+          slug: 'private-music-lessons',
+          title: 'Private Music Lessons | One-on-One Instruction — Adkins Music Lessons',
+          desc: 'Private, one-on-one music lessons in Omaha, Bellevue, Elkhorn, and Gretna. Piano, guitar, vocals, drums. Personalized instruction for all ages.',
+          h1: 'Private Music Lessons',
+          audience: 'all students',
+          sections: [
+            { heading: 'How Private Lessons Work', body: 'Each session is 30 or 60 minutes at one of our four studio locations. Your teacher prepares specifically for your lesson — reviewing progress, selecting new material, and planning exercises for exactly where you are.' },
+            { heading: 'Private Lessons vs. Group Classes', body: 'In a private lesson, everything adapts to you. Your teacher can change the plan mid-lesson, spend an entire session on one concept, or move quickly through material you\'ve grasped. That flexibility is why private students progress faster.' },
+            { heading: 'Who Benefits from Private Instruction', body: 'Complete beginners who need patient guidance. Advanced students with specific challenges. Kids who are distracted in groups. Adults with limited time. Teens preparing for auditions. Students with learning differences.' },
+          ],
+          faqs: [
+            { q: 'What instruments do you offer private lessons in?', a: 'Piano, guitar, vocals, drums, violin, bass guitar, flute, and other band instruments. All lessons are private and one-on-one.' },
+            { q: 'Do you require contracts?', a: 'No. Enrollment is month-to-month at all four locations. No semester commitments, no registration fees, no cancellation penalties.' },
+            { q: 'How are students matched with teachers?', a: 'We match based on goals, learning style, personality, and scheduling. The right pairing is one of the most important factors in long-term success.' },
+          ],
+        },
+      ]
+      for (const sp of supportingPages) {
+        const spDir = join(distDir, sp.slug)
+        mkdirSync(spDir, { recursive: true })
+
+        // Build FAQPage JSON-LD for supporting pages
+        const faqJsonLd = sp.faqs.length > 0 ? JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: sp.faqs.map(f => ({
+            '@type': 'Question',
+            name: f.q,
+            acceptedAnswer: { '@type': 'Answer', text: f.a },
+          })),
+        }) : undefined
+
+        const spHtml = injectBody(rewriteHtml(baseHtml, {
+          title: sp.title,
+          desc: sp.desc,
+          canonical: `${BASE_URL}/${sp.slug}`,
+          jsonLd: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'EducationalOrganization',
+            name: 'Adkins Music Lessons',
+            description: sp.desc,
+            url: `${BASE_URL}/${sp.slug}`,
+            numberOfLocations: 4,
+            areaServed: LOCATIONS.map(l => ({ '@type': 'City', name: l.city })),
+          }),
+          faqJsonLd,
+          city: 'Omaha', state: 'NE', lat: 41.2168, lng: -96.0262,
+        }), buildSupportingPageBody(sp))
+        writeFileSync(join(spDir, 'index.html'), spHtml)
+      }
+
       // ─── Auto-generate sitemap.xml with all pages ───
       const sitemapUrls: { loc: string; priority: string; changefreq: string }[] = [
         { loc: `${BASE_URL}/`, priority: '1.0', changefreq: 'weekly' },
@@ -672,6 +863,11 @@ export default function locationSeoPlugin(): Plugin {
         }
         // Signup page
         sitemapUrls.push({ loc: `${BASE_URL}/${loc.slug}/signup`, priority: '0.6', changefreq: 'monthly' })
+      }
+
+      // Supporting SEO pages
+      for (const sp of supportingPages) {
+        sitemapUrls.push({ loc: `${BASE_URL}/${sp.slug}`, priority: '0.7', changefreq: 'monthly' })
       }
 
       const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>

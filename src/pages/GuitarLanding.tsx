@@ -140,7 +140,7 @@ export default function GuitarLanding() {
     title: `Guitar Lessons in ${LD.name}, NE | Acoustic to Electric — Adkins Music Lessons`,
     description: `Private guitar lessons in ${LD.name}, NE. Acoustic, electric and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`,
     path: `/${loc}/guitar`,
-    jsonLd: buildInstrumentJsonLd(loc, 'Guitar', 'Private one-on-one guitar lessons covering acoustic, electric, fingerstyle, and more. All ages and skill levels.'),
+    jsonLd: buildInstrumentJsonLd(loc, 'Guitar', 'guitar', 'Private one-on-one guitar lessons covering acoustic, electric, fingerstyle, and more. All ages and skill levels.'),
   })
 
   // Set CSS vars on location change

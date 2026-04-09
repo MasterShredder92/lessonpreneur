@@ -97,7 +97,7 @@ export default function VocalsLanding() {
     title: `Vocal Lessons in ${LD.name}, NE | All Ages & Styles — Adkins Music Lessons`,
     description: `Private vocal lessons in ${LD.name}, NE. All ages and styles. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`,
     path: `/${loc}/vocals`,
-    jsonLd: buildInstrumentJsonLd(loc, 'Vocals', 'Private one-on-one vocal and singing lessons for all ages and styles. Build range, confidence, and technique.'),
+    jsonLd: buildInstrumentJsonLd(loc, 'Vocals', 'vocals', 'Private one-on-one vocal and singing lessons for all ages and styles. Build range, confidence, and technique.'),
   })
 
   // Set CSS vars on location change

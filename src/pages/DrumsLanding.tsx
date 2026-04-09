@@ -91,7 +91,7 @@ export default function DrumsLanding() {
     title: `Drum Lessons in ${LD.name}, NE | Rock to Jazz — Adkins Music Lessons`,
     description: `Private drum lessons in ${LD.name}, NE. Rock, jazz and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`,
     path: `/${loc}/drums`,
-    jsonLd: buildInstrumentJsonLd(loc, 'Drums', 'Private one-on-one drum lessons covering rock, jazz, funk, and percussion. All ages and skill levels.'),
+    jsonLd: buildInstrumentJsonLd(loc, 'Drums', 'drums', 'Private one-on-one drum lessons covering rock, jazz, funk, and percussion. All ages and skill levels.'),
   })
 
   // Set CSS vars on location change (same as AdkinsLanding)

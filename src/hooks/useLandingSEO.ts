@@ -54,9 +54,9 @@ export function useLandingSEO({ loc, title, description, path, jsonLd }: Landing
 }
 
 /** Builds a Course + LocalBusiness JSON-LD for an instrument landing page. */
-export function buildInstrumentJsonLd(loc: LocKey, instrument: string, instrumentDesc: string) {
+export function buildInstrumentJsonLd(loc: LocKey, instrument: string, slug: string, instrumentDesc: string) {
   const l = LOCATIONS[loc]
-  const url = `https://www.lessonpreneur.io/${loc}/${instrument.toLowerCase()}`
+  const url = `https://www.lessonpreneur.io/${loc}/${slug}`
   return {
     '@context': 'https://schema.org',
     '@type': 'Course',
@@ -64,7 +64,7 @@ export function buildInstrumentJsonLd(loc: LocKey, instrument: string, instrumen
     description: instrumentDesc,
     url,
     provider: {
-      '@type': ['LocalBusiness', 'MusicSchool'],
+      '@type': ['LocalBusiness', 'EducationalOrganization'],
       name: l.fullName,
       telephone: l.phone,
       email: l.email,

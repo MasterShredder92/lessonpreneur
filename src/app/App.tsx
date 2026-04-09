@@ -41,6 +41,10 @@ const ViolinLessonsLanding = lazy(() => import('../pages/ViolinLessonsLanding'))
 const FluteLessonsLanding = lazy(() => import('../pages/FluteLessonsLanding'))
 const SignupLanding = lazy(() => import('../pages/SignupLanding'))
 const ThankYou = lazy(() => import('../pages/ThankYou'))
+const KidsLessonsPage = lazy(() => import('../pages/KidsLessonsPage'))
+const AdultLessonsPage = lazy(() => import('../pages/AdultLessonsPage'))
+const BeginnerLessonsPage = lazy(() => import('../pages/BeginnerLessonsPage'))
+const PrivateLessonsPage = lazy(() => import('../pages/PrivateLessonsPage'))
 // FamilyPortal removed — parents use authenticated login
 
 // Public funnel pages
@@ -175,6 +179,12 @@ export default function App() {
             <Route path="/start" element={<VSLPage />} />
             <Route path="/get-started" element={<LeadCaptureFormPage />} />
             <Route path="/trial" element={<CardCapturePage />} />
+            {/* ── Supporting SEO pages ── */}
+            <Route path="/kids-music-lessons" element={<KidsLessonsPage />} />
+            <Route path="/adult-music-lessons" element={<AdultLessonsPage />} />
+            <Route path="/beginner-music-lessons" element={<BeginnerLessonsPage />} />
+            <Route path="/private-music-lessons" element={<PrivateLessonsPage />} />
+
             {/* ── Location-specific nested routes ── */}
             {/* /omaha, /gretna, /bellevue, /elkhorn + instrument sub-routes */}
             {(['omaha', 'gretna', 'bellevue', 'elkhorn'] as LocKey[]).map(loc => (
@@ -277,8 +287,8 @@ export default function App() {
             {/* Legacy family portal → redirect to login */}
             <Route path="/family/:familyId" element={<Navigate to="/login" replace />} />
 
-            {/* Catch-all */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* Catch-all — send unknown URLs to landing page, not login */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>
         </PreviewModeProvider>
