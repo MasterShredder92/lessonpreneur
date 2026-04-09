@@ -53,6 +53,13 @@ export function SupportingPage({ content }: { content: SupportingPageContent }) 
     <div className="seo-page" id="main-content">
       <SiteHeader />
 
+      <nav aria-label="Breadcrumb" className="seo-breadcrumb">
+        <ol>
+          <li><Link to="/">Home</Link></li>
+          <li aria-current="page">{content.h1}</li>
+        </ol>
+      </nav>
+
       <div className="seo-page-hero">
         <h1 className="seo-h1">{content.h1}</h1>
       </div>
@@ -117,14 +124,14 @@ export function SupportingPage({ content }: { content: SupportingPageContent }) 
           <h2 className="seo-h2" style={{ marginTop: '3rem' }}>Explore by Instrument</h2>
           <div className="seo-link-grid" style={{ justifyContent: 'center' }}>
             {[
-              { label: 'Guitar Lessons', loc: 'omaha', slug: 'guitar-lessons' },
-              { label: 'Piano Lessons', loc: 'omaha', slug: 'piano-lessons' },
-              { label: 'Vocal Lessons', loc: 'omaha', slug: 'vocal-lessons' },
-              { label: 'Drum Lessons', loc: 'omaha', slug: 'drum-lessons' },
-              { label: 'Violin Lessons', loc: 'omaha', slug: 'violin-lessons' },
-              { label: 'Flute Lessons', loc: 'omaha', slug: 'flute-lessons' },
+              { label: 'Guitar Lessons in Omaha', href: '/omaha/guitar' },
+              { label: 'Piano Lessons in Bellevue', href: '/bellevue/piano' },
+              { label: 'Vocal Lessons in Elkhorn', href: '/elkhorn/vocals' },
+              { label: 'Drum Lessons in Gretna', href: '/gretna/drums' },
+              { label: 'Violin Lessons in Omaha', href: '/omaha/violin-lessons' },
+              { label: 'Flute Lessons in Bellevue', href: '/bellevue/flute-lessons' },
             ].map((link, i) => (
-              <Link key={i} to={`/${link.loc}/${link.slug}`} className="seo-location-link">
+              <Link key={i} to={link.href} className="seo-location-link">
                 {link.label} →
               </Link>
             ))}
@@ -140,6 +147,12 @@ export function SupportingPage({ content }: { content: SupportingPageContent }) 
           </div>
         </div>
       </div>
+
+      <footer className="seo-footer">
+        <div className="seo-container">
+          <p>&copy; {new Date().getFullYear()} Adkins Music Lessons. Powered by <Link to="/">Lessonpreneur</Link>.</p>
+        </div>
+      </footer>
     </div>
   )
 }

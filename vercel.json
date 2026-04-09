@@ -11,6 +11,12 @@
     { "source": "/Elkhorn", "destination": "/elkhorn", "permanent": true },
     { "source": "/Gretna", "destination": "/gretna", "permanent": true },
 
+    { "source": "/:loc(omaha|bellevue|elkhorn|gretna)/guitar-lessons", "destination": "/:loc/guitar", "permanent": true },
+    { "source": "/:loc(omaha|bellevue|elkhorn|gretna)/piano-lessons", "destination": "/:loc/piano", "permanent": true },
+    { "source": "/:loc(omaha|bellevue|elkhorn|gretna)/drum-lessons", "destination": "/:loc/drums", "permanent": true },
+    { "source": "/:loc(omaha|bellevue|elkhorn|gretna)/vocal-lessons", "destination": "/:loc/vocals", "permanent": true },
+    { "source": "/:loc(omaha|bellevue|elkhorn|gretna)/bass-guitar-lessons", "destination": "/:loc/more", "permanent": true },
+
     { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "elkhornlessons.com" }], "destination": "https://www.lessonpreneur.io/elkhorn/:path", "permanent": true },
     { "source": "/", "has": [{ "type": "host", "value": "elkhornlessons.com" }], "destination": "https://www.lessonpreneur.io/elkhorn", "permanent": true },
     { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "www.elkhornlessons.com" }], "destination": "https://www.lessonpreneur.io/elkhorn/:path", "permanent": true },
@@ -46,6 +52,13 @@
     },
     {
       "source": "/(omaha|bellevue|elkhorn|gretna)(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, s-maxage=3600, stale-while-revalidate=86400" },
+        { "key": "X-Robots-Tag", "value": "index, follow" }
+      ]
+    },
+    {
+      "source": "/(kids-music-lessons|adult-music-lessons|beginner-music-lessons|private-music-lessons|about|locations)",
       "headers": [
         { "key": "Cache-Control", "value": "public, s-maxage=3600, stale-while-revalidate=86400" },
         { "key": "X-Robots-Tag", "value": "index, follow" }

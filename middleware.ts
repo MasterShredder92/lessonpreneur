@@ -6,13 +6,17 @@ import { next } from '@vercel/edge'
 
 export const config = {
   matcher: [
-    '/omaha', '/omaha/piano', '/omaha/guitar', '/omaha/vocals', '/omaha/drums', '/omaha/more',
-    '/bellevue', '/bellevue/piano', '/bellevue/guitar', '/bellevue/vocals', '/bellevue/drums', '/bellevue/more',
-    '/elkhorn', '/elkhorn/piano', '/elkhorn/guitar', '/elkhorn/vocals', '/elkhorn/drums', '/elkhorn/more',
-    '/gretna', '/gretna/piano', '/gretna/guitar', '/gretna/vocals', '/gretna/drums', '/gretna/more',
+    '/omaha', '/omaha/piano', '/omaha/guitar', '/omaha/vocals', '/omaha/drums', '/omaha/more', '/omaha/violin-lessons', '/omaha/flute-lessons',
+    '/bellevue', '/bellevue/piano', '/bellevue/guitar', '/bellevue/vocals', '/bellevue/drums', '/bellevue/more', '/bellevue/violin-lessons', '/bellevue/flute-lessons',
+    '/elkhorn', '/elkhorn/piano', '/elkhorn/guitar', '/elkhorn/vocals', '/elkhorn/drums', '/elkhorn/more', '/elkhorn/violin-lessons', '/elkhorn/flute-lessons',
+    '/gretna', '/gretna/piano', '/gretna/guitar', '/gretna/vocals', '/gretna/drums', '/gretna/more', '/gretna/violin-lessons', '/gretna/flute-lessons',
     '/kids-music-lessons', '/adult-music-lessons', '/beginner-music-lessons', '/private-music-lessons',
+    '/about', '/locations',
+    '/start', '/trial', '/thank-you', '/get-started',
   ],
 }
+
+const NOINDEX_PATHS = new Set(['/start', '/trial', '/thank-you', '/get-started'])
 
 const LOCATIONS: Record<string, { name: string; fullName: string; phone: string; email: string; address: string; domain: string; lat: number; lng: number }> = {
   omaha: { name: 'Omaha', fullName: 'Omaha Music Lessons', phone: '(531) 270-0848', email: 'musiclessonsomaha@gmail.com', address: '4862 S 96th St Ste 1, Omaha, NE 68127', domain: 'omahaguitarandmusiclessons.com', lat: 41.2168, lng: -96.0262 },
@@ -27,6 +31,8 @@ const INSTRUMENTS: Record<string, { label: string; desc: string }> = {
   vocals: { label: 'Vocals', desc: 'Private vocal and singing lessons for all ages and styles. Build range, confidence, and technique.' },
   drums: { label: 'Drums', desc: 'Private drum lessons covering rock, jazz, funk, and percussion. All ages and skill levels.' },
   more: { label: 'More Instruments', desc: 'Private lessons for violin, bass guitar, flute, brass, woodwinds, and more.' },
+  'violin-lessons': { label: 'Violin', desc: 'Private violin lessons for kids and adults. Classical, fiddle, and contemporary styles. All skill levels.' },
+  'flute-lessons': { label: 'Flute', desc: 'Private flute lessons for kids and adults. Classical, jazz, and concert band preparation. All skill levels.' },
 }
 
 // Supporting pages — meta for non-location SEO pages
@@ -104,6 +110,19 @@ function buildJsonLd(loc: typeof LOCATIONS[string], canonical: string, instrumen
   })
 }
 
+function buildBreadcrumbJsonLd(items: Array<{ name: string; url: string }>) {
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  })
+}
+
 function buildSupportingJsonLd(slug: string, title: string, desc: string) {
   const canonical = `https://www.lessonpreneur.io/${slug}`
   return JSON.stringify({
@@ -151,6 +170,61 @@ export default async function middleware(request: Request): Promise<Response> {
   const url = new URL(request.url)
   const segments = url.pathname.split('/').filter(Boolean)
 
+  // Funnel pages — noindex to prevent thin/duplicate indexing
+  if (NOINDEX_PATHS.has(url.pathname)) {
+    const originUrl = new URL('/', url.origin)
+    const response = await fetch(originUrl.toString(), { headers: request.headers })
+    let html = await response.text()
+    html = html.replace(
+      /<meta name="robots" content="[^"]*">/,
+      '<meta name="robots" content="noindex, nofollow">'
+    )
+    return new Response(html, {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'x-robots-tag': 'noindex, nofollow',
+      },
+    })
+  }
+
+  // About page
+  if (segments.length === 1 && segments[0] === 'about') {
+    const canonical = 'https://www.lessonpreneur.io/about'
+    const aboutJsonLd = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'Adkins Music Lessons',
+      url: 'https://www.lessonpreneur.io',
+      founder: { '@type': 'Person', name: 'Zachary Adkins', description: '2017 National Guitar Competition winner' },
+    })
+    const breadcrumb = buildBreadcrumbJsonLd([
+      { name: 'Home', url: 'https://www.lessonpreneur.io' },
+      { name: 'About', url: canonical },
+    ])
+    const combined = aboutJsonLd + `</script>\n  <script type="application/ld+json">${breadcrumb}`
+    return rewriteHtml(request, 'About Adkins Music Lessons | Founded by Zachary Adkins — Omaha Metro', 'Adkins Music Lessons was founded by Zachary Adkins, 2017 National Guitar Competition winner. Four locations, 30+ instructors, 400+ students across the Omaha metro.', canonical, combined)
+  }
+
+  // Locations page
+  if (segments.length === 1 && segments[0] === 'locations') {
+    const canonical = 'https://www.lessonpreneur.io/locations'
+    const locsJsonLd = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'EducationalOrganization',
+      name: 'Adkins Music Lessons',
+      url: 'https://www.lessonpreneur.io',
+      numberOfLocations: 4,
+      areaServed: Object.values(LOCATIONS).map(l => ({ '@type': 'City', name: l.name })),
+    })
+    const breadcrumb = buildBreadcrumbJsonLd([
+      { name: 'Home', url: 'https://www.lessonpreneur.io' },
+      { name: 'Locations', url: canonical },
+    ])
+    const combined = locsJsonLd + `</script>\n  <script type="application/ld+json">${breadcrumb}`
+    return rewriteHtml(request, 'Locations | Music Lessons in Omaha, Bellevue, Elkhorn & Gretna — Adkins Music', 'Adkins Music Lessons has four studio locations across the Omaha metro. Private music lessons for all ages.', canonical, combined)
+  }
+
   // Supporting pages (e.g. /kids-music-lessons)
   if (segments.length === 1 && SUPPORTING_PAGES[segments[0]]) {
     const slug = segments[0]
@@ -170,6 +244,11 @@ export default async function middleware(request: Request): Promise<Response> {
       })
       combinedJsonLd += `</script>\n  <script type="application/ld+json">${faqSchema}`
     }
+    const breadcrumb = buildBreadcrumbJsonLd([
+      { name: 'Home', url: 'https://www.lessonpreneur.io' },
+      { name: page.title.split('|')[0].trim(), url: canonical },
+    ])
+    combinedJsonLd += `</script>\n  <script type="application/ld+json">${breadcrumb}`
     return rewriteHtml(request, page.title, page.desc, canonical, combinedJsonLd)
   }
 
@@ -196,5 +275,11 @@ export default async function middleware(request: Request): Promise<Response> {
   }
 
   const jsonLd = buildJsonLd(loc, canonical, instrument)
-  return rewriteHtml(request, title, desc, canonical, jsonLd)
+  const breadcrumbItems = [{ name: 'Home', url: 'https://www.lessonpreneur.io' }]
+  breadcrumbItems.push({ name: `Music Lessons in ${loc.name}`, url: `https://www.lessonpreneur.io/${locKey}` })
+  if (instrument) {
+    breadcrumbItems.push({ name: `${instrument.label} Lessons`, url: canonical })
+  }
+  const fullJsonLd = jsonLd + `</script>\n  <script type="application/ld+json">${buildBreadcrumbJsonLd(breadcrumbItems)}`
+  return rewriteHtml(request, title, desc, canonical, fullJsonLd)
 }
