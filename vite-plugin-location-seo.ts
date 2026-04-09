@@ -203,6 +203,185 @@ function buildInstrumentJsonLd(loc: LocSEO, instrument: string): string {
   })
 }
 
+// ─── Static HTML body content for SSG crawlability ───
+// Injected into <div id="root"> so crawlers see real content.
+// React replaces this on hydrate — no visual flash.
+
+function buildLocationBody(loc: LocSEO): string {
+  const instrumentList = loc.instruments.map(i => `<li>${i} Lessons</li>`).join('\n          ')
+  return `
+    <div data-ssg="true">
+      <header>
+        <h1>${loc.brandName}</h1>
+        <p>${loc.title}</p>
+      </header>
+      <main>
+        <section>
+          <h2>Private Music Lessons in ${loc.city}, ${loc.state}</h2>
+          <p>${loc.desc}</p>
+          <p>Private one-on-one lessons for kids, teens, and adults. No contracts. Month to month. Expert background-checked teachers who show up — every single time.</p>
+        </section>
+        <section>
+          <h2>Instruments We Teach in ${loc.city}</h2>
+          <ul>
+          ${instrumentList}
+          </ul>
+        </section>
+        <section>
+          <h2>Why Families Choose Adkins Music in ${loc.city}</h2>
+          <ul>
+            <li>Background-checked, professional instructors</li>
+            <li>AI-powered teacher-student matching — 95% compatibility</li>
+            <li>No long-term contracts — cancel anytime</li>
+            <li>No enrollment fees — month-to-month billing</li>
+            <li>Flexible scheduling — fits your busy life</li>
+            <li>Cameras in every room for student safety</li>
+          </ul>
+        </section>
+        <section>
+          <h2>How It Works</h2>
+          <ol>
+            <li><strong>Tell us about your student</strong> — takes 30 seconds</li>
+            <li><strong>We find your perfect teacher match</strong> — personality, schedule, teaching style</li>
+            <li><strong>Book your first lesson</strong> — within 24 hours</li>
+          </ol>
+        </section>
+        <section>
+          <h2>Frequently Asked Questions</h2>
+          <dl>
+            <dt>Do you teach adults?</dt>
+            <dd>Absolutely! Many of our students are adults picking up an instrument for the first time — or getting back into music after years away. Adults often progress faster than kids.</dd>
+            <dt>Do I need my own instrument?</dt>
+            <dd>Not necessarily. We can help you find the right instrument for your budget. Some teachers have loaners available for the first few lessons.</dd>
+            <dt>What if I need to cancel a lesson?</dt>
+            <dd>We offer flexible rescheduling. Just give us advance notice and we will work with you to find another time.</dd>
+            <dt>How long are lessons?</dt>
+            <dd>Lessons are 30 minutes each. Students who want longer sessions can book back-to-back 30-minute slots for a full hour.</dd>
+          </dl>
+        </section>
+        <section>
+          <h2>Visit ${loc.brandName}</h2>
+          <address>
+            <p>${loc.streetAddress}, ${loc.city}, ${loc.state} ${loc.zip}</p>
+            <p>Phone: <a href="tel:${loc.phone.replace(/[^\d+]/g, '')}">${loc.phone}</a></p>
+            <p>Email: <a href="mailto:${loc.email}">${loc.email}</a></p>
+          </address>
+          <p>Hours: Monday–Thursday 3:00 PM – 9:00 PM | Saturday–Sunday 10:00 AM – 3:00 PM</p>
+        </section>
+        <section>
+          <h2>Sign Up for Music Lessons in ${loc.city}</h2>
+          <p>Your first lesson is waiting. Join hundreds of students already learning at Adkins Music in ${loc.city}.</p>
+          <a href="/${loc.slug}/signup">Enroll Now</a>
+        </section>
+      </main>
+      <footer>
+        <p>© ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
+      </footer>
+    </div>`
+}
+
+function buildInstrumentBody(loc: LocSEO, instrument: string): string {
+  const instrumentLower = instrument.toLowerCase()
+  return `
+    <div data-ssg="true">
+      <header>
+        <h1>${instrument} Lessons in ${loc.city}, ${loc.state}</h1>
+        <p>${loc.brandName}</p>
+      </header>
+      <main>
+        <section>
+          <h2>Private ${instrument} Lessons for All Ages in ${loc.city}</h2>
+          <p>Professional ${instrumentLower} lessons for all ages and skill levels in ${loc.city}, ${loc.state}. Experienced, background-checked instructors with flexible scheduling and no long-term commitments.</p>
+          <p>Whether you are a complete beginner or looking to advance your skills, our ${instrumentLower} teachers create personalized lesson plans tailored to your goals and learning style.</p>
+        </section>
+        <section>
+          <h2>What You Will Learn</h2>
+          <ul>
+            <li>Proper technique and fundamentals</li>
+            <li>Music theory and reading</li>
+            <li>Songs you actually want to play</li>
+            <li>Performance confidence and stage presence</li>
+            <li>Practice strategies that accelerate progress</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Why Adkins Music for ${instrument} Lessons</h2>
+          <ul>
+            <li>Background-checked, professional ${instrumentLower} instructors</li>
+            <li>AI-powered teacher matching for personality and learning style</li>
+            <li>No contracts — month-to-month, cancel anytime</li>
+            <li>Flexible scheduling that fits your life</li>
+            <li>Cameras in every room for student safety</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Visit Us in ${loc.city}</h2>
+          <address>
+            <p>${loc.streetAddress}, ${loc.city}, ${loc.state} ${loc.zip}</p>
+            <p>Phone: <a href="tel:${loc.phone.replace(/[^\d+]/g, '')}">${loc.phone}</a></p>
+            <p>Email: <a href="mailto:${loc.email}">${loc.email}</a></p>
+          </address>
+        </section>
+        <section>
+          <h2>Start ${instrument} Lessons Today</h2>
+          <p>Your first ${instrumentLower} lesson is waiting. Sign up in 30 seconds — no commitment required.</p>
+          <a href="/${loc.slug}/signup">Enroll Now</a>
+        </section>
+      </main>
+      <footer>
+        <p>© ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
+      </footer>
+    </div>`
+}
+
+function buildLessonsBody(loc: LocSEO, label: string, descText: string): string {
+  const labelLower = label.toLowerCase()
+  return `
+    <div data-ssg="true">
+      <header>
+        <h1>${label} Lessons in ${loc.city}, ${loc.state}</h1>
+        <p>Private Instruction for All Ages — ${loc.brandName}</p>
+      </header>
+      <main>
+        <section>
+          <h2>Private ${label} Lessons in ${loc.city}, ${loc.state}</h2>
+          <p>${descText}</p>
+        </section>
+        <section>
+          <h2>Why Students Choose Adkins for ${label} Lessons</h2>
+          <ul>
+            <li>Expert, background-checked ${labelLower} instructors</li>
+            <li>Personalized lesson plans for every skill level</li>
+            <li>AI-powered teacher-student matching</li>
+            <li>No contracts — flexible month-to-month billing</li>
+            <li>Convenient ${loc.city} location with flexible scheduling</li>
+          </ul>
+        </section>
+        <section>
+          <h2>${loc.brandName}</h2>
+          <address>
+            <p>${loc.streetAddress}, ${loc.city}, ${loc.state} ${loc.zip}</p>
+            <p>Phone: <a href="tel:${loc.phone.replace(/[^\d+]/g, '')}">${loc.phone}</a></p>
+            <p>Email: <a href="mailto:${loc.email}">${loc.email}</a></p>
+          </address>
+          <p>Hours: Monday–Thursday 3:00 PM – 9:00 PM | Saturday–Sunday 10:00 AM – 3:00 PM</p>
+        </section>
+        <section>
+          <h2>Start ${label} Lessons in ${loc.city} Today</h2>
+          <p>Join hundreds of students learning ${labelLower} at Adkins Music. Sign up in 30 seconds — no commitment required.</p>
+          <a href="/${loc.slug}/signup">Enroll Now</a>
+        </section>
+      </main>
+      <footer>
+        <p>© ${new Date().getFullYear()} ${loc.brandName} — By Adkins Music Lessons. Powered by Lessonpreneur.</p>
+      </footer>
+    </div>`
+}
+
+function injectBody(html: string, body: string): string {
+  return html.replace('<div id="root"></div>', `<div id="root">${body}</div>`)
+}
+
 function rewriteHtml(html: string, opts: {
   title: string
   desc: string
@@ -292,7 +471,7 @@ export default function locationSeoPlugin(): Plugin {
         const locDir = join(distDir, loc.slug)
         mkdirSync(locDir, { recursive: true })
 
-        const locHtml = rewriteHtml(baseHtml, {
+        const locHtml = injectBody(rewriteHtml(baseHtml, {
           title: loc.title,
           desc: loc.desc,
           canonical: `${BASE_URL}/${loc.slug}`,
@@ -301,7 +480,7 @@ export default function locationSeoPlugin(): Plugin {
           state: loc.state,
           lat: loc.lat,
           lng: loc.lng,
-        })
+        }), buildLocationBody(loc))
         writeFileSync(join(locDir, 'index.html'), locHtml)
 
         // Instrument sub-pages: dist/{slug}/{instrument}/index.html
@@ -310,7 +489,7 @@ export default function locationSeoPlugin(): Plugin {
           const instDir = join(locDir, instrument)
           mkdirSync(instDir, { recursive: true })
 
-          const instHtml = rewriteHtml(baseHtml, {
+          const instHtml = injectBody(rewriteHtml(baseHtml, {
             title: `${instCap} Lessons in ${loc.city}, ${loc.state} | Adkins Music`,
             desc: `Professional ${instrument} lessons in ${loc.city}, NE for all ages and skill levels. Experienced, background-checked instructors. Flexible scheduling, no commitment. Start learning ${instrument} today!`,
             canonical: `${BASE_URL}/${loc.slug}/${instrument}`,
@@ -319,14 +498,14 @@ export default function locationSeoPlugin(): Plugin {
             state: loc.state,
             lat: loc.lat,
             lng: loc.lng,
-          })
+          }), buildInstrumentBody(loc, instCap))
           writeFileSync(join(instDir, 'index.html'), instHtml)
         }
 
         // "more" sub-page (flute, violin, etc.)
         const moreDir = join(locDir, 'more')
         mkdirSync(moreDir, { recursive: true })
-        const moreHtml = rewriteHtml(baseHtml, {
+        const moreHtml = injectBody(rewriteHtml(baseHtml, {
           title: `Flute, Violin & More Music Lessons in ${loc.city}, ${loc.state} | Adkins Music`,
           desc: `Flute, violin, bass guitar, and more music lessons in ${loc.city}, NE. All ages and skill levels welcome. Background-checked instructors, flexible scheduling. Enroll today!`,
           canonical: `${BASE_URL}/${loc.slug}/more`,
@@ -335,7 +514,7 @@ export default function locationSeoPlugin(): Plugin {
           state: loc.state,
           lat: loc.lat,
           lng: loc.lng,
-        })
+        }), buildInstrumentBody(loc, 'Flute, Violin & More'))
         writeFileSync(join(moreDir, 'index.html'), moreHtml)
 
         // "-lessons" SEO landing pages: dist/{slug}/{instrument}-lessons/index.html
@@ -343,7 +522,7 @@ export default function locationSeoPlugin(): Plugin {
           const lpDir = join(locDir, lp.slug)
           mkdirSync(lpDir, { recursive: true })
 
-          const lpHtml = rewriteHtml(baseHtml, {
+          const lpHtml = injectBody(rewriteHtml(baseHtml, {
             title: `${lp.titlePrefix} in ${loc.city}, ${loc.state} | Private Instruction for All Ages — Adkins Music`,
             desc: lp.descTemplate(loc.city),
             canonical: `${BASE_URL}/${loc.slug}/${lp.slug}`,
@@ -352,7 +531,7 @@ export default function locationSeoPlugin(): Plugin {
             state: loc.state,
             lat: loc.lat,
             lng: loc.lng,
-          })
+          }), buildLessonsBody(loc, lp.label, lp.descTemplate(loc.city)))
           writeFileSync(join(lpDir, 'index.html'), lpHtml)
         }
       }
