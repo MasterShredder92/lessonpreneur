@@ -10,6 +10,12 @@ const INSTRUMENT_LABELS: Record<string, string> = {
   vocals: 'Vocals',
   drums: 'Drums',
   more: 'Flute, Violin & More',
+  'guitar-lessons': 'Guitar',
+  'piano-lessons': 'Piano',
+  'drum-lessons': 'Drum',
+  'vocal-lessons': 'Vocal',
+  'violin-lessons': 'Violin',
+  'flute-lessons': 'Flute',
 }
 
 function setMeta(name: string, content: string, property = false) {
@@ -89,8 +95,12 @@ export function useLocationSEO() {
     let desc: string
     let canonical: string
 
+    const isLessonsPage = instrument?.endsWith('-lessons')
+
     if (instLabel) {
-      title = `${instLabel} Lessons in ${loc.name}, NE | Adkins Music`
+      title = isLessonsPage
+        ? `${instLabel} Lessons in ${loc.name}, NE | Private Instruction for All Ages — Adkins Music`
+        : `${instLabel} Lessons in ${loc.name}, NE | Adkins Music`
       desc = `Professional ${instLabel.toLowerCase()} lessons in ${loc.name}, NE for all ages and skill levels. Experienced, background-checked instructors. Flexible scheduling, no commitment.`
       canonical = `${BASE_URL}/${locKey}/${instrument}`
     } else {

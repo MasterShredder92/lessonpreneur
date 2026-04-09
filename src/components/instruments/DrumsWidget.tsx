@@ -2,7 +2,7 @@
  * DrumsWidget.tsx
  * Interactive SVG drum kit — tap/click any piece to play.
  *
- * Audio: all sounds synthesized via Web Audio API (no files needed).
+ * Audio: real .wav files from /audio/drums/ directory.
  * Input: onPointerDown per SVG piece (instant on touch + mouse).
  *        Keyboard as secondary layer (collapsible shortcut strip).
  * Animation: React state drives hit flash per piece.
@@ -11,7 +11,21 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-// ─── Audio synthesis ──────────────────────────────────────────────────────────
+// ─── Audio file playback ─────────────────────────────────────────────────────
+
+type PieceId = 'kick' | 'snare' | 'hihat' | 'hihat-open' | 'crash' | 'ride' | 'tom-hi' | 'tom-mid' | 'tom-lo'
+
+const AUDIO_FILES: Record<PieceId, string> = {
+  'kick':      '/audio/drums/kick.wav',
+  'snare':     '/audio/drums/snare.wav',
+  'hihat':     '/audio/drums/hihat.wav',
+  'hihat-open': '/audio/drums/hihat.wav',
+  'crash':     '/audio/drums/crash.wav',
+  'ride':      '/audio/drums/ride.wav',
+  'tom-hi':    '/audio/drums/hitom.wav',
+  'tom-mid':   '/audio/drums/midtom.wav',
+  'tom-lo':    '/audio/drums/lotom.wav',
+}
 
 function getCtx(ref: React.MutableRefObject<AudioContext | null>): AudioContext {
   if (!ref.current) ref.current = new AudioContext()
@@ -19,121 +33,35 @@ function getCtx(ref: React.MutableRefObject<AudioContext | null>): AudioContext 
   return ref.current
 }
 
-function playKick(ctx: AudioContext) {
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-  osc.connect(gain); gain.connect(ctx.destination)
-  osc.type = 'sine'
-  osc.frequency.setValueAtTime(150, ctx.currentTime)
-  osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.4)
-  gain.gain.setValueAtTime(1, ctx.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
-  osc.start(); osc.stop(ctx.currentTime + 0.5)
-}
+// Pre-decoded audio buffers cache
+const audioBuffers = new Map<string, AudioBuffer>()
 
-function playSnare(ctx: AudioContext) {
-  // Noise burst
-  const len = ctx.sampleRate * 0.2
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-  const d = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
-  const src = ctx.createBufferSource(); src.buffer = buf
-  const gain = ctx.createGain()
-  gain.gain.setValueAtTime(0.8, ctx.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2)
-  src.connect(gain); gain.connect(ctx.destination)
-  src.start(); src.stop(ctx.currentTime + 0.2)
-  // Tonal body
-  const osc = ctx.createOscillator()
-  const g2 = ctx.createGain()
-  osc.type = 'triangle'; osc.frequency.value = 180
-  g2.gain.setValueAtTime(0.4, ctx.currentTime)
-  g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
-  osc.connect(g2); g2.connect(ctx.destination)
-  osc.start(); osc.stop(ctx.currentTime + 0.12)
+async function loadBuffer(ctx: AudioContext, url: string): Promise<AudioBuffer> {
+  const cached = audioBuffers.get(url)
+  if (cached) return cached
+  const response = await fetch(url)
+  const arrayBuf = await response.arrayBuffer()
+  const decoded = await ctx.decodeAudioData(arrayBuf)
+  audioBuffers.set(url, decoded)
+  return decoded
 }
-
-function playHihatClosed(ctx: AudioContext) {
-  const len = ctx.sampleRate * 0.06
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-  const d = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
-  const src = ctx.createBufferSource(); src.buffer = buf
-  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8000
-  const gain = ctx.createGain()
-  gain.gain.setValueAtTime(0.35, ctx.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06)
-  src.connect(hp); hp.connect(gain); gain.connect(ctx.destination)
-  src.start(); src.stop(ctx.currentTime + 0.06)
-}
-
-function playHihatOpen(ctx: AudioContext) {
-  const len = ctx.sampleRate * 0.35
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-  const d = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
-  const src = ctx.createBufferSource(); src.buffer = buf
-  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000
-  const gain = ctx.createGain()
-  gain.gain.setValueAtTime(0.3, ctx.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
-  src.connect(hp); hp.connect(gain); gain.connect(ctx.destination)
-  src.start(); src.stop(ctx.currentTime + 0.35)
-}
-
-function playCrash(ctx: AudioContext) {
-  const len = ctx.sampleRate * 0.8
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-  const d = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
-  const src = ctx.createBufferSource(); src.buffer = buf
-  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 5000; bp.Q.value = 0.8
-  const gain = ctx.createGain()
-  gain.gain.setValueAtTime(0.45, ctx.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8)
-  src.connect(bp); bp.connect(gain); gain.connect(ctx.destination)
-  src.start(); src.stop(ctx.currentTime + 0.8)
-}
-
-function playRide(ctx: AudioContext) {
-  const len = ctx.sampleRate * 0.5
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-  const d = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
-  const src = ctx.createBufferSource(); src.buffer = buf
-  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6000; bp.Q.value = 1.2
-  const gain = ctx.createGain()
-  gain.gain.setValueAtTime(0.3, ctx.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
-  src.connect(bp); bp.connect(gain); gain.connect(ctx.destination)
-  src.start(); src.stop(ctx.currentTime + 0.5)
-}
-
-function playTom(ctx: AudioContext, freq: number) {
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-  osc.connect(gain); gain.connect(ctx.destination)
-  osc.type = 'sine'
-  osc.frequency.setValueAtTime(freq, ctx.currentTime)
-  osc.frequency.exponentialRampToValueAtTime(freq * 0.5, ctx.currentTime + 0.25)
-  gain.gain.setValueAtTime(0.6, ctx.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3)
-  osc.start(); osc.stop(ctx.currentTime + 0.3)
-}
-
-type PieceId = 'kick' | 'snare' | 'hihat' | 'hihat-open' | 'crash' | 'ride' | 'tom-hi' | 'tom-mid' | 'tom-lo'
 
 function playSound(ctx: AudioContext, id: PieceId) {
-  switch (id) {
-    case 'kick':      playKick(ctx); break
-    case 'snare':     playSnare(ctx); break
-    case 'hihat':     playHihatClosed(ctx); break
-    case 'hihat-open': playHihatOpen(ctx); break
-    case 'crash':     playCrash(ctx); break
-    case 'ride':      playRide(ctx); break
-    case 'tom-hi':    playTom(ctx, 300); break
-    case 'tom-mid':   playTom(ctx, 200); break
-    case 'tom-lo':    playTom(ctx, 120); break
+  const url = AUDIO_FILES[id]
+  const cached = audioBuffers.get(url)
+  if (cached) {
+    const src = ctx.createBufferSource()
+    src.buffer = cached
+    src.connect(ctx.destination)
+    src.start()
+  } else {
+    // Load and play — subsequent hits will be instant from cache
+    loadBuffer(ctx, url).then(buf => {
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      src.connect(ctx.destination)
+      src.start()
+    })
   }
 }
 
@@ -199,6 +127,23 @@ export default function DrumsWidget() {
 
   useEffect(() => {
     setIsMobile(window.innerWidth < 768)
+  }, [])
+
+  // Preload all drum audio files on first user interaction
+  useEffect(() => {
+    const preload = () => {
+      const ctx = getCtx(audioCtxRef)
+      const urls = new Set(Object.values(AUDIO_FILES))
+      urls.forEach(url => loadBuffer(ctx, url))
+      window.removeEventListener('pointerdown', preload)
+      window.removeEventListener('keydown', preload)
+    }
+    window.addEventListener('pointerdown', preload, { once: true })
+    window.addEventListener('keydown', preload, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', preload)
+      window.removeEventListener('keydown', preload)
+    }
   }, [])
 
   const handleHit = useCallback((id: PieceId) => {

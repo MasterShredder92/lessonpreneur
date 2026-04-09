@@ -37,6 +37,8 @@ const GuitarLanding = lazy(() => import('../pages/GuitarLanding'))
 const VocalsLanding = lazy(() => import('../pages/VocalsLanding'))
 const PianoLanding = lazy(() => import('../pages/PianoLanding'))
 const MoreLanding = lazy(() => import('../pages/MoreLanding'))
+const ViolinLessonsLanding = lazy(() => import('../pages/ViolinLessonsLanding'))
+const FluteLessonsLanding = lazy(() => import('../pages/FluteLessonsLanding'))
 const SignupLanding = lazy(() => import('../pages/SignupLanding'))
 const ThankYou = lazy(() => import('../pages/ThankYou'))
 // FamilyPortal removed — parents use authenticated login
@@ -183,6 +185,12 @@ export default function App() {
                 <Route path="piano" element={<PianoLanding />} />
                 <Route path="vocals" element={<VocalsLanding />} />
                 <Route path="more" element={<MoreLanding />} />
+                <Route path="guitar-lessons" element={<GuitarLanding />} />
+                <Route path="piano-lessons" element={<PianoLanding />} />
+                <Route path="drum-lessons" element={<DrumsLanding />} />
+                <Route path="vocal-lessons" element={<VocalsLanding />} />
+                <Route path="violin-lessons" element={<ViolinLessonsLanding />} />
+                <Route path="flute-lessons" element={<FluteLessonsLanding />} />
                 <Route path="signup" element={<SignupLanding />} />
               </Route>
             ))}
