@@ -5,12 +5,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLocations } from '../../hooks/useLocations'
-import { useFamiliesPage, useFamilyDetail, useUpdateFamilyInfo, useChangeFamilyBillingStatus, useFamilyFiles, useUploadFamilyFile, useDeleteFamilyFile, useFamilyActivityLog, type Family, type FamilyFile, type ActivityEvent } from '../../hooks/useFamilies'
+import { useFamiliesPage, useFamiliesRosterInfinite, useFamilyTabCounts, useFamilyDetail, useUpdateFamilyInfo, useChangeFamilyBillingStatus, useUploadFamilyFile, useDeleteFamilyFile, useFamilyActivityLog, type Family, type FamilyFile, type ActivityEvent } from '../../hooks/useFamilies'
 import { formatRate, getRateTierColor } from '../../hooks/useFamilyRate'
-import { useAI } from '../../hooks/useAI'
+import { useStarBusinessChat } from '../../hooks/useAI'
+import { useStarComposedBusinessPrompt } from '../../hooks/useStarComposedBusinessPrompt'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
-import { X, Lock, Shield, CreditCard, Users, Pencil, Upload, Trash2, FileText, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send, Plus, Download, Check, XCircle, ShieldCheck, AlertTriangle } from 'lucide-react'
+import { X, Lock, Shield, CreditCard, Users, Pencil, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send, Plus, Check, XCircle } from 'lucide-react'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { useReactivateStudent } from '../../hooks/useRetention'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
@@ -25,6 +26,7 @@ import FamiliesPageGuide from '../../components/admin/FamiliesPageGuide'
 import AddFamilyModal from '../../components/admin/AddFamilyModal'
 import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
 import { useLastReviewRequest } from '../../hooks/useReviewRequest'
+import FamilyDocumentsSection from '../../components/admin/FamilyDocumentsSection'
 
 // ═══════════════════════════════════════
 // DISPLAY HELPERS
@@ -89,8 +91,8 @@ export default function Families() {
   const { role } = useAuthContext()
   const { isAtLeast, isStudioDirector, locationIds } = usePermissions()
   const navigate = useNavigate()
-  const { data: families, isLoading, error } = useFamiliesPage()
   const { data: locations } = useLocations()
+  const { data: tabCounts } = useFamilyTabCounts()
 
   // URL-persisted filters
   const { getParam, setParam, searchParams } = useUrlFilters()
@@ -124,17 +126,61 @@ export default function Families() {
   const [showExport, setShowExport] = useState(false)
   const [showAddFamily, setShowAddFamily] = useState(false)
 
+  const useClientHeavyFilters = showNeedsAttention || agreementFilter !== 'all'
+
+  const primaryLocationId = useMemo(() => {
+    if (isStudioDirector && locationIds?.length) return locationIds[0]
+    if (!locationFilter) return null
+    const loc = (locations ?? []).find((l: any) => l.name.replace(' Music Lessons', '') === locationFilter)
+    return loc?.id ?? null
+  }, [isStudioDirector, locationIds, locations, locationFilter])
+
+  const rosterQuery = useFamiliesRosterInfinite({
+    familyTab,
+    locationId: primaryLocationId,
+    rateFilter,
+    search,
+    sortBy,
+    enabled: !useClientHeavyFilters,
+  })
+
+  const { data: fullFamilies, isLoading: fullLoading, error: fullError } = useFamiliesPage({ enabled: useClientHeavyFilters })
+  const { data: exportFamilies, isLoading: exportLoading } = useFamiliesPage({ enabled: showExport })
+
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (useClientHeavyFilters) return
+    const el = loadMoreRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0]
+        if (first?.isIntersecting && rosterQuery.hasNextPage && !rosterQuery.isFetchingNextPage) {
+          rosterQuery.fetchNextPage()
+        }
+      },
+      { rootMargin: '240px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [useClientHeavyFilters, rosterQuery.hasNextPage, rosterQuery.isFetchingNextPage, rosterQuery.fetchNextPage])
+
+  const rosterRows = useMemo(() => rosterQuery.data?.pages.flatMap((p) => p.rows) ?? [], [rosterQuery.data])
+
+  const isLoading = useClientHeavyFilters ? fullLoading : rosterQuery.isLoading
+  const error = useClientHeavyFilters ? fullError : rosterQuery.error
+
   if (!canView && !isLoading) {
     navigate('/login', { replace: true })
     return null
   }
 
-  const allActive = useMemo(() => families?.filter((f) => (f.billing_status ?? 'active') !== 'cancelled') ?? [], [families])
-  const allInactive = useMemo(() => families?.filter((f) => (f.billing_status ?? 'active') === 'cancelled') ?? [], [families])
-  const allFamilies = families ?? []
-  const baseList = familyTab === 'all' ? allFamilies : familyTab === 'active' ? allActive : allInactive
+  const allActiveList = useMemo(() => fullFamilies?.filter((f) => (f.billing_status ?? 'active') !== 'cancelled') ?? [], [fullFamilies])
+  const allInactiveList = useMemo(() => fullFamilies?.filter((f) => (f.billing_status ?? 'active') === 'cancelled') ?? [], [fullFamilies])
+  const allFamiliesList = fullFamilies ?? []
+  const baseList = familyTab === 'all' ? allFamiliesList : familyTab === 'active' ? allActiveList : allInactiveList
 
-  const filtered = useMemo(() => {
+  const filteredHeavy = useMemo(() => {
     let list = baseList.filter((f) => {
       if (locationFilter && f.locationName !== locationFilter) return false
       if (rateFilter && f.rate_tier !== rateFilter) return false
@@ -160,7 +206,42 @@ export default function Families() {
     return list
   }, [baseList, search, locationFilter, rateFilter, sortBy, showNeedsAttention, agreementFilter])
 
-  const needsAttentionCount = useMemo(() => baseList.filter(familyNeedsAttention).length, [baseList])
+  const filtered = useClientHeavyFilters ? filteredHeavy : rosterRows
+
+  const needsAttentionCount = useMemo(() => {
+    if (!useClientHeavyFilters) return 0
+    return baseList.filter(familyNeedsAttention).length
+  }, [useClientHeavyFilters, baseList])
+
+  const countActive = tabCounts?.active ?? 0
+  const countInactive = tabCounts?.inactive ?? 0
+  const countTotal = tabCounts?.all ?? 0
+
+  const exportFiltered = useMemo(() => {
+    if (!exportFamilies) return []
+    const list = exportFamilies.filter((f) => {
+      const isInactive = (f.billing_status ?? 'active') === 'cancelled'
+      if (familyTab === 'active' && isInactive) return false
+      if (familyTab === 'inactive' && !isInactive) return false
+      if (locationFilter && f.locationName !== locationFilter) return false
+      if (rateFilter && f.rate_tier !== rateFilter) return false
+      if (search) {
+        const q = search.toLowerCase()
+        const haystack = `${f.name} ${f.parent_name ?? ''} ${f.primary_contact_name ?? ''} ${f.primary_email ?? ''} ${f.primary_phone ?? ''}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      return true
+    })
+    return [...list].sort((a, b) => {
+      switch (sortBy) {
+        case 'az': return stripFamily(a.name).localeCompare(stripFamily(b.name))
+        case 'za': return stripFamily(b.name).localeCompare(stripFamily(a.name))
+        case 'newest': return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+        case 'oldest': return (a.created_at ?? '').localeCompare(b.created_at ?? '')
+        default: return 0
+      }
+    })
+  }, [exportFamilies, familyTab, locationFilter, rateFilter, search, sortBy])
 
   if (isLoading) {
     return (
@@ -187,11 +268,11 @@ export default function Families() {
       <div className="page-header">
         <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: '0.5px', marginRight: 16 }}>Families</h1>
         <span style={{ fontSize: 13, color: '#94A3B8' }}>
-          <strong style={{ color: '#E0E0F4' }}>{allActive.length}</strong> Active
+          <strong style={{ color: '#E0E0F4' }}>{countActive}</strong> Active
           <span style={{ margin: '0 6px', color: '#363656' }}>&middot;</span>
-          <strong style={{ color: '#E0E0F4' }}>{allInactive.length}</strong> Inactive
+          <strong style={{ color: '#E0E0F4' }}>{countInactive}</strong> Inactive
           <span style={{ margin: '0 6px', color: '#363656' }}>&middot;</span>
-          <strong style={{ color: '#E0E0F4' }}>{allFamilies.length}</strong> Total
+          <strong style={{ color: '#E0E0F4' }}>{countTotal}</strong> Total
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           {canCreate && (
@@ -265,37 +346,86 @@ export default function Families() {
               whiteSpace: 'nowrap',
             }}
           >
-            Needs Attention{needsAttentionCount > 0 ? ` (${needsAttentionCount})` : ''}
+            Needs Attention{useClientHeavyFilters && needsAttentionCount > 0 ? ` (${needsAttentionCount})` : ''}
           </button>
         </div>
         <span className="visibility-count">Showing {filtered.length} famil{filtered.length !== 1 ? 'ies' : 'y'}</span>
       </div>
 
-      {/* Family Cards */}
-      <div className="lead-cards" data-guide-id="families-list">
-        {filtered.length > 0 ? (() => {
-          if (sortBy !== 'az') {
-            return filtered.map((f, i) => (
-              <FamilyCard key={f.id} family={f} onClick={() => setSelectedFamilyId(f.id)} guideId={i === 0 ? 'family-card-first' : undefined} />
-            ))
-          }
-          let lastLetter = ''
-          return filtered.map((f, i) => {
-            const letter = stripFamily(f.name).charAt(0).toUpperCase() || '#'
-            const showHeader = letter !== lastLetter
-            lastLetter = letter
-            return (
-              <div key={f.id}>
-                {showHeader && (
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#606088', padding: '12px 0 4px 16px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{letter}</div>
-                )}
-                <FamilyCard family={f} onClick={() => setSelectedFamilyId(f.id)} guideId={i === 0 ? 'family-card-first' : undefined} />
-              </div>
-            )
-          })
-        })() : (
-          <div className="empty-state">No {familyTab} families found.</div>
+      {/* Compact roster */}
+      <div data-guide-id="families-list" style={{ marginTop: 4 }}>
+        {useClientHeavyFilters && (
+          <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8, paddingLeft: 4 }}>
+            Agreement and Needs Attention filters load the full roster to search accurately. Clear those filters for faster paged loading.
+          </div>
         )}
+        <div
+          className="roster-table-wrap"
+          style={{
+            overflowX: 'auto',
+            borderRadius: 12,
+            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'rgba(0,0,0,0.15)',
+          }}
+        >
+          <div
+            className="roster-grid roster-grid-families"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(140px,1.5fr) minmax(72px,0.55fr) minmax(160px,1.1fr) minmax(100px,0.75fr) minmax(200px,1.3fr) minmax(120px,0.85fr) minmax(100px,0.75fr) minmax(88px,0.65fr)',
+              gap: '0 12px',
+              alignItems: 'center',
+              padding: '10px 14px',
+              fontSize: 10,
+              fontWeight: 700,
+              color: '#8080A8',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <span>Family</span>
+            <span>Monthly</span>
+            <span>Email</span>
+            <span>Phone</span>
+            <span>Students</span>
+            <span>Card</span>
+            <span>Billing</span>
+            <span>Agreement</span>
+          </div>
+          {filtered.length > 0 ? (() => {
+            const rows = sortBy !== 'az' || useClientHeavyFilters
+              ? filtered.map((f, i) => ({ f, i, letter: null as string | null }))
+              : (() => {
+                let lastLetter = ''
+                return filtered.map((f, i) => {
+                  const letter = stripFamily(f.name).charAt(0).toUpperCase() || '#'
+                  const showHeader = letter !== lastLetter
+                  lastLetter = letter
+                  return { f, i, letter: showHeader ? letter : null }
+                })
+              })()
+            return (
+              <>
+                {rows.map(({ f, i, letter }) => (
+                  <div key={f.id}>
+                    {letter && (
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#606088', padding: '10px 14px 4px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{letter}</div>
+                    )}
+                    <FamilyRosterRow family={f} onClick={() => setSelectedFamilyId(f.id)} guideId={i === 0 ? 'family-card-first' : undefined} />
+                  </div>
+                ))}
+                {!useClientHeavyFilters && (
+                  <div ref={loadMoreRef} style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                    {rosterQuery.isFetchingNextPage && <span style={{ fontSize: 12, color: '#8080A8' }}>Loading more…</span>}
+                  </div>
+                )}
+              </>
+            )
+          })() : (
+            <div className="empty-state" style={{ border: 'none', padding: 28 }}>No {familyTab} families found.</div>
+          )}
+        </div>
       </div>
 
       {selectedFamilyId && (
@@ -319,7 +449,7 @@ export default function Families() {
       )}
 
       {/* Export Modal */}
-      {showExport && families && (
+      {showExport && (
         <div className="modal-overlay" onClick={() => setShowExport(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
             <div className="modal-header">
@@ -328,11 +458,12 @@ export default function Families() {
             </div>
             <div style={{ padding: 22 }}>
               <p style={{ fontSize: 12.5, color: '#A0A0C8', marginBottom: 16 }}>
-                Export {filtered.length} families currently shown (with filters applied).
+                {exportLoading ? 'Loading full roster for export…' : `Export ${useClientHeavyFilters ? filtered.length : exportFiltered.length} families (filters applied).`}
               </p>
-              <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12 }} onClick={() => {
+              <button className="btn-primary" disabled={exportLoading} style={{ width: '100%', justifyContent: 'center', padding: 12 }} onClick={() => {
+                const csvRows = useClientHeavyFilters ? filtered : exportFiltered
                 const headers = ['Family Name', 'Parent Name', 'Email', 'Phone', 'Location', 'Rate', 'Billing Status', 'Students', 'Teachers', 'Instruments', 'Lifetime Paid', 'Balance', 'Military']
-                const rows = filtered.map((f) => [
+                const rows = csvRows.map((f) => [
                   f.name ?? '',
                   f.parent_name ?? '',
                   f.primary_email ?? '',
@@ -356,7 +487,7 @@ export default function Families() {
                 setShowExport(false)
                 toast('Export downloaded', 'success')
               }}>
-                Export {filtered.length} Families
+                Export {useClientHeavyFilters ? filtered.length : exportFiltered.length} Families
               </button>
             </div>
           </div>
@@ -368,99 +499,78 @@ export default function Families() {
 }
 
 // ═══════════════════════════════════════
-// FAMILY CARD (inline card pattern)
+// COMPACT ROSTER ROW
 // ═══════════════════════════════════════
 
-function FamilyCard({ family: f, onClick, guideId }: { family: Family; onClick: () => void; guideId?: string }) {
+function FamilyRosterRow({ family: f, onClick, guideId }: { family: Family; onClick: () => void; guideId?: string }) {
   const rateEdge = getRateEdge(f.rate_tier)
   const locColor = f.locationColor ?? '#606088'
   const isInactive = (f.billing_status ?? 'active') === 'cancelled'
-
-  // Build student summary: "1 student · Drums · Payton" or "2 students · Piano, Guitar · Jamie, Jesse"
   const activeStudents = (f.students ?? []).filter(s => s.status === 'active')
-  const studentNames = activeStudents.slice(0, 3).map(s => s.first_name).join(', ')
-  const studentInstruments = [...new Set(activeStudents.map(s => s.instrument).filter(Boolean))].slice(0, 2).map(i => i.charAt(0).toUpperCase() + i.slice(1)).join(', ')
+  const studentNames = activeStudents.slice(0, 4).map(s => s.first_name).join(', ')
+  const studentInstruments = [...new Set(activeStudents.map(s => s.instrument).filter(Boolean))].slice(0, 4).map(i => i.charAt(0).toUpperCase() + i.slice(1)).join(', ')
 
   return (
-    <div className="lead-card" onClick={onClick} style={{ position: 'relative' }} data-guide-id={guideId}>
-      <div className="lead-card-edge" style={{
-        background: isInactive ? '#606088' : locColor,
-        boxShadow: isInactive ? 'none' : `0 0 12px ${locColor}80`,
-      }} />
-      <div style={{ flex: 1, minWidth: 0, padding: '14px 16px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {/* Row 1: Family name + rate */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', overflowWrap: 'break-word', wordBreak: 'break-word', minWidth: 0 }}>
-            {stripFamily(f.name)}
+    <div
+      className="roster-row roster-row-family"
+      onClick={onClick}
+      data-guide-id={guideId}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(140px,1.5fr) minmax(72px,0.55fr) minmax(160px,1.1fr) minmax(100px,0.75fr) minmax(200px,1.3fr) minmax(120px,0.85fr) minmax(100px,0.75fr) minmax(88px,0.65fr)',
+        gap: '0 12px',
+        alignItems: 'center',
+        padding: '10px 14px',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        cursor: 'pointer',
+        fontSize: 12,
+      }}
+    >
+      <div style={{ borderLeft: `3px solid ${isInactive ? '#606088' : locColor}`, paddingLeft: 10, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <span style={{ fontWeight: 700, color: '#E0E0F4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stripFamily(f.name)}</span>
+          {f.is_military && <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 4, background: 'rgba(255,184,0,0.15)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.25)', fontWeight: 700, flexShrink: 0 }}>MIL</span>}
+        </div>
+        {f.locationName && <div style={{ fontSize: 10, color: '#606088', marginTop: 2 }}>{f.locationName}</div>}
+      </div>
+      <div>
+        <span style={{
+          fontSize: 12, fontWeight: 800, padding: '2px 6px', borderRadius: 6, display: 'inline-block',
+          background: isInactive ? 'rgba(255,255,255,0.06)' : rateEdge.solid,
+          color: isInactive ? '#606088' : '#1A1A2E',
+        }}>
+          ${f.monthlyTotalCents > 0 ? (f.monthlyTotalCents / 100).toFixed(0) : (f.rate_tier / 100).toFixed(0)}
+          <span style={{ fontSize: 8, fontWeight: 600, opacity: 0.75 }}>/mo</span>
+        </span>
+      </div>
+      <div style={{ color: '#A0A0C8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+        {f.primary_email ? <CopyText value={f.primary_email} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }} /> : '—'}
+      </div>
+      <div style={{ color: '#A0A0C8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.primary_phone ?? '—'}</div>
+      <div style={{ color: '#C0C0E0', lineHeight: 1.35, minWidth: 0 }}>
+        <span style={{ fontWeight: 600 }}>{f.activeStudentCount}</span>
+        {studentInstruments && <span style={{ color: '#8080A8' }}> · {studentInstruments}</span>}
+        {studentNames && <span style={{ color: '#8080A8' }}> · {studentNames}</span>}
+      </div>
+      <div>
+        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 100, ...(f.card_last_four ? { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' } : { background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' }) }}>
+          {f.card_last_four ? `${f.card_brand ?? 'Card'} ····${f.card_last_four}` : 'No card'}
+        </span>
+      </div>
+      <div style={{ minWidth: 0 }}><PaymentBadge status={f.paymentStatus} overdueAmount={f.overdueAmountDisplay} /></div>
+      <div>
+        {f.has_enrollment_agreement ? (
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 100, background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <Check size={8} /> Yes
           </span>
-          {f.is_military && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,184,0,0.15)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.25)', fontWeight: 700, flexShrink: 0 }}>MIL</span>}
-          <span style={{
-            fontSize: 12, fontWeight: 800, padding: '2px 8px', borderRadius: 6, flexShrink: 0,
-            background: isInactive ? 'rgba(255,255,255,0.06)' : rateEdge.solid,
-            color: isInactive ? '#606088' : '#1A1A2E',
-          }}>
-            ${f.monthlyTotalCents > 0 ? (f.monthlyTotalCents / 100).toFixed(0) : (f.rate_tier / 100).toFixed(0)}
-            <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.7 }}>/mo</span>
+        ) : (
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 100, background: 'rgba(239,68,68,0.12)', color: '#F87171', border: '1px solid rgba(239,68,68,0.3)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <XCircle size={8} /> No
           </span>
-        </div>
-
-        {/* Row 2: Email · Phone */}
-        <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#A0A0C8', flexWrap: 'wrap', minWidth: 0 }}>
-          {f.primary_email && <CopyText value={f.primary_email} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60vw' }} />}
-          {f.primary_phone && <CopyText value={f.primary_phone} />}
-        </div>
-
-        {/* Row 3: Students · Instrument · Names */}
-        <div style={{ fontSize: 12, color: '#C0C0E0', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-          {f.activeStudentCount} student{f.activeStudentCount !== 1 ? 's' : ''}
-          {studentInstruments && <span style={{ color: '#8080A8' }}> · {studentInstruments}</span>}
-          {studentNames && <span style={{ color: '#8080A8' }}> · {studentNames}</span>}
-        </div>
-
-        {/* Row 4: Status pills */}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, ...(f.card_last_four ? { background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' } : { background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' }) }}>
-            {f.card_last_four ? `${f.card_brand ?? 'Card'} ····${f.card_last_four}` : 'No Card'}
-          </span>
-          <PaymentBadge status={f.paymentStatus} overdueAmount={f.overdueAmountDisplay} />
-          {f.has_enrollment_agreement ? (
-            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-              <Check size={8} /> Agreement
-            </span>
-          ) : (
-            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 100, background: 'rgba(239,68,68,0.12)', color: '#F87171', border: '1px solid rgba(239,68,68,0.3)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-              <XCircle size={8} /> No Agreement
-            </span>
-          )}
-        </div>
-        {/* Row 5: Latest invoice line */}
-        {f.latestInvoice && <InvoiceLine invoice={f.latestInvoice} />}
+        )}
       </div>
     </div>
   )
-}
-
-function InvoiceLine({ invoice }: { invoice: { status: string; amountCents: number; date: string } }) {
-  const amt = `$${(invoice.amountCents / 100).toFixed(0)}`
-  const dateStr = invoice.date ? new Date(invoice.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
-  const s = invoice.status.toUpperCase()
-
-  let text: string
-  let color: string
-  if (s === 'PAID' || s === 'PARTIALLY_REFUNDED') {
-    text = `Paid ${amt}${dateStr ? ` on ${dateStr}` : ''}`
-    color = '#4ADE80'
-  } else if (s === 'SCHEDULED' || s === 'RECURRING') {
-    text = `Due ${amt}${dateStr ? ` on ${dateStr}` : ''}`
-    color = '#38BDF8'
-  } else if (s === 'UNPAID') {
-    text = `Unpaid ${amt}${dateStr ? ` \u2014 due ${dateStr}` : ''}`
-    color = '#F87171'
-  } else {
-    return null
-  }
-
-  return <div style={{ fontSize: 10, color, opacity: 0.8, fontWeight: 600 }}>{text}</div>
 }
 
 // ═══════════════════════════════════════
@@ -496,7 +606,7 @@ function PaymentBadge({ status, overdueAmount }: { status: string; overdueAmount
 // ═══════════════════════════════════════
 
 type ModalTab = 'account' | 'director' | 'messages'
-type MobileTab = 'account' | 'contact' | 'billing' | 'notifications'
+type MobileTab = 'account' | 'contact' | 'billing' | 'documents' | 'notifications'
 
 function useIsMobile(breakpoint = 900) {
   const [mobile, setMobile] = useState(typeof window !== 'undefined' && window.innerWidth < breakpoint)
@@ -618,19 +728,52 @@ function MobileNotificationPrefs({ family, toggleStyle, thumbStyle }: {
   )
 }
 
+/** Text block for Star: single-family facts from loaded family detail (authoritative for this modal). */
+function familyOperatorBlockFromDetail(family: Family): string {
+  return [
+    `Family: ${family.name}`,
+    `Parent: ${family.parent_first_name ?? ''} ${family.parent_last_name ?? family.parent_name ?? ''}`.trim(),
+    `Location: ${family.locationName ?? 'Unknown'}`,
+    `Status: ${family.billing_status}`,
+    `Rate: $${(family.rate_tier / 100).toFixed(2)}/session, Monthly: $${(family.monthlyTotalCents / 100).toFixed(2)}${family.rate_tier_override ? ' (override)' : ''}`,
+    `Balance: ${formatDollars(family.balance)}`,
+    family.overdue_balance_cents && family.overdue_balance_cents > 0 ? `Overdue: ${formatDollars(family.overdue_balance_cents)}` : null,
+    `Lifetime Paid: ${formatDollars(family.lifetime_paid_cents)}`,
+    `Active Students: ${family.activeStudentCount}`,
+    family.students.filter(s => s.status === 'active').map(s => `  - ${s.first_name} ${s.last_name}: ${s.instrument}, teacher: ${s.teacher_name}`).join('\n'),
+    family.scheduling_notes ? `Scheduling Notes: ${family.scheduling_notes}` : null,
+    family.is_military ? 'Military family' : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
 function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   familyId: string; canEdit: boolean; onClose: () => void; onNavigateStudent: (studentId: string) => void
 }) {
   const { role, tenantId, profile } = useAuthContext()
   const { isStudioDirector: sdFromPerm } = usePermissions()
   const { data: family, isLoading } = useFamilyDetail(familyId)
-  const { data: files } = useFamilyFiles(familyId)
-  const hasEnrollmentAgreement = (files ?? []).some(f => f.file_type === 'enrollment_agreement')
   const updateFamily = useUpdateFamilyInfo()
   const changeBillingStatus = useChangeFamilyBillingStatus()
   const uploadFile = useUploadFamilyFile()
   const deleteFile = useDeleteFamilyFile()
-  const { messages: aiMessages, isLoading: aiLoading, sendMessage: aiSend, clearConversation: aiClear } = useAI(tenantId)
+
+  const { systemPrompt: familyStarBusinessPrompt } = useStarComposedBusinessPrompt({
+    pageId: 'family_detail',
+    pageBody: family ? familyOperatorBlockFromDetail(family) : '',
+    overridePrompt:
+      !family
+        ? isLoading
+          ? '[STAR INTERNAL] Family detail is loading. Do not use scheduling tools. Reply only: "Family data is still loading."'
+          : '[STAR INTERNAL] Family not loaded. Do not use scheduling tools. Reply only: "Family could not be loaded."'
+        : undefined,
+  })
+
+  const { messages: aiMessages, isLoading: aiLoading, sendMessage: aiSend, clearConversation: aiClear } = useStarBusinessChat(
+    tenantId,
+    familyStarBusinessPrompt,
+  )
   const [activityLimit, setActivityLimit] = useState(20)
   const { data: activityLog } = useFamilyActivityLog(familyId, activityLimit)
 
@@ -755,19 +898,9 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
 
   const askStar = () => {
     if (!family) return
-    aiClear(); setShowStar(true)
-    const ctx = [
-      `Family: ${family.name}`, `Parent: ${family.parent_first_name ?? ''} ${family.parent_last_name ?? family.parent_name ?? ''}`.trim(),
-      `Location: ${family.locationName ?? 'Unknown'}`, `Status: ${family.billing_status}`,
-      `Rate: $${(family.rate_tier / 100).toFixed(2)}/session, Monthly: $${(family.monthlyTotalCents / 100).toFixed(2)}${family.rate_tier_override ? ' (override)' : ''}`,
-      `Balance: ${formatDollars(family.balance)}`,
-      family.overdue_balance_cents && family.overdue_balance_cents > 0 ? `Overdue: ${formatDollars(family.overdue_balance_cents)}` : null,
-      `Lifetime Paid: ${formatDollars(family.lifetime_paid_cents)}`, `Active Students: ${family.activeStudentCount}`,
-      family.students.filter(s => s.status === 'active').map(s => `  - ${s.first_name} ${s.last_name}: ${s.instrument}, teacher: ${s.teacher_name}`).join('\n'),
-      family.scheduling_notes ? `Scheduling Notes: ${family.scheduling_notes}` : null,
-      family.is_military ? 'Military family' : null,
-    ].filter(Boolean).join('\n')
-    aiSend(`Here is the full context for a family account. Please provide a concise operator summary:\n\n${ctx}`)
+    aiClear()
+    setShowStar(true)
+    aiSend('Give a concise operator summary for this family based on the system context (school snapshot + family detail).')
   }
 
   const status = family?.billing_status ?? 'active'
@@ -869,13 +1002,13 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
 
             {/* ── MOBILE TABS ── */}
             <div style={{ display: 'flex', gap: 6, padding: '10px 16px', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              {(['account', 'contact', 'billing', 'notifications'] as MobileTab[]).map((t) => (
+              {(['account', 'contact', 'billing', 'documents', 'notifications'] as MobileTab[]).map((t) => (
                 <button key={t} data-guide-id={`family-tab-${t}`} onClick={() => switchTab(t)} style={{
                   padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0,
                   background: mobileTab === t ? 'rgba(212,34,106,0.12)' : 'rgba(255,255,255,0.04)',
                   color: mobileTab === t ? '#E8488A' : '#8080A8',
                   border: mobileTab === t ? '1px solid rgba(212,34,106,0.25)' : '1px solid rgba(255,255,255,0.06)',
-                }}>{t === 'account' ? 'Account' : t === 'contact' ? 'Contact' : t === 'billing' ? 'Billing' : 'Notifications'}</button>
+                }}>{t === 'account' ? 'Account' : t === 'contact' ? 'Contact' : t === 'billing' ? 'Billing' : t === 'documents' ? 'Documents' : 'Notifications'}</button>
               ))}
             </div>
 
@@ -1032,6 +1165,17 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 )}
               </>)}
 
+              {/* ── MOBILE: DOCUMENTS ── */}
+              {mobileTab === 'documents' && (
+                <FamilyDocumentsSection
+                  familyId={family.id}
+                  canUpload={canUpload}
+                  variant="compact"
+                  onUploadClick={() => { setUploadType('enrollment_agreement'); setShowUploadModal(true) }}
+                  onDeleteRequest={setDeleteConfirm}
+                />
+              )}
+
               {/* ── MOBILE: NOTIFICATIONS ── */}
               {mobileTab === 'notifications' && (
                 <MobileNotificationPrefs family={family} toggleStyle={mToggle} thumbStyle={mThumb} />
@@ -1044,6 +1188,32 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
         {showCreateInvoice && family && <CreateInvoiceFromFamily family={family} onClose={() => setShowCreateInvoice(false)} />}
         {confirmAction && <ConfirmModal title={`${confirmAction.status === 'suspended' ? 'Suspend' : 'Cancel'} Family Billing?`} message={confirmAction.status === 'suspended' ? 'This will suspend billing.' : 'This will cancel billing.'} variant={confirmAction.status === 'cancelled' ? 'danger' : 'warning'} confirmLabel={confirmAction.status === 'suspended' ? 'Suspend' : 'Cancel Billing'} onConfirm={() => doStatusChange(confirmAction.status)} onCancel={() => setConfirmAction(null)} />}
         {deleteConfirm && <ConfirmModal title="Delete File?" message={`Delete "${deleteConfirm.file_name}"?`} variant="danger" confirmLabel="Delete" onConfirm={() => handleDeleteFile(deleteConfirm)} onCancel={() => setDeleteConfirm(null)} />}
+        {showUploadModal && family && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setShowUploadModal(false)}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: '#1A1830', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, border: '1px solid rgba(255,255,255,0.1)' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#E0E0F4', marginBottom: 16 }}>Upload Document</h3>
+              <div style={{ marginBottom: 12 }}>
+                <span style={labelStyle}>Document Type</span>
+                <select value={uploadType} onChange={(e) => setUploadType(e.target.value)} className="filter-select" style={{ width: '100%', marginTop: 4 }}>
+                  <option value="enrollment_agreement">Enrollment Agreement</option>
+                  <option value="contract">Contract</option>
+                  <option value="id">ID</option>
+                  <option value="insurance">Insurance</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <span style={labelStyle}>Notes (optional)</span>
+                <input value={uploadNotes} onChange={(e) => setUploadNotes(e.target.value)} className="filter-select" style={{ width: '100%', marginTop: 4 }} placeholder="Optional notes..." />
+              </div>
+              <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f) }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className="btn-ghost" onClick={() => setShowUploadModal(false)}>Cancel</button>
+                <button type="button" className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploadFile.isPending}>{uploadFile.isPending ? 'Uploading...' : 'Choose File'}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>,
       document.body
     )
@@ -1287,15 +1457,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 })()}
               </div>
 
-              {/* DOCUMENTS — on Account tab for visibility */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 20, paddingTop: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <FileText size={14} style={{ color: '#8080A8' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Documents</span>
-                </div>
-                <DocumentsSection files={files ?? []} hasEnrollmentAgreement={hasEnrollmentAgreement} canUpload={canUpload} onUpload={() => { setUploadType('enrollment_agreement'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />
-              </div>
-
               {/* ACTIVITY LOG */}
               {canEdit && (
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 20, paddingTop: 16 }}>
@@ -1387,15 +1548,20 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   {fld('Sessions / Month', String(family.totalSessionsPerMonth ?? 0))}
                 </div>
 
-                {/* RIGHT — Notes (editable) + Files */}
+                {/* RIGHT — Notes (editable) + family documents */}
                 <div>
                   <div style={sectionLabelStyle}>Notes</div>
                   {txt('billing_notes', 'Billing Notes', 'Billing-related notes...')}
                   {txt('scheduling_notes', 'Scheduling Notes', 'e.g. No Mondays after 6pm, prefers same teacher for siblings...')}
 
-                  <div data-guide-id="family-files-section">
-                  <div style={{ ...sectionLabelStyle, marginTop: 20 }}>Documents</div>
-                  <DocumentsSection files={files ?? []} hasEnrollmentAgreement={hasEnrollmentAgreement} canUpload={canUpload} onUpload={() => { setUploadType('enrollment_agreement'); setShowUploadModal(true) }} onDelete={setDeleteConfirm} />
+                  <div style={{ marginTop: 20 }}>
+                    <div style={sectionLabelStyle}>Documents</div>
+                    <FamilyDocumentsSection
+                      familyId={family.id}
+                      canUpload={canUpload}
+                      onUploadClick={() => { setUploadType('enrollment_agreement'); setShowUploadModal(true) }}
+                      onDeleteRequest={setDeleteConfirm}
+                    />
                   </div>
                 </div>
               </div>
@@ -1485,116 +1651,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
       )}
     </div>,
     document.body
-  )
-}
-
-// ═══════════════════════════════════════
-// DOCUMENTS SECTION (enrollment agreement badge + file list)
-// ═══════════════════════════════════════
-
-const FILE_TYPE_LABELS: Record<string, string> = {
-  enrollment_agreement: 'Enrollment Agreement',
-  contract: 'Contract',
-  enrollment_form: 'Enrollment Form',
-  id: 'ID',
-  insurance: 'Insurance',
-  other: 'Other',
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  migration: 'Migration',
-  manual: 'Manual',
-  signwell: 'SignWell',
-}
-
-function DocumentsSection({ files, hasEnrollmentAgreement, canUpload, onUpload, onDelete }: {
-  files: FamilyFile[]
-  hasEnrollmentAgreement: boolean
-  canUpload: boolean
-  onUpload: () => void
-  onDelete: (f: FamilyFile) => void
-}) {
-  const agreementFile = files.find(f => f.file_type === 'enrollment_agreement')
-
-  return (
-    <div>
-      {/* Enrollment Agreement Status Badge */}
-      {hasEnrollmentAgreement ? (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, marginBottom: 12,
-          background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)',
-        }}>
-          <ShieldCheck size={16} style={{ color: '#22C55E', flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#22C55E' }}>Enrollment Agreement on file</div>
-            {agreementFile && (
-              <div style={{ fontSize: 10, color: '#8080A8', marginTop: 1 }}>
-                Signed {new Date(agreementFile.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, marginBottom: 12,
-          background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)',
-        }}>
-          <AlertTriangle size={16} style={{ color: '#FFB800', flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#FFB800' }}>No enrollment agreement on file</div>
-            <div style={{ fontSize: 10, color: '#8080A8', marginTop: 1 }}>Upload one below or collect a signature</div>
-          </div>
-        </div>
-      )}
-
-      {/* File List */}
-      {files.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-          {files.map((f) => (
-            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <FileText size={14} style={{ color: '#8080A8', flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#C0C0E0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file_name}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#606088', marginTop: 1, flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 600 }}>{FILE_TYPE_LABELS[f.file_type] ?? f.file_type}</span>
-                  <span>·</span>
-                  <span>{new Date(f.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                  {f.source && SOURCE_LABELS[f.source] && (
-                    <>
-                      <span>·</span>
-                      <span style={{
-                        fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
-                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#8080A8',
-                      }}>{SOURCE_LABELS[f.source]}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <a href={f.file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: '#38BDF8', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>View</a>
-              <a href={f.file_url} download style={{ fontSize: 10, color: '#8080A8', fontWeight: 600, textDecoration: 'none', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Download size={10} />
-              </a>
-              {canUpload && (
-                <button onClick={(e) => { e.stopPropagation(); onDelete(f) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#606088', padding: 2 }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')} onMouseLeave={e => (e.currentTarget.style.color = '#606088')}>
-                  <Trash2 size={12} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{ fontSize: 12, color: '#606088', padding: '8px 0', marginBottom: 8 }}>No documents on file</div>
-      )}
-
-      {canUpload && (
-        <button onClick={onUpload} style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', width: '100%',
-          borderRadius: 8, background: 'rgba(34,197,94,0.06)', border: '1px dashed rgba(34,197,94,0.2)',
-          color: '#22C55E', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-        }}><Upload size={12} /> Upload Document</button>
-      )}
-    </div>
   )
 }
 
@@ -2003,22 +2059,41 @@ function FamilyMessagesTab({ familyId, locationId, familyPhone }: {
   })
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (!messages?.length) return
+    const frame = requestAnimationFrame(() => {
+      const el = scrollRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    })
+    return () => cancelAnimationFrame(frame)
   }, [messages])
 
-  // Mark unread inbound messages as read when tab opens
+  // Mark unread inbound messages as read — batched IN clauses + cancellation-safe invalidate
   useEffect(() => {
     if (!messages || !user) return
     let cancelled = false
     const unread = messages.filter(m => m.direction === 'inbound' && !m.read)
     if (unread.length === 0) return
-    supabase.from('studio_messages').update({
-      read: true, read_at: new Date().toISOString(), read_by: user.id,
-    }).in('id', unread.map(m => m.id)).then(() => {
-      if (cancelled) return
-      qc.invalidateQueries({ queryKey: ['admin-family-messages', familyId] })
-    })
-    return () => { cancelled = true }
+
+    const ids = unread.map(m => m.id)
+    const BATCH = 80
+
+    ;(async () => {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        if (cancelled) return
+        const slice = ids.slice(i, i + BATCH)
+        const { error } = await supabase.from('studio_messages').update({
+          read: true, read_at: new Date().toISOString(), read_by: user.id,
+        }).in('id', slice)
+        if (error) return
+      }
+      if (!cancelled) {
+        qc.invalidateQueries({ queryKey: ['admin-family-messages', familyId] })
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [messages, user, familyId, qc])
 
   const sendMessage = useMutation({

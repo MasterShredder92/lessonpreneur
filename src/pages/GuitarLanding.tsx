@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { useLandingSEO, buildInstrumentJsonLd } from '../hooks/useLandingSEO'
 import { setLocColors } from '../lib/setLocColors'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
@@ -134,11 +135,13 @@ export default function GuitarLanding() {
   const locStats = useLocationStats(loc)
   useEffect(() => { trackInstrumentView('Guitar') }, [])
 
-  useEffect(() => {
-    document.title = `Guitar Lessons in ${LD.name}, NE | Acoustic to Electric — Adkins Music Lessons`
-    document.querySelector('meta[name="description"]')?.setAttribute('content',
-      `Private guitar lessons in ${LD.name}, NE. Acoustic, electric and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`)
-  }, [loc])
+  useLandingSEO({
+    loc,
+    title: `Guitar Lessons in ${LD.name}, NE | Acoustic to Electric — Adkins Music Lessons`,
+    description: `Private guitar lessons in ${LD.name}, NE. Acoustic, electric and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`,
+    path: `/${loc}/guitar`,
+    jsonLd: buildInstrumentJsonLd(loc, 'Guitar', 'Private one-on-one guitar lessons covering acoustic, electric, fingerstyle, and more. All ages and skill levels.'),
+  })
 
   // Set CSS vars on location change
   useEffect(() => {

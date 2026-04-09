@@ -54,44 +54,60 @@ export default function Dashboard() {
     },
   })
 
-  // Last month virtual sessions summary
+  // Last month virtual sessions summary — tenant-scoped, hard-capped row count, abortable, batched IN counts
   const { data: virtualSummary } = useQuery({
-    queryKey: ['virtual-summary-last-month'],
-    queryFn: async () => {
+    queryKey: ['virtual-summary-last-month', tenantId],
+    enabled: !!tenantId,
+    queryFn: async ({ signal }) => {
       const now = new Date()
       const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
       const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
       const startStr = lastMonthStart.toISOString().split('T')[0]
       const endStr = lastMonthEnd.toISOString().split('T')[0]
 
-      const { data: virtualBlocks } = await supabase
+      const VIRTUAL_BLOCK_CAP = 8000
+      const IN_CHUNK = 120
+
+      const { data: virtualBlocks, error: vbErr } = await supabase
         .from('schedule_blocks')
         .select('id, location_id')
+        .eq('tenant_id', tenantId!)
         .eq('is_virtual', true)
         .gte('block_date', startStr)
         .lte('block_date', endStr)
+        .limit(VIRTUAL_BLOCK_CAP)
+        .abortSignal(signal)
 
+      if (vbErr) throw vbErr
       if (!virtualBlocks || virtualBlocks.length === 0) return null
 
       const blockIds = virtualBlocks.map(b => b.id)
       const locationCount = new Set(virtualBlocks.map(b => b.location_id)).size
 
-      const { count: notifCount } = await supabase
-        .from('appointment_notifications')
-        .select('*', { count: 'exact', head: true })
-        .in('block_id', blockIds)
-
-      const { count: failCount } = await supabase
-        .from('appointment_notifications')
-        .select('*', { count: 'exact', head: true })
-        .in('block_id', blockIds)
-        .eq('success', false)
+      let notifCount = 0
+      let failCount = 0
+      for (let i = 0; i < blockIds.length; i += IN_CHUNK) {
+        const chunk = blockIds.slice(i, i + IN_CHUNK)
+        const { count: n } = await supabase
+          .from('appointment_notifications')
+          .select('*', { count: 'exact', head: true })
+          .in('block_id', chunk)
+          .abortSignal(signal)
+        notifCount += n ?? 0
+        const { count: f } = await supabase
+          .from('appointment_notifications')
+          .select('*', { count: 'exact', head: true })
+          .in('block_id', chunk)
+          .eq('success', false)
+          .abortSignal(signal)
+        failCount += f ?? 0
+      }
 
       return {
         sessions: virtualBlocks.length,
         locations: locationCount,
-        notifications: notifCount ?? 0,
-        failures: failCount ?? 0,
+        notifications: notifCount,
+        failures: failCount,
         monthLabel: lastMonthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
       }
     },
@@ -107,7 +123,7 @@ export default function Dashboard() {
     let cancelled = false
     const checkInsight = async () => {
       try {
-        const { data: rows } = await supabase
+        const { data: rows, error } = await supabase
           .from('ai_conversations')
           .select('id, content, metadata')
           .eq('tenant_id', tenantId)
@@ -116,12 +132,15 @@ export default function Dashboard() {
           .order('created_at', { ascending: false })
           .limit(10)
         if (cancelled) return
+        if (error) return
         const insight = rows?.find((r: any) => r.metadata?.type === 'onboarding_insight' && !r.metadata?.shown)
         if (insight) setInsightModal({ id: insight.id, content: insight.content })
       } catch { /* silent */ }
     }
     checkInsight()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [profile?.id, tenantId])
 
   const dismissInsight = async () => {

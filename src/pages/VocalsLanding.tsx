@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { useLandingSEO, buildInstrumentJsonLd } from '../hooks/useLandingSEO'
 import { setLocColors } from '../lib/setLocColors'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
@@ -91,11 +92,13 @@ export default function VocalsLanding() {
   const locStats = useLocationStats(loc)
   useEffect(() => { trackInstrumentView('Vocals') }, [])
 
-  useEffect(() => {
-    document.title = `Vocal Lessons in ${LD.name}, NE | All Ages & Styles — Adkins Music Lessons`
-    document.querySelector('meta[name="description"]')?.setAttribute('content',
-      `Private vocal lessons in ${LD.name}, NE. All ages and styles. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`)
-  }, [loc])
+  useLandingSEO({
+    loc,
+    title: `Vocal Lessons in ${LD.name}, NE | All Ages & Styles — Adkins Music Lessons`,
+    description: `Private vocal lessons in ${LD.name}, NE. All ages and styles. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`,
+    path: `/${loc}/vocals`,
+    jsonLd: buildInstrumentJsonLd(loc, 'Vocals', 'Private one-on-one vocal and singing lessons for all ages and styles. Build range, confidence, and technique.'),
+  })
 
   // Set CSS vars on location change
   useEffect(() => {

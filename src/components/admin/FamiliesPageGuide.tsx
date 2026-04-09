@@ -70,6 +70,14 @@ const STEPS: GuideStep[] = [
     skipIfMissing: true,
   },
   {
+    id: 'family-tab-documents',
+    targetSelector: '[data-guide-id="family-tab-documents"]',
+    title: 'Documents Tab (Mobile)',
+    body: "On your phone, household documents live on the Documents tab — enrollment agreements, contracts, and IDs. On desktop, open the Director tab to see the same section next to billing notes.",
+    clickBeforeShow: '[data-guide-id="family-tab-documents"]',
+    skipIfMissing: true,
+  },
+  {
     id: 'family-files-section',
     targetSelector: '[data-guide-id="family-files-section"]',
     title: 'Family Documents',

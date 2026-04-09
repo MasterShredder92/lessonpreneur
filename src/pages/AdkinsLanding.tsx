@@ -97,15 +97,150 @@ export default function AdkinsLanding() {
   useLocationTracking(LOCATIONS[loc])
   const locStats = useLocationStats(loc)
 
-  // Dynamic SEO: page title + meta description per location
+  // Dynamic SEO: full meta tag coverage per location
   useEffect(() => {
     const l = LOCATIONS[loc]
-    document.title = `${l.fullName} | Piano, Guitar, Vocals & Drums — Adkins Music Lessons`
-    document.querySelector('meta[name="description"]')?.setAttribute('content',
-      `Private music lessons in ${l.name}, NE. Piano, guitar, vocals, drums & more. Expert teachers, flexible scheduling, no contracts. 90-day free trial. ${l.phone}`)
-    document.querySelector('meta[property="og:title"]')?.setAttribute('content', `${l.fullName} — Private Music Lessons`)
-    document.querySelector('meta[property="og:url"]')?.setAttribute('content', `https://www.lessonpreneur.io${l.route}`)
+    const url = `https://www.lessonpreneur.io${l.route}`
+    const title = `${l.fullName} | Piano, Guitar, Vocals & Drums — Adkins Music Lessons`
+    const desc = `Private music lessons in ${l.name}, NE. Piano, guitar, vocals, drums & more. Expert teachers, flexible scheduling, no contracts. 90-day free trial. ${l.phone}`
+
+    document.title = title
+
+    // Helper to set or create a meta tag
+    const setMeta = (attr: string, key: string, content: string) => {
+      let el = document.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null
+      if (!el) { el = document.createElement('meta'); el.setAttribute(attr, key); document.head.appendChild(el) }
+      el.setAttribute('content', content)
+    }
+
+    // Core SEO
+    setMeta('name', 'description', desc)
+    setMeta('name', 'geo.placename', `${l.name}, Nebraska`)
+
+    // Open Graph
+    setMeta('property', 'og:title', title)
+    setMeta('property', 'og:description', desc)
+    setMeta('property', 'og:url', url)
+    setMeta('property', 'og:type', 'website')
+    setMeta('property', 'og:locale', 'en_US')
+    setMeta('property', 'og:site_name', 'Adkins Music Lessons')
+
+    // Twitter Card
+    setMeta('name', 'twitter:card', 'summary_large_image')
+    setMeta('name', 'twitter:title', title)
+    setMeta('name', 'twitter:description', desc)
+
+    // Canonical
+    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null
+    if (!canonical) { canonical = document.createElement('link'); canonical.setAttribute('rel', 'canonical'); document.head.appendChild(canonical) }
+    canonical.setAttribute('href', url)
   }, [loc])
+
+  // JSON-LD structured data: LocalBusiness + MusicSchool per location
+  useEffect(() => {
+    const l = LOCATIONS[loc]
+    const url = `https://www.lessonpreneur.io${l.route}`
+    const addressParts = l.address.split(', ')
+    const streetAddress = addressParts[0]
+    const city = l.name
+    const stateZip = addressParts[addressParts.length - 1] || 'NE'
+    const state = 'NE'
+    const zip = stateZip.replace(/[^0-9]/g, '') || '68000'
+
+    const localBusiness = {
+      '@context': 'https://schema.org',
+      '@type': ['LocalBusiness', 'MusicSchool'],
+      '@id': url,
+      name: l.fullName,
+      alternateName: 'Adkins Music Lessons',
+      description: `Private music lessons in ${city}, Nebraska. Piano, guitar, vocals, drums and more. Expert teachers, flexible scheduling, no contracts. Month to month.`,
+      url,
+      telephone: l.phone,
+      email: l.email,
+      image: `https://www.lessonpreneur.io/og-image.png`,
+      logo: `https://www.lessonpreneur.io/favicon.png`,
+      priceRange: '$$',
+      currenciesAccepted: 'USD',
+      paymentAccepted: 'Credit Card, Debit Card',
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress,
+        addressLocality: city,
+        addressRegion: state,
+        postalCode: zip,
+        addressCountry: 'US',
+      },
+      geo: {
+        '@type': 'GeoCoordinates',
+        latitude: l.geo.lat,
+        longitude: l.geo.lng,
+      },
+      openingHoursSpecification: [
+        { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday'], opens: '15:00', closes: '21:00' },
+        { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Saturday', 'Sunday'], opens: '10:00', closes: '15:00' },
+      ],
+      founder: {
+        '@type': 'Person',
+        name: 'Zachary Adkins',
+        description: '2017 National Guitar Competition winner',
+      },
+      numberOfEmployees: { '@type': 'QuantitativeValue', value: 30 },
+      areaServed: {
+        '@type': 'City',
+        name: city,
+        containedInPlace: { '@type': 'State', name: 'Nebraska' },
+      },
+      hasOfferCatalog: {
+        '@type': 'OfferCatalog',
+        name: 'Music Lesson Programs',
+        itemListElement: [
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Guitar Lessons', description: 'Private one-on-one guitar lessons for all ages and skill levels' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Piano Lessons', description: 'Private one-on-one piano lessons for all ages and skill levels' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Vocal Lessons', description: 'Private one-on-one vocal lessons for all ages and skill levels' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Drum Lessons', description: 'Private one-on-one drum lessons for all ages and skill levels' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Bass Lessons', description: 'Private one-on-one bass guitar lessons' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Violin Lessons', description: 'Private one-on-one violin lessons at select locations' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Flute Lessons', description: 'Private one-on-one flute lessons at select locations' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Percussion Lessons', description: 'Private one-on-one percussion lessons' } },
+        ],
+      },
+      sameAs: [
+        `https://${l.domain}`,
+      ],
+    }
+
+    // Inject or update the script tag
+    const id = 'ld-json-local-business'
+    let script = document.getElementById(id) as HTMLScriptElement | null
+    if (!script) { script = document.createElement('script'); script.id = id; script.type = 'application/ld+json'; document.head.appendChild(script) }
+    script.textContent = JSON.stringify(localBusiness)
+
+    return () => { script?.remove() }
+  }, [loc])
+
+  // JSON-LD: FAQPage schema
+  useEffect(() => {
+    const faqData = [
+      { q: 'Do you teach adults?', a: 'Absolutely. We have students of all ages and our teachers are experienced working with adult learners. Adults often progress faster than kids because of their focus and life experience.' },
+      { q: 'Do I need my own instrument?', a: 'Not necessarily. Some students start without one. During enrollment we will ask and can help you figure out the best path — renting, buying, or borrowing.' },
+      { q: 'What if I need to cancel?', a: 'Month to month. Cancel anytime, no questions asked. No contracts, no fees, no drama.' },
+      { q: 'How long are lessons?', a: 'Standard lessons are 30 minutes. Some students do 45 or 60 minute sessions depending on age and level.' },
+    ]
+    const faqSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faqData.map(f => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    }
+    const id = 'ld-json-faq'
+    let script = document.getElementById(id) as HTMLScriptElement | null
+    if (!script) { script = document.createElement('script'); script.id = id; script.type = 'application/ld+json'; document.head.appendChild(script) }
+    script.textContent = JSON.stringify(faqSchema)
+    return () => { script?.remove() }
+  }, [])
 
   // Fetch logos from Supabase
   useEffect(() => {

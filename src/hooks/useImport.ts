@@ -243,9 +243,16 @@ export function useImportStudents() {
 
     setResult({ added, skipped: preview.dupCount, failed, errors })
     setStatus('done')
-    qc.invalidateQueries({ queryKey: ['students'] })
-    qc.invalidateQueries({ queryKey: ['families'] })
-    qc.invalidateQueries({ queryKey: ['families_page'] })
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['students'] }),
+      qc.invalidateQueries({ queryKey: ['students_roster'] }),
+      qc.invalidateQueries({ queryKey: ['student-instruments'] }),
+      qc.invalidateQueries({ queryKey: ['student-tab-counts'] }),
+      qc.invalidateQueries({ queryKey: ['families'] }),
+      qc.invalidateQueries({ queryKey: ['families_page'] }),
+      qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
+    ])
   }
 
   const reset = () => { setStatus('idle'); setProgress(0); setPreview(null); setResult(null) }

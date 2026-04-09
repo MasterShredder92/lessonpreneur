@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import { EDGE_FUNCTIONS } from '../lib/config'
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -57,50 +56,45 @@ export function useSendReviewRequest() {
 }
 
 // ── Generate AI message via edge function ──
+// Uses supabase.functions.invoke (not raw fetch) so the client sends both
+// Authorization (user JWT) and apikey (anon) as required by the gateway.
+// refreshSession() runs first so the JWT is not a stale cached access_token.
 export async function generateReviewMessage(params: {
   parentFirstName: string
   students: { name: string; instrument: string; createdAt: string }[]
   locationName: string
   googleReviewUrl: string
 }): Promise<{ message: string; fallback: boolean }> {
-  try {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token
-    if (!token) throw new Error('No auth token')
+  await supabase.auth.refreshSession()
 
-    const res = await fetch(
-      EDGE_FUNCTIONS.generateReviewMessage,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          parent_first_name: params.parentFirstName,
-          students: params.students.map((s) => ({
-            name: s.name,
-            instrument: s.instrument,
-            created_at: s.createdAt,
-          })),
-          location_name: params.locationName,
-          google_review_url: params.googleReviewUrl,
-        }),
-      }
-    )
-
-    if (!res.ok) {
-      return { message: buildFallbackMessage(params), fallback: true }
-    }
-
-    const data = await res.json()
-    if (data.fallback || data.error || !data.message) {
-      return { message: buildFallbackMessage(params), fallback: true }
-    }
-    return { message: data.message, fallback: false }
-  } catch {
+  const { data: sessionData } = await supabase.auth.getSession()
+  if (!sessionData.session?.access_token) {
     return { message: buildFallbackMessage(params), fallback: true }
   }
+
+  const { data, error } = await supabase.functions.invoke('generate-review-message', {
+    body: {
+      parent_first_name: params.parentFirstName,
+      students: params.students.map((s) => ({
+        name: s.name,
+        instrument: s.instrument,
+        created_at: s.createdAt,
+      })),
+      location_name: params.locationName,
+      google_review_url: params.googleReviewUrl,
+    },
+  })
+
+  if (error) {
+    return { message: buildFallbackMessage(params), fallback: true }
+  }
+
+  const payload = data as { message?: string; error?: string; fallback?: boolean } | null
+  if (!payload?.message?.trim() || payload.fallback || payload.error) {
+    return { message: buildFallbackMessage(params), fallback: true }
+  }
+
+  return { message: payload.message.trim(), fallback: false }
 }
 
 function buildFallbackMessage(params: {

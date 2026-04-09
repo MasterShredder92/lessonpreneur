@@ -273,11 +273,17 @@ export function useImportSquareFamily() {
 
       return { familyId: family.id, familyName: `The ${parsed.familyLastName} Family` }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['square-sync'] })
       qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['families_page'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['students_roster'] })
+      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['billing_families'] })
       qc.invalidateQueries({ queryKey: ['billing_dashboard'] })
       qc.invalidateQueries({ queryKey: ['billing_hero_stats'] })
@@ -345,11 +351,17 @@ export function useBulkImportSquareFamilies() {
 
       return results
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['square-sync'] })
       qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['families_page'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['students_roster'] })
+      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['billing_families'] })
       qc.invalidateQueries({ queryKey: ['billing_dashboard'] })
       qc.invalidateQueries({ queryKey: ['billing_hero_stats'] })
@@ -368,9 +380,14 @@ export function useUpdateFamilyStatus() {
         .eq('id', familyId)
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['square-sync'] })
       qc.invalidateQueries({ queryKey: ['families'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['billing_families'] })
       qc.invalidateQueries({ queryKey: ['billing_hero_stats'] })
     },

@@ -1,0 +1,17 @@
+-- ROLLBACK TEMPLATE — run ONLY if you must restore pre-migration function + grants.
+-- 1. Before first apply, save the output of:
+--      SELECT pg_get_functiondef('public.get_star_context(uuid)'::regprocedure);
+-- 2. Paste that full CREATE OR REPLACE below this line (replace nothing else until pasted).
+-- 3. Paste pre-migration grants after the function (copy from grants-before capture).
+
+-- === PASTE full pg_get_functiondef output for get_star_context(uuid) below ===
+
+
+
+-- === PASTE grants snapshot (from information_schema.routine_privileges or manual GRANTs) ===
+-- Example shape (values MUST match your captured "before" state):
+-- REVOKE ALL ON FUNCTION public.get_star_context(uuid) FROM PUBLIC;
+-- GRANT EXECUTE ON FUNCTION public.get_star_context(uuid) TO PUBLIC;
+-- GRANT EXECUTE ON FUNCTION public.get_star_context(uuid) TO anon;
+-- GRANT EXECUTE ON FUNCTION public.get_star_context(uuid) TO authenticated;
+-- GRANT EXECUTE ON FUNCTION public.get_star_context(uuid) TO service_role;

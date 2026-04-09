@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
-import { EDGE_FUNCTIONS } from '../lib/config'
+import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../services/aiAssistantClient'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -115,10 +115,6 @@ export function useGenerateWave1() {
     mutationFn: async (onProgress: (done: number, total: number) => void) => {
       if (!tenantId) throw new Error('No tenant context')
 
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      if (!token) throw new Error('No auth token')
-
       // 1. Get all active students with session data since January
       const { data: students } = await supabase
         .from('students')
@@ -200,24 +196,13 @@ export function useGenerateWave1() {
               logs.length > 0 ? `Most recent focus: ${(logs[0].worked_on ?? []).join(', ') || 'general practice'}` : null,
             ].filter(Boolean).join('\n')
 
-            // Call AI
-            const res = await fetch(
-              EDGE_FUNCTIONS.aiAssistant,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({
-                  question: `Generate a semester progress summary:\n\n${context}`,
-                  tenant_id: tenantId,
-                  conversation_history: [],
-                  system_override: `You are writing a personalized semester progress update for a music student's family. This highlights their growth and encourages them to continue through summer. Use the session data to reference SPECIFIC things the student worked on and skills they developed. Be warm, genuine, and specific — never generic. 3-4 sentences. End with encouragement about summer being a great time to build on momentum. The student's name is ${student.first_name}. They study ${student.instrument ?? 'music'}. Sign off as ${teacherName}.`,
-                }),
-              }
-            )
-
-            const result = await res.json()
-            const body = result.answer
-            if (!body) { skipped++; return }
+            const result = await postAiAssistantBusinessOverride({
+              tenantId: tenantId!,
+              question: `Generate a semester progress summary:\n\n${context}`,
+              systemOverride: `You are writing a personalized semester progress update for a music student's family. This highlights their growth and encourages them to continue through summer. Use the session data to reference SPECIFIC things the student worked on and skills they developed. Be warm, genuine, and specific — never generic. 3-4 sentences. End with encouragement about summer being a great time to build on momentum. The student's name is ${student.first_name}. They study ${student.instrument ?? 'music'}. Sign off as ${teacherName}.`,
+            })
+            const body = pickAiAssistantAnswerText(result)
+            if (!body || result.error) { skipped++; return }
 
             // Save to communications
             const { data: comm } = await supabase.from('communications').insert({
@@ -319,9 +304,6 @@ export function useGenerateWinBack() {
   return useMutation({
     mutationFn: async (campaignId: string) => {
       if (!tenantId) throw new Error('No tenant context')
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      if (!token) throw new Error('No auth token')
 
       // Get the campaign
       const { data: campaign } = await supabase.from('retention_campaigns').select('*').eq('id', campaignId).single()
@@ -347,19 +329,13 @@ export function useGenerateWinBack() {
         3: `Write an "it's not too late" message for ${student.first_name}'s family. They've been away ${daysPaused} days. They were studying ${student.instrument ?? 'music'} and were working on ${lastTopics.join(', ') || 'building their skills'}. Encourage a fresh start. Mention that their progress isn't lost — they can pick up right where they left off. 2-3 sentences, encouraging and genuine.`,
       }
 
-      const res = await fetch(EDGE_FUNCTIONS.aiAssistant, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          question: prompts[campaign.wave_number] ?? prompts[1],
-          tenant_id: tenantId,
-          conversation_history: [],
-          system_override: 'You are writing a warm re-engagement message for a music school. Be personal, specific, and brief. Sign off as the studio team. No subject line, just the message body.',
-        }),
+      const result = await postAiAssistantBusinessOverride({
+        tenantId: tenantId!,
+        question: prompts[campaign.wave_number] ?? prompts[1],
+        systemOverride: 'You are writing a warm re-engagement message for a music school. Be personal, specific, and brief. Sign off as the studio team. No subject line, just the message body.',
       })
-      const result = await res.json()
-      const body = result.answer
-      if (!body) throw new Error('AI generation failed')
+      const body = pickAiAssistantAnswerText(result)
+      if (!body || result.error) throw new Error(result.error || 'AI generation failed')
 
       // Save to communications
       const subjects: Record<number, string> = {

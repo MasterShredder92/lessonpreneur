@@ -22,6 +22,7 @@ export interface LocationConfig {
   accentColor: string
   accentGlow: string
   accentLight: string
+  geo: { lat: number; lng: number }
   reviews: { text: string; name: string; role: string }[]
 }
 
@@ -43,6 +44,7 @@ export const LOCATIONS: Record<LocKey, LocationConfig> = {
     accentColor: '#D41113',
     accentGlow: 'rgba(212,17,19,0.22)',
     accentLight: 'rgba(212,17,19,0.11)',
+    geo: { lat: 41.2168, lng: -96.0262 },
     reviews: [
       { text: "Adkins is great to work with as a business and Sarah is a wonderful piano teacher. She lets our son take things at his pace and he adores her. We always see smiles as people come in and out.", name: "Charles", role: "Parent" },
       { text: "I have been relearning piano through Sarah Cornell for the past couple of months. I have definitely picked up a lot. She is a truly gifted, humble teacher. I cannot speak highly enough.", name: "Caryl Chapman", role: "Student" },
@@ -66,6 +68,7 @@ export const LOCATIONS: Record<LocKey, LocationConfig> = {
     accentColor: '#A333FF',
     accentGlow: 'rgba(163,51,255,0.22)',
     accentLight: 'rgba(163,51,255,0.11)',
+    geo: { lat: 41.1367, lng: -95.9205 },
     reviews: [
       { text: "We have had an amazing experience with Bellevue Music Lessons! The entire staff is incredibly kind and welcoming. Our 8-year-old daughter absolutely loves her guitar lessons.", name: "Matt & Cindy", role: "Parents" },
       { text: "They are amazing! So family friendly and so accommodating. They truly care about the students — not just the bottom line.", name: "Jennifer", role: "Student" },
@@ -89,6 +92,7 @@ export const LOCATIONS: Record<LocKey, LocationConfig> = {
     accentColor: '#00A5E8',
     accentGlow: 'rgba(0,165,232,0.22)',
     accentLight: 'rgba(0,165,232,0.11)',
+    geo: { lat: 41.2862, lng: -96.2532 },
     reviews: [
       { text: "Organized. Communicative. Encouraging. The perfect fit for our granddaughter! We could not be more pleased.", name: "Jon", role: "Parent" },
       { text: "Love the attitude and vibe here — relaxed and truly student-centered. The teachers genuinely care about helping you grow.", name: "Taylor", role: "Student" },
@@ -112,6 +116,7 @@ export const LOCATIONS: Record<LocKey, LocationConfig> = {
     accentColor: '#00A651',
     accentGlow: 'rgba(0,166,81,0.22)',
     accentLight: 'rgba(0,166,81,0.11)',
+    geo: { lat: 41.1408, lng: -96.2394 },
     reviews: [
       { text: "Gretna Music Lessons has been absolutely fantastic! My son is learning electric guitar and the progress he has made is incredible. The instructors are knowledgeable, patient, and passionate.", name: "Andrew", role: "Parent" },
       { text: "Love the attitude and vibe: relaxed and student-centered. Exactly what we were looking for in a music school.", name: "Taylor", role: "Student" },

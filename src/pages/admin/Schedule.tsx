@@ -19,7 +19,7 @@ import { toast } from '../../components/shared/Toast'
 import TeacherCalloutWizard from '../../components/scheduling/TeacherCalloutWizard'
 import MobileSchedule from '../../components/scheduling/MobileSchedule'
 import BulkVirtualModal from '../../components/scheduling/BulkVirtualModal'
-import { useAI, type ScheduleContext } from '../../hooks/useAI'
+import { useScheduleStarChat, type ScheduleContext } from '../../hooks/useAI'
 import { useScheduleIntelligence } from '../../hooks/useScheduleIntelligence'
 import { ChevronLeft, ChevronRight, ChevronDown, Calendar, Music, MapPin, UserPlus, GripVertical, Check, Clock, DoorOpen, RefreshCw, Plus, PhoneOff, Star, Send, X, Lock } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
@@ -197,7 +197,10 @@ export default function Schedule() {
     }
   }, [gridData, effectiveLocation, activeLocationName, selectedDate])
 
-  const { messages: starMessages, isLoading: starLoading, sendMessage: starSend, clearConversation: starClear, pendingAction, confirmAction, rejectAction } = useAI(tenantId, starContext)
+  // Scheduling path: edge tool-use + grid — not `get_star_context` unless merged client-side.
+  const { messages: starMessages, isLoading: starLoading, sendMessage: starSend, clearConversation: starClear, pendingAction, confirmAction, rejectAction } = useScheduleStarChat(tenantId, starContext)
+  /** Fail-closed: do not send until grid context exists (avoids interactive guard error + wrong mode). */
+  const scheduleStarReady = !!starContext
   const starEndRef = useRef<HTMLDivElement>(null)
   const gridWrapperRef = useRef<HTMLDivElement>(null)
   const [, forceUpdate] = useState(0)
@@ -284,11 +287,12 @@ export default function Schedule() {
 
   // Sub-available teachers (not at this location but can sub)
   const { data: subTeachers } = useQuery({
-    queryKey: ['sub-teachers', effectiveLocation],
-    enabled: !!effectiveLocation,
+    queryKey: ['sub-teachers', tenantId, effectiveLocation],
+    enabled: !!effectiveLocation && !!tenantId,
     queryFn: async () => {
       const { data } = await supabase.from('teachers')
         .select('id, sub_available, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+        .eq('tenant_id', tenantId!)
         .eq('is_active', true)
         .eq('sub_available', true)
       return data ?? []
@@ -1609,7 +1613,9 @@ export default function Schedule() {
                             upperDate.setMonth(upperDate.getMonth() + 6)
                             const upperBound = upperDate.toISOString().slice(0, 10)
                             const { data: futureBlocks } = await supabase.from('schedule_blocks').select('id, block_date')
+                              .eq('tenant_id', assignModal.tenant_id)
                               .eq('teacher_id', assignModal.teacher_id).eq('start_time', assignModal.start_time).eq('status', 'available').gt('block_date', assignModal.block_date).lte('block_date', upperBound)
+                              .limit(2000)
                             const sameDayIds = (futureBlocks ?? [])
                               .filter((fb: any) => new Date(fb.block_date + 'T00:00:00').getDay() === dow)
                               .map((fb: any) => fb.id)
@@ -1964,10 +1970,10 @@ export default function Schedule() {
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {['Move Maddox to 3:30 today', 'Find coverage for all callouts', 'Cancel John\'s lesson today — sick'].map(s => (
-                    <button key={s} onClick={() => { starSend(s); setStarInput('') }} style={{
-                      padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    <button key={s} disabled={!scheduleStarReady} onClick={() => { if (!scheduleStarReady) return; starSend(s); setStarInput('') }} style={{
+                      padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: scheduleStarReady ? 'pointer' : 'not-allowed',
                       background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: '#A0A0C8',
-                      textAlign: 'left', transition: 'all 100ms ease',
+                      textAlign: 'left', transition: 'all 100ms ease', opacity: scheduleStarReady ? 1 : 0.45,
                     }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(212,34,106,0.2)'; e.currentTarget.style.color = '#E0E0F4' }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#A0A0C8' }}
@@ -2006,9 +2012,9 @@ export default function Schedule() {
             <input
               value={starInput}
               onChange={e => setStarInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && starInput.trim()) { starSend(starInput.trim()); setStarInput('') } }}
-              placeholder="Move John to 3:30..."
-              disabled={starLoading}
+              onKeyDown={e => { if (e.key === 'Enter' && starInput.trim() && scheduleStarReady) { starSend(starInput.trim()); setStarInput('') } }}
+              placeholder={scheduleStarReady ? 'Move John to 3:30...' : 'Loading schedule…'}
+              disabled={starLoading || !scheduleStarReady}
               style={{
                 flex: 1, padding: '9px 12px', borderRadius: 8,
                 background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
@@ -2016,8 +2022,8 @@ export default function Schedule() {
               }}
             />
             <button
-              onClick={() => { if (starInput.trim()) { starSend(starInput.trim()); setStarInput('') } }}
-              disabled={starLoading || !starInput.trim()}
+              onClick={() => { if (starInput.trim() && scheduleStarReady) { starSend(starInput.trim()); setStarInput('') } }}
+              disabled={starLoading || !starInput.trim() || !scheduleStarReady}
               style={{
                 padding: '9px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
                 background: starInput.trim() ? '#D4226A' : '#363656', color: '#fff',

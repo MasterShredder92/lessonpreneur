@@ -75,12 +75,13 @@ export default function ReviewRequestModal({
       students,
       locationName,
       googleReviewUrl,
-    }).then(({ message }) => {
-      if (!cancelled) {
-        setMessageText(message)
-        setGenerating(false)
-      }
     })
+      .then(({ message }) => {
+        if (!cancelled) setMessageText(message)
+      })
+      .finally(() => {
+        if (!cancelled) setGenerating(false)
+      })
 
     return () => { cancelled = true }
   }, [locationName, googleReviewUrl, parentFirstName, students])

@@ -179,7 +179,8 @@ Deno.serve(async (req) => {
       messages.push({ role: "user", content: question });
 
       const claudeController = new AbortController();
-      const claudeTimeout = setTimeout(() => claudeController.abort(), 12000);
+      // Business path sends full system prompt (school snapshot); 12s was too aggressive for first paint.
+      const claudeTimeout = setTimeout(() => claudeController.abort(), 32000);
       let claudeRes: Response;
       try {
         claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
@@ -190,7 +191,13 @@ Deno.serve(async (req) => {
         });
       } catch (fetchErr: any) {
         if (fetchErr.name === "AbortError") {
-          return new Response(JSON.stringify({ answer: "Star took too long — please try again or ask a simpler question." }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          return new Response(
+            JSON.stringify({
+              answer:
+                "Star timed out while generating a response. Please try again in a moment. If this keeps happening, your prompt may be very large — open Star from the header or retry after a short wait.",
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
         }
         throw fetchErr;
       } finally {

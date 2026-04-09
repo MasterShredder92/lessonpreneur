@@ -38,22 +38,37 @@ export function useLocationHours(locationId: string | undefined) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!locationId) return
+    if (!locationId) {
+      setHours([])
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
     setLoading(true)
 
-    supabase
-      .from('location_hours')
-      .select('day_of_week, open_time, close_time, is_closed')
-      .eq('location_id', locationId)
-      .order('day_of_week')
-      .then(({ data }: { data: DayHours[] | null }) => {
-        if (cancelled) return
-        setHours(data || [])
-        setLoading(false)
-      })
+    ;(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('location_hours')
+          .select('day_of_week, open_time, close_time, is_closed')
+          .eq('location_id', locationId)
+          .order('day_of_week')
 
-    return () => { cancelled = true }
+        if (cancelled) return
+        if (error) {
+          setHours([])
+        } else {
+          setHours((data as DayHours[] | null) ?? [])
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [locationId])
 
   return { hours, loading, formatted: formatHoursDisplay(hours) }

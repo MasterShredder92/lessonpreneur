@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /teacher/
+Disallow: /parent/
+Disallow: /login
+Disallow: /intake/
+Disallow: /pay/
 
 Sitemap: https://www.lessonpreneur.io/sitemap.xml

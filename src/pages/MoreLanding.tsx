@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { useLandingSEO, buildInstrumentJsonLd } from '../hooks/useLandingSEO'
 import { setLocColors } from '../lib/setLocColors'
 import { useLocationStats } from '../hooks/useLocationStats'
 import ReviewsSection from '../components/site/ReviewsSection'
@@ -28,11 +29,13 @@ export default function MoreLanding() {
   const locStats = useLocationStats(loc)
   const currentInstrument = pathname.split('/')[2] || 'more'
 
-  useEffect(() => {
-    document.title = `More Instrument Lessons in ${LD.name}, NE | Violin, Band, Bass — Adkins Music Lessons`
-    document.querySelector('meta[name="description"]')?.setAttribute('content',
-      `Private lessons for violin, brass, woodwinds, bass guitar and more in ${LD.name}, NE. Expert teachers, flexible scheduling, no contracts. ${LD.phone}`)
-  }, [loc])
+  useLandingSEO({
+    loc,
+    title: `More Instrument Lessons in ${LD.name}, NE | Violin, Band, Bass — Adkins Music Lessons`,
+    description: `Private lessons for violin, brass, woodwinds, bass guitar and more in ${LD.name}, NE. Expert teachers, flexible scheduling, no contracts. ${LD.phone}`,
+    path: `/${loc}/more`,
+    jsonLd: buildInstrumentJsonLd(loc, 'More Instruments', 'Private one-on-one lessons for violin, bass guitar, flute, brass, woodwinds, and more.'),
+  })
 
   useEffect(() => {
     setLocColors({ '--c': LD.accentColor, '--cg': LD.accentGlow, '--cl': LD.accentLight, '--loc-color': LD.accentColor })

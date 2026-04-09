@@ -126,10 +126,15 @@ export function usePauseStudent() {
         performed_by: user?.id ?? null,
       })
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['students_roster'] })
+      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['families_page'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
       qc.invalidateQueries({ queryKey: ['family_detail'] })
       qc.invalidateQueries({ queryKey: ['student_followups'] })
     },
@@ -178,10 +183,16 @@ export function useReactivateStudent() {
         performed_by: user?.id ?? null,
       })
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['students_roster'] })
+      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['families_page'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['family_detail'] })
       qc.invalidateQueries({ queryKey: ['student_followups'] })
     },

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { useTeacherRecord } from './useTeacherDashboard'
-import { EDGE_FUNCTIONS } from '../lib/config'
+import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../services/aiAssistantClient'
 
 export interface SessionNote {
   id: string
@@ -137,9 +137,6 @@ export async function polishNoteWithStar(params: {
   skillsProgressing: string[]
   rawNote: string
 }): Promise<string> {
-  const { data: sessionData } = await supabase.auth.getSession()
-  const token = sessionData.session?.access_token
-
   const systemPrompt = `You are Star, the AI assistant for a music school. A teacher just wrote a session note about a student's lesson. Your job is to polish this into a warm, professional, parent-friendly summary. Keep the teacher's key points but make it read like a thoughtful progress update a parent would love to receive.
 
 Include:
@@ -161,24 +158,11 @@ ${params.rawNote}
 
 Please polish this into a parent-friendly progress update.`
 
-  const res = await fetch(
-    EDGE_FUNCTIONS.aiAssistant,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        question,
-        tenant_id: params.tenantId,
-        conversation_history: [],
-        system_override: systemPrompt,
-      }),
-    }
-  )
-
-  const data = await res.json()
+  const data = await postAiAssistantBusinessOverride({
+    tenantId: params.tenantId,
+    question,
+    systemOverride: systemPrompt,
+  })
   if (data.error) throw new Error(data.error)
-  return data.answer ?? data.response ?? ''
+  return pickAiAssistantAnswerText(data) || ''
 }

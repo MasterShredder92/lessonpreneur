@@ -26,7 +26,6 @@ import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
 import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
-import { useLastReviewRequest } from '../../hooks/useReviewRequest'
 import LinkFamilyModal from '../../components/students/LinkFamilyModal'
 
 function formatTime(t: string) {
@@ -86,38 +85,97 @@ export default function StudentDetail() {
   const { data: studentInstruments } = useStudentInstruments(id)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [showLinkFamily, setShowLinkFamily] = useState(false)
+  const [deferSecondarySections, setDeferSecondarySections] = useState(false)
 
-  // Load student with family + teacher + location
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    let idleId: number | undefined
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    if (typeof requestIdleCallback !== 'undefined') {
+      idleId = requestIdleCallback(() => {
+        if (!cancelled) setDeferSecondarySections(true)
+      }, { timeout: 500 })
+    } else {
+      timeoutId = setTimeout(() => {
+        if (!cancelled) setDeferSecondarySections(true)
+      }, 0)
+    }
+    return () => {
+      cancelled = true
+      if (idleId !== undefined && typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(idleId)
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+    }
+  }, [id])
+
+  // Load student with family + teacher + location (parallel sub-queries after primary row)
   const { data: student, isLoading, error } = useQuery({
     queryKey: ['student-detail', id],
     enabled: !!id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error: stuErr } = await supabase
         .from('students')
         .select('*')
         .eq('id', id!)
         .single()
-      if (error) throw error
+      if (stuErr) throw stuErr
 
-      const { data: family } = await supabase.from('families').select('name, primary_contact_name, parent_name, primary_phone, primary_email, card_last_four, card_brand, billing_status, rate_tier, rate_tier_override, rate_tier_reason, is_military').eq('id', data.family_id).single()
-      const { count: familyStudentCount } = await supabase.from('students').select('id', { count: 'exact', head: true }).eq('family_id', data.family_id)
-      const teacherName = data.teacher_id
-        ? await supabase.from('teachers').select('first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('id', data.teacher_id).single().then(r => r.data ? `${r.data.first_name ?? r.data.profile?.first_name ?? ''} ${r.data.last_name ?? r.data.profile?.last_name ?? ''}`.trim() || '—' : '—')
-        : '—'
-      const { data: loc } = await supabase.from('locations').select('name').eq('id', data.location_id).single()
+      const familyId = data.family_id
+      const [familyRes, countRes, teacherRes, locRes, siblingsRes] = await Promise.all([
+        familyId
+          ? supabase.from('families').select('name, primary_contact_name, parent_name, primary_phone, primary_email, card_last_four, card_brand, billing_status, rate_tier, rate_tier_override, rate_tier_reason, is_military').eq('id', familyId).single()
+          : Promise.resolve({ data: null as any }),
+        familyId
+          ? supabase.from('students').select('id', { count: 'exact', head: true }).eq('family_id', familyId)
+          : Promise.resolve({ count: 1 }),
+        data.teacher_id
+          ? supabase.from('teachers').select('first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('id', data.teacher_id).single()
+          : Promise.resolve({ data: null as any }),
+        supabase.from('locations').select('name').eq('id', data.location_id).single(),
+        familyId
+          ? supabase.from('students').select('id, first_name, last_name, instrument, status, created_at').eq('family_id', familyId).neq('id', data.id)
+          : Promise.resolve({ data: [] as any[] }),
+      ])
 
-      // Get siblings (other students in same family)
-      const { data: siblings } = await supabase.from('students').select('id, first_name, last_name, instrument, status, created_at').eq('family_id', data.family_id).neq('id', data.id)
+      const family = familyRes.data
+      const familyStudentCount = countRes.count ?? 1
+      const siblings = siblingsRes.data ?? []
 
-      const activeStudentCount = (siblings ?? []).filter((s: any) => s.status === 'active').length + (data.status === 'active' ? 1 : 0)
+      let teacherName = '—'
+      if (data.teacher_id && teacherRes.data) {
+        const r = teacherRes.data as any
+        teacherName = `${r.first_name ?? r.profile?.first_name ?? ''} ${r.last_name ?? r.profile?.last_name ?? ''}`.trim() || '—'
+      }
 
-      // Resolve first teacher name if different from current
+      const loc = locRes.data
+      const activeStudentCount = siblings.filter((s: any) => s.status === 'active').length + (data.status === 'active' ? 1 : 0)
+
       let firstTeacherDisplay: string | null = null
       if (data.first_teacher_name && data.first_teacher_id && data.first_teacher_id !== data.teacher_id) {
         firstTeacherDisplay = data.first_teacher_name
       }
 
-      return { ...data, family_name: family?.name, family_contact: family?.primary_contact_name, family_parent_name: family?.parent_name, family_phone: family?.primary_phone, family_email: family?.primary_email, family_card_last_four: family?.card_last_four ?? data.card_last_four, family_card_brand: family?.card_brand ?? data.card_brand, family_billing_status: family?.billing_status ?? 'active', family_student_count: familyStudentCount ?? 1, family_rate_tier: family?.rate_tier ?? DEFAULT_RATE_TIER_CENTS, family_rate_tier_override: family?.rate_tier_override ?? false, family_rate_tier_reason: family?.rate_tier_reason ?? null, family_is_military: family?.is_military ?? false, family_active_students: activeStudentCount, teacher_name: teacherName, first_teacher_display: firstTeacherDisplay, location_name: loc?.name?.replace(' Music Lessons', ''), siblings: siblings ?? [] }
+      return {
+        ...data,
+        family_name: family?.name,
+        family_contact: family?.primary_contact_name,
+        family_parent_name: family?.parent_name,
+        family_phone: family?.primary_phone,
+        family_email: family?.primary_email,
+        family_card_last_four: family?.card_last_four ?? data.card_last_four,
+        family_card_brand: family?.card_brand ?? data.card_brand,
+        family_billing_status: family?.billing_status ?? 'active',
+        family_student_count: familyStudentCount,
+        family_rate_tier: family?.rate_tier ?? DEFAULT_RATE_TIER_CENTS,
+        family_rate_tier_override: family?.rate_tier_override ?? false,
+        family_rate_tier_reason: family?.rate_tier_reason ?? null,
+        family_is_military: family?.is_military ?? false,
+        family_active_students: activeStudentCount,
+        teacher_name: teacherName,
+        first_teacher_display: firstTeacherDisplay,
+        location_name: loc?.name?.replace(' Music Lessons', ''),
+        siblings,
+      }
     },
   })
 
@@ -131,10 +189,10 @@ export default function StudentDetail() {
   const { data: allTeachers } = useTeachers()
   const unassignBlock = useUnassignBlock()
 
-  // Session Tracker: callouts + makeup sessions
+  // Session Tracker: callouts + makeup sessions (deferred — not needed for first paint)
   const { data: sessionTracker } = useQuery({
     queryKey: ['student-session-tracker', id],
-    enabled: !!id,
+    enabled: !!id && deferSecondarySections,
     queryFn: async () => {
       const currentYear = new Date().getFullYear()
 
@@ -199,10 +257,9 @@ export default function StudentDetail() {
     },
   })
 
-  // Student files
   const { data: studentFiles } = useQuery({
     queryKey: ['student-files', id],
-    enabled: !!id,
+    enabled: !!id && deferSecondarySections,
     queryFn: async () => {
       const { data } = await supabase.from('student_files').select('*').eq('student_id', id!).order('created_at', { ascending: false })
       return data ?? []
@@ -386,10 +443,13 @@ export default function StudentDetail() {
                   if (familyNameValue && familyNameValue !== student.family_name) {
                     const { error: famErr } = await supabase.from('families').update({ name: familyNameValue }).eq('id', student.family_id)
                     if (famErr) { toast('Failed to update family name: ' + famErr.message, 'error'); return }
-                    qc.invalidateQueries({ queryKey: ['student-detail'] })
-                    qc.invalidateQueries({ queryKey: ['families'] })
-                    qc.invalidateQueries({ queryKey: ['families_page'] })
-                    qc.invalidateQueries({ queryKey: ['family_detail'] })
+                    await Promise.all([
+                      qc.invalidateQueries({ queryKey: ['families'] }),
+                      qc.invalidateQueries({ queryKey: ['family_detail'] }),
+                      qc.invalidateQueries({ queryKey: ['student-detail'] }),
+                      qc.invalidateQueries({ queryKey: ['families_roster'] }),
+                      qc.invalidateQueries({ queryKey: ['students_roster'] }),
+                    ])
                     toast('Family name updated', 'success')
                   }
                   setEditingFamilyName(false)
@@ -431,9 +491,13 @@ export default function StudentDetail() {
                     if (phoneValue !== (student.family_phone ?? '')) {
                       const { error: phErr } = await supabase.from('families').update({ primary_phone: phoneValue || null }).eq('id', student.family_id)
                       if (phErr) { toast('Failed to update phone: ' + phErr.message, 'error'); return }
-                      qc.invalidateQueries({ queryKey: ['student-detail'] })
-                      qc.invalidateQueries({ queryKey: ['families'] })
-                      qc.invalidateQueries({ queryKey: ['family_detail'] })
+                      await Promise.all([
+                        qc.invalidateQueries({ queryKey: ['families'] }),
+                        qc.invalidateQueries({ queryKey: ['family_detail'] }),
+                        qc.invalidateQueries({ queryKey: ['student-detail'] }),
+                        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+                        qc.invalidateQueries({ queryKey: ['students_roster'] }),
+                      ])
                       toast('Phone updated', 'success')
                     }
                     setEditingPhone(false)
@@ -461,9 +525,13 @@ export default function StudentDetail() {
                     if (emailValue !== (student.family_email ?? '')) {
                       const { error: emErr } = await supabase.from('families').update({ primary_email: emailValue || null }).eq('id', student.family_id)
                       if (emErr) { toast('Failed to update email: ' + emErr.message, 'error'); return }
-                      qc.invalidateQueries({ queryKey: ['student-detail'] })
-                      qc.invalidateQueries({ queryKey: ['families'] })
-                      qc.invalidateQueries({ queryKey: ['family_detail'] })
+                      await Promise.all([
+                        qc.invalidateQueries({ queryKey: ['families'] }),
+                        qc.invalidateQueries({ queryKey: ['family_detail'] }),
+                        qc.invalidateQueries({ queryKey: ['student-detail'] }),
+                        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+                        qc.invalidateQueries({ queryKey: ['students_roster'] }),
+                      ])
                       toast('Email updated', 'success')
                     }
                     setEditingEmail(false)
@@ -916,6 +984,13 @@ export default function StudentDetail() {
               </button>
             </div>
             {(() => {
+              if (!deferSecondarySections) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                    <p style={{ fontSize: 12, color: '#606088' }}>Loading…</p>
+                  </div>
+                )
+              }
               const materialFiles = (studentFiles ?? []).filter((f: any) => f.folder !== 'sensitive')
               const sensitiveFiles = (studentFiles ?? []).filter((f: any) => f.folder === 'sensitive')
               const totalVisible = materialFiles.length + (canViewSensitive ? sensitiveFiles.length : 0)
@@ -1054,7 +1129,7 @@ export default function StudentDetail() {
       </div>
 
       {/* Row 5: Session History + Parent Communications */}
-      <SessionHistorySection studentId={id!} studentName={`${student.first_name} ${student.last_name}`} />
+      <SessionHistorySection studentId={id!} studentName={`${student.first_name} ${student.last_name}`} queriesEnabled={deferSecondarySections} />
 
       {/* Bio Modal */}
       {showBioModal && (
@@ -1996,13 +2071,13 @@ const PROGRESS_COLORS: Record<string, { label: string; color: string }> = {
 }
 const ENGAGE_EMOJI: Record<number, string> = { 1: '😴', 2: '😐', 3: '🙂', 4: '😄', 5: '🔥' }
 
-function SessionHistorySection({ studentId, studentName }: { studentId: string; studentName: string }) {
+function SessionHistorySection({ studentId, studentName, queriesEnabled = true }: { studentId: string; studentName: string; queriesEnabled?: boolean }) {
   const [tab, setTab] = useState<'sessions' | 'updates'>('sessions')
 
   // Session logs
   const { data: sessionLogs } = useQuery({
     queryKey: ['student-session-logs', studentId],
-    enabled: !!studentId,
+    enabled: !!studentId && queriesEnabled,
     queryFn: async () => {
       const { data } = await supabase
         .from('session_log')
@@ -2021,8 +2096,7 @@ function SessionHistorySection({ studentId, studentName }: { studentId: string; 
     },
   })
 
-  // Communications (parent updates)
-  const { data: comms } = useStudentCommunications(studentId)
+  const { data: comms } = useStudentCommunications(studentId, { enabled: queriesEnabled })
 
   return (
     <div style={{ marginBottom: 14 }}>

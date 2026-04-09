@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
-import { supabase } from '../../lib/supabase'
-import { EDGE_FUNCTIONS } from '../../lib/config'
+import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../../services/aiAssistantClient'
 import { Star, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────
@@ -57,9 +56,11 @@ export default function WhatsImportantNow({ data, heroStats }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      if (!token) { setError('Unable to load insights'); setLoading(false); return }
+      if (!tenantId) {
+        setError('Unable to load insights')
+        setLoading(false)
+        return
+      }
 
       const context = [
         `Active students: ${data.activeStudents}`,
@@ -80,16 +81,7 @@ export default function WhatsImportantNow({ data, heroStats }: Props) {
         `Open slots by location: ${Object.entries(data.slotsByLocation).map(([k, v]) => `${k}: ${v}`).join(', ')}`,
       ].filter(Boolean).join('\n')
 
-      const res = await fetch(
-        EDGE_FUNCTIONS.aiAssistant,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            question: `Analyze this music school data and return structured insights:\n\n${context}`,
-            tenant_id: tenantId,
-            conversation_history: [],
-            system_override: `You are an operational intelligence system for a music school. Analyze the data provided and return ONLY a valid JSON array of insight objects. No markdown, no prose, no backticks, no code fences. Just the raw JSON array.
+      const systemOverride = `You are an operational intelligence system for a music school. Analyze the data provided and return ONLY a valid JSON array of insight objects. No markdown, no prose, no backticks, no code fences. Just the raw JSON array.
 
 Each insight must have these exact fields:
 - "priority": one of "critical", "warning", "info", "positive"
@@ -111,21 +103,22 @@ Rules:
 - If at-risk students > 0, that's always critical
 - If stale leads > 0, that's warning or critical depending on count
 - Always include at least one positive insight if the data supports it
-- NEVER include generic motivational fluff. Every insight must reference specific data.`,
-          }),
-        }
-      )
+- NEVER include generic motivational fluff. Every insight must reference specific data.`
 
-      // Hard stop on non-200 — no retry
-      if (!res.ok) {
-        console.warn('[WhatsImportantNow] Edge function returned', res.status)
+      const result = await postAiAssistantBusinessOverride({
+        tenantId,
+        question: `Analyze this music school data and return structured insights:\n\n${context}`,
+        systemOverride,
+      })
+
+      if (result.error) {
+        console.warn('[WhatsImportantNow] ai-assistant:', result.error)
         setError('Unable to load insights')
         setLoading(false)
         return
       }
 
-      const result = await res.json()
-      const answer = result.answer ?? ''
+      const answer = pickAiAssistantAnswerText(result)
 
       // Parse JSON — try to extract array from response
       let parsed: Insight[] = []

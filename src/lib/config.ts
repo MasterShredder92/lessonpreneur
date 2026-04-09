@@ -1,5 +1,8 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
+/** Required on Edge Function `fetch` calls — gateway returns 401 if missing (invoke adds it automatically). */
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
 export const EDGE_FUNCTIONS = {
   aiAssistant: `${SUPABASE_URL}/functions/v1/ai-assistant`,
   aiScheduleAction: `${SUPABASE_URL}/functions/v1/ai-schedule-action`,
@@ -12,7 +15,6 @@ export const EDGE_FUNCTIONS = {
   signwellWebhook: `${SUPABASE_URL}/functions/v1/signwell-webhook`,
   createCheckout: `${SUPABASE_URL}/functions/v1/create-checkout`,
   customerPortal: `${SUPABASE_URL}/functions/v1/customer-portal`,
-  generateReviewMessage: `${SUPABASE_URL}/functions/v1/generate-review-message`,
   stripeConnectOnboard: `${SUPABASE_URL}/functions/v1/stripe-connect-onboard`,
   createStudentInvoice: `${SUPABASE_URL}/functions/v1/create-student-invoice`,
   setupAutopay: `${SUPABASE_URL}/functions/v1/setup-autopay`,

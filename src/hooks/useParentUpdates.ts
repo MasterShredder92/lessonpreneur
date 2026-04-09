@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
-import { EDGE_FUNCTIONS } from '../lib/config'
+import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../services/aiAssistantClient'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -111,21 +111,10 @@ export function useGenerateParentUpdate() {
         trendContext || null,
       ].filter(Boolean).join('\n')
 
-      // Call AI to generate the parent update
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      if (!token) throw new Error('No auth token')
-
-      const res = await fetch(
-        EDGE_FUNCTIONS.aiAssistant,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            question: `Generate a parent progress update for this session.\n\n${context}`,
-            tenant_id: tenantId,
-            conversation_history: [],
-            system_override: `You are writing a warm, professional progress update from a music school to a parent about their child's lesson today.
+      const data = await postAiAssistantBusinessOverride({
+        tenantId: tenantId!,
+        question: `Generate a parent progress update for this session.\n\n${context}`,
+        systemOverride: `You are writing a warm, professional progress update from a music school to a parent about their child's lesson today.
 
 Rules:
 - Address the parent casually (use "Hi ${parentFirst}" or similar)
@@ -138,13 +127,9 @@ Rules:
 - Sign off as ${teacherName}
 - Write the message only — no subject line, no markdown formatting
 - This should feel like a text from a teacher who genuinely cares about the student`,
-          }),
-        }
-      )
-
-      if (!res.ok) throw new Error('AI generation failed')
-      const data = await res.json()
-      const body = data.answer
+      })
+      if (data.error) throw new Error(data.error)
+      const body = pickAiAssistantAnswerText(data)
       if (!body) throw new Error('No update generated')
 
       // Save to communications table
@@ -221,10 +206,11 @@ Rules:
 
 // ─── Query communications for a student ──────────────
 
-export function useStudentCommunications(studentId: string | undefined) {
+export function useStudentCommunications(studentId: string | undefined, opts?: { enabled?: boolean }) {
+  const queryEnabled = !!studentId && (opts?.enabled ?? true)
   return useQuery<ParentUpdate[]>({
     queryKey: ['student-communications', studentId],
-    enabled: !!studentId,
+    enabled: queryEnabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('communications')

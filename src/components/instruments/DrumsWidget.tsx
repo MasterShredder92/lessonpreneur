@@ -15,16 +15,16 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 type PieceId = 'kick' | 'snare' | 'hihat' | 'hihat-open' | 'crash' | 'ride' | 'tom-hi' | 'tom-mid' | 'tom-lo'
 
-const AUDIO_FILES: Record<PieceId, string> = {
-  'kick':      '/audio/drums/kick.wav',
-  'snare':     '/audio/drums/snare.wav',
-  'hihat':     '/audio/drums/hihat.wav',
-  'hihat-open': '/audio/drums/hihat.wav',
-  'crash':     '/audio/drums/crash.wav',
-  'ride':      '/audio/drums/ride.wav',
-  'tom-hi':    '/audio/drums/hitom.wav',
-  'tom-mid':   '/audio/drums/midtom.wav',
-  'tom-lo':    '/audio/drums/lotom.wav',
+const SAMPLE_CONFIG: Record<PieceId, { file: string; rate: number }> = {
+  'kick':      { file: '/audio/drums/kick.wav',  rate: 1 },
+  'snare':     { file: '/audio/drums/snare.wav',  rate: 1 },
+  'hihat':     { file: '/audio/drums/hihat.wav',  rate: 1 },
+  'hihat-open': { file: '/audio/drums/hihat.wav', rate: 0.8 },
+  'crash':     { file: '/audio/drums/crash.wav',  rate: 1 },
+  'ride':      { file: '/audio/drums/ride.wav',   rate: 1 },
+  'tom-hi':    { file: '/audio/drums/hitom.wav',  rate: 1 },
+  'tom-mid':   { file: '/audio/drums/lotom.wav',  rate: 1.25 },
+  'tom-lo':    { file: '/audio/drums/lotom.wav',  rate: 1 },
 }
 
 function getCtx(ref: React.MutableRefObject<AudioContext | null>): AudioContext {
@@ -47,18 +47,19 @@ async function loadBuffer(ctx: AudioContext, url: string): Promise<AudioBuffer> 
 }
 
 function playSound(ctx: AudioContext, id: PieceId) {
-  const url = AUDIO_FILES[id]
-  const cached = audioBuffers.get(url)
+  const cfg = SAMPLE_CONFIG[id]
+  const cached = audioBuffers.get(cfg.file)
   if (cached) {
     const src = ctx.createBufferSource()
     src.buffer = cached
+    src.playbackRate.value = cfg.rate
     src.connect(ctx.destination)
     src.start()
   } else {
-    // Load and play — subsequent hits will be instant from cache
-    loadBuffer(ctx, url).then(buf => {
+    loadBuffer(ctx, cfg.file).then(buf => {
       const src = ctx.createBufferSource()
       src.buffer = buf
+      src.playbackRate.value = cfg.rate
       src.connect(ctx.destination)
       src.start()
     })
@@ -133,7 +134,7 @@ export default function DrumsWidget() {
   useEffect(() => {
     const preload = () => {
       const ctx = getCtx(audioCtxRef)
-      const urls = new Set(Object.values(AUDIO_FILES))
+      const urls = new Set(Object.values(SAMPLE_CONFIG).map(c => c.file))
       urls.forEach(url => loadBuffer(ctx, url))
       window.removeEventListener('pointerdown', preload)
       window.removeEventListener('keydown', preload)

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthContext } from '../app/AuthContext'
 import { supabase } from '../lib/supabase'
-import { EDGE_FUNCTIONS } from '../lib/config'
+import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../services/aiAssistantClient'
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -192,21 +192,16 @@ export function useGenerateValueCard() {
         .gte('block_date', yearAgoStr)
 
       // FIX 5: Redesigned AI prompt — short, emoji-led, 3-5 lines
-      const token = (await supabase.auth.getSession()).data.session?.access_token
       const attendanceStr = attendanceRate !== null ? `${attendanceRate}%` : 'just getting started'
       const periodStr = totalSessions > 0 ? `${attended}/${totalSessions} sessions attended` : 'new this period'
       const rankStr = percentileRank !== null ? `Top ${100 - percentileRank}% of students` : ''
       const skillsStr = [...workedOn, ...skillsProgressing].slice(0, 5).join(', ') || 'building foundations'
       const highlightsStr = teacherNotes.slice(0, 2).join(' | ') || ''
 
-      const aiResponse = await fetch(EDGE_FUNCTIONS.aiAssistant, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          question: `Generate a value card progress summary for this student.`,
-          tenant_id: TENANT_ID,
-          conversation_history: [],
-          system_override: `You write SHORT parent-facing progress snapshots for music students. NEVER mention payment or billing.
+      const aiData = await postAiAssistantBusinessOverride({
+        tenantId: TENANT_ID,
+        question: `Generate a value card progress summary for this student.`,
+        systemOverride: `You write SHORT parent-facing progress snapshots for music students. NEVER mention payment or billing.
 
 FORMAT: Exactly 3-5 short lines. Each line starts with an emoji. No paragraphs. No bold. No "top X%" unless rankStr is provided.
 
@@ -228,9 +223,7 @@ EXAMPLE OUTPUT:
 🎯 Keep it up Emma — real momentum building!
 
 Write in this exact style. Be genuine, not generic. Use the real data above. If data is limited, keep it to 3 lines.`,
-        }),
       })
-      const aiData = await aiResponse.json()
 
       // Save value card
       const { data: card, error } = await supabase.from('value_cards').insert({
@@ -249,7 +242,7 @@ Write in this exact style. Be genuine, not generic. Use the real data above. If 
         teacher_highlights: teacherNotes.slice(0, 3),
         skills_worked_on: [...workedOn, ...skillsProgressing].slice(0, 10),
         milestones: skillsProgressing.length > 0 ? skillsProgressing.slice(0, 5).map(s => ({ skill: s, status: 'progressing' })) : [],
-        ai_summary: aiData?.answer ?? `🎵 ${student.first_name} is building great ${instrument || 'music'} habits with ${teacherName}!\n📈 ${periodStr}\n🎯 Keep showing up — consistency is everything!`,
+        ai_summary: pickAiAssistantAnswerText(aiData) || `🎵 ${student.first_name} is building great ${instrument || 'music'} habits with ${teacherName}!\n📈 ${periodStr}\n🎯 Keep showing up — consistency is everything!`,
         instrument,
         teacher_name: teacherName,
       }).select().single()

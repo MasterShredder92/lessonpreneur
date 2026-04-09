@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { batchIn } from '../lib/batchQuery'
 import { useAuthContext } from '../app/AuthContext'
@@ -86,16 +86,38 @@ export interface Family {
   has_enrollment_agreement?: boolean
 }
 
+export const FAMILIES_ROSTER_PAGE = 45
+
+/** Lightweight counts for roster tab badges without loading full family rows. */
+export function useFamilyTabCounts() {
+  const { tenantId } = useAuthContext()
+  return useQuery({
+    queryKey: ['family-tab-counts', tenantId],
+    enabled: !!tenantId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('families').select('billing_status').eq('tenant_id', tenantId!)
+      if (error) throw error
+      const rows = data ?? []
+      return {
+        active: rows.filter((f) => (f.billing_status ?? 'active') !== 'cancelled').length,
+        inactive: rows.filter((f) => (f.billing_status ?? 'active') === 'cancelled').length,
+        all: rows.length,
+      }
+    },
+  })
+}
+
 // ═══════════════════════════════════════
 // HOOKS — LIST PAGE
 // ═══════════════════════════════════════
 
-export function useFamiliesPage() {
+export function useFamiliesPage(opts?: { enabled?: boolean }) {
   const { tenantId } = useAuthContext()
   return useQuery({
     queryKey: ['families_page', tenantId],
     placeholderData: keepPreviousData,
-    enabled: !!tenantId,
+    enabled: (opts?.enabled !== false) && !!tenantId,
     queryFn: async () => {
       const { data: families, error } = await supabase
         .from('families')
@@ -250,6 +272,198 @@ export function useFamiliesPage() {
   })
 }
 
+/** Enrich one batch of family rows (same shape as list cards) — scoped to `families` already loaded. */
+export async function enrichFamiliesForRosterBatch(families: any[], tenantId: string): Promise<Family[]> {
+  if (families.length === 0) return []
+  const ids = families.map(f => f.id)
+  const today = new Date().toISOString().slice(0, 10)
+
+  const [
+    { data: students },
+    { data: locations },
+    { data: overdueTokens },
+    { data: effectiveRates },
+    { data: squareInvoices },
+    { data: agreementFiles },
+  ] = await Promise.all([
+    supabase
+      .from('students')
+      .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id')
+      .eq('tenant_id', tenantId)
+      .in('family_id', ids),
+    supabase.from('locations').select('id, name, color').eq('tenant_id', tenantId),
+    supabase
+      .from('invoice_tokens')
+      .select('family_id')
+      .eq('tenant_id', tenantId)
+      .in('family_id', ids)
+      .not('status', 'in', '("paid","cancelled","expired")')
+      .lt('due_date', today),
+    supabase.from('student_effective_rate').select('family_id, monthly_cents').eq('tenant_id', tenantId).in('family_id', ids),
+    supabase
+      .from('square_invoices')
+      .select('family_id, status, requested_amount, amount_paid, due_date, invoice_date')
+      .eq('tenant_id', tenantId)
+      .in('family_id', ids)
+      .not('family_id', 'is', null)
+      .not('status', 'in', '("CANCELED","DRAFT")')
+      .order('invoice_date', { ascending: false }),
+    supabase.from('family_files').select('family_id').eq('tenant_id', tenantId).eq('file_type', 'enrollment_agreement').in('family_id', ids),
+  ])
+
+  const teacherIds = [...new Set((students ?? []).filter((s: any) => s.teacher_id).map((s: any) => s.teacher_id!))]
+  const teacherMap = new Map<string, string>()
+  if (teacherIds.length > 0) {
+    const { data: teachers } = await supabase
+      .from('teachers')
+      .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+      .eq('tenant_id', tenantId)
+      .in('id', teacherIds)
+    teachers?.forEach((t: any) => {
+      teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
+    })
+  }
+
+  const locMap = new Map<string, { name: string; color: string }>()
+  locations?.forEach((l: any) => locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? '#D4226A' }))
+
+  const overdueSet = new Set((overdueTokens ?? []).map((t: any) => t.family_id))
+
+  const monthlyByFamily = new Map<string, number>()
+  for (const r of effectiveRates ?? []) {
+    monthlyByFamily.set(r.family_id, (monthlyByFamily.get(r.family_id) ?? 0) + (r.monthly_cents ?? 0))
+  }
+
+  const squareByFamily = new Map<string, { hasScheduled: boolean; hasOverdue: boolean; hasPaid: boolean; overdueCents: number; latest: { status: string; amountCents: number; date: string } | null }>()
+  for (const inv of squareInvoices ?? []) {
+    const entry = squareByFamily.get(inv.family_id) ?? { hasScheduled: false, hasOverdue: false, hasPaid: false, overdueCents: 0, latest: null }
+    const s = (inv.status ?? '').toUpperCase()
+    if (s === 'SCHEDULED' || s === 'RECURRING') entry.hasScheduled = true
+    if (s === 'PAID' || s === 'PARTIALLY_REFUNDED') entry.hasPaid = true
+    if (s === 'UNPAID' && inv.due_date && inv.due_date < today) {
+      entry.hasOverdue = true
+      entry.overdueCents += (inv.requested_amount ?? 0) - (inv.amount_paid ?? 0)
+    }
+    if (!entry.latest) {
+      const amt = s === 'PARTIALLY_REFUNDED' ? (inv.amount_paid ?? 0) : (inv.requested_amount ?? 0)
+      entry.latest = { status: s, amountCents: amt, date: inv.due_date ?? inv.invoice_date ?? '' }
+    }
+    squareByFamily.set(inv.family_id, entry)
+  }
+
+  const agreementSet = new Set((agreementFiles ?? []).map((f: any) => f.family_id))
+
+  const familyStudents = new Map<string, FamilyStudent[]>()
+  students?.forEach((s: any) => {
+    const list = familyStudents.get(s.family_id) ?? []
+    list.push({
+      ...s,
+      teacher_name: s.teacher_id ? teacherMap.get(s.teacher_id) ?? '---' : '---',
+    })
+    familyStudents.set(s.family_id, list)
+  })
+
+  return families.map((f: any) => {
+    const studs = familyStudents.get(f.id) ?? []
+    const activeStuds = studs.filter((s) => s.status === 'active')
+    const instruments = [...new Set(activeStuds.map((s) => s.instrument).filter(Boolean))]
+    const tNames = [...new Set(
+      activeStuds
+        .map((s) => s.teacher_id ? teacherMap.get(s.teacher_id!) : null)
+        .filter(Boolean) as string[],
+    )]
+    const loc = f.primary_location_id ? locMap.get(f.primary_location_id) : null
+    return {
+      ...f,
+      billing_status: f.billing_status ?? 'active',
+      rate_tier: f.rate_tier ?? DEFAULT_RATE_TIER_CENTS,
+      balance: f.balance ?? 0,
+      activeStudentCount: activeStuds.length,
+      instrumentList: instruments,
+      students: studs,
+      teacherNames: tNames,
+      locationName: loc?.name ?? null,
+      locationColor: loc?.color ?? null,
+      hasOverdueInvoice: overdueSet.has(f.id) || (f.overdue_balance_cents ?? 0) > 0 || (squareByFamily.get(f.id)?.hasOverdue ?? false),
+      paymentStatus: (() => {
+        const bs = f.billing_status ?? 'active'
+        if (bs === 'cancelled') return 'cancelled' as const
+        if (bs === 'paused') return 'paused' as const
+        const sq = squareByFamily.get(f.id)
+        const isOverdue = overdueSet.has(f.id) || (f.overdue_balance_cents ?? 0) > 0 || (sq?.hasOverdue ?? false)
+        if (isOverdue) return 'overdue' as const
+        if (sq?.hasScheduled) return 'scheduled' as const
+        if (sq?.hasPaid) return 'current' as const
+        if (activeStuds.length > 0 && !sq) return 'no_invoice' as const
+        return 'current' as const
+      })(),
+      overdueAmountDisplay: (() => {
+        const sq = squareByFamily.get(f.id)
+        const cents = (f.overdue_balance_cents ?? 0) || (sq?.overdueCents ?? 0)
+        return cents > 0 ? `$${(cents / 100).toFixed(0)}` : null
+      })(),
+      monthlyTotalCents: monthlyByFamily.get(f.id) ?? 0,
+      latestInvoice: squareByFamily.get(f.id)?.latest ?? null,
+      has_enrollment_agreement: agreementSet.has(f.id),
+    } as Family
+  })
+}
+
+export type FamiliesRosterSort = 'az' | 'za' | 'newest' | 'oldest'
+
+export function useFamiliesRosterInfinite(params: {
+  familyTab: 'active' | 'inactive' | 'all'
+  locationId: string | null
+  rateFilter: number
+  search: string
+  sortBy: FamiliesRosterSort
+  enabled: boolean
+}) {
+  const { tenantId } = useAuthContext()
+  const { familyTab, locationId, rateFilter, search, sortBy, enabled } = params
+
+  return useInfiniteQuery({
+    queryKey: ['families_roster', tenantId, familyTab, locationId, rateFilter, search, sortBy],
+    enabled: !!tenantId && enabled,
+    initialPageParam: 0,
+    staleTime: 45_000,
+    queryFn: async ({ pageParam: offset }) => {
+      const PAGE = FAMILIES_ROSTER_PAGE
+      let q = supabase
+        .from('families')
+        .select(
+          'id, tenant_id, name, parent_name, primary_contact_name, primary_email, primary_phone, billing_status, rate_tier, primary_location_id, card_brand, card_last_four, square_customer_id, balance, overdue_balance_cents, created_at, is_military',
+        )
+        .eq('tenant_id', tenantId!)
+
+      if (familyTab === 'active') q = q.neq('billing_status', 'cancelled')
+      else if (familyTab === 'inactive') q = q.eq('billing_status', 'cancelled')
+
+      if (locationId) q = q.eq('primary_location_id', locationId)
+      if (rateFilter) q = q.eq('rate_tier', rateFilter)
+
+      const qtrim = search.trim()
+      if (qtrim) {
+        const esc = qtrim.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        const t = `%${esc}%`
+        q = q.or(`name.ilike.${t},primary_email.ilike.${t},primary_phone.ilike.${t},parent_name.ilike.${t},primary_contact_name.ilike.${t}`)
+      }
+
+      if (sortBy === 'az') q = q.order('name', { ascending: true })
+      else if (sortBy === 'za') q = q.order('name', { ascending: false })
+      else if (sortBy === 'newest') q = q.order('created_at', { ascending: false })
+      else q = q.order('created_at', { ascending: true })
+
+      q = q.range(offset, offset + PAGE - 1)
+      const { data: famRaw, error } = await q
+      if (error) throw error
+      const rows = await enrichFamiliesForRosterBatch(famRaw ?? [], tenantId!)
+      return { rows, nextOffset: offset + (famRaw?.length ?? 0), hasMore: (famRaw?.length ?? 0) === PAGE }
+    },
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextOffset : undefined),
+  })
+}
+
 // ═══════════════════════════════════════
 // HOOKS — DETAIL
 // ═══════════════════════════════════════
@@ -371,9 +585,13 @@ export function useUpdateFamilyInfo() {
       const { error } = await supabase.from('families').update(updates).eq('id', id)
       if (error) throw error
     },
-    onSuccess: (_d, vars) => {
+    onSuccess: async (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['families_page'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['family'] })
       qc.invalidateQueries({ queryKey: ['family_detail', vars.id] })
     },
@@ -404,9 +622,13 @@ export function useChangeFamilyBillingStatus() {
         performed_by: user?.id ?? null,
       })
     },
-    onSuccess: (_d, vars) => {
+    onSuccess: async (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['families_page'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['family'] })
       qc.invalidateQueries({ queryKey: ['family_detail', vars.familyId] })
       qc.invalidateQueries({ queryKey: ['family_billing', vars.familyId] })
@@ -514,9 +736,14 @@ export function useUploadFamilyFile() {
         }
       }
     },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['family_files', vars.familyId] })
-      qc.invalidateQueries({ queryKey: ['tasks'] })
+    onSuccess: async (_d, vars) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['family_files', vars.familyId] }),
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
+        qc.invalidateQueries({ queryKey: ['tasks'] }),
+      ])
     },
   })
 }
@@ -532,8 +759,13 @@ export function useDeleteFamilyFile() {
       const { error } = await supabase.from('family_files').delete().eq('id', params.fileId)
       if (error) throw error
     },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['family_files', vars.familyId] })
+    onSuccess: async (_d, vars) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['family_files', vars.familyId] }),
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
+      ])
     },
   })
 }

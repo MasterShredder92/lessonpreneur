@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { useLandingSEO, buildInstrumentJsonLd } from '../hooks/useLandingSEO'
 import { setLocColors } from '../lib/setLocColors'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
@@ -144,11 +145,13 @@ export default function PianoLanding() {
   const locStats = useLocationStats(loc)
   useEffect(() => { trackInstrumentView('Piano') }, [])
 
-  useEffect(() => {
-    document.title = `Piano Lessons in ${LD.name}, NE | Classical to Pop — Adkins Music Lessons`
-    document.querySelector('meta[name="description"]')?.setAttribute('content',
-      `Private piano lessons in ${LD.name}, NE. Classical, pop and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`)
-  }, [loc])
+  useLandingSEO({
+    loc,
+    title: `Piano Lessons in ${LD.name}, NE | Classical to Pop — Adkins Music Lessons`,
+    description: `Private piano lessons in ${LD.name}, NE. Classical, pop and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`,
+    path: `/${loc}/piano`,
+    jsonLd: buildInstrumentJsonLd(loc, 'Piano', 'Private one-on-one piano lessons covering classical, pop, jazz, and music theory. All ages and skill levels.'),
+  })
 
   // Set CSS vars on location change
   useEffect(() => {

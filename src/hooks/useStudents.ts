@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { LESSON_LOOKBACK_DAYS } from '../lib/constants'
 import { useAuthContext } from '../app/AuthContext'
@@ -36,6 +36,7 @@ export interface StudentRow {
   next_lesson_date?: string | null
   next_lesson_time?: string | null
   scheduled_teachers?: { teacherId: string; teacherName: string; locationName: string; instrument?: string }[]
+  has_enrollment_agreement?: boolean
 }
 
 export interface FamilyRow {
@@ -51,11 +52,34 @@ export interface FamilyRow {
   students?: StudentRow[]
 }
 
-export function useStudents(filters?: { status?: string; locationId?: string; teacherId?: string }) {
+/** Lightweight id + status only — for roster tab counts without a second full useStudents fetch. */
+export function useStudentTabCounts() {
+  const { tenantId } = useAuthContext()
+  return useQuery({
+    queryKey: ['student-tab-counts', tenantId],
+    enabled: !!tenantId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, status')
+        .eq('tenant_id', tenantId!)
+      if (error) throw error
+      const rows = data ?? []
+      return {
+        active: rows.filter(s => s.status === 'active').length,
+        former: rows.filter(s => s.status === 'former' || s.status === 'inactive').length,
+        all: rows.length,
+      }
+    },
+  })
+}
+
+export function useStudents(filters?: { status?: string; locationId?: string; teacherId?: string }, opts?: { enabled?: boolean }) {
   const { tenantId } = useAuthContext()
   return useQuery({
     queryKey: ['students', tenantId, filters?.status, filters?.locationId, filters?.teacherId],
-    enabled: !!tenantId,
+    enabled: (opts?.enabled !== false) && !!tenantId,
     placeholderData: keepPreviousData,
     queryFn: async () => {
       let query = supabase
@@ -66,7 +90,8 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
         .order('last_name')
 
       if (filters?.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status)
+        if (filters.status === 'former') query = query.in('status', ['former', 'inactive'])
+        else query = query.eq('status', filters.status)
       }
       if (filters?.locationId) {
         query = query.eq('location_id', filters.locationId)
@@ -175,6 +200,190 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
   })
 }
 
+export const STUDENTS_ROSTER_PAGE = 50
+
+export type StudentsRosterSort = 'az_first' | 'za_first' | 'az_last' | 'za_last' | 'newest' | 'oldest'
+
+export function useStudentsRosterInfinite(params: {
+  status: string
+  locationId?: string
+  teacherId?: string
+  instrumentFilter: string
+  search: string
+  sortBy: StudentsRosterSort
+  enabled: boolean
+}) {
+  const { tenantId } = useAuthContext()
+  const { status, locationId, teacherId, instrumentFilter, search, sortBy, enabled } = params
+
+  return useInfiniteQuery({
+    queryKey: ['students_roster', tenantId, status, locationId, teacherId, instrumentFilter, search, sortBy],
+    enabled: !!tenantId && enabled,
+    initialPageParam: 0,
+    staleTime: 45_000,
+    queryFn: async ({ pageParam: offset }) => {
+      const PAGE = STUDENTS_ROSTER_PAGE
+      const qtrim = search.trim()
+      let familyIdsFromSearch: string[] = []
+      if (qtrim) {
+        const esc = qtrim.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        const t = `%${esc}%`
+        const { data: famHits } = await supabase
+          .from('families')
+          .select('id')
+          .eq('tenant_id', tenantId!)
+          .or(`name.ilike.${t},primary_email.ilike.${t},primary_phone.ilike.${t}`)
+          .limit(400)
+        familyIdsFromSearch = (famHits ?? []).map((f: any) => f.id)
+      }
+
+      let q = supabase
+        .from('students')
+        .select(
+          `
+          id, tenant_id, family_id, location_id, teacher_id, first_name, last_name, instrument, status,
+          blocks_per_week, rate_per_session, start_date, overdue_amount,
+          families ( id, name, primary_email, primary_phone, parent_name, parent_first_name, parent_last_name, card_brand, card_last_four )
+        `,
+        )
+        .eq('tenant_id', tenantId!)
+
+      if (status && status !== 'all') {
+        if (status === 'former') q = q.in('status', ['former', 'inactive'])
+        else q = q.eq('status', status)
+      }
+      if (locationId) q = q.eq('location_id', locationId)
+      if (teacherId) q = q.eq('teacher_id', teacherId)
+      if (instrumentFilter) q = q.eq('instrument', instrumentFilter)
+
+      if (qtrim) {
+        const esc = qtrim.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        const t = `%${esc}%`
+        const ors = [`first_name.ilike.${t}`, `last_name.ilike.${t}`]
+        if (familyIdsFromSearch.length > 0) {
+          ors.push(`family_id.in.(${familyIdsFromSearch.join(',')})`)
+        }
+        q = q.or(ors.join(','))
+      }
+
+      if (sortBy === 'az_first') q = q.order('first_name', { ascending: true }).order('last_name', { ascending: true })
+      else if (sortBy === 'za_first') q = q.order('first_name', { ascending: false }).order('last_name', { ascending: false })
+      else if (sortBy === 'az_last') q = q.order('last_name', { ascending: true }).order('first_name', { ascending: true })
+      else if (sortBy === 'za_last') q = q.order('last_name', { ascending: false }).order('first_name', { ascending: false })
+      else if (sortBy === 'newest') q = q.order('start_date', { ascending: false, nullsFirst: false })
+      else q = q.order('start_date', { ascending: true, nullsFirst: false })
+
+      q = q.range(offset, offset + PAGE - 1)
+      const { data: rows, error } = await q
+      if (error) throw error
+      const students = rows ?? []
+
+      const teacherIds = [...new Set(students.filter((s: any) => s.teacher_id).map((s: any) => s.teacher_id))]
+      const teacherMap = new Map<string, string>()
+      if (teacherIds.length > 0) {
+        const { data: teachers } = await supabase
+          .from('teachers')
+          .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+          .eq('tenant_id', tenantId!)
+          .in('id', teacherIds)
+        teachers?.forEach((t: any) => {
+          teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
+        })
+      }
+
+      const locIds = [...new Set(students.map((s: any) => s.location_id).filter(Boolean))]
+      const locMap = new Map<string, string>()
+      if (locIds.length > 0) {
+        const { data: locs } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
+        locs?.forEach((l: any) => locMap.set(l.id, l.name))
+      }
+
+      const famIds = [...new Set(students.map((s: any) => s.family_id).filter(Boolean))]
+      const agreementSet = new Set<string>()
+      if (famIds.length > 0) {
+        const { data: agr } = await supabase
+          .from('family_files')
+          .select('family_id')
+          .eq('tenant_id', tenantId!)
+          .eq('file_type', 'enrollment_agreement')
+          .in('family_id', famIds)
+        agr?.forEach((a: any) => agreementSet.add(a.family_id))
+      }
+
+      const studentIds = students.map((s: any) => s.id)
+      const nextLessonMap = new Map<string, { date: string; time: string }>()
+      if (studentIds.length > 0) {
+        const today = new Date().toISOString().split('T')[0]
+        const lookAhead = new Date()
+        lookAhead.setDate(lookAhead.getDate() + LESSON_LOOKBACK_DAYS)
+        const lookAheadStr = lookAhead.toISOString().split('T')[0]
+        const { data: nextBlocks } = await supabase
+          .from('schedule_blocks')
+          .select('student_id, block_date, start_time')
+          .eq('tenant_id', tenantId!)
+          .in('student_id', studentIds)
+          .gte('block_date', today)
+          .lte('block_date', lookAheadStr)
+          .eq('status', 'booked')
+          .order('block_date')
+          .order('start_time')
+        nextBlocks?.forEach((b: any) => {
+          if (!nextLessonMap.has(b.student_id)) nextLessonMap.set(b.student_id, { date: b.block_date, time: b.start_time })
+        })
+      }
+
+      const mapped: StudentRow[] = students.map((s: any) => {
+        const fam = s.families ?? {}
+        const parentDisplay = fam.parent_first_name
+          ? `${fam.parent_first_name} ${fam.parent_last_name ?? ''}`.trim()
+          : fam.parent_name ?? null
+        const next = nextLessonMap.get(s.id)
+        return {
+          ...s,
+          families: undefined,
+          family_name: fam.name,
+          family_email: fam.primary_email,
+          family_phone: fam.primary_phone,
+          family_contact: parentDisplay,
+          teacher_name: s.teacher_id ? teacherMap.get(s.teacher_id) ?? '—' : '—',
+          location_name: locMap.get(s.location_id)?.replace(' Music Lessons', '') ?? '—',
+          next_lesson_date: next?.date ?? null,
+          next_lesson_time: next?.time ?? null,
+          scheduled_teachers: [],
+          has_enrollment_agreement: agreementSet.has(s.family_id),
+        } as StudentRow
+      })
+
+      const len = students.length
+      return {
+        rows: mapped,
+        nextOffset: offset + len,
+        hasMore: len === PAGE,
+      }
+    },
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextOffset : undefined),
+  })
+}
+
+/** Distinct instrument values for filter dropdowns (scoped by location/teacher when provided). */
+export function useStudentInstrumentOptions(params: { locationId?: string; teacherId?: string }) {
+  const { tenantId } = useAuthContext()
+  const { locationId, teacherId } = params
+  return useQuery({
+    queryKey: ['student-instruments', tenantId, locationId, teacherId],
+    enabled: !!tenantId,
+    staleTime: 120_000,
+    queryFn: async () => {
+      let q = supabase.from('students').select('instrument').eq('tenant_id', tenantId!).not('instrument', 'is', null)
+      if (locationId) q = q.eq('location_id', locationId)
+      if (teacherId) q = q.eq('teacher_id', teacherId)
+      const { data, error } = await q
+      if (error) throw error
+      return [...new Set((data ?? []).map((r: { instrument: string }) => r.instrument).filter(Boolean))].sort()
+    },
+  })
+}
+
 export function useFamilies() {
   const { tenantId } = useAuthContext()
   return useQuery({
@@ -246,7 +455,14 @@ export function useCreateFamily() {
       if (error) throw error
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['families'] }),
+    onSuccess: async () => {
+      qc.invalidateQueries({ queryKey: ['families'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
+    },
   })
 }
 
@@ -257,8 +473,12 @@ export function useUpdateFamily() {
       const { error } = await supabase.from('families').update(updates).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['families'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
       qc.invalidateQueries({ queryKey: ['family'] })
     },
   })
@@ -301,9 +521,18 @@ export function useCreateStudent() {
 
       return data
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['students_roster'] })
+      qc.invalidateQueries({ queryKey: ['student-instruments'] })
+      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
+      qc.invalidateQueries({ queryKey: ['churn-risk'] })
       qc.invalidateQueries({ queryKey: ['families'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
+      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['family'] })
       qc.invalidateQueries({ queryKey: ['onboarding-pipeline'] })
     },
@@ -317,11 +546,19 @@ export function useUpdateStudent() {
       const { error } = await supabase.from('students').update(updates).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['students_roster'] })
+      qc.invalidateQueries({ queryKey: ['student-instruments'] })
+      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
       qc.invalidateQueries({ queryKey: ['student-detail'] })
+      qc.invalidateQueries({ queryKey: ['churn-risk'] })
+      qc.invalidateQueries({ queryKey: ['churn-risk-student'] })
       qc.invalidateQueries({ queryKey: ['families'] })
-      qc.invalidateQueries({ queryKey: ['families_page'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
       qc.invalidateQueries({ queryKey: ['family'] })
       qc.invalidateQueries({ queryKey: ['family_detail'] })
     },

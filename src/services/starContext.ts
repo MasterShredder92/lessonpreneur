@@ -1,7 +1,22 @@
 import { supabase } from '../lib/supabase'
+import { fetchBillingSnapshotData, type BillingSnapshotData } from './billingSnapshotQuery'
+
+export type { BillingSnapshotData }
 
 /**
- * Raw context data from get_star_context() RPC — used by StarModal charts.
+ * Low-level RPC + billing merge. Prefer the Star OS entrypoints in `app/src/star/` (`loadStarGlobalContext`,
+ * `buildStarUserScope`, `appendPageContextToStarPrompt`) so scope and page layers stay consistent.
+ *
+ * Raw context data from `get_star_context()` RPC — used by StarModal charts (non-billing sections).
+ *
+ * SECURITY / TRUTH — read before changing callers:
+ * - `fetchStarContext(..., role)` masking is **client-side only**; it is not authorization. Anyone who can
+ *   call the RPC directly may still receive full JSON until SQL enforces role/location.
+ * - Production RPC is **not in this repo**; `StarContextData` is the intended contract — drift is possible.
+ * - Until SQL is fixed, snapshots are **tenant-wide**; studio director / location scoping is **not** enforced
+ *   server-side here (see product backlog: scoped `get_star_context`).
+ * - Billing dollar amounts for Star **must** come from `billing_snapshot` (same queries as dashboard Billing Snapshot).
+ * - Backend checklist: `app/docs/STAR_BACKEND_HANDOFF.md`
  */
 export interface StarContextData {
   generated_at: string
@@ -17,11 +32,24 @@ export interface StarContextData {
   locations: { name: string; active_students: number; mrr_cents: number; booked_this_week: number }[]
 }
 
+/** RPC payload + dashboard-parity billing snapshot (not from RPC). */
+export type StarPromptContext = StarContextData & {
+  billing_snapshot: BillingSnapshotData | null
+}
+
+export interface FetchStarContextOptions {
+  /** When set (e.g. studio director’s first assigned location), matches `useBillingSnapshot(locationId)`. Omit for all-location aggregate. */
+  billingLocationId?: string
+}
+
 /**
- * Fetches the raw JSONB from get_star_context() RPC.
- * Returns both the raw data (for charts) and formatted prompt (for AI).
+ * Fetches the raw JSONB from get_star_context() RPC and merges Billing Snapshot data (same path as dashboard).
  */
-export async function fetchStarContext(tenantId: string, role?: string | null): Promise<StarContextData | null> {
+export async function fetchStarContext(
+  tenantId: string,
+  role?: string | null,
+  options?: FetchStarContextOptions,
+): Promise<StarPromptContext | null> {
   const { data, error } = await supabase.rpc('get_star_context', {
     p_tenant_id: tenantId,
   })
@@ -33,22 +61,37 @@ export async function fetchStarContext(tenantId: string, role?: string | null): 
 
   const ctx = data as StarContextData
 
-  // Strip sensitive data based on role
+  const canSeeBilling =
+    role !== 'teacher' && role !== 'parent' && role !== 'student'
+
+  let billing_snapshot: BillingSnapshotData | null = null
+  if (canSeeBilling) {
+    try {
+      billing_snapshot = await fetchBillingSnapshotData(tenantId, options?.billingLocationId)
+    } catch (e) {
+      console.error('[Star] Billing snapshot fetch failed:', e)
+      billing_snapshot = null
+    }
+  }
+
+  // Strip sensitive data based on role (UI/prompt only — not a security boundary; see file header).
   if (role === 'teacher' || role === 'parent') {
-    // Teachers and parents should not see financial data
     ctx.billing = { estimated_mrr_cents: 0, mrr_by_location: [] }
     ctx.families = { ...ctx.families, total_overdue_cents: 0, families_overdue: 0 }
   }
 
-  return ctx
+  return { ...ctx, billing_snapshot }
+}
+
+function formatMoney(cents: number): string {
+  const v = cents / 100
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 /**
- * Formats StarContextData into a system prompt string for the AI.
+ * Formats Star prompt context into a system prompt string for the AI.
  */
-export function formatStarPrompt(ctx: StarContextData, role?: string | null): string {
-  const mrr = (ctx.billing?.estimated_mrr_cents ?? 0) / 100
-  const overdue = (ctx.families?.total_overdue_cents ?? 0) / 100
+export function formatStarPrompt(ctx: StarPromptContext, role?: string | null): string {
   const ts = ctx.generated_at ? new Date(ctx.generated_at).toLocaleString() : new Date().toLocaleString()
 
   const roleRestrictions: Record<string, string> = {
@@ -61,14 +104,22 @@ export function formatStarPrompt(ctx: StarContextData, role?: string | null): st
   }
   const roleHeader = roleRestrictions[role ?? ''] ?? 'USER ROLE: Unknown'
 
-  const d = (cents: number) => '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })
+  const billingBlock =
+    ctx.billing_snapshot != null
+      ? `BILLING SNAPSHOT (same definitions as Dashboard → Billing Snapshot)
+- Collected This Month: ${formatMoney(ctx.billing_snapshot.collectedCents)}
+- Total Invoiced This Month: ${formatMoney(ctx.billing_snapshot.totalInvoicedCents)}
+- Discounted This Month: ${formatMoney(ctx.billing_snapshot.discountedCents)}
+- Next Month (${ctx.billing_snapshot.nextMonthLabel} Projected): ${formatMoney(ctx.billing_snapshot.nextMonthCents)}
+- Scheduled Payments: ${formatMoney(ctx.billing_snapshot.scheduledPaymentsCents)}`
+      : `BILLING SNAPSHOT: Not included for your role or unavailable. Do not cite dollar amounts for billing.`
 
   return `${roleHeader}
 
 You are Star, the AI business intelligence assistant for Lessonpreneur.
-You have direct access to real-time business data for this school.
-Never say you don't have access to business data — you do. Use it to answer questions directly.
-Always be specific, precise, and data-driven. Think like a sharp music school operator.
+You are given a fixed aggregated snapshot below (see timestamp). Use only figures and facts that appear in that snapshot and in any additional context the app adds — do not invent metrics, names, or amounts.
+If the user asks for something not present in the provided context, say clearly that it is not in the current snapshot and point them to the relevant area of the app when possible.
+Always be specific and data-driven. Think like a sharp music school operator.
 Keep responses concise — 2-4 sentences for simple questions, more for complex analysis.
 Sessions are always 30-minute increments. Never make up numbers.
 
@@ -81,16 +132,7 @@ SCHOOL OVERVIEW
 - Total families: ${ctx.families?.total ?? 0}
 - Active teachers: ${ctx.teachers?.active ?? 0}
 
-REVENUE
-- Estimated MRR: $${mrr.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-- Total overdue balance: $${overdue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-- Families with overdue balance: ${ctx.families?.families_overdue ?? 0}
-- Families with card on file: ${ctx.families?.with_card_on_file ?? 0}
-- Families WITHOUT card on file: ${ctx.families?.no_card_on_file ?? 0}
-- Autopay enabled: ${ctx.families?.autopay_enabled ?? 0}
-
-MRR BY LOCATION:
-${(ctx.billing?.mrr_by_location ?? []).map((l) => `- ${l.location}: ${d(l.mrr_cents ?? 0)}/mo`).join('\n') || '- No location data'}
+${billingBlock}
 
 STUDENTS BY LOCATION:
 ${(ctx.students?.by_location ?? []).map((l) => `- ${l.location}: ${l.count} students`).join('\n') || '- No location data'}
@@ -138,13 +180,13 @@ TASKS
 - Overdue tasks: ${ctx.tasks?.overdue ?? 0}
 - High priority open: ${ctx.tasks?.high_priority_open ?? 0}
 
-LOCATIONS:
-${(ctx.locations ?? []).map((l) => `- ${l.name}: ${l.active_students ?? 0} students, MRR ${d(l.mrr_cents ?? 0)}, ${l.booked_this_week ?? 0} sessions this week`).join('\n') || '- No location data'}
+LOCATIONS (operational — not billing dollars):
+${(ctx.locations ?? []).map((l) => `- ${l.name}: ${l.active_students ?? 0} students, ${l.booked_this_week ?? 0} sessions this week`).join('\n') || '- No location data'}
 
 == END SNAPSHOT ==
 
-Answer all questions using this data. When asked about revenue, students, teachers,
-schedule, or leads — use the numbers above. Do not estimate or approximate beyond
+Answer using only the data above (and any appended context blocks). When asked about revenue or billing, use the BILLING SNAPSHOT figures only — do not use RPC enrollment estimates or overdue/card fields from older integrations.
+For students, teachers, schedule, or leads — use the numbers shown. Do not estimate or approximate beyond
 what is shown. If data for a specific question isn't in the snapshot, say so clearly
 and suggest what page in the app would have more detail.`
 }

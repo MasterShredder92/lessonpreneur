@@ -3,12 +3,21 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
-import { useStudents, useCreateStudent, useUpdateStudent, useFamilies, type StudentRow } from '../../hooks/useStudents'
+import { useStudents, useStudentsRosterInfinite, useStudentInstrumentOptions, useCreateStudent, useUpdateStudent, useFamilies, useStudentTabCounts, type StudentRow } from '../../hooks/useStudents'
 import { useLeads } from '../../hooks/useLeads'
-import { supabase } from '../../lib/supabase'
+import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../../services/aiAssistantClient'
+import {
+  appendPageContextToStarPrompt,
+  buildStarUserScope,
+  buildStudentsLightInsightPageBody,
+  buildStudentsPageStarSystemPrompt,
+  starPageDisplayName,
+  STUDENTS_FIRST_INSIGHT_QUESTION,
+} from '../../star'
+import { useStarGlobalContext } from '../../hooks/useStarContext'
 import { useLocations } from '../../hooks/useLocations'
 import { useTeachers } from '../../hooks/useTeachers'
-import { Music, Music2, MapPin, Star, Guitar, Piano, Mic, Drum, Phone, Mail } from 'lucide-react'
+import { Star, Check, XCircle } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
 import RetentionCaptureModal from '../../components/students/RetentionCaptureModal'
 import CsvImportFlow from '../../components/shared/CsvImportFlow'
@@ -18,25 +27,11 @@ import { useStudentInstruments, useSaveStudentInstruments } from '../../hooks/us
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import AddStudentModal from '../../components/students/AddStudentModal'
 import DataGrid from '../../components/shared/DataGrid'
-import { useChurnRiskScores, RISK_TIERS } from '../../hooks/useChurnRisk'
+import { useChurnRiskScores, RISK_TIERS, type ChurnRiskScore } from '../../hooks/useChurnRisk'
 import { useScrollRestore } from '../../hooks/useScrollRestore'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
-
-const INSTRUMENT_ICON: Record<string, any> = {
-  guitar: Guitar, bass: Guitar, ukulele: Guitar, banjo: Guitar,
-  piano: Piano, keyboard: Piano,
-  drums: Drum,
-  voice: Mic, vocals: Mic,
-  violin: Music2, viola: Music2, cello: Music2,
-  flute: Music, clarinet: Music, saxophone: Music, trumpet: Music, trombone: Music, oboe: Music,
-}
-
-function InstrumentIcon({ instrument, size = 16 }: { instrument: string; size?: number }) {
-  const Icon = INSTRUMENT_ICON[instrument.toLowerCase()] ?? Music
-  return <Icon size={size} />
-}
 
 const INSTRUMENTS = ['piano','guitar','vocals','drums','banjo','bass','brass','cello','clarinet','flute','mandolin','oboe','percussion','saxophone','strings','trombone','trumpet','ukulele','viola','violin','voice','woodwinds']
 const EXIT_REASONS = ['Schedule Conflict', 'Moving Away', 'Financial', 'Lost Interest', 'Switching Schools', 'Taking a Break', 'Other']
@@ -46,6 +41,109 @@ type SortOption = 'az_first' | 'za_first' | 'az_last' | 'za_last' | 'newest' | '
 
 function isIncomplete(s: StudentRow): boolean {
   return !s.instrument || !s.teacher_id || !s.blocks_per_week || !s.rate_per_session || !s.location_id
+}
+
+function StudentRosterRow({
+  s,
+  locations,
+  riskMap,
+  canViewBilling,
+  onNavigate,
+  guideId,
+}: {
+  s: StudentRow
+  locations: { id: string; name?: string; color?: string }[] | undefined
+  riskMap: Map<string, ChurnRiskScore>
+  canViewBilling: boolean
+  onNavigate: () => void
+  guideId?: string
+}) {
+  const isFormer = s.status === 'former' || s.status === 'inactive'
+  const loc = locations?.find((l: any) => l.id === s.location_id)
+  const locColor = (loc as any)?.color ?? '#D4226A'
+  const risk = riskMap.get(s.id)
+  const nextTime = s.next_lesson_time
+    ? (() => {
+      const [h, m] = s.next_lesson_time!.split(':')
+      const hr = parseInt(h, 10)
+      return `${hr > 12 ? hr - 12 : hr}:${m}${hr >= 12 ? 'pm' : 'am'}`
+    })()
+    : ''
+
+  const gridCols = canViewBilling
+    ? 'minmax(140px,1.4fr) minmax(170px,1.15fr) minmax(100px,0.75fr) minmax(120px,0.9fr) minmax(72px,0.55fr) minmax(140px,1fr) minmax(72px,0.55fr)'
+    : 'minmax(140px,1.4fr) minmax(170px,1.15fr) minmax(100px,0.75fr) minmax(120px,0.9fr) minmax(140px,1fr) minmax(72px,0.55fr)'
+
+  return (
+    <div
+      className={`roster-row roster-row-student${isFormer ? ' roster-row-former' : ''}`}
+      onClick={onNavigate}
+      data-tour-id={guideId}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: gridCols,
+        gap: '0 12px',
+        alignItems: 'center',
+        padding: '10px 14px',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        cursor: 'pointer',
+        fontSize: 12,
+        opacity: isFormer ? 0.75 : 1,
+      }}
+    >
+      <div style={{ borderLeft: `3px solid ${isFormer ? '#606088' : locColor}`, paddingLeft: 10, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, color: '#E0E0F4' }}>{s.first_name} {s.last_name}</span>
+          {risk && risk.tier !== 'low' && (() => {
+            const t = RISK_TIERS[risk.tier]
+            return <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: t.bg, color: t.color }}>{t.label}</span>
+          })()}
+        </div>
+        <div style={{ fontSize: 10, color: '#606088', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.family_name ?? '—'}</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <span
+          style={{ fontSize: 11, color: '#C0C0E0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: s.family_email ? 'pointer' : 'default' }}
+          onClick={(e) => { e.stopPropagation(); if (s.family_email) { navigator.clipboard.writeText(s.family_email); toast('Copied email', 'success') } }}
+        >{s.family_email ?? '—'}</span>
+        <span
+          style={{ fontSize: 10, color: '#8080A8', cursor: s.family_phone ? 'pointer' : 'default' }}
+          onClick={(e) => { e.stopPropagation(); if (s.family_phone) { navigator.clipboard.writeText(s.family_phone); toast('Copied phone', 'success') } }}
+        >{s.family_phone ?? '—'}</span>
+      </div>
+      <div style={{ fontWeight: 600, color: '#E0E0F4', fontSize: 12 }}>{instrumentWithEmojiTitle(s.instrument ?? '')}</div>
+      <div style={{ color: '#E0E0F4', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.teacher_name !== '—' ? s.teacher_name : '—'}</div>
+      {canViewBilling && (
+        <div>
+          <div style={{ fontWeight: 700, color: '#E0E0F4' }}>${(s.rate_per_session * s.blocks_per_week * 4).toFixed(0)}</div>
+          {Number((s as any).overdue_amount ?? 0) > 0 && (
+            <div style={{ fontSize: 10, color: '#F87171' }}>${Number((s as any).overdue_amount).toFixed(0)} due</div>
+          )}
+        </div>
+      )}
+      <div style={{ lineHeight: 1.3, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, color: s.next_lesson_date ? '#E0E0F4' : '#606088' }}>
+          {s.next_lesson_date
+            ? new Date(s.next_lesson_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+            : '—'}
+        </div>
+        <div style={{ fontSize: 10, color: '#8080A8' }}>
+          {nextTime ? `${nextTime} · ` : ''}{s.location_name ?? ''}
+        </div>
+      </div>
+      <div>
+        {s.has_enrollment_agreement ? (
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 100, background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <Check size={8} /> Yes
+          </span>
+        ) : (
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 100, background: 'rgba(239,68,68,0.12)', color: '#F87171', border: '1px solid rgba(239,68,68,0.3)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <XCircle size={8} /> No
+          </span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function Students() {
@@ -58,7 +156,7 @@ export default function Students() {
   const canEdit = role === 'owner' || role === 'admin'
   const canCreate = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
   const canExport = role === 'owner' || role === 'admin' || role === 'company_director'
-  const { canDo, isStudioDirector, locationIds: scopedLocationIds } = usePermissions()
+  const { canDo, isStudioDirector, locationIds: scopedLocationIds, role: effectiveRole } = usePermissions()
   const lockedLocationId = isStudioDirector ? scopedLocationIds[0] ?? '' : null
   const canViewContact = canDo('students.view_contact')
   const canViewBilling = canDo('students.view_billing')
@@ -98,21 +196,59 @@ export default function Students() {
   const studentImport = useImportStudents()
   const [starInsight, setStarInsight] = useState<string | null>(null)
   const [starLoading, setStarLoading] = useState(false)
-  const [viewCompact, setViewCompact] = useState(() => localStorage.getItem('student-view') === 'compact')
+  /** Warm STAR snapshot cache (same RPC as Star modal); click handler still refreshes via fetch if needed. */
+  const { data: starCtx } = useStarGlobalContext()
   const [showMasterSheet, setShowMasterSheet] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [showAddStudent, setShowAddStudent] = useState(false)
 
-  // Fetch all students for counts, then filter client-side for tab
   const statusFilter = isStudioDirector ? 'active' : (activeTab === 'former' ? 'former' : 'active')
   const locId = lockedLocationId || locationFilter || undefined
   const teachId = teacherFilter || undefined
   const filters = useMemo(() => ({ status: statusFilter, locationId: locId, teacherId: teachId }), [statusFilter, locId, teachId])
-  const { data: allStudents, isLoading, isFetching } = useStudents(filters)
+  const useFullList = showIncomplete
 
-  // Also get all for counts
-  const countsFilters = useMemo(() => ({}), [])
-  const { data: allForCounts } = useStudents(countsFilters)
+  const { data: allStudents, isLoading: fullLoading } = useStudents(filters, { enabled: useFullList })
+
+  const rosterInfinite = useStudentsRosterInfinite({
+    status: statusFilter === 'former' ? 'former' : 'active',
+    locationId: locId,
+    teacherId: teachId,
+    instrumentFilter,
+    search,
+    sortBy,
+    enabled: !useFullList,
+  })
+
+  const { refetch: refetchAllStudentsForExport } = useStudents(
+    { status: 'all', locationId: locId, teacherId: teachId },
+    { enabled: false },
+  )
+
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (useFullList) return
+    const el = loadMoreRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0]
+        if (first?.isIntersecting && rosterInfinite.hasNextPage && !rosterInfinite.isFetchingNextPage) {
+          rosterInfinite.fetchNextPage()
+        }
+      },
+      { rootMargin: '240px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [useFullList, rosterInfinite.hasNextPage, rosterInfinite.isFetchingNextPage, rosterInfinite.fetchNextPage])
+
+  const rosterRows = useMemo(() => rosterInfinite.data?.pages.flatMap((p) => p.rows) ?? [], [rosterInfinite.data])
+
+  const isLoading = useFullList ? fullLoading : rosterInfinite.isLoading
+
+  const { data: tabCounts } = useStudentTabCounts()
+  const { data: instrumentOptions } = useStudentInstrumentOptions({ locationId: locId, teacherId: teachId })
 
   const createStudent = useCreateStudent()
   const updateStudent = useUpdateStudent()
@@ -120,12 +256,12 @@ export default function Students() {
   const { data: riskScores } = useChurnRiskScores()
   const riskMap = new Map((riskScores ?? []).map(r => [r.studentId, r]))
 
-  const activeCt = allForCounts?.filter((s) => s.status === 'active').length ?? 0
-  const formerCt = allForCounts?.filter((s) => s.status === 'former' || s.status === 'inactive').length ?? 0
-  const allCt = allForCounts?.length ?? 0
+  const activeCt = tabCounts?.active ?? 0
+  const formerCt = tabCounts?.former ?? 0
+  const allCt = tabCounts?.all ?? 0
 
-  // Apply search + instrument + incomplete filter, then sort
   const filtered = useMemo(() => {
+    if (!useFullList) return rosterRows
     let list = (allStudents ?? []).filter((s) => {
       if (instrumentFilter && s.instrument !== instrumentFilter) return false
       if (showIncomplete && !isIncomplete(s)) return false
@@ -146,12 +282,14 @@ export default function Students() {
       }
     })
     return list
-  }, [allStudents, instrumentFilter, showIncomplete, search, sortBy])
+  }, [useFullList, rosterRows, allStudents, instrumentFilter, showIncomplete, search, sortBy])
 
-  const incompleteCount = useMemo(() => (allStudents ?? []).filter(isIncomplete).length, [allStudents])
+  const incompleteCount = useMemo(
+    () => (useFullList ? (allStudents ?? []).filter(isIncomplete).length : 0),
+    [useFullList, allStudents],
+  )
 
-  // Get instruments for filter dropdown
-  const instruments = [...new Set((allStudents ?? []).map((s) => s.instrument).filter(Boolean))].sort()
+  const instruments = instrumentOptions ?? []
 
   const handleEditSave = async (data: any) => {
     if (editStudent) {
@@ -205,13 +343,6 @@ export default function Students() {
               Master Sheet
             </button>
           )}
-          <button
-            className="btn-ghost student-header-desktop"
-            onClick={() => { const next = !viewCompact; setViewCompact(next); localStorage.setItem('student-view', next ? 'compact' : 'expanded') }}
-            style={{ fontSize: 11 }}
-          >
-            {viewCompact ? 'Expanded View' : 'Compact View'}
-          </button>
           {canEdit && (
             <button className="btn-ghost student-header-desktop" onClick={() => setShowImport(true)} style={{ fontSize: 11 }}>Import CSV</button>
           )}
@@ -229,9 +360,6 @@ export default function Students() {
                   {role === 'owner' && (
                     <button onClick={() => { setShowMasterSheet(true); setShowMoreMenu(false) }}>Master Sheet</button>
                   )}
-                  <button onClick={() => { const next = !viewCompact; setViewCompact(next); localStorage.setItem('student-view', next ? 'compact' : 'expanded'); setShowMoreMenu(false) }}>
-                    {viewCompact ? 'Expanded View' : 'Compact View'}
-                  </button>
                   {canEdit && (
                     <button onClick={() => { setShowImport(true); setShowMoreMenu(false) }}>Import CSV</button>
                   )}
@@ -283,39 +411,94 @@ export default function Students() {
               setStarLoading(true)
               setStarInsight(null)
               try {
-                // Build a summary for Star
-                const activeStudents = (allForCounts ?? []).filter((s) => s.status === 'active')
-                const instrumentCounts: Record<string, number> = {}
-                const locationCounts: Record<string, number> = {}
-                const overdueStudents: string[] = []
-                activeStudents.forEach((s) => {
-                  if (s.instrument) instrumentCounts[s.instrument] = (instrumentCounts[s.instrument] ?? 0) + 1
-                  if (s.location_name) locationCounts[s.location_name] = (locationCounts[s.location_name] ?? 0) + 1
-                  if (Number((s as any).overdue_amount ?? 0) > 0) overdueStudents.push(`${s.first_name} ${s.last_name} ($${Number((s as any).overdue_amount).toFixed(0)})`)
+                const filterLines: string[] = []
+                if (locationFilter && locations?.length) {
+                  const loc = locations.find((l: { id: string }) => l.id === locationFilter)
+                  if (loc) filterLines.push(`Location: ${(loc as { name?: string }).name ?? locationFilter}`)
+                } else if (isStudioDirector && lockedLocationId) {
+                  const loc = locations?.find((l: { id: string }) => l.id === lockedLocationId)
+                  if (loc) filterLines.push(`Location (studio director scope): ${(loc as { name?: string }).name ?? lockedLocationId}`)
+                }
+                if (teacherFilter && teacherList?.length) {
+                  const t = teacherList.find((x: { id: string }) => x.id === teacherFilter) as {
+                    first_name?: string; last_name?: string; profile?: { first_name?: string; last_name?: string }
+                  } | undefined
+                  const nm = t
+                    ? `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim()
+                    : teacherFilter
+                  if (nm) filterLines.push(`Teacher: ${nm}`)
+                }
+                if (instrumentFilter) filterLines.push(`Instrument filter: ${instrumentFilter}`)
+                if (search.trim()) filterLines.push(`Search: ${search.trim()}`)
+                if (showIncomplete) filterLines.push('View: incomplete enrollments only')
+
+                const leadsPipelineCount = (allLeads ?? []).filter((l) => !['enrolled', 'lost'].includes(l.stage)).length
+                const lightBody = buildStudentsLightInsightPageBody({
+                  activeTab: isStudioDirector ? 'active' : activeTab,
+                  tabCounts: { active: activeCt, former: formerCt, all: allCt },
+                  filterLines,
+                  rosterRowsForSample: filtered,
+                  leadsPipelineCount,
                 })
-                const formerStudents = (allForCounts ?? []).filter((s) => s.status === 'former' || s.status === 'inactive')
-                const leadsPipeline = (allLeads ?? []).filter((l) => !['enrolled', 'lost'].includes(l.stage))
-                const leadsInstruments: Record<string, number> = {}
-                leadsPipeline.forEach((l) => { if (l.instrument) leadsInstruments[l.instrument] = (leadsInstruments[l.instrument] ?? 0) + 1 })
 
-                const question = `Give me a quick action plan for my student roster. Here's what I have:
-
-Active Students: ${activeStudents.length}
-By Instrument: ${Object.entries(instrumentCounts).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none'}
-By Location: ${Object.entries(locationCounts).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none'}
-Former Students: ${formerStudents.length}
-Overdue Payments: ${overdueStudents.length > 0 ? overdueStudents.join(', ') : 'none'}
-Leads in Pipeline: ${leadsPipeline.length}
-Leads by Instrument: ${Object.entries(leadsInstruments).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none'}
-
-Tell me: How can I grow revenue? Which leads match my open teacher slots? Who should I reach out to? What instruments need more teachers? Keep it to 3-4 short action items, conversational, like you're my business coach.`
-
-                const { data } = await supabase.functions.invoke('ai-assistant', {
-                  body: { question, tenant_id: tenantId, conversation_history: [] },
+                const warm = starCtx?.summary?.trim() ?? ''
+                const snapOk = warm.length > 0 && !warm.startsWith('Business context unavailable')
+                const scope = buildStarUserScope({
+                  tenantId,
+                  effectiveRole,
+                  isStudioDirector,
+                  allowedLocationIds: scopedLocationIds ?? [],
                 })
-                setStarInsight(data?.response ?? 'Star could not generate insights right now.')
+                const baseSnapshot = snapOk
+                  ? appendPageContextToStarPrompt(warm, {
+                      pageId: 'students',
+                      displayName: starPageDisplayName('students'),
+                      body: lightBody,
+                    })
+                  : scope
+                    ? await buildStudentsPageStarSystemPrompt(scope, lightBody)
+                    : `Business context unavailable — use PAGE CONTEXT only.\n\n${lightBody}`
+
+                const systemOverride = `${baseSnapshot}
+
+Instructions: Answer with student-roster focused insights. Use PAGE CONTEXT for current filters and the visible-roster instrument sample; use LIVE BUSINESS SNAPSHOT for school-wide KPIs and billing. Do not assume a full export — the page block is intentionally lightweight.`
+
+                const body = await postAiAssistantBusinessOverride({
+                  tenantId: tenantId!,
+                  question: STUDENTS_FIRST_INSIGHT_QUESTION,
+                  systemOverride,
+                  timeoutMs: 55_000,
+                })
+
+                const timeoutOrOverloadMessage =
+                  'Star could not finish student insights in time. Click the button to try again — the request uses a lightweight summary. You can also open Star from the header to continue in chat.'
+
+                if (body.error === 'Request timed out') {
+                  setStarInsight(timeoutOrOverloadMessage)
+                  return
+                }
+
+                const rawAnswer = pickAiAssistantAnswerText(body)
+                if (/took too long/i.test(rawAnswer) || /simpler question/i.test(rawAnswer)) {
+                  setStarInsight(timeoutOrOverloadMessage)
+                  return
+                }
+
+                if (body.error) {
+                  setStarInsight(`Could not load student insights (${body.error}). Try again, or use Star in the header.`)
+                  return
+                }
+
+                if (!rawAnswer.trim()) {
+                  setStarInsight('Star did not return student insights. Try again in a moment.')
+                  return
+                }
+
+                setStarInsight(rawAnswer)
               } catch {
-                setStarInsight('Something went wrong. Try again.')
+                setStarInsight(
+                  'Something went wrong loading student insights. Check your connection, then click the button again or use Star in the header.',
+                )
               } finally {
                 setStarLoading(false)
               }
@@ -369,7 +552,7 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
               whiteSpace: 'nowrap',
             }}
           >
-            Needs Attention{incompleteCount > 0 ? ` (${incompleteCount})` : ''}
+            Needs Attention{useFullList && incompleteCount > 0 ? ` (${incompleteCount})` : ''}
           </button>
         </div>
         <span className="visibility-count">Showing {filtered.length} student{filtered.length !== 1 ? 's' : ''}</span>
@@ -391,227 +574,71 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
         </div>
       )}
 
-      {(isLoading || (!allStudents && isFetching)) ? (
+      {useFullList && (
+        <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 10 }}>
+          Needs Attention (incomplete records) loads the full list for this tab. Clear it for faster paged loading.
+        </div>
+      )}
+
+      {(useFullList ? fullLoading && !allStudents : rosterInfinite.isLoading) ? (
         <div className="loading-screen" style={{ height: 200 }}><MusicLoader /></div>
       ) : (
-        <div data-tour-id="students-list" className="lead-cards">
-          {filtered.map((s, studentIdx) => {
-            const isFormer = s.status === 'former' || s.status === 'inactive'
-            const loc = locations?.find((l: any) => l.id === s.location_id)
-            const locColor = (loc as any)?.color ?? '#D4226A'
-            return (
-              <div
+        <div data-tour-id="students-list" style={{ marginTop: 4 }}>
+          <div
+            className="roster-table-wrap"
+            style={{
+              overflowX: 'auto',
+              borderRadius: 12,
+              border: '1px solid rgba(255,255,255,0.06)',
+              background: 'rgba(0,0,0,0.15)',
+            }}
+          >
+            <div
+              className="roster-grid roster-grid-students"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: canViewBilling
+                  ? 'minmax(140px,1.4fr) minmax(170px,1.15fr) minmax(100px,0.75fr) minmax(120px,0.9fr) minmax(72px,0.55fr) minmax(140px,1fr) minmax(72px,0.55fr)'
+                  : 'minmax(140px,1.4fr) minmax(170px,1.15fr) minmax(100px,0.75fr) minmax(120px,0.9fr) minmax(140px,1fr) minmax(72px,0.55fr)',
+                gap: '0 12px',
+                alignItems: 'center',
+                padding: '10px 14px',
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#8080A8',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
+              <span>Student</span>
+              <span>Contact</span>
+              <span>Instrument</span>
+              <span>Teacher</span>
+              {canViewBilling && <span>Monthly</span>}
+              <span>Next lesson</span>
+              <span>Agreement</span>
+            </div>
+            {filtered.map((s, studentIdx) => (
+              <StudentRosterRow
                 key={s.id}
-                data-tour-id={studentIdx === 0 ? 'first-student-row' : undefined}
-                className={`lead-card${isFormer ? ' lead-card-stale' : ''}`}
-                onClick={() => { saveScroll(); navigate(`/admin/students/${s.id}`) }}
-              >
-                {/* Edge accent — location color */}
-                <div className="lead-card-edge" style={{
-                  background: isFormer ? '#606088' : locColor,
-                  boxShadow: isFormer ? 'none' : `0 0 12px ${locColor}80`,
-                }} />
-
-                {/* ── Mobile card layout ── */}
-                <div className="student-card-mobile">
-                  {/* Row 1: Name · Age */}
-                  <div className="student-card-m-row">
-                    <span className="student-card-m-name">{s.first_name} {s.last_name}</span>
-                    {(s as any).student_display_id && (
-                      <span style={{ fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', color: '#606088', fontWeight: 600 }}>
-                        {(s as any).student_display_id}
-                      </span>
-                    )}
-                    <span className="student-card-m-age">{(s as any).age ? `Age ${(s as any).age}` : ''}</span>
-                    {(() => {
-                      const risk = riskMap.get(s.id)
-                      if (!risk || risk.tier === 'low') return null
-                      const t = RISK_TIERS[risk.tier]
-                      return <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: t.bg, color: t.color }}>{t.label} ({risk.score})</span>
-                    })()}
-                  </div>
-                  {/* Row 2: Email · Phone */}
-                  <div className="student-card-m-row student-card-m-contact">
-                    <span
-                      onClick={(e) => { e.stopPropagation(); if (s.family_email) { navigator.clipboard.writeText(s.family_email); toast('Copied email', 'success') } }}
-                      style={{ cursor: s.family_email ? 'pointer' : 'default' }}
-                      title={s.family_email ? 'Click to copy' : undefined}
-                    >{s.family_email ?? '—'}</span>
-                    <span
-                      onClick={(e) => { e.stopPropagation(); if (s.family_phone) { navigator.clipboard.writeText(s.family_phone); toast('Copied phone', 'success') } }}
-                      style={{ cursor: s.family_phone ? 'pointer' : 'default' }}
-                      title={s.family_phone ? 'Click to copy' : undefined}
-                    >{s.family_phone ?? '—'}</span>
-                  </div>
-                  {/* Row 3: Emoji instrument · Teacher first name + last initial */}
-                  <div className="student-card-m-row student-card-m-bottom">
-                    <span className="student-card-m-emoji">{getInstrumentEmoji(s.instrument ?? '')}</span>
-                    <span className="student-card-m-teacher">
-                      {(() => {
-                        const teachers = s.scheduled_teachers ?? []
-                        if (teachers.length > 0) {
-                          return teachers.map(st => {
-                            const parts = (st.teacherName ?? '').split(' ')
-                            return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]
-                          }).join(', ')
-                        }
-                        if (s.teacher_name && s.teacher_name !== '—') {
-                          const parts = s.teacher_name.split(' ')
-                          return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]
-                        }
-                        return '—'
-                      })()}
-                    </span>
-                  </div>
-                  {/* Monthly badge — half-coin on right side */}
-                  {canViewBilling && (
-                    <div className="student-card-m-rate">
-                      <span>${(s.rate_per_session * s.blocks_per_week * 4).toFixed(0)}</span>
-                      {Number((s as any).overdue_amount ?? 0) > 0 && (
-                        <span className="student-card-m-overdue">${Number((s as any).overdue_amount).toFixed(0)}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Desktop card layout ── */}
-                <div className="student-card-content student-card-desktop">
-                  {/* Icon */}
-                  <div className="student-card-zone-icon">
-                    <div style={{
-                      width: 38, height: 38, borderRadius: 10,
-                      background: isFormer ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.07)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: isFormer ? '#606088' : '#C0C0E0',
-                    }}>
-                      {s.instrument ? <InstrumentIcon instrument={s.instrument} size={22} /> : <Music size={22} />}
-                    </div>
-                  </div>
-
-                  <div className="student-card-divider" />
-
-                  {/* Name + Age + Risk */}
-                  <div className="student-card-zone student-card-zone-name">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="lead-card-student">{s.first_name} {s.last_name}</span>
-                      {(() => {
-                        const risk = riskMap.get(s.id)
-                        if (!risk || risk.tier === 'low') return null
-                        const t = RISK_TIERS[risk.tier]
-                        return <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: t.bg, color: t.color }}>{t.label} ({risk.score})</span>
-                      })()}
-                    </div>
-                    {(s as any).student_display_id && (
-                      <span style={{ fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', color: '#606088', fontWeight: 600, marginTop: 2 }}>
-                        {(s as any).student_display_id}
-                      </span>
-                    )}
-                    <span style={{ fontSize: 13, color: '#A0A0C8', marginTop: 2 }}>Age {(s as any).age ?? '—'}</span>
-                  </div>
-
-                  <div className="student-card-divider" />
-
-                  {/* Contact — email + phone from family */}
-                  <div className="student-card-zone student-card-col student-card-col-contact" style={{ gap: 2, minWidth: 130 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Contact</span>
-                    <span style={{ fontSize: 12, color: '#C0C0E0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: 170, cursor: s.family_email ? 'pointer' : 'default' }}
-                      onClick={(e) => { e.stopPropagation(); if (s.family_email) { navigator.clipboard.writeText(s.family_email); toast('Copied email', 'success') } }}
-                      title={s.family_email ? 'Click to copy' : undefined}>
-                      {s.family_email ?? '—'}
-                    </span>
-                    <span style={{ fontSize: 11, color: '#A0A0C8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, cursor: s.family_phone ? 'pointer' : 'default' }}
-                      onClick={(e) => { e.stopPropagation(); if (s.family_phone) { navigator.clipboard.writeText(s.family_phone); toast('Copied phone', 'success') } }}
-                      title={s.family_phone ? 'Click to copy' : undefined}>
-                      {s.family_phone ?? '—'}
-                    </span>
-                  </div>
-
-                  <div className="student-card-divider" />
-
-                  {/* Instrument(s) */}
-                  <div className="student-card-zone student-card-col student-card-col-instrument" style={{ gap: 2 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Instrument</span>
-                    {viewCompact ? (
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>
-                        {(s.scheduled_teachers ?? []).length > 1
-                          ? 'Multiple'
-                          : instrumentWithEmojiTitle(s.instrument)}
-                      </span>
-                    ) : (
-                      (s.scheduled_teachers ?? []).length > 0 ? (
-                        (s.scheduled_teachers ?? []).map((st, i) => (
-                          <span key={i} style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>
-                            {instrumentWithEmojiTitle(st.instrument ?? s.instrument)}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{instrumentWithEmojiTitle(s.instrument)}</span>
-                      )
-                    )}
-                  </div>
-
-                  <div className="student-card-divider" />
-
-                  {/* Teacher(s) */}
-                  <div className="student-card-zone student-card-col student-card-col-teacher" style={{ gap: 2 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Teacher</span>
-                    {viewCompact ? (
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>
-                        {(s.scheduled_teachers ?? []).length > 1
-                          ? 'Multiple'
-                          : s.teacher_name !== '—' ? s.teacher_name : '—'}
-                      </span>
-                    ) : (
-                      (s.scheduled_teachers ?? []).length > 0 ? (
-                        (s.scheduled_teachers ?? []).map((st, i) => (
-                          <span key={i} style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{st.teacherName}</span>
-                        ))
-                      ) : (
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.teacher_name !== '—' ? s.teacher_name : '—'}</span>
-                      )
-                    )}
-                  </div>
-
-                  {canViewBilling && (
-                    <>
-                  <div className="student-card-divider" />
-
-                  {/* Monthly */}
-                  <div className="student-card-zone student-card-col student-card-col-monthly" style={{ gap: 3 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Monthly</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>${(s.rate_per_session * s.blocks_per_week * 4).toFixed(0)}</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: Number((s as any).overdue_amount ?? 0) > 0 ? '#B45555' : '#606088' }}>
-                      {Number((s as any).overdue_amount ?? 0) > 0 ? `$${Number((s as any).overdue_amount).toFixed(0)} overdue` : '$0'}
-                    </span>
-                  </div>
-                    </>
-                  )}
-
-                  <div className="student-card-divider" />
-
-                  {/* Next Lesson */}
-                  <div className="student-card-zone student-card-col student-card-col-next" style={{ gap: 3 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Next Lesson</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: s.next_lesson_date ? '#E0E0F4' : '#606088' }}>
-                      {s.next_lesson_date
-                        ? new Date(s.next_lesson_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                        : 'Not scheduled'}
-                    </span>
-                    <span style={{ fontSize: 10.5, color: '#8080A8' }}>
-                      {s.next_lesson_time ? (() => { const [h,m] = s.next_lesson_time!.split(':'); const hr = parseInt(h); return `${hr > 12 ? hr-12 : hr}:${m}${hr >= 12 ? 'pm' : 'am'}` })() + ' · ' : ''}{s.location_name ?? ''}
-                    </span>
-                    {!s.next_lesson_time && (
-                      <span style={{ fontSize: 10.5, color: '#8080A8' }}>{s.location_name ?? ''}</span>
-                    )}
-                  </div>
-                </div>
-
+                s={s}
+                locations={locations}
+                riskMap={riskMap}
+                canViewBilling={canViewBilling}
+                guideId={studentIdx === 0 ? 'first-student-row' : undefined}
+                onNavigate={() => { saveScroll(); navigate(`/admin/students/${s.id}`) }}
+              />
+            ))}
+            {!useFullList && (
+              <div ref={loadMoreRef} style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                {rosterInfinite.isFetchingNextPage && <span style={{ fontSize: 12, color: '#8080A8' }}>Loading more…</span>}
               </div>
-            )
-          })}
-          {filtered.length === 0 && (
-            <div className="empty-state">No students found.</div>
-          )}
+            )}
+            {filtered.length === 0 && (
+              <div className="empty-state" style={{ border: 'none', padding: 28 }}>No students found.</div>
+            )}
+          </div>
         </div>
       )}
 
@@ -703,16 +730,17 @@ Tell me: How can I grow revenue? Which leads match my open teacher slots? Who sh
               <button
                 className="btn-primary"
                 style={{ width: '100%', justifyContent: 'center', marginTop: 18, padding: 12 }}
-                onClick={() => {
+                onClick={async () => {
+                  const { data: allRows = [] } = await refetchAllStudentsForExport()
                   const rows: string[][] = [['Type', 'Name', 'Parent', 'Email', 'Phone', 'Instrument', 'Location', 'Teacher', 'Monthly', 'Overdue', 'Status']]
 
                   if (exportSelections.active) {
-                    const active = (allForCounts ?? []).filter((s) => s.status === 'active')
+                    const active = allRows.filter((s) => s.status === 'active')
                     active.forEach((s) => rows.push(['Student', `${s.first_name} ${s.last_name}`, s.family_name ?? '', s.family_email ?? '', s.family_phone ?? '', s.instrument ?? '', s.location_name ?? '', s.teacher_name ?? '', `$${(s.rate_per_session * s.blocks_per_week * 4).toFixed(0)}`, `$${Number((s as any).overdue_amount ?? 0).toFixed(0)}`, 'Active']))
                   }
 
                   if (exportSelections.former) {
-                    const former = (allForCounts ?? []).filter((s) => s.status === 'former' || s.status === 'inactive')
+                    const former = allRows.filter((s) => s.status === 'former' || s.status === 'inactive')
                     former.forEach((s) => rows.push(['Student', `${s.first_name} ${s.last_name}`, s.family_name ?? '', s.family_email ?? '', s.family_phone ?? '', s.instrument ?? '', s.location_name ?? '', s.teacher_name ?? '', '', '', 'Former']))
                   }
 

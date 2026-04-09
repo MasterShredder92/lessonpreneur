@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { useLandingSEO, buildInstrumentJsonLd } from '../hooks/useLandingSEO'
 import { setLocColors } from '../lib/setLocColors'
 import ReviewsSection from '../components/site/ReviewsSection'
 import HeroTestimonial from '../components/site/HeroTestimonial'
@@ -29,10 +30,11 @@ const FAQS = [
 
 
 // ═══════════════════════════════════════
-// AUDIO ENGINE
+// AUDIO ENGINE — sample-based
 // ═══════════════════════════════════════
 
 let audioCtx: AudioContext | null = null
+const introBuffers = new Map<string, AudioBuffer>()
 
 function initAudioCtx() {
   if (!audioCtx) audioCtx = new AudioContext()
@@ -40,31 +42,31 @@ function initAudioCtx() {
   return audioCtx
 }
 
-// Synthesized sounds for intro overlay
-function synthKick() {
-  const c = initAudioCtx(); const o = c.createOscillator(); const g = c.createGain()
-  o.connect(g); g.connect(c.destination); o.type = 'sine'
-  o.frequency.setValueAtTime(150, c.currentTime); o.frequency.exponentialRampToValueAtTime(40, c.currentTime + 0.15)
-  g.gain.setValueAtTime(0.8, c.currentTime); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.3)
-  o.start(); o.stop(c.currentTime + 0.3)
+async function preloadIntroSamples() {
+  const ctx = initAudioCtx()
+  const files = ['/audio/drums/kick.wav', '/audio/drums/snare.wav', '/audio/drums/hihat.wav']
+  await Promise.all(files.map(async url => {
+    if (introBuffers.has(url)) return
+    const res = await fetch(url)
+    const arr = await res.arrayBuffer()
+    const buf = await ctx.decodeAudioData(arr)
+    introBuffers.set(url, buf)
+  }))
 }
-function synthSnare() {
-  const c = initAudioCtx(); const n = c.createBufferSource(); const g = c.createGain()
-  const buf = c.createBuffer(1, c.sampleRate * 0.15, c.sampleRate); const d = buf.getChannelData(0)
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
-  n.buffer = buf; n.connect(g); g.connect(c.destination)
-  g.gain.setValueAtTime(0.5, c.currentTime); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.15)
-  n.start(); n.stop(c.currentTime + 0.15)
+
+function playSample(url: string) {
+  const ctx = initAudioCtx()
+  const buf = introBuffers.get(url)
+  if (!buf) return
+  const src = ctx.createBufferSource()
+  src.buffer = buf
+  src.connect(ctx.destination)
+  src.start()
 }
-function synthHihat() {
-  const c = initAudioCtx(); const n = c.createBufferSource(); const g = c.createGain()
-  const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 8000
-  const buf = c.createBuffer(1, c.sampleRate * 0.06, c.sampleRate); const d = buf.getChannelData(0)
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
-  n.buffer = buf; n.connect(f); f.connect(g); g.connect(c.destination)
-  g.gain.setValueAtTime(0.3, c.currentTime); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.06)
-  n.start(); n.stop(c.currentTime + 0.06)
-}
+
+function synthKick() { playSample('/audio/drums/kick.wav') }
+function synthSnare() { playSample('/audio/drums/snare.wav') }
+function synthHihat() { playSample('/audio/drums/hihat.wav') }
 // ═══════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════
@@ -84,11 +86,13 @@ export default function DrumsLanding() {
   const locStats = useLocationStats(loc)
   useEffect(() => { trackInstrumentView('Drums') }, [])
 
-  useEffect(() => {
-    document.title = `Drum Lessons in ${LD.name}, NE | Rock to Jazz — Adkins Music Lessons`
-    document.querySelector('meta[name="description"]')?.setAttribute('content',
-      `Private drum lessons in ${LD.name}, NE. Rock, jazz and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`)
-  }, [loc])
+  useLandingSEO({
+    loc,
+    title: `Drum Lessons in ${LD.name}, NE | Rock to Jazz — Adkins Music Lessons`,
+    description: `Private drum lessons in ${LD.name}, NE. Rock, jazz and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`,
+    path: `/${loc}/drums`,
+    jsonLd: buildInstrumentJsonLd(loc, 'Drums', 'Private one-on-one drum lessons covering rock, jazz, funk, and percussion. All ages and skill levels.'),
+  })
 
   // Set CSS vars on location change (same as AdkinsLanding)
   useEffect(() => {
@@ -106,17 +110,23 @@ export default function DrumsLanding() {
   // FAQ
   const [openFaq, setOpenFaq] = useState<number | null>(null)
 
-  // Overlay timing — only if showing intro
+  // Preload intro samples then play overlay sequence
   useEffect(() => {
     if (!showIntro) return
-    const t1 = setTimeout(() => { try { synthKick() } catch {} }, 300)
-    const t2 = setTimeout(() => { try { synthSnare() } catch {} }, 600)
-    const t3 = setTimeout(() => { try { synthHihat() } catch {} }, 900)
-    const t4 = setTimeout(() => {
-      setOverlayDone(true)
-      sessionStorage.setItem('drums-intro-seen', '1')
-    }, 1750)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
+    let cancelled = false
+    preloadIntroSamples().then(() => {
+      if (cancelled) return
+      const t1 = setTimeout(() => { try { synthKick() } catch {} }, 300)
+      const t2 = setTimeout(() => { try { synthSnare() } catch {} }, 600)
+      const t3 = setTimeout(() => { try { synthHihat() } catch {} }, 900)
+      const t4 = setTimeout(() => {
+        setOverlayDone(true)
+        sessionStorage.setItem('drums-intro-seen', '1')
+      }, 1750)
+      cleanupRef.current = () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
+    })
+    const cleanupRef = { current: () => {} }
+    return () => { cancelled = true; cleanupRef.current() }
   }, [])
 
   // EQ bars data

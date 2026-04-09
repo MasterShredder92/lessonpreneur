@@ -22,7 +22,7 @@ export function useCheckIn() {
       if (error) throw error
       return data as CheckInResult
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['schedule-grid'] })
       qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
       qc.invalidateQueries({ queryKey: ['student-blocks'] })
@@ -31,8 +31,12 @@ export function useCheckIn() {
       qc.invalidateQueries({ queryKey: ['teachers-monthly-tally'] })
       // DB trigger updates students.teacher_id on check-in
       qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['students_roster'] })
       qc.invalidateQueries({ queryKey: ['student-detail'] })
-      qc.invalidateQueries({ queryKey: ['families_page'] })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['families_page'] }),
+        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+      ])
       qc.invalidateQueries({ queryKey: ['family_detail'] })
       qc.invalidateQueries({ queryKey: ['family_activity'] })
     },

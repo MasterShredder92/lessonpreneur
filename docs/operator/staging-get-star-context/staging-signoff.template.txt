@@ -1,0 +1,20 @@
+Staging: get_star_context security migration
+Project ref: <STAGING_PROJECT_REF>
+Migration file: app/supabase/migrations/20260409120000_secure_get_star_context.sql (+ splice revision if any)
+Date: YYYY-MM-DD
+Engineer: <NAME>
+
+GO / NO-GO: <GO|NO-GO>
+
+Evidence folder: <PATH_OR_URL_TO_EVIDENCE_ZIP>
+
+Checklist (all must be YES for GO):
+[ ] rollback_get_star_context.sql filled from pre-migration pg_get_functiondef
+[ ] grants-before.txt saved
+[ ] grants-after.txt saved — no PUBLIC, no anon EXECUTE on get_star_context
+[ ] service_role EXECUTE revoked unless follow-up GRANT documented
+[ ] persona matrix completed for owner, admin, studio_director, teacher, parent, mismatch
+[ ] Star UI smoke owner + teacher
+[ ] LIVE_AGGREGATE splice completed — no RAISE for unspliced migration
+
+Reviewer: _________________  Date: _________
