@@ -9,6 +9,7 @@ import { MapPin } from 'lucide-react'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { supabase } from '../lib/supabase'
 import { SCHOOL_CONFIG } from '../config/school'
+import { SUPABASE_ANON_KEY } from '../lib/config'
 import { useLocationHours } from '../hooks/useLocationHours'
 import './signup.css'
 
@@ -450,39 +451,140 @@ export default function SignupLanding() {
       ]
 
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-lead-submit`
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          school_slug: SCHOOL_CONFIG.slug,
-          location_id: locId,
-          first_name: forSelf ? fullName.split(' ')[0].trim() : studentName.trim(),
-          last_name: forSelf ? (fullName.split(' ').slice(1).join(' ').trim() || null) : null,
-          student_name: primaryStudent.name,
-          parent_name: forSelf ? null : contactName.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          instrument: selectedInstruments.join(', '),
-          age_range: age || null,
-          experience: experience || null,
-          preferred_days: selectedDays,
-          preferred_locations: secondaryLocs.map(k => LOCATIONS[k].name),
-          secondary_location_ids: secondaryLocs.length > 0 ? secondaryLocs.map(k => LOCATIONS[k].locationId) : null,
-          has_instrument: hasInstrument || null,
-          personality_notes: freeText || null,
-          goals: freeText || null,
-          is_military: isMilitary,
-          compatibility_score: matchScore && matchScore >= 91 ? matchScore : null,
-          matched_teacher_id: matchedTeacher?.id || null,
-          source: 'website_form',
-          referral_source: referralSource || null,
-          students,
-        }),
-        signal: AbortSignal.timeout(15000),
-      })
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (SUPABASE_ANON_KEY) headers['apikey'] = SUPABASE_ANON_KEY
 
-      const result = await res.json()
-      if (!result.success) throw new Error(result.error || 'Something went wrong. Please try again.')
+      const payload = {
+        school_slug: SCHOOL_CONFIG.slug,
+        location_id: locId,
+        first_name: forSelf ? fullName.split(' ')[0].trim() : studentName.trim(),
+        last_name: forSelf ? (fullName.split(' ').slice(1).join(' ').trim() || null) : null,
+        student_name: primaryStudent.name,
+        parent_name: forSelf ? null : contactName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        instrument: selectedInstruments.join(', '),
+        age_range: age || null,
+        experience: experience || null,
+        preferred_days: selectedDays,
+        preferred_locations: secondaryLocs.map(k => LOCATIONS[k].name),
+        secondary_location_ids: secondaryLocs.length > 0 ? secondaryLocs.map(k => LOCATIONS[k].locationId) : null,
+        has_instrument: hasInstrument || null,
+        personality_notes: freeText || null,
+        goals: freeText || null,
+        is_military: isMilitary,
+        compatibility_score: matchScore && matchScore >= 91 ? matchScore : null,
+        matched_teacher_id: matchedTeacher?.id || null,
+        source: 'website_form',
+        referral_source: referralSource || null,
+        students,
+      }
+
+      // Primary path: edge function
+      let success = false
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 15000)
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        })
+        clearTimeout(timeout)
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          console.error(`Lead submit HTTP ${res.status}:`, text)
+          throw new Error(`Server error (${res.status}). Trying backup...`)
+        }
+
+        const result = await res.json()
+        if (!result.success) throw new Error(result.error || 'Submission failed. Trying backup...')
+        success = true
+      } catch (edgeErr) {
+        console.warn('Edge function failed, using direct insert fallback:', edgeErr)
+      }
+
+      // Fallback: direct Supabase insert if edge function fails
+      if (!success) {
+        try {
+          // Look up tenant
+          const { data: tenant } = await supabase
+            .from('tenants')
+            .select('id')
+            .eq('slug', SCHOOL_CONFIG.slug)
+            .single()
+          if (!tenant) throw new Error('Could not resolve school')
+
+          // Check for existing family or create one
+          let familyId: string | null = null
+          const cleanEmail = email.trim().toLowerCase()
+          const { data: existingFamily } = await supabase
+            .from('families')
+            .select('id')
+            .eq('primary_email', cleanEmail)
+            .limit(1)
+            .single()
+
+          if (existingFamily) {
+            familyId = existingFamily.id
+          } else {
+            const familyContactName = (forSelf ? fullName : parentName).trim()
+            const nameParts = familyContactName.split(' ')
+            const { data: newFamily } = await supabase
+              .from('families')
+              .insert({
+                name: `${nameParts[nameParts.length - 1]} Family`,
+                parent_name: familyContactName,
+                primary_email: cleanEmail,
+                primary_phone: phone.trim(),
+                is_military: isMilitary,
+                tenant_id: tenant.id,
+                billing_status: 'active',
+              })
+              .select('id')
+              .single()
+            if (newFamily) familyId = newFamily.id
+          }
+
+          // Insert lead
+          const { error: leadErr } = await supabase
+            .from('leads')
+            .insert({
+              tenant_id: tenant.id,
+              location_id: locId,
+              family_id: familyId,
+              stage: 'inquiry',
+              source: 'website_form',
+              how_heard: referralSource || 'website_form',
+              first_name: payload.first_name,
+              last_name: payload.last_name,
+              student_name: payload.student_name,
+              parent_name: payload.parent_name,
+              email: cleanEmail,
+              phone: phone.trim(),
+              instrument: payload.instrument,
+              age_range: payload.age_range,
+              experience: payload.experience,
+              preferred_days: payload.preferred_days,
+              preferred_locations: payload.preferred_locations,
+              secondary_location_ids: payload.secondary_location_ids,
+              has_instrument: payload.has_instrument,
+              personality_notes: payload.personality_notes,
+              goals: payload.goals,
+              is_military: isMilitary,
+              compatibility_score: payload.compatibility_score,
+              matched_teacher_id: payload.matched_teacher_id,
+            })
+
+          if (leadErr) throw new Error(`Failed to save: ${leadErr.message}`)
+          success = true
+        } catch (fallbackErr: any) {
+          console.error('Fallback insert also failed:', fallbackErr)
+          throw new Error(fallbackErr?.message || 'We could not save your information. Please call us directly.')
+        }
+      }
 
       const allInstruments = [...selectedInstruments, ...additionalStudents.flatMap(s => s.instruments)]
       trackLead(LOCATIONS[preferredLoc].name, additionalStudents.length + 1, [...new Set(allInstruments)])
@@ -490,7 +592,8 @@ export default function SignupLanding() {
       navigate(`/thank-you?location=${preferredLoc}`)
     } catch (err: any) {
       console.error('Enrollment error:', err)
-      setSubmitError(err?.message || 'Something went wrong. Please try again.')
+      setSubmitError(err?.message || 'Something went wrong. Please call us directly to complete your enrollment.')
+    } finally {
       setSubmitting(false)
     }
   }
@@ -1115,8 +1218,20 @@ export default function SignupLanding() {
             </div>
 
             {submitError && (
-              <div style={{ color: '#e74c3c', fontSize: 14, textAlign: 'center', marginBottom: 12, padding: '8px 16px', background: 'rgba(231,76,60,0.08)', borderRadius: 8 }}>
-                {submitError}
+              <div style={{
+                color: '#fff', fontSize: 14, textAlign: 'center', marginBottom: 16,
+                padding: '14px 20px', background: 'rgba(231,76,60,0.2)',
+                border: '1px solid rgba(231,76,60,0.4)', borderRadius: 10,
+                lineHeight: 1.6,
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>{submitError}</div>
+                <div style={{ fontSize: 12, color: '#ccc' }}>
+                  If this keeps happening, call us directly at{' '}
+                  <a href={`tel:${LOCATIONS[preferredLoc].phone.replace(/\D/g, '')}`} style={{ color: 'var(--c)', fontWeight: 700, textDecoration: 'underline' }}>
+                    {LOCATIONS[preferredLoc].phone}
+                  </a>
+                  {' '}— we'll get you signed up on the spot.
+                </div>
               </div>
             )}
             <button
