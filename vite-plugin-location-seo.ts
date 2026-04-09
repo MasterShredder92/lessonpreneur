@@ -90,6 +90,46 @@ const LOCATIONS: LocSEO[] = [
 
 const INSTRUMENT_PAGES = ['guitar', 'piano', 'vocals', 'drums'] as const
 
+// SEO-optimized "-lessons" landing pages (keyword-targeted URLs)
+const LESSONS_PAGES: { slug: string; label: string; titlePrefix: string; descTemplate: (city: string) => string }[] = [
+  {
+    slug: 'guitar-lessons',
+    label: 'Guitar',
+    titlePrefix: 'Guitar Lessons',
+    descTemplate: (city) => `Private guitar lessons in ${city}, NE for all ages. Acoustic, electric, and classical guitar. Background-checked instructors, flexible scheduling, no contracts. Sign up today!`,
+  },
+  {
+    slug: 'piano-lessons',
+    label: 'Piano',
+    titlePrefix: 'Piano Lessons',
+    descTemplate: (city) => `Private piano lessons in ${city}, NE for kids and adults. Classical, pop, jazz, and more. Experienced background-checked instructors, flexible scheduling, no commitment required.`,
+  },
+  {
+    slug: 'drum-lessons',
+    label: 'Drum',
+    titlePrefix: 'Drum Lessons',
+    descTemplate: (city) => `Private drum lessons in ${city}, NE for all ages and skill levels. Rock, jazz, marching, and more. Background-checked instructors, flexible scheduling, no contracts.`,
+  },
+  {
+    slug: 'vocal-lessons',
+    label: 'Vocal',
+    titlePrefix: 'Vocal Lessons',
+    descTemplate: (city) => `Private vocal lessons in ${city}, NE for kids and adults. Build pitch, tone, range, and confidence. Background-checked instructors, flexible scheduling, no long-term commitment.`,
+  },
+  {
+    slug: 'violin-lessons',
+    label: 'Violin',
+    titlePrefix: 'Violin Lessons',
+    descTemplate: (city) => `Private violin lessons in ${city}, NE for kids and adults. Classical, fiddle, and contemporary styles. Expert background-checked instructors, flexible scheduling, no contracts.`,
+  },
+  {
+    slug: 'flute-lessons',
+    label: 'Flute',
+    titlePrefix: 'Flute Lessons',
+    descTemplate: (city) => `Private flute lessons in ${city}, NE for kids and adults. Band support, solo repertoire, audition prep. Background-checked instructors, flexible scheduling, no contracts.`,
+  },
+]
+
 function buildJsonLd(loc: LocSEO): string {
   return JSON.stringify({
     '@context': 'https://schema.org',
@@ -297,9 +337,29 @@ export default function locationSeoPlugin(): Plugin {
           lng: loc.lng,
         })
         writeFileSync(join(moreDir, 'index.html'), moreHtml)
+
+        // "-lessons" SEO landing pages: dist/{slug}/{instrument}-lessons/index.html
+        for (const lp of LESSONS_PAGES) {
+          const lpDir = join(locDir, lp.slug)
+          mkdirSync(lpDir, { recursive: true })
+
+          const lpHtml = rewriteHtml(baseHtml, {
+            title: `${lp.titlePrefix} in ${loc.city}, ${loc.state} | Private Instruction for All Ages — Adkins Music`,
+            desc: lp.descTemplate(loc.city),
+            canonical: `${BASE_URL}/${loc.slug}/${lp.slug}`,
+            jsonLd: buildInstrumentJsonLd(loc, lp.label),
+            city: loc.city,
+            state: loc.state,
+            lat: loc.lat,
+            lng: loc.lng,
+          })
+          writeFileSync(join(lpDir, 'index.html'), lpHtml)
+        }
       }
 
-      console.log(`[location-seo] Generated ${LOCATIONS.length} location pages + ${LOCATIONS.length * (INSTRUMENT_PAGES.length + 1)} instrument pages`)
+      const totalInstrument = LOCATIONS.length * (INSTRUMENT_PAGES.length + 1)
+      const totalLessons = LOCATIONS.length * LESSONS_PAGES.length
+      console.log(`[location-seo] Generated ${LOCATIONS.length} location pages + ${totalInstrument} instrument pages + ${totalLessons} lessons pages`)
     },
   }
 }
