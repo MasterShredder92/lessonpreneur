@@ -9,6 +9,9 @@ import { useLocationStats } from '../hooks/useLocationStats'
 import SiteHeader from '../components/site/SiteHeader'
 import InstrumentAtmosphere from '../components/site/InstrumentAtmosphere'
 import { setLocColors } from '../lib/setLocColors'
+import { LOCATION_SEO } from '../content'
+import { LocationIntro, WhoWeHelp, WhyChoose, LocationFAQ, ServiceArea, LocalInstruments, LocationCrossLinks } from '../components/seo/LocationSEOSections'
+import '../components/seo/seo-sections.css'
 import './adkins.css'
 
 // ═══════════════════════════════════════
@@ -149,7 +152,7 @@ export default function AdkinsLanding() {
 
     const localBusiness = {
       '@context': 'https://schema.org',
-      '@type': ['LocalBusiness', 'MusicSchool'],
+      '@type': ['LocalBusiness', 'EducationalOrganization'],
       '@id': url,
       name: l.fullName,
       alternateName: 'Adkins Music Lessons',
@@ -242,10 +245,28 @@ export default function AdkinsLanding() {
     return () => { script?.remove() }
   }, [])
 
+  // JSON-LD: BreadcrumbList schema
+  useEffect(() => {
+    const l = LOCATIONS[loc]
+    const breadcrumb = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.lessonpreneur.io' },
+        { '@type': 'ListItem', position: 2, name: l.fullName, item: `https://www.lessonpreneur.io${l.route}` },
+      ],
+    }
+    const id = 'ld-json-breadcrumb'
+    let script = document.getElementById(id) as HTMLScriptElement | null
+    if (!script) { script = document.createElement('script'); script.id = id; script.type = 'application/ld+json'; document.head.appendChild(script) }
+    script.textContent = JSON.stringify(breadcrumb)
+    return () => { script?.remove() }
+  }, [loc])
+
   // Fetch logos from Supabase
   useEffect(() => {
     let cancelled = false
-    anon.from('locations').select('id, name, logo_url').then(({ data }) => {
+    anon.from('locations').select('id, name, logo_url').eq('tenant_id', '00000000-0000-0000-0000-000000000001').then(({ data }) => {
       if (cancelled) return
       const map: Record<string, string> = {}
       data?.forEach((l: any) => {
@@ -266,6 +287,7 @@ export default function AdkinsLanding() {
       const { data: locData } = await anon
         .from('reviews')
         .select('id, reviewer_name, text_cleaned')
+        .eq('tenant_id', '00000000-0000-0000-0000-000000000001')
         .ilike('location_name', `%${locName}%`)
         .eq('is_active', true)
       let pool = locData ?? []
@@ -274,6 +296,7 @@ export default function AdkinsLanding() {
         const { data: allData } = await anon
           .from('reviews')
           .select('id, reviewer_name, text_cleaned')
+          .eq('tenant_id', '00000000-0000-0000-0000-000000000001')
           .eq('is_active', true)
         const ids = new Set(pool.map(r => r.id))
         pool = [...pool, ...(allData ?? []).filter(r => !ids.has(r.id))]
@@ -337,7 +360,7 @@ export default function AdkinsLanding() {
   const logoUrl = logos[loc] || ''
 
   return (
-    <div className="ak-page">
+    <div className="ak-page" id="main-content">
       <InstrumentAtmosphere theme="guitar" />
       <SiteHeader />
 
@@ -347,13 +370,13 @@ export default function AdkinsLanding() {
         <div className="ak-hgrid" />
         <div className="ak-hcontent">
           <h1 className="ak-htitle">
-            <span className="ak-htitle-line1">You Were Born</span>
-            <span className="ak-htitle-line2">to Play Music.</span>
+            <span className="ak-htitle-line1">{LD.name} Music Lessons</span>
+            <span className="ak-htitle-line2">You Were Born to Play.</span>
           </h1>
           <div className="ak-hlogo" onMouseMove={handleTilt} onMouseLeave={resetTilt}>
             <div className="ak-lcard" ref={cardRef}>
               <div className="ak-lring">
-                {logoUrl && <img src={logoUrl} alt={LD.name} />}
+                {logoUrl && <img src={logoUrl} alt={`${LD.full} logo`} />}
               </div>
             </div>
           </div>
@@ -587,6 +610,17 @@ export default function AdkinsLanding() {
         </div>
       </section>
 
+      {/* ═══ SEO CONTENT SECTIONS ═══ */}
+      {(() => { const seo = LOCATION_SEO[loc]; return seo ? (<>
+        <LocationIntro content={seo} />
+        <WhoWeHelp content={seo} />
+        <LocalInstruments content={seo} />
+        <WhyChoose content={seo} />
+        <LocationFAQ content={seo} />
+        <ServiceArea content={seo} />
+        <LocationCrossLinks currentLoc={loc} />
+      </>) : null })()}
+
       {/* TESTIMONIAL 3 — before final CTA */}
       {randomReviews[2] && (
         <div className="ak-testimonial">
@@ -673,7 +707,26 @@ export default function AdkinsLanding() {
       {/* FOOTER */}
       <footer className="ak-footer">
         <div className="ak-fname">{LD.full.toUpperCase()}</div>
-        <div style={{ fontSize: 11, color: '#55516E', marginBottom: 8 }}>By Adkins Music Lessons</div>
+        <div style={{ fontSize: 11, color: '#55516E', marginBottom: 12 }}>By Adkins Music Lessons</div>
+
+        <nav aria-label="Instrument lessons" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 16px', fontSize: 13, color: '#8A86A0' }}>
+            <a href={`/${loc}/piano`} style={{ color: '#8A86A0', textDecoration: 'none' }}>Piano Lessons</a>
+            <a href={`/${loc}/guitar`} style={{ color: '#8A86A0', textDecoration: 'none' }}>Guitar Lessons</a>
+            <a href={`/${loc}/vocals`} style={{ color: '#8A86A0', textDecoration: 'none' }}>Vocal Lessons</a>
+            <a href={`/${loc}/drums`} style={{ color: '#8A86A0', textDecoration: 'none' }}>Drum Lessons</a>
+            <a href={`/${loc}/more`} style={{ color: '#8A86A0', textDecoration: 'none' }}>More Instruments</a>
+          </div>
+        </nav>
+
+        <nav aria-label="Other locations" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 16px', fontSize: 12, color: '#55516E' }}>
+            {(['omaha', 'bellevue', 'elkhorn', 'gretna'] as LocKey[]).filter(k => k !== loc).map(k => (
+              <a key={k} href={`/${k}`} style={{ color: '#55516E', textDecoration: 'none' }}>{LOCATIONS[k].fullName}</a>
+            ))}
+          </div>
+        </nav>
+
         <div className="ak-fpow">Powered by <span>Lessonpreneur</span></div>
       </footer>
 
@@ -681,8 +734,11 @@ export default function AdkinsLanding() {
       <img
         id="ak-corn"
         src="/cornelius.png"
-        alt="Cornelius Cobb"
+        alt="Chat with Cornelius Cobb, our virtual assistant"
+        role="button"
+        tabIndex={0}
         onClick={() => { setChatOpen(o => !o); playNote() }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setChatOpen(o => !o); playNote() } }}
       />
       <CorneliusChat
         open={chatOpen}

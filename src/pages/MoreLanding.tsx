@@ -34,7 +34,7 @@ export default function MoreLanding() {
     title: `More Instrument Lessons in ${LD.name}, NE | Violin, Band, Bass — Adkins Music Lessons`,
     description: `Private lessons for violin, brass, woodwinds, bass guitar and more in ${LD.name}, NE. Expert teachers, flexible scheduling, no contracts. ${LD.phone}`,
     path: `/${loc}/more`,
-    jsonLd: buildInstrumentJsonLd(loc, 'More Instruments', 'Private one-on-one lessons for violin, bass guitar, flute, brass, woodwinds, and more.'),
+    jsonLd: buildInstrumentJsonLd(loc, 'More Instruments', 'more', 'Private one-on-one lessons for violin, bass guitar, flute, brass, woodwinds, and more.'),
   })
 
   useEffect(() => {

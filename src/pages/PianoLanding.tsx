@@ -150,7 +150,7 @@ export default function PianoLanding() {
     title: `Piano Lessons in ${LD.name}, NE | Classical to Pop — Adkins Music Lessons`,
     description: `Private piano lessons in ${LD.name}, NE. Classical, pop and more. Expert teachers, flexible scheduling, no contracts. Book in 60 seconds. ${LD.phone}`,
     path: `/${loc}/piano`,
-    jsonLd: buildInstrumentJsonLd(loc, 'Piano', 'Private one-on-one piano lessons covering classical, pop, jazz, and music theory. All ages and skill levels.'),
+    jsonLd: buildInstrumentJsonLd(loc, 'Piano', 'piano', 'Private one-on-one piano lessons covering classical, pop, jazz, and music theory. All ages and skill levels.'),
   })
 
   // Set CSS vars on location change
