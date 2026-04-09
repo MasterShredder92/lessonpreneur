@@ -1,26 +1,10 @@
-import { supabase } from './supabase'
-
-const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/square-proxy`
+import { EDGE_FUNCTIONS } from './config'
+import { safeFetch } from './safeFetch'
 
 async function squareProxy<T = unknown>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) throw new Error('Not authenticated')
-
-  const res = await fetch(EDGE_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({ action, ...payload }),
+  return safeFetch<T>(EDGE_FUNCTIONS.squareProxy, {
+    body: { action, ...payload },
   })
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    throw new Error(`Square proxy error ${res.status}: ${JSON.stringify(body)}`)
-  }
-
-  return res.json()
 }
 
 export async function testListCustomers(): Promise<{ customers: any[]; cursor?: string }> {

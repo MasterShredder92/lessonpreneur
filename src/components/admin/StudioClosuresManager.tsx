@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useAuthContext } from '../../app/AuthContext'
 import { toast } from '../shared/Toast'
+import { qk } from '../../lib/queryKeys'
 
 interface ClosureRow {
   id: string
@@ -35,7 +36,7 @@ export default function StudioClosuresManager({ locationId, locationName }: Prop
   const isCompanyWide = locationId === null
 
   const { data: closures } = useQuery<ClosureRow[]>({
-    queryKey: ['studio-closures', tenantId, locationId ?? 'company'],
+    queryKey: [...qk.locations.closures, tenantId, locationId ?? 'company'],
     enabled: !!tenantId,
     queryFn: async () => {
       let q = supabase
@@ -68,7 +69,7 @@ export default function StudioClosuresManager({ locationId, locationName }: Prop
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['studio-closures'] })
+      qc.invalidateQueries({ queryKey: qk.locations.closures })
       setShowForm(false)
       setNewDate('')
       setNewLabel('')
@@ -83,7 +84,7 @@ export default function StudioClosuresManager({ locationId, locationName }: Prop
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['studio-closures'] })
+      qc.invalidateQueries({ queryKey: qk.locations.closures })
       setConfirmDelete(null)
       toast('Closure removed', 'success')
     },

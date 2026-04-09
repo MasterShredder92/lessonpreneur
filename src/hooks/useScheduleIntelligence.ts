@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 export interface ScheduleInsight {
   type: 'utilization' | 'coverage' | 'opportunity'
@@ -34,7 +35,7 @@ const LOCATION_COLORS: Record<string, string> = {
 
 export function useScheduleIntelligence(weekStart: string, weekEnd: string) {
   return useQuery<{ utilization: LocationUtilization[]; overall: OverallUtilization; insights: ScheduleInsight[] }>({
-    queryKey: ['schedule-intelligence', weekStart, weekEnd],
+    queryKey: [...qk.schedule.intelligence, weekStart, weekEnd],
     enabled: !!weekStart && !!weekEnd,
     staleTime: 60_000,
     queryFn: async () => {

@@ -18,9 +18,14 @@ export default function Login() {
     e.preventDefault()
     setError(null)
     setSubmitting(true)
-    const { error: err } = await signIn(email, password)
-    if (err) setError(err)
-    setSubmitting(false)
+    try {
+      const { error: err } = await signIn(email, password)
+      if (err) setError(err)
+    } catch (err: any) {
+      setError(err.message ?? 'Sign in failed. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

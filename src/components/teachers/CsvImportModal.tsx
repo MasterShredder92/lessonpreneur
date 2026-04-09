@@ -3,6 +3,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Location } from '../../lib/types'
+import { qk } from '../../lib/queryKeys'
 
 interface CsvRow {
   firstName: string
@@ -176,7 +177,7 @@ export default function CsvImportModal({ locations, onClose }: Props) {
     setResult({ imported, skipped, errors })
     setImporting(false)
     if (imported > 0) {
-      qc.invalidateQueries({ queryKey: ['teachers'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.all })
     }
   }
 

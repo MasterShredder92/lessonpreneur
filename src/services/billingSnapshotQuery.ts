@@ -49,6 +49,7 @@ export async function fetchBillingSnapshotData(
 
   let grossQ = supabase.from('student_effective_rate')
     .select('monthly_cents')
+    .eq('tenant_id', tenantId)
     .eq('billing_status', 'active')
   if (locationId) grossQ = grossQ.eq('location_id', locationId)
 

@@ -11,6 +11,8 @@ import RetentionCaptureModal from '../../components/students/RetentionCaptureMod
 import { useLocations } from '../../hooks/useLocations'
 import { useTeachers } from '../../hooks/useTeachers'
 import { supabase } from '../../lib/supabase'
+import { safeFetch } from '../../lib/safeFetch'
+import { EDGE_FUNCTIONS } from '../../lib/config'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Star, Music, MapPin, Phone, Mail, DollarSign, Upload, FileText, Trash2, Pencil, Download, Send, Lock, AlertTriangle } from 'lucide-react'
 import { useFamilyRate, useOverrideFamilyRate, useRemoveFamilyRateOverride, useAddSessionCredit, getRateTierLabel, getRateTierColor, formatRate } from '../../hooks/useFamilyRate'
@@ -27,6 +29,7 @@ import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
 import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
 import LinkFamilyModal from '../../components/students/LinkFamilyModal'
+import { qk } from '../../lib/queryKeys'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -110,7 +113,7 @@ export default function StudentDetail() {
 
   // Load student with family + teacher + location (parallel sub-queries after primary row)
   const { data: student, isLoading, error } = useQuery({
-    queryKey: ['student-detail', id],
+    queryKey: qk.students.detail(id),
     enabled: !!id,
     queryFn: async () => {
       const { data, error: stuErr } = await supabase
@@ -258,7 +261,7 @@ export default function StudentDetail() {
   })
 
   const { data: studentFiles } = useQuery({
-    queryKey: ['student-files', id],
+    queryKey: qk.students.files(id),
     enabled: !!id && deferSecondarySections,
     queryFn: async () => {
       const { data } = await supabase.from('student_files').select('*').eq('student_id', id!).order('created_at', { ascending: false })
@@ -320,7 +323,7 @@ export default function StudentDetail() {
       folder,
     })
     if (insertErr) { toast('File uploaded but record failed: ' + insertErr.message, 'error'); return }
-    qc.invalidateQueries({ queryKey: ['student-files', id] })
+    qc.invalidateQueries({ queryKey: qk.students.files(id) })
     toast('File uploaded', 'success')
   }
 
@@ -332,7 +335,7 @@ export default function StudentDetail() {
       onConfirm: async () => {
         setPendingConfirm(null)
         await supabase.from('student_files').delete().eq('id', fileId)
-        qc.invalidateQueries({ queryKey: ['student-files', id] })
+        qc.invalidateQueries({ queryKey: qk.students.files(id) })
         toast('File deleted', 'success')
       },
     })
@@ -441,14 +444,15 @@ export default function StudentDetail() {
               <input value={familyNameValue} onChange={(e) => setFamilyNameValue(e.target.value)}
                 onBlur={async () => {
                   if (familyNameValue && familyNameValue !== student.family_name) {
+                    if (!student.family_id) { toast('No family linked — link a family first', 'error'); setEditingFamilyName(false); return }
                     const { error: famErr } = await supabase.from('families').update({ name: familyNameValue }).eq('id', student.family_id)
                     if (famErr) { toast('Failed to update family name: ' + famErr.message, 'error'); return }
                     await Promise.all([
-                      qc.invalidateQueries({ queryKey: ['families'] }),
-                      qc.invalidateQueries({ queryKey: ['family_detail'] }),
-                      qc.invalidateQueries({ queryKey: ['student-detail'] }),
-                      qc.invalidateQueries({ queryKey: ['families_roster'] }),
-                      qc.invalidateQueries({ queryKey: ['students_roster'] }),
+                      qc.invalidateQueries({ queryKey: qk.families.all }),
+                      qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
+                      qc.invalidateQueries({ queryKey: qk.students.detail }),
+                      qc.invalidateQueries({ queryKey: qk.families.roster }),
+                      qc.invalidateQueries({ queryKey: qk.students.roster }),
                     ])
                     toast('Family name updated', 'success')
                   }
@@ -489,14 +493,15 @@ export default function StudentDetail() {
                 <input value={phoneValue} onChange={(e) => setPhoneValue(e.target.value)}
                   onBlur={async () => {
                     if (phoneValue !== (student.family_phone ?? '')) {
+                      if (!student.family_id) { toast('No family linked — link a family first', 'error'); setEditingPhone(false); return }
                       const { error: phErr } = await supabase.from('families').update({ primary_phone: phoneValue || null }).eq('id', student.family_id)
                       if (phErr) { toast('Failed to update phone: ' + phErr.message, 'error'); return }
                       await Promise.all([
-                        qc.invalidateQueries({ queryKey: ['families'] }),
-                        qc.invalidateQueries({ queryKey: ['family_detail'] }),
-                        qc.invalidateQueries({ queryKey: ['student-detail'] }),
-                        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-                        qc.invalidateQueries({ queryKey: ['students_roster'] }),
+                        qc.invalidateQueries({ queryKey: qk.families.all }),
+                        qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
+                        qc.invalidateQueries({ queryKey: qk.students.detail }),
+                        qc.invalidateQueries({ queryKey: qk.families.roster }),
+                        qc.invalidateQueries({ queryKey: qk.students.roster }),
                       ])
                       toast('Phone updated', 'success')
                     }
@@ -523,14 +528,15 @@ export default function StudentDetail() {
                 <input value={emailValue} onChange={(e) => setEmailValue(e.target.value)}
                   onBlur={async () => {
                     if (emailValue !== (student.family_email ?? '')) {
+                      if (!student.family_id) { toast('No family linked — link a family first', 'error'); setEditingEmail(false); return }
                       const { error: emErr } = await supabase.from('families').update({ primary_email: emailValue || null }).eq('id', student.family_id)
                       if (emErr) { toast('Failed to update email: ' + emErr.message, 'error'); return }
                       await Promise.all([
-                        qc.invalidateQueries({ queryKey: ['families'] }),
-                        qc.invalidateQueries({ queryKey: ['family_detail'] }),
-                        qc.invalidateQueries({ queryKey: ['student-detail'] }),
-                        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-                        qc.invalidateQueries({ queryKey: ['students_roster'] }),
+                        qc.invalidateQueries({ queryKey: qk.families.all }),
+                        qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
+                        qc.invalidateQueries({ queryKey: qk.students.detail }),
+                        qc.invalidateQueries({ queryKey: qk.families.roster }),
+                        qc.invalidateQueries({ queryKey: qk.students.roster }),
                       ])
                       toast('Email updated', 'success')
                     }
@@ -1048,9 +1054,9 @@ export default function StudentDetail() {
                   setHandoffReport(null)
                   setHandoffSent(false)
                   try {
-                    const { data, error } = await supabase.functions.invoke('teacher-handoff', { body: { student_id: id } })
-                    if (error || !data?.report) {
-                      toast(data?.error ?? error?.message ?? 'Failed to generate report. Check that ANTHROPIC_API_KEY is set.', 'error')
+                    const data = await safeFetch<{ report?: string; error?: string }>(EDGE_FUNCTIONS.teacherHandoff, { body: { student_id: id } })
+                    if (!data?.report) {
+                      toast(data?.error ?? 'Failed to generate report. Check that ANTHROPIC_API_KEY is set.', 'error')
                     } else {
                       setHandoffReport(data.report)
                     }
@@ -1156,10 +1162,9 @@ export default function StudentDetail() {
                   onClick={async () => {
                     setBioGenerating(true)
                     try {
-                      const { data, error } = await supabase.functions.invoke('generate-student-bio', { body: { student_id: id } })
-                      if (error) throw error
+                      const data = await safeFetch<{ bio?: string }>(EDGE_FUNCTIONS.generateStudentBio, { body: { student_id: id } })
                       if (data?.bio) {
-                        qc.invalidateQueries({ queryKey: ['student-detail', id] })
+                        qc.invalidateQueries({ queryKey: qk.students.detail(id) })
                         toast('Bio updated', 'success')
                       }
                     } catch (err: any) {
@@ -1454,7 +1459,7 @@ export default function StudentDetail() {
           onClose={() => setShowRateOverrideModal(false)}
           overrideMutation={overrideMutation}
           removeOverrideMutation={removeOverrideMutation}
-          onSuccess={() => { setShowRateOverrideModal(false); qc.invalidateQueries({ queryKey: ['student-detail', id] }) }}
+          onSuccess={() => { setShowRateOverrideModal(false); qc.invalidateQueries({ queryKey: qk.students.detail(id) }) }}
         />
       )}
 
@@ -1496,7 +1501,7 @@ export default function StudentDetail() {
           onClose={() => setShowLinkFamily(false)}
           onLinked={(familyId) => {
             setShowLinkFamily(false)
-            qc.invalidateQueries({ queryKey: ['student-detail', id] })
+            qc.invalidateQueries({ queryKey: qk.students.detail(id) })
           }}
         />
       )}
@@ -1629,7 +1634,7 @@ function EditStudentModal({ student, onClose, onSaved }: { student: any; onClose
           removedIds,
         })
       }
-      qc.invalidateQueries({ queryKey: ['student-detail'] })
+      qc.invalidateQueries({ queryKey: qk.students.detail })
       onSaved()
     } catch (err: any) {
       setError(err.message)

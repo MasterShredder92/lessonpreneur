@@ -7,6 +7,7 @@ import { getTierPrice } from '../../lib/pricing'
 import { Star, Users, MapPin, DollarSign } from 'lucide-react'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
+import { qk } from '../../lib/queryKeys'
 
 interface TenantRow {
   id: string
@@ -33,7 +34,7 @@ export default function Platform() {
   }
 
   const { data: tenants, isLoading } = useQuery<TenantRow[]>({
-    queryKey: ['platform-tenants'],
+    queryKey: qk.tenant.platform,
     queryFn: async () => {
       const { data: allTenants } = await supabase.from('tenants').select('id, name, slug, plan, pricing_tier, trial_ends_at, created_at').order('created_at', { ascending: false })
       if (!allTenants) return []

@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetch } from '../lib/safeFetch'
+import { qk } from '../lib/queryKeys'
 
 // ─── SMS Templates ───────────────────────────────────
 
@@ -48,27 +50,17 @@ export function useSendSms() {
       }
 
       const normalized = normalizePhone(params.to)
-      if (!normalized) return { sent: false, reason: 'invalid_phone' }
+      if (!normalized) throw new Error('Invalid phone number')
 
       // Don't send in dev
       if (window.location.hostname === 'localhost') {
         return { sent: false, reason: 'dev_environment' }
       }
 
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-
-      try {
-        const res = await fetch(EDGE_FUNCTIONS.sendSms, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ to: normalized, body: params.body, tenant_id: tenantId }),
-        })
-        if (!res.ok) return { sent: false, reason: await res.text() }
-        return { sent: true }
-      } catch (err) {
-        return { sent: false, reason: String(err) }
-      }
+      await safeFetch(EDGE_FUNCTIONS.sendSms, {
+        body: { to: normalized, body: params.body, tenant_id: tenantId },
+      })
+      return { sent: true }
     },
   })
 }
@@ -84,7 +76,7 @@ export function useBatchSendSms() {
         const batch = messages.slice(i, i + 10)
         const results = await Promise.allSettled(batch.map(m => sendSms.mutateAsync(m)))
         results.forEach(r => {
-          if (r.status === 'fulfilled' && r.value.sent) sent++
+          if (r.status === 'fulfilled') sent++
           else failed++
         })
         if (i + 10 < messages.length) await new Promise(r => setTimeout(r, 1000))
@@ -99,7 +91,7 @@ export function useBatchSendSms() {
 export function useSmsStats() {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['sms-stats', tenantId],
+    queryKey: qk.sms.stats(tenantId),
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {

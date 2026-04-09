@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useAuthContext } from '../../app/AuthContext'
 import { toast } from '../shared/Toast'
+import { qk } from '../../lib/queryKeys'
 
 interface BlockingTeacher {
   teacher_id: string
@@ -42,7 +43,7 @@ export default function DirectorCloseoutSection() {
   const isStudioDirector = role === 'studio_director'
 
   const { data: status } = useQuery<DirectorCloseoutStatus>({
-    queryKey: ['director-closeout-status', profile?.id, tenantId],
+    queryKey: [...qk.director.closeoutStatus, profile?.id, tenantId],
     enabled: isStudioDirector && !!profile?.id && !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -194,7 +195,7 @@ export default function DirectorCloseoutSection() {
       return { closedAt }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['director-closeout-status'] })
+      qc.invalidateQueries({ queryKey: qk.director.closeoutStatus })
     },
   })
 

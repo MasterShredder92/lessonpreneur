@@ -2,6 +2,8 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetch } from '../lib/safeFetch'
+import { qk } from '../lib/queryKeys'
 
 export interface TenantBilling {
   plan: string
@@ -18,7 +20,7 @@ export interface TenantBilling {
 export function useTenantBilling() {
   const { tenantId } = useAuthContext()
   return useQuery<TenantBilling>({
-    queryKey: ['tenant-billing', tenantId],
+    queryKey: qk.stripe.tenantBilling(tenantId),
     enabled: !!tenantId,
     queryFn: async () => {
       const { data } = await supabase
@@ -51,18 +53,12 @@ export function useCreateCheckout() {
   const { tenantId } = useAuthContext()
   return useMutation({
     mutationFn: async () => {
-      // Get the tenant's pricing tier
       const { data: tenant } = await supabase.from('tenants').select('pricing_tier').eq('id', tenantId!).single()
       const pricingTier = tenant?.pricing_tier ?? 'school'
 
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      const res = await fetch(EDGE_FUNCTIONS.createCheckout, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ tenant_id: tenantId, pricing_tier: pricingTier }),
+      const data = await safeFetch<{ url?: string; error?: string }>(EDGE_FUNCTIONS.createCheckout, {
+        body: { tenant_id: tenantId, pricing_tier: pricingTier },
       })
-      const data = await res.json()
       if (data.url) window.location.href = data.url
       else throw new Error(data.error ?? 'Failed to create checkout')
     },
@@ -73,14 +69,9 @@ export function useCustomerPortal() {
   const { tenantId } = useAuthContext()
   return useMutation({
     mutationFn: async () => {
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      const res = await fetch(EDGE_FUNCTIONS.customerPortal, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ tenant_id: tenantId }),
+      const data = await safeFetch<{ url?: string; error?: string }>(EDGE_FUNCTIONS.customerPortal, {
+        body: { tenant_id: tenantId },
       })
-      const data = await res.json()
       if (data.url) window.location.href = data.url
       else throw new Error(data.error ?? 'Failed to open billing portal')
     },

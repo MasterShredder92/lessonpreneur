@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase'
 import { toast } from '../shared/Toast'
 import { ALL_INSTRUMENTS, DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_PER_SESSION } from '../../lib/constants'
 import { X, Plus, Trash2, Users, Check } from 'lucide-react'
+import { qk } from '../../lib/queryKeys'
 
 interface Props {
   onClose: () => void
@@ -261,17 +262,17 @@ export default function AddFamilyModal({ onClose, onCreated }: Props) {
 
       // 4. Invalidate caches
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['students'] }),
-        qc.invalidateQueries({ queryKey: ['students_roster'] }),
-        qc.invalidateQueries({ queryKey: ['student-instruments'] }),
-        qc.invalidateQueries({ queryKey: ['student-tab-counts'] }),
-        qc.invalidateQueries({ queryKey: ['families'] }),
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-        qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
-        qc.invalidateQueries({ queryKey: ['family_detail'] }),
-        qc.invalidateQueries({ queryKey: ['tasks'] }),
-        qc.invalidateQueries({ queryKey: ['onboarding-pipeline'] }),
+        qc.invalidateQueries({ queryKey: qk.students.all }),
+        qc.invalidateQueries({ queryKey: qk.students.roster }),
+        qc.invalidateQueries({ queryKey: qk.students.instruments }),
+        qc.invalidateQueries({ queryKey: qk.students.tabCounts }),
+        qc.invalidateQueries({ queryKey: qk.families.all }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
+        qc.invalidateQueries({ queryKey: qk.families.tabCounts }),
+        qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
+        qc.invalidateQueries({ queryKey: qk.tasks.all }),
+        qc.invalidateQueries({ queryKey: qk.onboarding.pipeline }),
       ])
 
       // 5. Toast + navigate
@@ -288,6 +289,7 @@ export default function AddFamilyModal({ onClose, onCreated }: Props) {
     } catch (err: any) {
       setError(err.message || 'Failed to create family.')
       setStep(wantsStudents ? 'students' : 'family')
+    } finally {
       setSaving(false)
     }
   }
@@ -454,12 +456,12 @@ export default function AddFamilyModal({ onClose, onCreated }: Props) {
                   }}>
                     Yes, Add Student
                   </button>
-                  <button type="button" onClick={handleSkipStudents} style={{
+                  <button type="button" onClick={handleSkipStudents} disabled={saving} style={{
                     flex: 1, padding: '11px 16px', borderRadius: 10,
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                    color: '#A0A0C8', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    background: saving ? '#44403C' : 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                    color: saving ? '#606088' : '#A0A0C8', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer',
                   }}>
-                    Skip — Save Family Only
+                    {saving ? 'Saving...' : 'Skip — Save Family Only'}
                   </button>
                 </div>
               </div>

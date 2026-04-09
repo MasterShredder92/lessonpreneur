@@ -7,6 +7,7 @@ import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
 import ChangePasswordModal from '../../components/shared/ChangePasswordModal'
 import { KeyRound, Clock, CheckCircle2, Lock } from 'lucide-react'
+import { qk } from '../../lib/queryKeys'
 
 export default function ParentAccount() {
   const { profile, tenantId } = useAuthContext()
@@ -31,7 +32,7 @@ export default function ParentAccount() {
 
   // Load family data
   const { data: family } = useQuery({
-    queryKey: ['parent-account-family', familyId],
+    queryKey: [...qk.parent.accountFamily, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -46,7 +47,7 @@ export default function ParentAccount() {
 
   // Load pending change request (if any)
   const { data: pendingRequest } = useQuery({
-    queryKey: ['parent-account-pending-request', familyId],
+    queryKey: [...qk.parent.accountPendingRequest, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data } = await supabase
@@ -93,7 +94,7 @@ export default function ParentAccount() {
       })
       if (error) throw error
       setJustSubmitted(true)
-      qc.invalidateQueries({ queryKey: ['parent-account-pending-request'] })
+      qc.invalidateQueries({ queryKey: qk.parent.accountPendingRequest })
       toast('Change request submitted for review', 'success')
     } catch (err: any) {
       toast(err.message ?? 'Failed to submit', 'error')
@@ -133,7 +134,7 @@ export default function ParentAccount() {
         reminder_1hr: reminder1hr,
       }).eq('id', familyId)
       if (error) throw error
-      qc.invalidateQueries({ queryKey: ['parent-account-family'] })
+      qc.invalidateQueries({ queryKey: qk.parent.accountFamily })
       toast('Notification preferences saved', 'success')
     } catch (err: any) {
       toast(err.message ?? 'Failed to save', 'error')

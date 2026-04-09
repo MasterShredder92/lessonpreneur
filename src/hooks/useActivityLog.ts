@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 interface ActivityEntry {
   id: string
@@ -34,14 +35,14 @@ export function useLogActivity() {
       if (error) { /* silently fail — activity logging is non-critical */ }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['activity-log'] })
+      qc.invalidateQueries({ queryKey: qk.activity.log })
     },
   })
 }
 
 export function useEntityActivity(entityType: string, entityId: string | undefined) {
   return useQuery({
-    queryKey: ['activity-log', entityType, entityId],
+    queryKey: [...qk.activity.log, entityType, entityId],
     enabled: !!entityId,
     queryFn: async () => {
       const { data, error } = await supabase

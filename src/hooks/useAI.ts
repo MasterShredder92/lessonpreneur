@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
 import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetch } from '../lib/safeFetch'
 import {
   type ScheduleContext,
   type ProposedAction,
@@ -95,35 +95,17 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
     if (!pendingAction || !tenantId) return
     setIsLoading(true)
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData.session?.access_token
-
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 30000)
-
-      let res: Response
-      try {
-        res = await fetch(
-          EDGE_FUNCTIONS.aiScheduleAction,
-          {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              action: pendingAction.action,
-              tenant_id: tenantId,
-              params: pendingAction.params,
-            }),
-          }
-        )
-      } finally {
-        clearTimeout(timeout)
-      }
-
-      const data = await res.json()
+      const data = await safeFetch<{ error?: string; message?: string }>(
+        EDGE_FUNCTIONS.aiScheduleAction,
+        {
+          body: {
+            action: pendingAction.action,
+            tenant_id: tenantId,
+            params: pendingAction.params,
+          },
+          timeoutMs: 30_000,
+        },
+      )
       if (data.error) {
         setMessages((prev) => [...prev, { role: 'assistant', content: `Action failed: ${data.error}` }])
       } else {

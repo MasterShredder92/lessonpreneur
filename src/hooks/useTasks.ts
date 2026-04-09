@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ═══════════════════════════════════════
 // TYPES
@@ -51,11 +52,13 @@ export interface TaskFilters {
 // ═══════════════════════════════════════
 
 export function useTasks(filters?: TaskFilters) {
-  const { role, profile } = useAuthContext()
+  const { role, profile, tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['tasks', filters],
+    queryKey: qk.tasks.list(filters, tenantId),
+    enabled: !!tenantId,
+    staleTime: 30_000,
     queryFn: async () => {
-      let query = supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(200)
+      let query = supabase.from('tasks').select('*').eq('tenant_id', tenantId!).order('created_at', { ascending: false }).limit(200)
 
       if (filters?.status) {
         query = query.eq('status', filters.status)
@@ -151,7 +154,7 @@ export function useCreateTask() {
       })
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.tasks.all }) },
   })
 }
 
@@ -183,7 +186,7 @@ export function useCompleteTask() {
         performed_by: user?.id ?? null,
       })
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.tasks.all }) },
   })
 }
 
@@ -199,7 +202,7 @@ export function useUncheckTask() {
       }).eq('id', taskId)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.tasks.all }) },
   })
 }
 
@@ -215,7 +218,7 @@ export function useDismissTask() {
         record_id: params.taskId, performed_by: user?.id ?? null,
       })
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.tasks.all }) },
   })
 }
 
@@ -226,7 +229,7 @@ export function useSnoozeTask() {
       const { error } = await supabase.from('tasks').update({ snoozed_until: params.until }).eq('id', params.taskId)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.tasks.all }) },
   })
 }
 
@@ -245,11 +248,13 @@ export function useScanSystemTasks() {
       const { data: activeTeachers } = await supabase
         .from('teachers')
         .select('id, first_name, last_name, is_active')
+        .eq('tenant_id', tenantId!)
         .eq('is_active', true)
 
       const { data: teacherDocs } = await supabase
         .from('teacher_documents')
         .select('teacher_id, category')
+        .eq('tenant_id', tenantId!)
 
       const docsByTeacher = new Map<string, Set<string>>()
       teacherDocs?.forEach((d: any) => {
@@ -286,11 +291,13 @@ export function useScanSystemTasks() {
       const { data: activeFamilies } = await supabase
         .from('families')
         .select('id, name, billing_status, primary_location_id')
+        .eq('tenant_id', tenantId!)
         .eq('billing_status', 'active')
 
       const { data: familyFiles } = await supabase
         .from('family_files')
         .select('family_id, file_type')
+        .eq('tenant_id', tenantId!)
 
       const filesByFamily = new Map<string, Set<string>>()
       familyFiles?.forEach((f: any) => {
@@ -327,7 +334,7 @@ export function useScanSystemTasks() {
         await supabase.from('tasks').upsert(tasksToCreate, { onConflict: 'dedup_key', ignoreDuplicates: true })
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.tasks.all }) },
   })
 }
 

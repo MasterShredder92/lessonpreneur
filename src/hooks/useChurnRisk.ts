@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { batchIn } from '../lib/batchQuery'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -193,7 +194,7 @@ export function useChurnRiskScores() {
   const { tenantId } = useAuthContext()
 
   return useQuery<ChurnRiskScore[]>({
-    queryKey: ['churn-risk', tenantId],
+    queryKey: [...qk.retention.churnRisk, tenantId],
     enabled: !!tenantId,
     staleTime: 2 * 60_000,
     queryFn: async () => {
@@ -219,7 +220,7 @@ export function useStudentChurnRisk(studentId: string | undefined) {
   const { tenantId } = useAuthContext()
 
   const { data } = useQuery<ChurnRiskScore | null>({
-    queryKey: ['churn-risk-student', tenantId, studentId],
+    queryKey: qk.retention.churnRiskStudent(tenantId, studentId),
     enabled: !!tenantId && !!studentId,
     staleTime: 2 * 60_000,
     queryFn: async () => {

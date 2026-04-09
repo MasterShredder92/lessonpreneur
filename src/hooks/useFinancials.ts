@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -56,7 +57,7 @@ export function useExpenses() {
   const { tenantId } = useAuthContext()
 
   return useQuery<Expense[]>({
-    queryKey: ['expenses', tenantId],
+    queryKey: [...qk.financials.expenses, tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -90,7 +91,7 @@ export function usePLSummary() {
   const { tenantId } = useAuthContext()
 
   return useQuery<PLSummary>({
-    queryKey: ['pl-summary', tenantId],
+    queryKey: [...qk.financials.plSummary, tenantId],
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -164,9 +165,9 @@ export function usePLSummary() {
       const prevMonthMarginPercent = prevMonthRevenueCents > 0 ? (prevMonthTakeHomeCents / prevMonthRevenueCents) * 100 : 0
 
       // 6. Location breakdown
-      const { data: locations } = await supabase.from('locations').select('id, name').eq('is_active', true)
-      const { data: rooms } = await supabase.from('rooms').select('id, location_id')
-      const { data: students } = await supabase.from('students').select('id, location_id').eq('status', 'active').limit(10000)
+      const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).eq('is_active', true)
+      const { data: rooms } = await supabase.from('rooms').select('id, location_id').eq('tenant_id', tenantId!)
+      const { data: students } = await supabase.from('students').select('id, location_id').eq('tenant_id', tenantId!).eq('status', 'active').limit(10000)
 
       const roomsByLoc = new Map<string, number>()
       rooms?.forEach((r: any) => { if (r.location_id) roomsByLoc.set(r.location_id, (roomsByLoc.get(r.location_id) ?? 0) + 1) })
@@ -219,8 +220,8 @@ export function useCreateExpense() {
       if (error) { console.error('Expense insert failed:', error); throw error }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['expenses'] })
-      qc.invalidateQueries({ queryKey: ['pl-summary'] })
+      qc.invalidateQueries({ queryKey: qk.financials.expenses })
+      qc.invalidateQueries({ queryKey: qk.financials.plSummary })
     },
   })
 }
@@ -233,8 +234,8 @@ export function useUpdateExpense() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['expenses'] })
-      qc.invalidateQueries({ queryKey: ['pl-summary'] })
+      qc.invalidateQueries({ queryKey: qk.financials.expenses })
+      qc.invalidateQueries({ queryKey: qk.financials.plSummary })
     },
   })
 }
@@ -247,8 +248,8 @@ export function useDeleteExpense() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['expenses'] })
-      qc.invalidateQueries({ queryKey: ['pl-summary'] })
+      qc.invalidateQueries({ queryKey: qk.financials.expenses })
+      qc.invalidateQueries({ queryKey: qk.financials.plSummary })
     },
   })
 }

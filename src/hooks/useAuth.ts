@@ -18,36 +18,52 @@ export function useAuth(): AuthState & {
   const [isLoading, setIsLoading] = useState(true)
 
   const loadProfile = useCallback(async (userId: string) => {
+    const MAX_RETRIES = 1
+    const RETRY_DELAY = 1500
+
     try {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single()
 
-      if (profileData) {
-        setProfile(profileData as Profile)
+          if (profileError) throw profileError
 
-        const { data: locData } = await supabase
-          .from('profile_locations')
-          .select('location_id')
-          .eq('profile_id', userId)
+          if (profileData) {
+            setProfile(profileData as Profile)
 
-        setLocationIds(locData?.map((l) => l.location_id) ?? [])
+            const { data: locData } = await supabase
+              .from('profile_locations')
+              .select('location_id')
+              .eq('profile_id', userId)
 
-        // Check for dual-role: fetch teacher record linked to this profile
-        const { data: teacherData } = await supabase
-          .from('teachers')
-          .select('*')
-          .eq('profile_id', userId)
-          .eq('tenant_id', (profileData as Profile).tenant_id)
-          .limit(1)
-          .maybeSingle()
+            setLocationIds(locData?.map((l) => l.location_id) ?? [])
 
-        setTeacherRecord((teacherData as Teacher) ?? null)
+            // Check for dual-role: fetch teacher record linked to this profile
+            const { data: teacherData } = await supabase
+              .from('teachers')
+              .select('*')
+              .eq('profile_id', userId)
+              .eq('tenant_id', (profileData as Profile).tenant_id)
+              .limit(1)
+              .maybeSingle()
+
+            setTeacherRecord((teacherData as Teacher) ?? null)
+            return // Success — exit the retry loop
+          }
+        } catch (err) {
+          if (attempt < MAX_RETRIES) {
+            console.warn(`[Auth] Profile load attempt ${attempt + 1} failed, retrying...`, err)
+            await new Promise(r => setTimeout(r, RETRY_DELAY))
+          } else {
+            console.error('[Auth] Profile load failed after retries:', err)
+          }
+        }
       }
-    } catch (err) {
-      console.error('Failed to load profile:', err)
+      // All retries exhausted — profile stays null, isLoading will be set false by finally
     } finally {
       setIsLoading(false)
     }

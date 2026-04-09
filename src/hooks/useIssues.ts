@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -208,7 +209,7 @@ export function useIssues(statusGroup: StatusGroup = 'all') {
   const { tenantId } = useAuthContext()
 
   return useQuery<Issue[]>({
-    queryKey: ['issues', tenantId, statusGroup],
+    queryKey: [...qk.issues.all, tenantId, statusGroup],
     enabled: !!tenantId,
     staleTime: 1000 * 30,
     refetchOnMount: true,
@@ -326,7 +327,7 @@ export function useCreateIssue() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['issues'] })
+      qc.invalidateQueries({ queryKey: qk.issues.all })
     },
   })
 }
@@ -371,7 +372,7 @@ export function useUpdateIssue() {
       }).then(() => {}).catch((err: any) => console.error('[audit_log] insert failed:', err))
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['issues'] })
+      qc.invalidateQueries({ queryKey: qk.issues.all })
     },
   })
 }
@@ -420,7 +421,7 @@ export async function checkForDuplicateIssue(tenantId: string, page: string, des
 
 export function useScreenshotUrl(path: string | null) {
   return useQuery({
-    queryKey: ['issue-screenshot', path],
+    queryKey: qk.issues.screenshot(path),
     enabled: !!path,
     staleTime: 55 * 60 * 1000,
     queryFn: async () => {

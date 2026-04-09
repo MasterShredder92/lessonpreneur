@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { sendAppointmentNotification, buildBlockContext } from '../lib/appointmentNotifications'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export type BlockType = 'open_time' | 'student_session' | 'first_day' | 'last_day' | 'not_bookable' | 'sub' | 'call_out' | 'meet_greet' | 'teacher_training' | 'makeup_session'
 
@@ -53,7 +54,7 @@ export interface GridBlock {
 export function useScheduleGrid(date: string, locationId: string | null) {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['schedule-grid', tenantId, date, locationId],
+    queryKey: qk.schedule.grid(tenantId, date, locationId),
     enabled: !!date && !!tenantId,
     queryFn: async () => {
       let query = supabase
@@ -268,13 +269,13 @@ export function useAssignStudent() {
       })
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['student-blocks'] })
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students-for-assignment'] })
-      qc.invalidateQueries({ queryKey: ['available-blocks-for-student'] })
-      qc.invalidateQueries({ queryKey: ['dashboard'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.forAssignment })
+      qc.invalidateQueries({ queryKey: qk.schedule.availableBlocks })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
     },
   })
 }
@@ -301,11 +302,11 @@ export function useUnassignBlock() {
       if (ctx) sendAppointmentNotification('cancelled', ctx)
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['student-blocks'] })
-      qc.invalidateQueries({ queryKey: ['available-blocks-for-student'] })
-      qc.invalidateQueries({ queryKey: ['students-for-assignment'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
+      qc.invalidateQueries({ queryKey: qk.schedule.availableBlocks })
+      qc.invalidateQueries({ queryKey: qk.students.forAssignment })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
     },
   })
 }
@@ -339,10 +340,10 @@ export function useChangeBlockType() {
       return null
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['student-blocks'] })
-      qc.invalidateQueries({ queryKey: ['available-blocks-for-student'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
+      qc.invalidateQueries({ queryKey: qk.schedule.availableBlocks })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
     },
   })
 }
@@ -359,11 +360,12 @@ export interface AssignableStudent {
   family_name: string
 }
 
-export function useStudentsForAssignment() {
+export function useStudentsForAssignment(options?: { enabled?: boolean }) {
   const { tenantId } = useAuthContext()
+  const enabled = options?.enabled !== undefined ? options.enabled && !!tenantId : !!tenantId
   return useQuery({
     queryKey: ['students-for-assignment', tenantId],
-    enabled: !!tenantId,
+    enabled,
     queryFn: async () => {
       // Fetch ALL active students across all locations
       const { data: students, error } = await supabase

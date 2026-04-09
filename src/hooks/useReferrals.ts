@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface ReferralStats {
   totalReferrals: number
@@ -11,7 +12,7 @@ export interface ReferralStats {
 
 export function useFamilyReferralCode(familyId: string | undefined) {
   return useQuery({
-    queryKey: ['referral-code', familyId],
+    queryKey: [...qk.referrals.code, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data } = await supabase.from('families').select('referral_code, referral_count').eq('id', familyId!).single()
@@ -23,7 +24,7 @@ export function useFamilyReferralCode(familyId: string | undefined) {
 export function useReferralStats() {
   const { tenantId } = useAuthContext()
   return useQuery<ReferralStats>({
-    queryKey: ['referral-stats', tenantId],
+    queryKey: [...qk.referrals.stats, tenantId],
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {

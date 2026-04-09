@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Location } from '../lib/types'
+import { qk } from '../lib/queryKeys'
 
 export function useLocations() {
   return useQuery({
-    queryKey: ['locations'],
+    queryKey: qk.locations.all,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('locations')
@@ -28,7 +29,7 @@ export function useCreateLocation() {
       if (error) throw error
       return data as Location
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.locations.all }),
   })
 }
 
@@ -45,6 +46,6 @@ export function useUpdateLocation() {
       if (error) throw error
       return data as Location
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.locations.all }),
   })
 }

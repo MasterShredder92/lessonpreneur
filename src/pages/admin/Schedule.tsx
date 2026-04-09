@@ -10,6 +10,7 @@ import { useRooms } from '../../hooks/useRooms'
 import { useTeacherRoomAssignmentsForDay, useSetTeacherRoomAssignment, useRemoveTeacherRoomAssignment } from '../../hooks/useTeacherRoomAssignments'
 import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
+import { qk } from '../../lib/queryKeys'
 import SeriesControlModal from '../../components/scheduling/SeriesControlModal'
 import CheckInModal from '../../components/scheduling/CheckInModal'
 import LastDayConfirmModal from '../../components/scheduling/LastDayConfirmModal'
@@ -161,7 +162,7 @@ export default function Schedule() {
   const { data: gridData, isLoading } = useScheduleGrid(selectedDate, effectiveLocation || null)
   useAutoCheckIn(effectiveLocation, new Date(selectedDate + 'T12:00:00'))
   useScheduleRealtime(selectedDate, effectiveLocation || undefined)
-  const { data: allStudents } = useStudentsForAssignment()
+  const { data: allStudents } = useStudentsForAssignment({ enabled: !!assignModal })
   const { data: rooms } = useRooms(effectiveLocation || undefined)
 
   // Teacher daily room assignments
@@ -203,12 +204,11 @@ export default function Schedule() {
   const scheduleStarReady = !!starContext
   const starEndRef = useRef<HTMLDivElement>(null)
   const gridWrapperRef = useRef<HTMLDivElement>(null)
-  const [, forceUpdate] = useState(0)
-  // Re-render once after grid mounts so time indicator can measure DOM
-  useEffect(() => {
-    const t1 = setTimeout(() => forceUpdate(n => n + 1), 100)
-    return () => { clearTimeout(t1) }
-  }, [selectedDate, effectiveLocation])
+  const [_gridMounted, setGridMounted] = useState(false) // triggers re-render for time indicator DOM measurement
+  const gridCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    gridWrapperRef.current = node
+    setGridMounted(!!node)
+  }, [])
   // Close room popover on outside click — uses ref to avoid leaked listeners
   const popoverListenerRef = useRef<(() => void) | null>(null)
   useEffect(() => {
@@ -243,7 +243,7 @@ export default function Schedule() {
   // Location hours for the selected date
   const selectedDow = new Date(selectedDate + 'T00:00:00').getDay()
   const { data: locationHours } = useQuery({
-    queryKey: ['location-hours', effectiveLocation, selectedDow],
+    queryKey: qk.locations.hours(effectiveLocation, selectedDow),
     enabled: !!effectiveLocation,
     queryFn: async () => {
       const { data } = await supabase.from('location_hours').select('*').eq('location_id', effectiveLocation).eq('day_of_week', selectedDow).single()
@@ -271,7 +271,7 @@ export default function Schedule() {
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const selectedDayName = dayNames[new Date(selectedDate + 'T00:00:00').getDay()]
   const { data: teacherAvailability } = useQuery({
-    queryKey: ['teacher-avail-schedule', effectiveLocation, selectedDayName],
+    queryKey: qk.teachers.availSchedule(effectiveLocation, selectedDayName),
     enabled: !!effectiveLocation,
     queryFn: async () => {
       const { data } = await supabase.from('teacher_availability')
@@ -390,7 +390,7 @@ export default function Schedule() {
       setSelectedStudentId('')
       setStudentSearch('')
       setAssignRoom('')
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
     }
 
     if (isOutsideHours(time)) {
@@ -463,7 +463,7 @@ export default function Schedule() {
     if (!detailModal) return
     const { error } = await supabase.from('schedule_blocks').delete().eq('id', detailModal.block_id)
     if (error) { toast('Failed to delete block: ' + error.message, 'error'); return }
-    qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+    qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
     toast('Block deleted', 'success')
     setDetailModal(null)
   }
@@ -542,7 +542,7 @@ export default function Schedule() {
       }).eq('id', source.block_id)
       if (e2) toast('Warning: moved but old slot not cleared', 'error')
       else toast(isSub ? 'Sub lesson moved' : 'Student moved', 'success')
-      await qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+      await qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
     }
 
     if (dragBlock.teacher_id !== targetBlock.teacher_id) {
@@ -961,7 +961,7 @@ export default function Schedule() {
             }).eq('id', source.block_id)
             if (e2) toast('Warning: moved but old slot not cleared', 'error')
             else toast('Student moved', 'success')
-            await qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+            await qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
           }}
           locations={locations ?? []}
           selectedLocation={effectiveLocation}
@@ -990,7 +990,7 @@ export default function Schedule() {
           <p style={{ fontSize: 12, color: '#606088', marginTop: 4 }}>Add teachers in Settings to see them here.</p>
         </div>
       ) : (
-        <div ref={gridWrapperRef} data-guide-id="schedule-grid" style={{ overflowX: 'auto', borderRadius: 16, border: `1px solid ${locColor}20`, background: 'rgba(12,11,22,0.95)', position: 'relative' }}>
+        <div ref={gridCallbackRef} data-guide-id="schedule-grid" style={{ overflowX: 'auto', borderRadius: 16, border: `1px solid ${locColor}20`, background: 'rgba(12,11,22,0.95)', position: 'relative' }}>
           {/* Current time indicator line — only shows today, measures real DOM positions */}
           {isToday && timeSlots.length > 0 && gridWrapperRef.current && (() => {
             const nowParts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date())
@@ -1066,7 +1066,7 @@ export default function Schedule() {
                             .eq('block_date', selectedDate)
                             .eq('location_id', effectiveLocation)
                           if (error) { toast('Failed to remove sub: ' + error.message, 'error'); return }
-                          qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                          qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                           toast('Sub removed', 'success')
                         }}
                         title="Remove sub from today"
@@ -1218,7 +1218,7 @@ export default function Schedule() {
                             if (clearErr) toast('Warning: moved but old slot not cleared', 'error')
                             else toast('Student moved', 'success')
                             setDragBlock(null); setDragOverTarget(null)
-                            qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                            qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                           }
                           if (dragBlock.teacher_id !== t.id) {
                             const capturedDrag = dragBlock
@@ -1494,7 +1494,7 @@ export default function Schedule() {
                                 block_date: selectedDate, start_time: '15:00:00', end_time: '15:30:00',
                                 status: 'available', block_type: 'open_time', is_recurring: false,
                               })
-                              qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                              qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                               setShowAddTeacher(false)
                             }}
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none', background: 'rgba(168,85,247,0.06)', cursor: 'pointer', marginBottom: 4, textAlign: 'left' }}
@@ -1523,7 +1523,7 @@ export default function Schedule() {
                                   block_date: selectedDate, start_time: '15:00:00', end_time: '15:30:00',
                                   status: 'available', block_type: 'open_time', is_recurring: false,
                                 })
-                                qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                                qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                                 setShowAddTeacher(false)
                               }
                               if (!isAtLocation) {
@@ -1632,7 +1632,7 @@ export default function Schedule() {
                         })()
                         const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Lock timed out — please try again')), 15000))
                         await Promise.race([lockPromise, timeout])
-                        qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+                        qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                         toast('Time locked', 'success')
                         setAssignModal(null); setShowLockFlow(false); setLockReason(''); setLockRecurring(false)
                       } catch (err: any) {
@@ -1907,7 +1907,7 @@ export default function Schedule() {
           blocks={blocks}
           date={selectedDate}
           tenantId={tenantId ?? ''}
-          onClose={() => { setBulkVirtualOpen(false); qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] }) }}
+          onClose={() => { setBulkVirtualOpen(false); qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence }) }}
         />
       )}
 
@@ -2001,7 +2001,7 @@ export default function Schedule() {
               <div style={{ fontSize: 10, fontWeight: 700, color: '#A855F7', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Confirm Action</div>
               <div style={{ fontSize: 12, color: '#E8E8FC', marginBottom: 8, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{pendingAction.description}</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={async () => { await confirmAction(); qc.invalidateQueries({ queryKey: ['schedule-grid'] }); qc.invalidateQueries({ queryKey: ['schedule-intelligence'] }) }} disabled={starLoading} style={{ flex: 1, padding: '8px', borderRadius: 8, background: '#22C55E', border: 'none', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Confirm</button>
+                <button onClick={async () => { await confirmAction(); qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence }) }} disabled={starLoading} style={{ flex: 1, padding: '8px', borderRadius: 8, background: '#22C55E', border: 'none', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Confirm</button>
                 <button onClick={rejectAction} style={{ flex: 1, padding: '8px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#A0A0C8', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
               </div>
             </div>

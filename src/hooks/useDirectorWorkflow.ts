@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ═══════════════════════════════════════
 // SELF-SERVICE RESCHEDULING
@@ -16,7 +17,7 @@ export interface RescheduleSlot {
 
 export function useAvailableRescheduleSlots(studentId: string | undefined, currentBlockId: string | undefined) {
   return useQuery<RescheduleSlot[]>({
-    queryKey: ['reschedule-slots', studentId, currentBlockId],
+    queryKey: [...qk.schedule.rescheduleSlots, studentId, currentBlockId],
     enabled: !!studentId && !!currentBlockId,
     queryFn: async () => {
       // Get the current block's teacher and location
@@ -102,11 +103,11 @@ export function useRescheduleSession() {
       }).then(() => {})
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-      qc.invalidateQueries({ queryKey: ['student-blocks'] })
-      qc.invalidateQueries({ queryKey: ['parent-upcoming'] })
-      qc.invalidateQueries({ queryKey: ['reschedule-slots'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
+      qc.invalidateQueries({ queryKey: qk.parent.upcoming })
+      qc.invalidateQueries({ queryKey: qk.schedule.rescheduleSlots })
     },
   })
 }
@@ -214,7 +215,7 @@ export function useAutoCreateTasks() {
       return { created }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: qk.tasks.all })
     },
   })
 }
@@ -236,7 +237,7 @@ export interface WeeklyLocationSummary {
 export function useWeeklyLocationSummaries() {
   const { tenantId } = useAuthContext()
   return useQuery<WeeklyLocationSummary[]>({
-    queryKey: ['weekly-location-summaries', tenantId],
+    queryKey: [...qk.director.weeklySummaries, tenantId],
     enabled: !!tenantId,
     staleTime: 5 * 60_000,
     queryFn: async () => {

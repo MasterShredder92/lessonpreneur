@@ -1,12 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { safeFetch } from '../lib/safeFetch'
+import { EDGE_FUNCTIONS } from '../lib/config'
+import { qk } from '../lib/queryKeys'
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 // ── Fetch last review request for a family ──
 export function useLastReviewRequest(familyId: string | undefined) {
   return useQuery({
-    queryKey: ['review_request', familyId],
+    queryKey: qk.reviews.request(familyId),
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -47,54 +50,46 @@ export function useSendReviewRequest() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['review_request', vars.familyId] })
-      qc.invalidateQueries({ queryKey: ['review_requests_list'] })
-      qc.invalidateQueries({ queryKey: ['review-queue'] })
-      qc.invalidateQueries({ queryKey: ['retention-metrics'] })
+      qc.invalidateQueries({ queryKey: qk.reviews.request(vars.familyId) })
+      qc.invalidateQueries({ queryKey: qk.reviews.requestsList })
+      qc.invalidateQueries({ queryKey: qk.reviews.queue })
+      qc.invalidateQueries({ queryKey: qk.retention.metrics })
     },
   })
 }
 
 // ── Generate AI message via edge function ──
-// Uses supabase.functions.invoke (not raw fetch) so the client sends both
-// Authorization (user JWT) and apikey (anon) as required by the gateway.
-// refreshSession() runs first so the JWT is not a stale cached access_token.
 export async function generateReviewMessage(params: {
   parentFirstName: string
   students: { name: string; instrument: string; createdAt: string }[]
   locationName: string
   googleReviewUrl: string
 }): Promise<{ message: string; fallback: boolean }> {
-  await supabase.auth.refreshSession()
+  try {
+    const data = await safeFetch<{ message?: string; error?: string; fallback?: boolean }>(
+      EDGE_FUNCTIONS.generateReviewMessage,
+      {
+        body: {
+          parent_first_name: params.parentFirstName,
+          students: params.students.map((s) => ({
+            name: s.name,
+            instrument: s.instrument,
+            created_at: s.createdAt,
+          })),
+          location_name: params.locationName,
+          google_review_url: params.googleReviewUrl,
+        },
+      },
+    )
 
-  const { data: sessionData } = await supabase.auth.getSession()
-  if (!sessionData.session?.access_token) {
+    if (!data.message?.trim() || data.fallback || data.error) {
+      return { message: buildFallbackMessage(params), fallback: true }
+    }
+
+    return { message: data.message.trim(), fallback: false }
+  } catch {
     return { message: buildFallbackMessage(params), fallback: true }
   }
-
-  const { data, error } = await supabase.functions.invoke('generate-review-message', {
-    body: {
-      parent_first_name: params.parentFirstName,
-      students: params.students.map((s) => ({
-        name: s.name,
-        instrument: s.instrument,
-        created_at: s.createdAt,
-      })),
-      location_name: params.locationName,
-      google_review_url: params.googleReviewUrl,
-    },
-  })
-
-  if (error) {
-    return { message: buildFallbackMessage(params), fallback: true }
-  }
-
-  const payload = data as { message?: string; error?: string; fallback?: boolean } | null
-  if (!payload?.message?.trim() || payload.fallback || payload.error) {
-    return { message: buildFallbackMessage(params), fallback: true }
-  }
-
-  return { message: payload.message.trim(), fallback: false }
 }
 
 function buildFallbackMessage(params: {

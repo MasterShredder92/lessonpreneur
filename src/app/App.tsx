@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useEffect, lazy, Suspense } from 'react'
-import { QueryClient, QueryClientProvider, QueryCache } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query'
+import { toastMutationError } from '../lib/errors'
 import { AuthProvider } from './AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useLocationSEO } from '../hooks/useLocationSEO'
@@ -125,8 +126,8 @@ const queryClient = new QueryClient({
         if (isAuthError(error)) return false
         return failureCount < 1
       },
-      refetchOnWindowFocus: false,    // never refetch on tab switch (preserves form state)
-      refetchOnReconnect: false,
+      refetchOnWindowFocus: true,     // refetch stale queries when user returns to tab
+      refetchOnReconnect: true,       // refetch stale queries when network reconnects
       networkMode: 'offlineFirst',
       throwOnError: false,
     },
@@ -138,6 +139,13 @@ const queryClient = new QueryClient({
       networkMode: 'offlineFirst',
     },
   },
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      // Skip if the mutation has its own onError handler — avoid duplicate toasts
+      if (mutation.options.onError) return
+      toastMutationError(error)
+    },
+  }),
   queryCache: new QueryCache({
     onError: (_error) => {
       // If multiple queries hit auth errors simultaneously, only redirect once

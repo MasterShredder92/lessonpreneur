@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetch } from '../lib/safeFetch'
 import type { EmailBrand } from '../lib/emailTemplates'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -21,7 +23,7 @@ export interface EmailRecord {
 
 export function useEmailBrand(locationId: string | null) {
   return useQuery<EmailBrand>({
-    queryKey: ['email-brand', locationId],
+    queryKey: qk.email.brand(locationId),
     enabled: !!locationId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -66,42 +68,19 @@ export function useSendEmail() {
       }
 
       if (!params.to || !params.to.includes('@')) {
-        return { sent: false, reason: 'invalid_email' }
+        throw new Error('Invalid email address')
       }
 
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-
-      try {
-        const res = await fetch(
-          EDGE_FUNCTIONS.sendEmail,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              to: params.to,
-              subject: params.subject,
-              html: params.htmlBody,
-              from_name: params.fromName,
-              tenant_id: tenantId,
-            }),
-          }
-        )
-
-        if (!res.ok) {
-          const err = await res.text()
-          console.error('[Email] Send failed:', err)
-          return { sent: false, reason: err }
-        }
-
-        return { sent: true }
-      } catch (err) {
-        console.error('[Email] Send error:', err)
-        return { sent: false, reason: String(err) }
-      }
+      await safeFetch(EDGE_FUNCTIONS.sendEmail, {
+        body: {
+          to: params.to,
+          subject: params.subject,
+          html: params.htmlBody,
+          from_name: params.fromName,
+          tenant_id: tenantId,
+        },
+      })
+      return { sent: true }
     },
   })
 }
@@ -129,7 +108,7 @@ export function useBatchSendEmails() {
         )
 
         results.forEach(r => {
-          if (r.status === 'fulfilled' && r.value.sent) sent++
+          if (r.status === 'fulfilled') sent++
           else failed++
         })
 

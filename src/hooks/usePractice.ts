@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface PracticeStats {
   totalSessions: number
@@ -24,14 +25,16 @@ export interface PracticeHistoryRow {
 
 export function usePracticeStats(studentId: string | undefined) {
   return useQuery<PracticeStats>({
-    queryKey: ['practice-stats', studentId],
+    queryKey: qk.practice.stats(studentId),
     enabled: !!studentId,
     queryFn: async () => {
       const { data: sessions } = await supabase
         .from('practice_sessions')
         .select('practice_date, duration_minutes, duration_seconds, created_at')
         .eq('student_id', studentId!)
+        .gte('created_at', new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString())
         .order('practice_date', { ascending: false })
+        .limit(500)
 
       const rows = sessions ?? []
       const total = rows.length
@@ -98,7 +101,7 @@ export function usePracticeStats(studentId: string | undefined) {
 
 export function usePracticeHistory(studentId: string | undefined) {
   return useQuery<PracticeHistoryRow[]>({
-    queryKey: ['practice-history', studentId],
+    queryKey: qk.practice.history(studentId),
     enabled: !!studentId,
     queryFn: async () => {
       const { data } = await supabase
@@ -150,8 +153,8 @@ export function useLogPractice() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['practice-stats'] })
-      qc.invalidateQueries({ queryKey: ['practice-history'] })
+      qc.invalidateQueries({ queryKey: qk.practice.stats })
+      qc.invalidateQueries({ queryKey: qk.practice.history })
     },
   })
 }
@@ -185,8 +188,8 @@ export function useLogPracticeManual() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['practice-stats'] })
-      qc.invalidateQueries({ queryKey: ['practice-history'] })
+      qc.invalidateQueries({ queryKey: qk.practice.stats })
+      qc.invalidateQueries({ queryKey: qk.practice.history })
     },
   })
 }

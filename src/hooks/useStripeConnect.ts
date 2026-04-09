@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetch } from '../lib/safeFetch'
+import { qk } from '../lib/queryKeys'
 
 export interface StripeConnectStatus {
   accountId: string | null
@@ -11,7 +13,7 @@ export interface StripeConnectStatus {
 export function useStripeConnectStatus() {
   const { tenantId } = useAuthContext()
   return useQuery<StripeConnectStatus>({
-    queryKey: ['stripe-connect', tenantId],
+    queryKey: qk.stripe.connect(tenantId),
     enabled: !!tenantId,
     queryFn: async () => {
       const { data } = await supabase
@@ -31,14 +33,9 @@ export function useStripeConnectOnboard() {
   const { tenantId } = useAuthContext()
   return useMutation({
     mutationFn: async () => {
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      const res = await fetch(EDGE_FUNCTIONS.stripeConnectOnboard, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ tenant_id: tenantId }),
+      const data = await safeFetch<{ url?: string; error?: string }>(EDGE_FUNCTIONS.stripeConnectOnboard, {
+        body: { tenant_id: tenantId },
       })
-      const data = await res.json()
       if (data.url) window.location.href = data.url
       else throw new Error(data.error ?? 'Failed to start Stripe onboarding')
     },
@@ -50,20 +47,16 @@ export function useCreateStudentInvoice() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (params: { familyId: string; amountCents: number; description: string }) => {
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      const res = await fetch(EDGE_FUNCTIONS.createStudentInvoice, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ tenant_id: tenantId, ...params }),
+      const data = await safeFetch<{ error?: string }>(EDGE_FUNCTIONS.createStudentInvoice, {
+        body: { tenant_id: tenantId, ...params },
       })
-      const data = await res.json()
       if (data.error) throw new Error(data.error)
       return data
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['billing_families'] })
-      qc.invalidateQueries({ queryKey: ['billing_hero_stats'] })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
+      qc.invalidateQueries({ queryKey: qk.billing.heroStats })
+      qc.invalidateQueries({ queryKey: qk.billing.snapshot })
     },
   })
 }
@@ -72,14 +65,9 @@ export function useSetupAutoPay() {
   const { tenantId } = useAuthContext()
   return useMutation({
     mutationFn: async (params: { familyId: string }) => {
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
-      const res = await fetch(EDGE_FUNCTIONS.setupAutopay, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ tenant_id: tenantId, family_id: params.familyId }),
+      const data = await safeFetch<{ url?: string; error?: string }>(EDGE_FUNCTIONS.setupAutopay, {
+        body: { tenant_id: tenantId, family_id: params.familyId },
       })
-      const data = await res.json()
       if (data.url) window.location.href = data.url
       else if (data.error) throw new Error(data.error)
       return data

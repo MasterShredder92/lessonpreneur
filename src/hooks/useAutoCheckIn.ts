@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000099'
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
@@ -100,10 +101,10 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
         }
 
         if (checked > 0) {
-          qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-          qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-          qc.invalidateQueries({ queryKey: ['teachers-monthly-tally'] })
-          qc.invalidateQueries({ queryKey: ['teacher-pay-summary'] })
+          qc.invalidateQueries({ queryKey: qk.schedule.all })
+          qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+          qc.invalidateQueries({ queryKey: qk.teachers.monthlyTally })
+          qc.invalidateQueries({ queryKey: qk.teachers.paySummary })
         }
       } finally {
         running.current = false

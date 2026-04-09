@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthContext } from '../app/AuthContext'
 import { supabase } from '../lib/supabase'
 import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../services/aiAssistantClient'
+import { qk } from '../lib/queryKeys'
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -9,7 +10,7 @@ const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 // Students who haven't received a value card in 30+ days
 export function useValueCardQueue(locationIds?: string[] | null) {
   return useQuery({
-    queryKey: ['value-card-queue', locationIds ?? 'all'],
+    queryKey: [...qk.valueCards.queue, locationIds ?? 'all'],
     queryFn: async () => {
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
@@ -19,6 +20,7 @@ export function useValueCardQueue(locationIds?: string[] | null) {
       let studentQuery = supabase
         .from('students')
         .select('id, first_name, last_name, instrument, location_id, family_id, created_at')
+        .eq('tenant_id', TENANT_ID)
         .eq('status', 'active')
       if (locationIds) studentQuery = studentQuery.in('location_id', locationIds)
       const { data: students } = await studentQuery
@@ -29,6 +31,7 @@ export function useValueCardQueue(locationIds?: string[] | null) {
       const { data: recentCards } = await supabase
         .from('value_cards')
         .select('student_id, created_at')
+        .eq('tenant_id', TENANT_ID)
         .in('student_id', students.map(s => s.id))
         .order('created_at', { ascending: false })
 
@@ -38,7 +41,7 @@ export function useValueCardQueue(locationIds?: string[] | null) {
       })
 
       // Get location names
-      const { data: locations } = await supabase.from('locations').select('id, name')
+      const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', TENANT_ID)
       const locMap = new Map(locations?.map((l: any) => [l.id, l.name?.replace(' Music Lessons', '')]) ?? [])
 
       return students
@@ -82,6 +85,7 @@ export function useGenerateValueCard() {
       const { data: student } = await supabase
         .from('students')
         .select('id, first_name, last_name, instrument, location_id, family_id, teacher_id, created_at')
+        .eq('tenant_id', TENANT_ID)
         .eq('id', studentId)
         .single()
       if (!student) throw new Error('Student not found')
@@ -92,6 +96,7 @@ export function useGenerateValueCard() {
       const { data: blocks } = await supabase
         .from('schedule_blocks')
         .select('id, checked_in, block_type')
+        .eq('tenant_id', TENANT_ID)
         .eq('student_id', studentId)
         .eq('status', 'booked')
         .eq('block_type', 'student_session')
@@ -107,6 +112,7 @@ export function useGenerateValueCard() {
       const { data: logs } = await supabase
         .from('session_log')
         .select('teacher_note, worked_on, progress_indicator, instrument')
+        .eq('tenant_id', TENANT_ID)
         .eq('student_id', studentId)
         .order('created_at', { ascending: false })
         .limit(10)
@@ -115,6 +121,7 @@ export function useGenerateValueCard() {
       const { data: tsNotes } = await supabase
         .from('teacher_session_notes')
         .select('raw_note, ai_enhanced_note, topics_covered, skills_progressing, mood')
+        .eq('tenant_id', TENANT_ID)
         .eq('student_id', studentId)
         .order('created_at', { ascending: false })
         .limit(10)
@@ -135,6 +142,7 @@ export function useGenerateValueCard() {
         const { data: teacher } = await supabase
           .from('teachers')
           .select('first_name, last_name')
+          .eq('tenant_id', TENANT_ID)
           .eq('profile_id', student.teacher_id)
           .single()
         if (teacher) teacherName = teacher.first_name
@@ -155,6 +163,7 @@ export function useGenerateValueCard() {
         const { data: allBlocks } = await supabase
           .from('schedule_blocks')
           .select('student_id, checked_in')
+          .eq('tenant_id', TENANT_ID)
           .eq('status', 'booked')
           .eq('block_type', 'student_session')
           .gte('block_date', sixtyDaysAgo.toISOString().split('T')[0])
@@ -185,6 +194,7 @@ export function useGenerateValueCard() {
       const { count: lifetimeSessions } = await supabase
         .from('schedule_blocks')
         .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', TENANT_ID)
         .eq('student_id', studentId)
         .eq('status', 'booked')
         .eq('block_type', 'student_session')
@@ -251,7 +261,7 @@ Write in this exact style. Be genuine, not generic. Use the real data above. If 
       return card
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['value-card-queue'] })
+      qc.invalidateQueries({ queryKey: qk.valueCards.queue })
     },
   })
 }
@@ -264,8 +274,8 @@ export function useSendValueCard() {
       await supabase.from('value_cards').update({ sent_at: new Date().toISOString(), sent_via: 'sms' }).eq('id', cardId)
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['value-card-queue'] })
-      qc.invalidateQueries({ queryKey: ['retention-metrics'] })
+      qc.invalidateQueries({ queryKey: qk.valueCards.queue })
+      qc.invalidateQueries({ queryKey: qk.retention.metrics })
     },
   })
 }
@@ -273,7 +283,7 @@ export function useSendValueCard() {
 // ── GOOGLE REVIEW QUEUE ──
 export function useReviewQueue(locationIds?: string[] | null) {
   return useQuery({
-    queryKey: ['review-queue', locationIds ?? 'all'],
+    queryKey: [...qk.reviews.queue, locationIds ?? 'all'],
     queryFn: async () => {
       const threeMonthsAgo = new Date()
       threeMonthsAgo.setDate(threeMonthsAgo.getDate() - 90)
@@ -285,6 +295,7 @@ export function useReviewQueue(locationIds?: string[] | null) {
       let studentsQuery = supabase
         .from('students')
         .select('id, family_id, location_id, created_at')
+        .eq('tenant_id', TENANT_ID)
         .eq('status', 'active')
         .lte('created_at', threeMonthsCutoff.toISOString())
       if (locationIds) studentsQuery = studentsQuery.in('location_id', locationIds)
@@ -300,25 +311,28 @@ export function useReviewQueue(locationIds?: string[] | null) {
       const { data: families } = await supabase
         .from('families')
         .select('id, name, primary_email')
+        .eq('tenant_id', TENANT_ID)
         .in('id', familyIds)
 
       // Get recent review requests (last 90 days)
       const { data: recentRequests } = await supabase
         .from('review_requests')
         .select('family_id, sent_at')
+        .eq('tenant_id', TENANT_ID)
         .in('family_id', familyIds)
         .gte('sent_at', threeMonthsAgo.toISOString())
 
       const requestedFamilyIds = new Set(recentRequests?.map(r => r.family_id) ?? [])
 
       // Get location names
-      const { data: locations } = await supabase.from('locations').select('id, name')
+      const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', TENANT_ID)
       const locMap = new Map(locations?.map((l: any) => [l.id, l.name?.replace(' Music Lessons', '')]) ?? [])
 
       // Get all review request dates per family (for "last asked" display)
       const { data: allRequests } = await supabase
         .from('review_requests')
         .select('family_id, sent_at')
+        .eq('tenant_id', TENANT_ID)
         .in('family_id', familyIds)
         .order('sent_at', { ascending: false })
 
@@ -372,8 +386,8 @@ export function useSendReviewRequest() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['review-queue'] })
-      qc.invalidateQueries({ queryKey: ['retention-metrics'] })
+      qc.invalidateQueries({ queryKey: qk.reviews.queue })
+      qc.invalidateQueries({ queryKey: qk.retention.metrics })
     },
   })
 }
@@ -381,13 +395,13 @@ export function useSendReviewRequest() {
 // ── RETENTION METRICS ──
 export function useRetentionMetrics(locationIds?: string[] | null) {
   return useQuery({
-    queryKey: ['retention-metrics', locationIds ?? 'all'],
+    queryKey: [...qk.retention.metrics, locationIds ?? 'all'],
     queryFn: async () => {
       const now = new Date()
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
       // Active students
-      let studentsQuery = supabase.from('students').select('id, created_at', { count: 'exact', head: false }).eq('status', 'active')
+      let studentsQuery = supabase.from('students').select('id, created_at', { count: 'exact', head: false }).eq('tenant_id', TENANT_ID).eq('status', 'active')
       if (locationIds) studentsQuery = studentsQuery.in('location_id', locationIds)
       const { data: activeStudents, count: activeCount } = await studentsQuery
 
@@ -397,17 +411,17 @@ export function useRetentionMetrics(locationIds?: string[] | null) {
         : 0
 
       // Value cards sent this month
-      let cardsQuery = supabase.from('value_cards').select('*', { count: 'exact', head: true }).gte('sent_at', monthStart).not('sent_at', 'is', null)
+      let cardsQuery = supabase.from('value_cards').select('*', { count: 'exact', head: true }).eq('tenant_id', TENANT_ID).gte('sent_at', monthStart).not('sent_at', 'is', null)
       if (locationIds) cardsQuery = cardsQuery.in('location_id', locationIds)
       const { count: cardsSent } = await cardsQuery
 
       // Review requests sent this month
-      let reviewReqQuery = supabase.from('review_requests').select('*', { count: 'exact', head: true }).gte('sent_at', monthStart)
+      let reviewReqQuery = supabase.from('review_requests').select('*', { count: 'exact', head: true }).eq('tenant_id', TENANT_ID).gte('sent_at', monthStart)
       if (locationIds) reviewReqQuery = reviewReqQuery.in('location_id', locationIds)
       const { count: reviewsSent } = await reviewReqQuery
 
       // Reviews received this month (from reviews table)
-      const { count: reviewsReceived } = await supabase.from('reviews').select('*', { count: 'exact', head: true }).gte('created_at', monthStart)
+      const { count: reviewsReceived } = await supabase.from('reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', TENANT_ID).gte('created_at', monthStart)
 
       return {
         activeStudents: activeCount ?? 0,
@@ -424,14 +438,14 @@ export function useRetentionMetrics(locationIds?: string[] | null) {
 // ── AT-RISK STUDENTS ──
 export function useAtRiskStudents(locationIds?: string[] | null) {
   return useQuery({
-    queryKey: ['at-risk-students', locationIds ?? 'all'],
+    queryKey: [...qk.atRisk.students, locationIds ?? 'all'],
     queryFn: async () => {
       const now = new Date()
       const fourteenDaysAgo = new Date(now)
       fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
       const cutoff = fourteenDaysAgo.toISOString().split('T')[0]
 
-      let studentsQuery = supabase.from('students').select('id, first_name, last_name, instrument, location_id, family_id').eq('status', 'active')
+      let studentsQuery = supabase.from('students').select('id, first_name, last_name, instrument, location_id, family_id').eq('tenant_id', TENANT_ID).eq('status', 'active')
       if (locationIds) studentsQuery = studentsQuery.in('location_id', locationIds)
       const { data: students } = await studentsQuery
       if (!students || students.length === 0) return []
@@ -443,6 +457,7 @@ export function useAtRiskStudents(locationIds?: string[] | null) {
       const { data: blocks } = await supabase
         .from('schedule_blocks')
         .select('student_id, block_date, checked_in')
+        .eq('tenant_id', TENANT_ID)
         .in('student_id', students.map(s => s.id))
         .eq('status', 'booked')
         .eq('checked_in', true)
@@ -458,18 +473,19 @@ export function useAtRiskStudents(locationIds?: string[] | null) {
       const { data: failedInvoices } = await supabase
         .from('square_invoices')
         .select('student_id')
+        .eq('tenant_id', TENANT_ID)
         .eq('amount_paid', 0)
         .lt('due_date', now.toISOString().split('T')[0])
       const failedStudentIds = new Set(failedInvoices?.map((i: any) => i.student_id) ?? [])
 
       // Get location names
-      const { data: locations } = await supabase.from('locations').select('id, name')
+      const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', TENANT_ID)
       const locMap = new Map(locations?.map((l: any) => [l.id, l.name?.replace(' Music Lessons', '')]) ?? [])
 
       // Get family names
       const familyIds = [...new Set(students.map(s => s.family_id).filter(Boolean))]
       const { data: families } = familyIds.length > 0
-        ? await supabase.from('families').select('id, name').in('id', familyIds)
+        ? await supabase.from('families').select('id, name').eq('tenant_id', TENANT_ID).in('id', familyIds)
         : { data: [] }
       const familyMap = new Map((families ?? []).map((f: any) => [f.id, f.name]))
 
@@ -479,6 +495,7 @@ export function useAtRiskStudents(locationIds?: string[] | null) {
       const { data: dismissed } = await supabase
         .from('retention_outreach')
         .select('student_id')
+        .eq('tenant_id', TENANT_ID)
         .eq('outcome', 'dismissed')
         .gte('outreach_date', thirtyDaysAgo.toISOString())
       const dismissedIds = new Set(dismissed?.map((d: any) => d.student_id) ?? [])
@@ -533,31 +550,32 @@ export function useDismissAtRisk() {
         message_content: 'Dismissed from at-risk list for 30 days',
       })
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['at-risk-students'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.atRisk.students }),
   })
 }
 
 // ── WIN-BACK: FORMER STUDENTS ──
 export function useFormerStudents(locationIds?: string[] | null) {
   return useQuery({
-    queryKey: ['former-students', locationIds ?? 'all'],
+    queryKey: [...qk.students.former, locationIds ?? 'all'],
     queryFn: async () => {
       let query = supabase
         .from('students')
         .select('id, first_name, last_name, instrument, location_id, family_id, status, exit_category, exit_reason, transferred_to_location_id, deactivated_at, reactivation_date, created_at')
+        .eq('tenant_id', TENANT_ID)
         .in('status', ['inactive', 'former'])
       if (locationIds) query = query.in('location_id', locationIds)
       const { data: students } = await query
       if (!students || students.length === 0) return []
 
       // Get location names
-      const { data: locations } = await supabase.from('locations').select('id, name')
+      const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', TENANT_ID)
       const locMap = new Map(locations?.map((l: any) => [l.id, l.name?.replace(' Music Lessons', '')]) ?? [])
 
       // Get family names
       const familyIds = [...new Set(students.map(s => s.family_id).filter(Boolean))]
       const { data: families } = familyIds.length > 0
-        ? await supabase.from('families').select('id, name').in('id', familyIds)
+        ? await supabase.from('families').select('id, name').eq('tenant_id', TENANT_ID).in('id', familyIds)
         : { data: [] }
       const familyMap = new Map((families ?? []).map((f: any) => [f.id, f.name]))
 
@@ -566,6 +584,7 @@ export function useFormerStudents(locationIds?: string[] | null) {
       const { data: outreach } = await supabase
         .from('retention_outreach')
         .select('student_id, outreach_date, outcome')
+        .eq('tenant_id', TENANT_ID)
         .in('student_id', studentIds)
         .order('outreach_date', { ascending: false })
 
@@ -599,17 +618,18 @@ export function useFormerStudents(locationIds?: string[] | null) {
 // ── WIN-BACK: LOST LEADS ──
 export function useLostLeads(locationIds?: string[] | null) {
   return useQuery({
-    queryKey: ['lost-leads', locationIds ?? 'all'],
+    queryKey: [...qk.leads.lost, locationIds ?? 'all'],
     queryFn: async () => {
       let query = supabase
         .from('leads')
         .select('id, student_name, first_name, parent_name, instrument, location_id, lost_category, lost_reason, updated_at')
+        .eq('tenant_id', TENANT_ID)
         .eq('stage', 'lost')
       if (locationIds) query = query.in('location_id', locationIds)
       const { data: leads } = await query
       if (!leads || leads.length === 0) return []
 
-      const { data: locations } = await supabase.from('locations').select('id, name')
+      const { data: locations } = await supabase.from('locations').select('id, name').eq('tenant_id', TENANT_ID)
       const locMap = new Map(locations?.map((l: any) => [l.id, l.name?.replace(' Music Lessons', '')]) ?? [])
 
       // Get outreach per lead
@@ -617,6 +637,7 @@ export function useLostLeads(locationIds?: string[] | null) {
       const { data: outreach } = await supabase
         .from('retention_outreach')
         .select('lead_id, outreach_date')
+        .eq('tenant_id', TENANT_ID)
         .in('lead_id', leadIds)
         .order('outreach_date', { ascending: false })
       const lastOutreachMap = new Map<string, string>()
@@ -644,33 +665,33 @@ export function useLostLeads(locationIds?: string[] | null) {
 // ── WIN-BACK METRICS ──
 export function useWinBackMetrics(locationIds?: string[] | null) {
   return useQuery({
-    queryKey: ['win-back-metrics', locationIds ?? 'all'],
+    queryKey: [...qk.retention.winBackMetrics, locationIds ?? 'all'],
     queryFn: async () => {
       const now = new Date()
       const today = now.toISOString().split('T')[0]
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
-      let formerQuery = supabase.from('students').select('*', { count: 'exact', head: true }).in('status', ['inactive', 'former'])
+      let formerQuery = supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', TENANT_ID).in('status', ['inactive', 'former'])
       if (locationIds) formerQuery = formerQuery.in('location_id', locationIds)
       const { count: totalFormer } = await formerQuery
 
       // Due for reactivation
-      let dueQuery = supabase.from('students').select('*', { count: 'exact', head: true }).in('status', ['inactive', 'former']).not('reactivation_date', 'is', null).lte('reactivation_date', today)
+      let dueQuery = supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', TENANT_ID).in('status', ['inactive', 'former']).not('reactivation_date', 'is', null).lte('reactivation_date', today)
       if (locationIds) dueQuery = dueQuery.in('location_id', locationIds)
       const { count: dueCt } = await dueQuery
 
       // Contacted this month
-      let contactedQuery = supabase.from('retention_outreach').select('*', { count: 'exact', head: true }).gte('outreach_date', monthStart).not('student_id', 'is', null)
+      let contactedQuery = supabase.from('retention_outreach').select('*', { count: 'exact', head: true }).eq('tenant_id', TENANT_ID).gte('outreach_date', monthStart).not('student_id', 'is', null)
       if (locationIds) contactedQuery = contactedQuery.in('location_id', locationIds)
       const { count: contactedCt } = await contactedQuery
 
       // Won back this month
-      let wonBackQuery = supabase.from('retention_outreach').select('*', { count: 'exact', head: true }).gte('outreach_date', monthStart).eq('outcome', 're_enrolled')
+      let wonBackQuery = supabase.from('retention_outreach').select('*', { count: 'exact', head: true }).eq('tenant_id', TENANT_ID).gte('outreach_date', monthStart).eq('outcome', 're_enrolled')
       if (locationIds) wonBackQuery = wonBackQuery.in('location_id', locationIds)
       const { count: wonBackCt } = await wonBackQuery
 
       // Lost leads
-      let lostQuery = supabase.from('leads').select('*', { count: 'exact', head: true }).eq('stage', 'lost')
+      let lostQuery = supabase.from('leads').select('*', { count: 'exact', head: true }).eq('tenant_id', TENANT_ID).eq('stage', 'lost')
       if (locationIds) lostQuery = lostQuery.in('location_id', locationIds)
       const { count: lostCt } = await lostQuery
 

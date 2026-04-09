@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { LESSON_LOOKBACK_DAYS } from '../lib/constants'
+import { qk } from '../lib/queryKeys'
 
 export interface StudentBlock {
   id: string
@@ -15,7 +16,7 @@ export interface StudentBlock {
 
 export function useStudentBlocks(studentId: string | undefined) {
   return useQuery({
-    queryKey: ['student-blocks', studentId],
+    queryKey: qk.students.blocks(studentId),
     enabled: !!studentId,
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
@@ -64,7 +65,7 @@ export function useStudentBlocks(studentId: string | undefined) {
 
 export function useAvailableBlocksForStudent(studentId: string | undefined, locationId: string | undefined, teacherId: string | null | undefined) {
   return useQuery({
-    queryKey: ['available-blocks-for-student', studentId, locationId, teacherId],
+    queryKey: qk.schedule.availableBlocks(studentId, locationId, teacherId),
     enabled: !!studentId && !!locationId,
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]

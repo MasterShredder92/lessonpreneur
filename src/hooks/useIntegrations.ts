@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
+import { qk } from '../lib/queryKeys'
 
 export interface IntegrationConfig {
   id: string
@@ -19,7 +20,7 @@ const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 
 export function useIntegrations() {
   return useQuery({
-    queryKey: ['integration_configs'],
+    queryKey: qk.integrations.configs,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('integration_configs')
@@ -58,7 +59,7 @@ export function useConnectIntegration() {
       if (error) throw error
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration_configs'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.integrations.configs }),
   })
 }
 
@@ -74,7 +75,7 @@ export function useDisconnectIntegration() {
         .eq('integration_id', integrationId)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration_configs'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.integrations.configs }),
   })
 }
 
@@ -90,7 +91,7 @@ export function useToggleIntegration() {
         .eq('integration_id', integrationId)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration_configs'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.integrations.configs }),
   })
 }
 
@@ -113,6 +114,6 @@ export function useUpdateIntegrationSettings() {
         .eq('integration_id', integrationId)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration_configs'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.integrations.configs }),
   })
 }

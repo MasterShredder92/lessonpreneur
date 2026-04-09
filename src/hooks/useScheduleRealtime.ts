@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 /**
  * Subscribe to realtime events on schedule_blocks for the current location.
@@ -31,10 +32,10 @@ export function useScheduleRealtime(date: string | undefined, locationId: string
           const row = payload.new as Record<string, any> | undefined
           if (row && row.block_date !== date) return
 
-          qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-          qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-          qc.invalidateQueries({ queryKey: ['teachers-monthly-tally'] })
-          qc.invalidateQueries({ queryKey: ['teacher-pay-summary'] })
+          qc.invalidateQueries({ queryKey: qk.schedule.all })
+          qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+          qc.invalidateQueries({ queryKey: qk.teachers.monthlyTally })
+          qc.invalidateQueries({ queryKey: qk.teachers.paySummary })
         }
       )
       .subscribe()

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { useEffect } from 'react'
+import { qk } from '../lib/queryKeys'
 
 export interface ThemeData {
   primaryColor: string
@@ -22,7 +23,7 @@ export function useTheme() {
   const locationId = isMultiLocation ? null : (locationIds?.[0] ?? null)
 
   const { data: theme } = useQuery<ThemeData>({
-    queryKey: ['theme', tenantId, locationId],
+    queryKey: [...qk.tenant.theme, tenantId, locationId],
     enabled: !!tenantId,
     staleTime: 10 * 60_000,
     queryFn: async () => {

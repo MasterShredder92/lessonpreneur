@@ -1,5 +1,6 @@
-import { supabase } from '../lib/supabase'
-import { EDGE_FUNCTIONS, SUPABASE_ANON_KEY } from '../lib/config'
+import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetch } from '../lib/safeFetch'
+import { getErrorMessage } from '../lib/errors'
 
 // ─── Types (edge `ai-assistant` JSON body / response) ───────────────────────
 
@@ -59,55 +60,13 @@ async function invokeAiAssistantEdge(
   body: Record<string, unknown>,
   timeoutMs: number,
 ): Promise<AiAssistantJson> {
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession()
-
-  if (sessionError) {
-    return { error: sessionError.message ?? 'Session error' }
-  }
-
-  const token = session?.access_token
-  if (!token) {
-    return { error: 'Not authenticated' }
-  }
-
-  const anonKey = SUPABASE_ANON_KEY?.trim()
-  if (!anonKey) {
-    return { error: 'Missing VITE_SUPABASE_ANON_KEY (required for Edge Functions)' }
-  }
-
-  const controller = new AbortController()
-  const t = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(EDGE_FUNCTIONS.aiAssistant, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: anonKey,
-      },
-      body: JSON.stringify(body),
+    return await safeFetch<AiAssistantJson>(EDGE_FUNCTIONS.aiAssistant, {
+      body,
+      timeoutMs,
     })
-    let raw: unknown
-    try {
-      raw = await res.json()
-    } catch {
-      return { error: res.ok ? 'Invalid JSON from ai-assistant' : `HTTP ${res.status}` }
-    }
-    const data = raw as AiAssistantJson
-    if (!res.ok) {
-      return { ...data, error: data.error ?? `HTTP ${res.status}` }
-    }
-    return data
-  } catch (e: unknown) {
-    const err = e as { name?: string; message?: string }
-    if (err?.name === 'AbortError') return { error: 'Request timed out' }
-    return { error: err?.message ?? 'Request failed' }
-  } finally {
-    clearTimeout(t)
+  } catch (err) {
+    return { error: getErrorMessage(err) }
   }
 }
 

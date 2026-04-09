@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { batchIn } from '../lib/batchQuery'
 import { useAuthContext } from '../app/AuthContext'
 import { DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_TIER_CENTS } from '../lib/constants'
+import { qk } from '../lib/queryKeys'
 
 // ═══════════════════════════════════════
 // FAMILY TYPES
@@ -92,7 +93,7 @@ export const FAMILIES_ROSTER_PAGE = 45
 export function useFamilyTabCounts() {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['family-tab-counts', tenantId],
+    queryKey: qk.families.tabCounts(tenantId),
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -471,7 +472,7 @@ export function useFamiliesRosterInfinite(params: {
 export function useFamilyDetail(familyId: string | undefined) {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['family_detail', familyId],
+    queryKey: qk.families.fileDetail(familyId),
     enabled: !!familyId,
     queryFn: async () => {
       const { data: family, error } = await supabase
@@ -586,14 +587,14 @@ export function useUpdateFamilyInfo() {
       if (error) throw error
     },
     onSuccess: async (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['family'] })
-      qc.invalidateQueries({ queryKey: ['family_detail', vars.id] })
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.families.detail })
+      qc.invalidateQueries({ queryKey: qk.families.fileDetail(vars.id) })
     },
   })
 }
@@ -623,15 +624,18 @@ export function useChangeFamilyBillingStatus() {
       })
     },
     onSuccess: async (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['family'] })
-      qc.invalidateQueries({ queryKey: ['family_detail', vars.familyId] })
-      qc.invalidateQueries({ queryKey: ['family_billing', vars.familyId] })
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.families.detail })
+      qc.invalidateQueries({ queryKey: qk.families.fileDetail(vars.familyId) })
+      qc.invalidateQueries({ queryKey: qk.families.billing(vars.familyId) })
+      qc.invalidateQueries({ queryKey: qk.billing.snapshot })
+      qc.invalidateQueries({ queryKey: qk.billing.overview })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
     },
   })
 }
@@ -643,7 +647,7 @@ export function useChangeFamilyBillingStatus() {
 export function useFamilyFiles(familyId: string | undefined) {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['family_files', familyId],
+    queryKey: qk.families.files(familyId),
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -738,11 +742,11 @@ export function useUploadFamilyFile() {
     },
     onSuccess: async (_d, vars) => {
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['family_files', vars.familyId] }),
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-        qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
-        qc.invalidateQueries({ queryKey: ['tasks'] }),
+        qc.invalidateQueries({ queryKey: qk.families.files(vars.familyId) }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
+        qc.invalidateQueries({ queryKey: qk.families.tabCounts }),
+        qc.invalidateQueries({ queryKey: qk.tasks.all }),
       ])
     },
   })
@@ -761,10 +765,10 @@ export function useDeleteFamilyFile() {
     },
     onSuccess: async (_d, vars) => {
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['family_files', vars.familyId] }),
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-        qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
+        qc.invalidateQueries({ queryKey: qk.families.files(vars.familyId) }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
+        qc.invalidateQueries({ queryKey: qk.families.tabCounts }),
       ])
     },
   })
@@ -785,7 +789,7 @@ export interface ActivityEvent {
 export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['family_activity', familyId, limit],
+    queryKey: qk.families.activity(familyId, limit),
     enabled: !!familyId,
     queryFn: async () => {
       // 1. Get student IDs for this family

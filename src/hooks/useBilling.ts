@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 // ═══════════════════════════════════════
 // FAMILY BILLING
@@ -7,7 +8,7 @@ import { supabase } from '../lib/supabase'
 
 export function useFamilyBilling(familyId: string | undefined) {
   return useQuery({
-    queryKey: ['family_billing', familyId],
+    queryKey: qk.families.billing(familyId),
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -40,8 +41,8 @@ export function useUpdateFamilyBilling() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['family_billing', vars.id] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.families.billing(vars.id) })
+      qc.invalidateQueries({ queryKey: qk.families.all })
     },
   })
 }
@@ -52,7 +53,7 @@ export function useUpdateFamilyBilling() {
 
 export function useBillingPeriods() {
   return useQuery({
-    queryKey: ['billing_periods'],
+    queryKey: qk.billing.periods,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('billing_periods')
@@ -77,7 +78,7 @@ export function useCreateBillingPeriod() {
       return data
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['billing_periods'] })
+      qc.invalidateQueries({ queryKey: qk.billing.periods })
     },
   })
 }
@@ -91,7 +92,7 @@ export function useUpdateBillingPeriod() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['billing_periods'] })
+      qc.invalidateQueries({ queryKey: qk.billing.periods })
     },
   })
 }
@@ -102,7 +103,7 @@ export function useUpdateBillingPeriod() {
 
 export function useBillingEvents(periodId: string | undefined) {
   return useQuery({
-    queryKey: ['billing_events', periodId],
+    queryKey: [...qk.billing.events, periodId],
     enabled: !!periodId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -136,7 +137,7 @@ export function useCreateBillingEvent() {
       return data
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['billing_events', vars.billing_period_id] })
+      qc.invalidateQueries({ queryKey: [...qk.billing.events, vars.billing_period_id] })
     },
   })
 }
@@ -150,7 +151,7 @@ export function useUpdateBillingEvent() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['billing_events', vars.billing_period_id] })
+      qc.invalidateQueries({ queryKey: [...qk.billing.events, vars.billing_period_id] })
     },
   })
 }
@@ -161,7 +162,7 @@ export function useUpdateBillingEvent() {
 
 export function useBillingLineItems(eventId: string | undefined) {
   return useQuery({
-    queryKey: ['billing_line_items', eventId],
+    queryKey: [...qk.billing.lineItems, eventId],
     enabled: !!eventId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -188,7 +189,7 @@ export function useCreateBillingLineItem() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['billing_line_items', vars.billing_event_id] })
+      qc.invalidateQueries({ queryKey: [...qk.billing.lineItems, vars.billing_event_id] })
     },
   })
 }
@@ -199,7 +200,7 @@ export function useCreateBillingLineItem() {
 
 export function useBillingAdjustments(familyId: string | undefined) {
   return useQuery({
-    queryKey: ['billing_adjustments', familyId],
+    queryKey: [...qk.billing.adjustments, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -232,7 +233,7 @@ export function useCreateBillingAdjustment() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['billing_adjustments', vars.family_id] })
+      qc.invalidateQueries({ queryKey: [...qk.billing.adjustments, vars.family_id] })
     },
   })
 }
@@ -243,7 +244,7 @@ export function useCreateBillingAdjustment() {
 
 export function usePaymentHistory(familyId: string | undefined) {
   return useQuery({
-    queryKey: ['payment_history', familyId],
+    queryKey: [...qk.invoices.paymentHistory, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -275,7 +276,7 @@ export function useCreatePaymentRecord() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['payment_history', vars.family_id] })
+      qc.invalidateQueries({ queryKey: [...qk.invoices.paymentHistory, vars.family_id] })
     },
   })
 }
@@ -286,7 +287,7 @@ export function useCreatePaymentRecord() {
 
 export function useRefunds(familyId: string | undefined) {
   return useQuery({
-    queryKey: ['refunds', familyId],
+    queryKey: [...qk.financials.refunds, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -315,8 +316,8 @@ export function useCreateRefund() {
       if (error) throw error
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['refunds', vars.family_id] })
-      qc.invalidateQueries({ queryKey: ['payment_history', vars.family_id] })
+      qc.invalidateQueries({ queryKey: [...qk.financials.refunds, vars.family_id] })
+      qc.invalidateQueries({ queryKey: [...qk.invoices.paymentHistory, vars.family_id] })
     },
   })
 }

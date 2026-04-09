@@ -6,6 +6,7 @@ import { toast } from '../shared/Toast'
 import { X, Check, Download } from 'lucide-react'
 import JSZip from 'jszip'
 import PinModal from './PinModal'
+import { qk } from '../../lib/queryKeys'
 
 interface Props { onClose: () => void }
 
@@ -18,7 +19,7 @@ export default function W9ExportModal({ onClose }: Props) {
 
   // Fetch completed W-9s with teacher names and YTD
   const { data: w9s, isLoading } = useQuery({
-    queryKey: ['w9_export_list'],
+    queryKey: qk.w9.exportList,
     queryFn: async () => {
       const { data } = await supabase
         .from('teacher_w9')
@@ -73,6 +74,7 @@ export default function W9ExportModal({ onClose }: Props) {
     try {
       const zip = new JSZip()
       let fetched = 0
+      let failedCount = 0
 
       for (const w of selected) {
         if (!w.pdf_url) continue
@@ -84,7 +86,10 @@ export default function W9ExportModal({ onClose }: Props) {
             zip.file(`W9_${safeName}.pdf`, blob)
             fetched++
           }
-        } catch { /* skip failed fetches */ }
+        } catch (err) {
+          console.warn(`[W9Export] Failed to fetch PDF for teacher ${w.legal_name}:`, err)
+          failedCount++
+        }
       }
 
       if (fetched === 0) { toast('No PDFs could be downloaded', 'error'); setExporting(false); return }
@@ -97,6 +102,7 @@ export default function W9ExportModal({ onClose }: Props) {
       URL.revokeObjectURL(url)
 
       toast(`${fetched} W-9s exported`, 'success')
+      if (failedCount > 0) toast(`${failedCount} W-9 document(s) could not be downloaded`, 'error')
       onClose()
     } catch (err) {
       toast('Export failed', 'error')

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface Prospect {
   id: string
@@ -33,7 +34,7 @@ export const PIPELINE_STAGES = [
 export function useProspects() {
   const { tenantId } = useAuthContext()
   return useQuery<Prospect[]>({
-    queryKey: ['recruitment-prospects', tenantId],
+    queryKey: [...qk.recruitment.prospects, tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -66,7 +67,7 @@ export function useCreateProspect() {
       const { error } = await supabase.from('recruitment_prospects').insert({ ...params, tenant_id: tenantId! })
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['recruitment-prospects'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.recruitment.prospects }) },
   })
 }
 
@@ -77,7 +78,7 @@ export function useUpdateProspectStatus() {
       const { error } = await supabase.from('recruitment_prospects').update({ status }).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['recruitment-prospects'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.recruitment.prospects }) },
   })
 }
 
@@ -88,7 +89,7 @@ export function useUpdateProspect() {
       const { error } = await supabase.from('recruitment_prospects').update(updates).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['recruitment-prospects'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.recruitment.prospects }) },
   })
 }
 
@@ -99,6 +100,6 @@ export function useDeleteProspect() {
       const { error } = await supabase.from('recruitment_prospects').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['recruitment-prospects'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.recruitment.prospects }) },
   })
 }

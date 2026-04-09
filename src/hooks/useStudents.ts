@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData, useInfiniteQue
 import { supabase } from '../lib/supabase'
 import { LESSON_LOOKBACK_DAYS } from '../lib/constants'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 export interface StudentRow {
   id: string
@@ -56,7 +57,7 @@ export interface FamilyRow {
 export function useStudentTabCounts() {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['student-tab-counts', tenantId],
+    queryKey: qk.students.tabCounts(tenantId),
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -78,7 +79,7 @@ export function useStudentTabCounts() {
 export function useStudents(filters?: { status?: string; locationId?: string; teacherId?: string }, opts?: { enabled?: boolean }) {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['students', tenantId, filters?.status, filters?.locationId, filters?.teacherId],
+    queryKey: qk.students.list(tenantId, filters?.status, filters?.locationId, filters?.teacherId),
     enabled: (opts?.enabled !== false) && !!tenantId,
     placeholderData: keepPreviousData,
     queryFn: async () => {
@@ -370,7 +371,7 @@ export function useStudentInstrumentOptions(params: { locationId?: string; teach
   const { tenantId } = useAuthContext()
   const { locationId, teacherId } = params
   return useQuery({
-    queryKey: ['student-instruments', tenantId, locationId, teacherId],
+    queryKey: qk.students.instruments(tenantId, locationId, teacherId),
     enabled: !!tenantId,
     staleTime: 120_000,
     queryFn: async () => {
@@ -387,7 +388,7 @@ export function useStudentInstrumentOptions(params: { locationId?: string; teach
 export function useFamilies() {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['families', tenantId],
+    queryKey: qk.families.list(tenantId),
     enabled: !!tenantId,
     queryFn: async () => {
       const { data: families, error } = await supabase
@@ -423,7 +424,7 @@ export function useFamilies() {
 export function useFamily(id: string | undefined) {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['family', id, tenantId],
+    queryKey: qk.families.detail(id, tenantId),
     enabled: !!id && !!tenantId,
     queryFn: async () => {
       const { data: family, error } = await supabase
@@ -456,12 +457,12 @@ export function useCreateFamily() {
       return data
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts })
     },
   })
 }
@@ -474,12 +475,12 @@ export function useUpdateFamily() {
       if (error) throw error
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family'] })
+      qc.invalidateQueries({ queryKey: qk.families.detail })
     },
   })
 }
@@ -522,19 +523,19 @@ export function useCreateStudent() {
       return data
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students_roster'] })
-      qc.invalidateQueries({ queryKey: ['student-instruments'] })
-      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['churn-risk'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.roster })
+      qc.invalidateQueries({ queryKey: qk.students.instruments })
+      qc.invalidateQueries({ queryKey: qk.students.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.retention.churnRisk })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['family'] })
-      qc.invalidateQueries({ queryKey: ['onboarding-pipeline'] })
+      qc.invalidateQueries({ queryKey: qk.families.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.families.detail })
+      qc.invalidateQueries({ queryKey: qk.onboarding.pipeline })
     },
   })
 }
@@ -547,20 +548,20 @@ export function useUpdateStudent() {
       if (error) throw error
     },
     onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['students'] })
-      qc.invalidateQueries({ queryKey: ['students_roster'] })
-      qc.invalidateQueries({ queryKey: ['student-instruments'] })
-      qc.invalidateQueries({ queryKey: ['student-tab-counts'] })
-      qc.invalidateQueries({ queryKey: ['student-detail'] })
-      qc.invalidateQueries({ queryKey: ['churn-risk'] })
+      qc.invalidateQueries({ queryKey: qk.students.all })
+      qc.invalidateQueries({ queryKey: qk.students.roster })
+      qc.invalidateQueries({ queryKey: qk.students.instruments })
+      qc.invalidateQueries({ queryKey: qk.students.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.students.detail })
+      qc.invalidateQueries({ queryKey: qk.retention.churnRisk })
       qc.invalidateQueries({ queryKey: ['churn-risk-student'] })
-      qc.invalidateQueries({ queryKey: ['families'] })
+      qc.invalidateQueries({ queryKey: qk.families.all })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
-      qc.invalidateQueries({ queryKey: ['family'] })
-      qc.invalidateQueries({ queryKey: ['family_detail'] })
+      qc.invalidateQueries({ queryKey: qk.families.detail })
+      qc.invalidateQueries({ queryKey: qk.families.fileDetail })
     },
   })
 }

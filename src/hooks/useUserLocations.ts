@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuthContext } from '../app/AuthContext'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 /**
  * Returns the location IDs the current user has access to.
@@ -11,7 +12,7 @@ export function useUserLocations() {
   const { profile, role } = useAuthContext()
 
   return useQuery({
-    queryKey: ['user-locations', profile?.id],
+    queryKey: [...qk.locations.user, profile?.id],
     enabled: !!profile?.id,
     queryFn: async () => {
       // Owners and admins always see everything

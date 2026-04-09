@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { X, Trash2, Plus, Lock, ScrollText, Pencil, CheckCircle } from 'lucide-react'
 import { toast } from '../shared/Toast'
 import AvailabilityEditModal from './AvailabilityEditModal'
+import { qk } from '../../lib/queryKeys'
 
 interface ColDef { key: string; label: string; width: number; type?: string; options?: string[]; custom?: boolean }
 
@@ -121,7 +122,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
 
   // Audit log query
   const { data: auditLog } = useQuery({
-    queryKey: ['master-editor-log'],
+    queryKey: qk.activity.masterEditor,
     enabled: showLog,
     queryFn: async () => {
       const { data } = await supabase.from('activity_log')
@@ -134,7 +135,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
   })
 
   const { data: teachers, isLoading } = useQuery({
-    queryKey: ['teacher-spreadsheet'],
+    queryKey: qk.teachers.spreadsheet,
     queryFn: async () => {
       const { data } = await supabase.from('teachers').select('id, first_name, last_name, teacher_role, ai_context, personality, lesson_style, best_age_range, square_team_member_id, needs_1099, rate_per_block, pay_rate_per_half_hour, status, is_active, email, phone, primary_instruments, secondary_instruments, style_genre_strengths, preferred_age_range, acceptable_age_range, skill_levels_by_instrument, teaching_strengths, musical_strengths_background, best_first_lesson_fit, best_match_students, use_caution_internal_placement_notes, meet_and_greet_fit, substitute_coverage, customer_facing_match_summary, internal_matching_tags, director_notes').order('first_name').limit(500)
       // Sort: empty names (new rows) go to the end
@@ -150,7 +151,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
 
   // Fetch availability data for the summary column
   const { data: availabilityMap } = useQuery({
-    queryKey: ['teacher-spreadsheet-availability'],
+    queryKey: qk.teachers.spreadsheetAvailability,
     queryFn: async () => {
       const { data: avail } = await supabase.from('teacher_availability')
         .select('teacher_id, location_id, day_of_week, start_time, end_time, is_active')
@@ -267,7 +268,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
       }
       setSavedCell(`${editCell.id}-paste`)
       setTimeout(() => setSavedCell(null), 1500)
-      qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] }); qc.invalidateQueries({ queryKey: ['teachers'] }); qc.invalidateQueries({ queryKey: ['teacher'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet }); qc.invalidateQueries({ queryKey: qk.teachers.all }); qc.invalidateQueries({ queryKey: qk.teachers.record })
       setEditCell(null)
     }
     document.addEventListener('paste', handlePaste)
@@ -362,7 +363,7 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
 
     setSavedCell(`${teacherId}-${key}`)
     setTimeout(() => setSavedCell(null), 1500)
-    qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] }); qc.invalidateQueries({ queryKey: ['teachers'] }); qc.invalidateQueries({ queryKey: ['teacher'] })
+    qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet }); qc.invalidateQueries({ queryKey: qk.teachers.all }); qc.invalidateQueries({ queryKey: qk.teachers.record })
     setEditCell(null)
   }
 
@@ -380,8 +381,8 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
     await supabase.from('teacher_locations').delete().eq('teacher_id', id)
     await supabase.from('teacher_availability').delete().eq('teacher_id', id)
     await supabase.from('teachers').delete().eq('id', id)
-    qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] }); qc.invalidateQueries({ queryKey: ['teachers'] }); qc.invalidateQueries({ queryKey: ['teacher'] })
-    qc.invalidateQueries({ queryKey: ['teachers'] })
+    qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet }); qc.invalidateQueries({ queryKey: qk.teachers.all }); qc.invalidateQueries({ queryKey: qk.teachers.record })
+    qc.invalidateQueries({ queryKey: qk.teachers.all })
   }
 
   const handleAddTeacher = async () => {
@@ -399,8 +400,8 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
     if (error) { toast('Failed: ' + error.message, 'error'); return }
     if (!newTeacher) { toast('Insert failed — row was not created. Check permissions.', 'error'); return }
     toast('New row added — fill in the name and click ✓ to confirm', 'success')
-    qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] })
-    qc.invalidateQueries({ queryKey: ['teachers'] })
+    qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet })
+    qc.invalidateQueries({ queryKey: qk.teachers.all })
   }
 
   const handleConfirmNewRow = async (teacherId: string) => {
@@ -410,8 +411,8 @@ export default function TeacherSpreadsheet({ onClose }: Props) {
       return
     }
     // Just invalidate to re-sort — the name is already saved via handleSave
-    qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] })
-    qc.invalidateQueries({ queryKey: ['teachers'] })
+    qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet })
+    qc.invalidateQueries({ queryKey: qk.teachers.all })
     toast('Teacher confirmed', 'success')
   }
 

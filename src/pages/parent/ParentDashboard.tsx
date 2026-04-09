@@ -10,6 +10,7 @@ import ShareableProgressCard from '../../components/shared/ShareableProgressCard
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { Music, Star, Share2, Calendar, Timer } from 'lucide-react'
 import MessageStudioButton from '../../components/parent/MessageStudioButton'
+import { qk } from '../../lib/queryKeys'
 
 const PROGRESS_DISPLAY: Record<string, { label: string; color: string }> = {
   struggling: { label: 'Working Through It', color: '#EF4444' },
@@ -37,7 +38,7 @@ export default function ParentDashboard() {
   const navigate = useNavigate()
 
   const { data: milestones } = useQuery({
-    queryKey: ['parent-milestones', familyId],
+    queryKey: [...qk.parent.milestones, familyId],
     enabled: !!familyId && students.length > 0,
     queryFn: async () => {
       const studentIds = students.map(s => s.id)

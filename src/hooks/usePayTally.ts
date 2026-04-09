@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { usePermissions } from './usePermissions'
+import { qk } from '../lib/queryKeys'
 
 interface MonthTally {
   month: string // 'YYYY-MM'
@@ -21,15 +22,17 @@ interface PaySummary {
 export function useTeacherPaySummary(teacherId: string | undefined) {
   const { canViewTeacherCompensation } = usePermissions()
   return useQuery({
-    queryKey: ['teacher-pay-summary', teacherId],
+    queryKey: qk.teachers.paySummary(teacherId),
     enabled: !!teacherId && canViewTeacherCompensation,
     queryFn: async (): Promise<PaySummary> => {
-      // Get all completed sessions for this teacher
+      // Get completed sessions for this teacher (last 90 days default)
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       const { data: sessions, error } = await supabase
         .from('session_log')
         .select('teacher_rate, block_date, status')
         .eq('teacher_id', teacherId!)
         .eq('status', 'completed')
+        .gte('block_date', ninetyDaysAgo)
         .order('block_date', { ascending: true })
 
       if (error) throw error
@@ -84,7 +87,7 @@ export function useTeacherPaySummary(teacherId: string | undefined) {
 export function useTeachersMonthlyTally() {
   const { canViewTeacherCompensation } = usePermissions()
   return useQuery({
-    queryKey: ['teachers-monthly-tally'],
+    queryKey: qk.teachers.monthlyTally,
     enabled: canViewTeacherCompensation,
     queryFn: async () => {
       const now = new Date()

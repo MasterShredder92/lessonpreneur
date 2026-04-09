@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { CreditCard } from 'lucide-react'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
+import { qk } from '../../lib/queryKeys'
 
 const fmtUSD = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
@@ -11,7 +12,7 @@ export default function ParentBilling() {
   const { familyId, isLoading } = useParentFamily()
 
   const { data: family } = useQuery({
-    queryKey: ['parent-family-billing', familyId],
+    queryKey: [...qk.parent.familyBilling, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -25,7 +26,7 @@ export default function ParentBilling() {
   })
 
   const { data: studentRates } = useQuery({
-    queryKey: ['parent-family-student-rates', familyId],
+    queryKey: [...qk.parent.familyStudentRates, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -40,7 +41,7 @@ export default function ParentBilling() {
   })
 
   const { data: invoices } = useQuery({
-    queryKey: ['parent-invoices', familyId],
+    queryKey: [...qk.parent.invoices, familyId],
     enabled: !!familyId,
     queryFn: async () => {
       const { data } = await supabase

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import type { Teacher, TeacherAvailability, Student } from '../lib/types'
 import { usePermissions } from './usePermissions'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // Columns that studio directors must never see
 const COMPENSATION_FIELDS = ['pay_rate_per_half_hour', 'rate_per_block', 'needs_1099'] as const
@@ -19,7 +20,7 @@ export function useTeachers() {
   const { canViewTeacherCompensation, canViewTeacherDocuments } = usePermissions()
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['teachers', tenantId, canViewTeacherCompensation],
+    queryKey: qk.teachers.list(tenantId, canViewTeacherCompensation),
     enabled: !!tenantId,
     queryFn: async () => {
       const { data: teachers, error } = await supabase
@@ -135,7 +136,7 @@ export function useTeachers() {
 export function useTeacher(id: string | undefined) {
   const { canViewTeacherCompensation } = usePermissions()
   return useQuery({
-    queryKey: ['teacher', id, canViewTeacherCompensation],
+    queryKey: qk.teachers.record(id, canViewTeacherCompensation),
     enabled: !!id,
     queryFn: async () => {
       const { data: teacher, error } = await supabase
@@ -166,7 +167,7 @@ export interface AvailabilityByLocation {
 
 export function useTeacherAvailability(teacherId: string | undefined) {
   return useQuery({
-    queryKey: ['teacher-availability', teacherId],
+    queryKey: qk.teachers.availability(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -210,7 +211,7 @@ export function useTeacherAvailability(teacherId: string | undefined) {
 
 export function useTeacherStudents(teacherId: string | undefined) {
   return useQuery({
-    queryKey: ['teacher-students', teacherId],
+    queryKey: qk.teachers.students(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -228,7 +229,7 @@ export function useTeacherStudents(teacherId: string | undefined) {
 
 export function useTeacherBlocks(teacherId: string | undefined) {
   return useQuery({
-    queryKey: ['teacher-blocks', teacherId],
+    queryKey: qk.teachers.blocks(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       const today = new Date()
@@ -312,9 +313,9 @@ export function useCreateTeacher() {
       return teacher
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teachers'] })
-      qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] })
-      qc.invalidateQueries({ queryKey: ['teacher-locations'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.all })
+      qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet })
+      qc.invalidateQueries({ queryKey: qk.teachers.locations })
     },
   })
 }
@@ -387,23 +388,23 @@ export function useUpdateTeacher() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teachers'] })
-      qc.invalidateQueries({ queryKey: ['teacher'] })
-      qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] })
-      qc.invalidateQueries({ queryKey: ['payroll-entries'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.all })
+      qc.invalidateQueries({ queryKey: qk.teachers.record })
+      qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet })
+      qc.invalidateQueries({ queryKey: qk.payroll.entries })
     },
   })
 }
 
 /** Invalidate all availability-related cache keys */
 function invalidateAvailabilityKeys(qc: ReturnType<typeof useQueryClient>, teacherId: string) {
-  qc.invalidateQueries({ queryKey: ['teacher-availability', teacherId] })
-  qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-  qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
+  qc.invalidateQueries({ queryKey: qk.teachers.availability(teacherId) })
+  qc.invalidateQueries({ queryKey: qk.schedule.all })
+  qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
   qc.invalidateQueries({ queryKey: ['teacher-avail-schedule'] })
-  qc.invalidateQueries({ queryKey: ['teachers'] })
-  qc.invalidateQueries({ queryKey: ['teacher-spreadsheet'] })
-  qc.invalidateQueries({ queryKey: ['teacher-spreadsheet-availability'] })
+  qc.invalidateQueries({ queryKey: qk.teachers.all })
+  qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet })
+  qc.invalidateQueries({ queryKey: qk.teachers.spreadsheetAvailability })
 }
 
 export function useUpsertAvailability() {

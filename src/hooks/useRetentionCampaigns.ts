@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../services/aiAssistantClient'
+import { qk } from '../lib/queryKeys'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -37,7 +38,7 @@ export interface CampaignStats {
 export function useCampaignStats() {
   const { tenantId } = useAuthContext()
   return useQuery<CampaignStats>({
-    queryKey: ['campaign-stats', tenantId],
+    queryKey: [...qk.campaigns.stats, tenantId],
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -66,7 +67,7 @@ export function useCampaignStats() {
 export function useCampaignList(wave: number) {
   const { tenantId } = useAuthContext()
   return useQuery<CampaignRow[]>({
-    queryKey: ['campaign-list', tenantId, wave],
+    queryKey: [...qk.campaigns.list, tenantId, wave],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -81,14 +82,14 @@ export function useCampaignList(wave: number) {
       const studentIds = [...new Set((data ?? []).map(r => r.student_id))]
       const studentMap = new Map<string, { name: string; instrument: string | null; location_id: string | null }>()
       if (studentIds.length > 0) {
-        const { data: students } = await supabase.from('students').select('id, first_name, last_name, instrument, location_id').in('id', studentIds)
+        const { data: students } = await supabase.from('students').select('id, first_name, last_name, instrument, location_id').eq('tenant_id', tenantId!).in('id', studentIds)
         students?.forEach((s: any) => studentMap.set(s.id, { name: `${s.first_name} ${s.last_name}`.trim(), instrument: s.instrument, location_id: s.location_id }))
       }
 
       const locIds = [...new Set([...(data ?? []).map(r => r.location_id), ...Array.from(studentMap.values()).map(s => s.location_id)].filter(Boolean))]
       const locMap = new Map<string, string>()
       if (locIds.length > 0) {
-        const { data: locs } = await supabase.from('locations').select('id, name').in('id', locIds)
+        const { data: locs } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
         locs?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
       }
 
@@ -119,6 +120,7 @@ export function useGenerateWave1() {
       const { data: students } = await supabase
         .from('students')
         .select('id, first_name, last_name, instrument, family_id, location_id, teacher_id, created_at')
+        .eq('tenant_id', tenantId!)
         .eq('status', 'active')
 
       if (!students || students.length === 0) return { generated: 0, skipped: 0 }
@@ -127,6 +129,7 @@ export function useGenerateWave1() {
       const { data: allLogs } = await supabase
         .from('session_log')
         .select('student_id, worked_on, progress_indicator, engagement_level, block_date')
+        .eq('tenant_id', tenantId!)
         .gte('block_date', '2026-01-01')
         .order('block_date', { ascending: false })
 
@@ -141,7 +144,7 @@ export function useGenerateWave1() {
       const teacherIds = [...new Set(students.map(s => s.teacher_id).filter(Boolean))]
       const teacherMap = new Map<string, string>()
       if (teacherIds.length > 0) {
-        const { data: teachers } = await supabase.from('teachers').select('id, first_name, last_name').in('id', teacherIds)
+        const { data: teachers } = await supabase.from('teachers').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', teacherIds)
         teachers?.forEach((t: any) => teacherMap.set(t.id, `${t.first_name} ${t.last_name}`.trim()))
       }
 
@@ -252,10 +255,10 @@ export function useGenerateWave1() {
       return { generated, skipped, total }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['campaign-stats'] })
-      qc.invalidateQueries({ queryKey: ['campaign-list'] })
-      qc.invalidateQueries({ queryKey: ['family-communications'] })
-      qc.invalidateQueries({ queryKey: ['student-communications'] })
+      qc.invalidateQueries({ queryKey: qk.campaigns.stats })
+      qc.invalidateQueries({ queryKey: qk.campaigns.list })
+      qc.invalidateQueries({ queryKey: qk.communications.family })
+      qc.invalidateQueries({ queryKey: qk.communications.student })
     },
   })
 }
@@ -268,7 +271,7 @@ export function useMarkCampaignRead() {
     mutationFn: async (campaignId: string) => {
       await supabase.from('retention_campaigns').update({ status: 'read', read_at: new Date().toISOString() }).eq('id', campaignId)
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaign-stats'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.campaigns.stats }) },
   })
 }
 
@@ -277,7 +280,7 @@ export function useMarkCampaignRead() {
 export function usePendingWinBacks() {
   const { tenantId } = useAuthContext()
   return useQuery({
-    queryKey: ['pending-winbacks', tenantId],
+    queryKey: [...qk.retention.pendingWinbacks, tenantId],
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -310,15 +313,15 @@ export function useGenerateWinBack() {
       if (!campaign) throw new Error('Campaign not found')
 
       // Get student + teacher info
-      const { data: student } = await supabase.from('students').select('first_name, last_name, instrument, teacher_id, deactivated_at, pause_reason').eq('id', campaign.student_id).single()
+      const { data: student } = await supabase.from('students').select('first_name, last_name, instrument, teacher_id, deactivated_at, pause_reason').eq('tenant_id', tenantId!).eq('id', campaign.student_id).single()
       if (!student) throw new Error('Student not found')
 
       const teacherName = student.teacher_id
-        ? await supabase.from('teachers').select('first_name, last_name').eq('id', student.teacher_id).single().then(r => r.data ? `${r.data.first_name} ${r.data.last_name}`.trim() : 'your teacher')
+        ? await supabase.from('teachers').select('first_name, last_name').eq('tenant_id', tenantId!).eq('id', student.teacher_id).single().then(r => r.data ? `${r.data.first_name} ${r.data.last_name}`.trim() : 'your teacher')
         : 'your teacher'
 
       // Get last session data
-      const { data: lastLogs } = await supabase.from('session_log').select('worked_on, progress_indicator, block_date').eq('student_id', campaign.student_id).order('block_date', { ascending: false }).limit(3)
+      const { data: lastLogs } = await supabase.from('session_log').select('worked_on, progress_indicator, block_date').eq('tenant_id', tenantId!).eq('student_id', campaign.student_id).order('block_date', { ascending: false }).limit(3)
 
       const daysPaused = student.deactivated_at ? Math.floor((Date.now() - new Date(student.deactivated_at).getTime()) / 86400000) : campaign.wave_number * 30
       const lastTopics = (lastLogs ?? []).flatMap((l: any) => l.worked_on ?? []).slice(0, 5)
@@ -370,10 +373,10 @@ export function useGenerateWinBack() {
       return { campaignId, body }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['pending-winbacks'] })
-      qc.invalidateQueries({ queryKey: ['campaign-stats'] })
-      qc.invalidateQueries({ queryKey: ['campaign-list'] })
-      qc.invalidateQueries({ queryKey: ['family-communications'] })
+      qc.invalidateQueries({ queryKey: qk.retention.pendingWinbacks })
+      qc.invalidateQueries({ queryKey: qk.campaigns.stats })
+      qc.invalidateQueries({ queryKey: qk.campaigns.list })
+      qc.invalidateQueries({ queryKey: qk.communications.family })
     },
   })
 }

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
+import { qk } from '../lib/queryKeys'
 
 // ══════════════════════════════════════════
 // TYPES
@@ -112,7 +113,7 @@ export function getMonthAfterNext(): string {
 export function useBillingOverview(locationFilter: string) {
   const { tenantId, profile } = useAuthContext()
   return useQuery<BillingOverview>({
-    queryKey: ['billing_overview', tenantId, locationFilter],
+    queryKey: [...qk.billing.overview, tenantId, locationFilter],
     enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let ratesQuery = supabase.from('student_effective_rate')
@@ -166,7 +167,7 @@ export function useBillingOverview(locationFilter: string) {
 export function useBillingFamilies(locationFilter: string) {
   const { tenantId, profile } = useAuthContext()
   return useQuery<BillingFamily[]>({
-    queryKey: ['billing_families', tenantId, locationFilter],
+    queryKey: [...qk.billing.families, tenantId, locationFilter],
     enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let ratesQuery = supabase.from('student_effective_rate')
@@ -222,7 +223,7 @@ export function useBillingFamilies(locationFilter: string) {
 export function useNextCycle(locationFilter: string) {
   const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_next_cycle', tenantId, locationFilter],
+    queryKey: [...qk.billing.nextCycle, tenantId, locationFilter],
     enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let ratesQuery = supabase.from('student_effective_rate')
@@ -301,7 +302,7 @@ export function useNextCycle(locationFilter: string) {
 export function useRemainingToCollect(locationFilter: string) {
   const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_remaining', tenantId, locationFilter],
+    queryKey: [...qk.billing.remaining, tenantId, locationFilter],
     enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let query = supabase.from('families')
@@ -327,7 +328,7 @@ export function useRemainingToCollect(locationFilter: string) {
 export function useOverdueFamilies(locationFilter: string) {
   const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_overdue', tenantId, locationFilter],
+    queryKey: [...qk.billing.overdue, tenantId, locationFilter],
     enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       let query = supabase.from('families')
@@ -353,7 +354,7 @@ export function useOverdueFamilies(locationFilter: string) {
 export function usePaidThisMonth(locationFilter: string) {
   const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_paid', tenantId, locationFilter],
+    queryKey: [...qk.billing.paid, tenantId, locationFilter],
     enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       const monthStart = getMonthStart()
@@ -402,7 +403,7 @@ export function usePaidThisMonth(locationFilter: string) {
 export function useCreditsLedger(locationFilter: string) {
   const { tenantId, profile } = useAuthContext()
   return useQuery({
-    queryKey: ['billing_credits', tenantId, locationFilter],
+    queryKey: [...qk.billing.credits, tenantId, locationFilter],
     enabled: !!tenantId && profile?.role !== 'teacher' && profile?.role !== 'student',
     queryFn: async () => {
       const { data } = await supabase.from('billing_adjustments')
@@ -479,9 +480,9 @@ export function useCreateBillingAdjustment() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['billing_next_cycle'] })
-      qc.invalidateQueries({ queryKey: ['billing_overview'] })
-      qc.invalidateQueries({ queryKey: ['billing_credits'] })
+      qc.invalidateQueries({ queryKey: qk.billing.nextCycle })
+      qc.invalidateQueries({ queryKey: qk.billing.overview })
+      qc.invalidateQueries({ queryKey: qk.billing.credits })
     },
   })
 }
@@ -512,8 +513,8 @@ export function useCreateOneOffInvoice() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['billing_overview'] })
-      qc.invalidateQueries({ queryKey: ['billing_families'] })
+      qc.invalidateQueries({ queryKey: qk.billing.overview })
+      qc.invalidateQueries({ queryKey: qk.billing.families })
     },
   })
 }
@@ -531,7 +532,7 @@ export function useBillingHeroStats(locationId?: string) {
   const locKey = locationId || 'all'
 
   return useQuery<BillingHeroStats>({
-    queryKey: ['billing_hero_stats', tenantId, monthStart, locKey],
+    queryKey: [...qk.billing.heroStats, tenantId, monthStart, locKey],
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async (): Promise<BillingHeroStats> => {

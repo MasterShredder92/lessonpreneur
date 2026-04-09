@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 export function useTeacherLocations(teacherId: string | undefined) {
   return useQuery({
-    queryKey: ['teacher-locations', teacherId],
+    queryKey: qk.teachers.locations(teacherId),
     enabled: !!teacherId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -19,7 +20,7 @@ export function useTeacherLocations(teacherId: string | undefined) {
 
 export function useTeachersAtLocation(locationId: string | undefined) {
   return useQuery({
-    queryKey: ['teachers-at-location', locationId],
+    queryKey: qk.teachers.atLocation(locationId),
     enabled: !!locationId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -77,9 +78,9 @@ export function useToggleTeacherLocation() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher-locations'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.locations })
       qc.invalidateQueries({ queryKey: ['teachers-at-location'] })
-      qc.invalidateQueries({ queryKey: ['teachers'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.all })
     },
   })
 }
@@ -96,7 +97,7 @@ export function useToggleSubAvailable() {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teachers'] })
+      qc.invalidateQueries({ queryKey: qk.teachers.all })
       qc.invalidateQueries({ queryKey: ['teachers-at-location'] })
     },
   })

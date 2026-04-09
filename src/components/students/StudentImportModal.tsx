@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Location } from '../../lib/types'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
+import { qk } from '../../lib/queryKeys'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -430,14 +431,14 @@ export default function StudentImportModal({ locations, teachers, families, onCl
     setImporting(false)
     if (imported > 0) {
       void Promise.all([
-        qc.invalidateQueries({ queryKey: ['students'] }),
-        qc.invalidateQueries({ queryKey: ['students_roster'] }),
-        qc.invalidateQueries({ queryKey: ['student-instruments'] }),
-        qc.invalidateQueries({ queryKey: ['student-tab-counts'] }),
-        qc.invalidateQueries({ queryKey: ['families'] }),
-        qc.invalidateQueries({ queryKey: ['families_page'] }),
-        qc.invalidateQueries({ queryKey: ['families_roster'] }),
-        qc.invalidateQueries({ queryKey: ['family-tab-counts'] }),
+        qc.invalidateQueries({ queryKey: qk.students.all }),
+        qc.invalidateQueries({ queryKey: qk.students.roster }),
+        qc.invalidateQueries({ queryKey: qk.students.instruments }),
+        qc.invalidateQueries({ queryKey: qk.students.tabCounts }),
+        qc.invalidateQueries({ queryKey: qk.families.all }),
+        qc.invalidateQueries({ queryKey: qk.families.page }),
+        qc.invalidateQueries({ queryKey: qk.families.roster }),
+        qc.invalidateQueries({ queryKey: qk.families.tabCounts }),
       ])
     }
   }

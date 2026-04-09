@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { qk } from '../lib/queryKeys'
 
 export interface Room {
   id: string
@@ -36,7 +37,7 @@ export interface InventoryItem {
 
 export function useRooms(locationId: string | undefined) {
   return useQuery({
-    queryKey: ['rooms', locationId],
+    queryKey: [...qk.rooms.all, locationId],
     enabled: !!locationId,
     queryFn: async () => {
       const { data: rooms, error } = await supabase
@@ -91,7 +92,7 @@ export function useCreateRoom() {
       if (error) throw error
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.rooms.all }),
   })
 }
 
@@ -102,7 +103,7 @@ export function useUpdateRoom() {
       const { error } = await supabase.from('rooms').update(updates).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.rooms.all }),
   })
 }
 
@@ -113,7 +114,7 @@ export function useAddInventoryItem() {
       const { error } = await supabase.from('room_inventory').insert(params)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.rooms.all }),
   })
 }
 
@@ -126,7 +127,7 @@ export function useFlagInventoryItem() {
       }).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rooms'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.rooms.all }); qc.invalidateQueries({ queryKey: qk.dashboard.all }); },
   })
 }
 
@@ -140,7 +141,7 @@ export function useResolveInventoryFlag() {
       }).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rooms'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.rooms.all }); qc.invalidateQueries({ queryKey: qk.dashboard.all }); },
   })
 }
 
@@ -151,13 +152,13 @@ export function useDeleteInventoryItem() {
       const { error } = await supabase.from('room_inventory').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.rooms.all }),
   })
 }
 
 export function useFlaggedInventory() {
   return useQuery({
-    queryKey: ['flagged-inventory'],
+    queryKey: qk.flagged.inventory,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('room_inventory')
