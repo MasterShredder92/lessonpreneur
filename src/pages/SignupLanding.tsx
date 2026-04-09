@@ -9,7 +9,8 @@ import { MapPin } from 'lucide-react'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { supabase } from '../lib/supabase'
 import { SCHOOL_CONFIG } from '../config/school'
-import { SUPABASE_ANON_KEY } from '../lib/config'
+import { EDGE_FUNCTIONS } from '../lib/config'
+import { safeFetch } from '../lib/safeFetch'
 import { useLocationHours } from '../hooks/useLocationHours'
 import './signup.css'
 
@@ -173,8 +174,10 @@ export default function SignupLanding() {
   const [matchLoading, setMatchLoading] = useState(true)
   const [matchScore, setMatchScore] = useState<number | null>(null)
   const [matchedTeacher, setMatchedTeacher] = useState<any>(null)
+  const [matchError, setMatchError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [emailError, setEmailError] = useState('')
 
   // Sub-step tracking for Steps 1 and 2
   const [step1Sub, setStep1Sub] = useState(0) // 0=name+age, 1=experience+bio
@@ -313,105 +316,44 @@ export default function SignupLanding() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [step2Sub, isVocalsOnly, goToStep])
 
-  // ── Teacher matching ──
+  // ── Teacher matching (via edge function — no direct DB queries from public page) ──
   const runMatching = useCallback(async () => {
     setMatchLoading(true)
+    const startTime = Date.now()
     try {
       const locId = LOCATIONS[preferredLoc].locationId
-      const { data: teachers } = await supabase
-        .from('teachers')
-        .select(`
-          id, first_name, display_name, instruments,
-          preferred_age_range, acceptable_age_range,
-          customer_facing_match_summary, personality, lesson_style
-        `)
-        .eq('is_active', true)
-        .eq('status', 'active')
+      const result = await safeFetch<{
+        success: boolean
+        match_score: number
+        candidates_found: number
+        matched_teacher: { id: string; display_name: string; customer_facing_match_summary: string | null } | null
+      }>(EDGE_FUNCTIONS.publicTeacherMatch, {
+        skipAuth: true,
+        body: {
+          school_slug: SCHOOL_CONFIG.slug,
+          location_id: locId,
+          instruments: selectedInstruments,
+          selected_days: selectedDays,
+          age: age ? parseInt(age) : null,
+        },
+      })
 
-      const { data: availability } = await supabase
-        .from('teacher_availability')
-        .select('teacher_id, location_id, day_of_week')
-        .eq('location_id', locId)
-        .eq('is_active', true)
-
-      if (!teachers || !availability) {
+      if (result.success && result.matched_teacher) {
+        setMatchScore(result.match_score)
+        setMatchedTeacher(result.matched_teacher)
+      } else {
         setMatchScore(null)
         setMatchedTeacher(null)
-        setMatchLoading(false)
-        return
       }
-
-      // Build availability map
-      const availMap = new Map<string, Set<string>>()
-      availability.forEach((a: any) => {
-        if (!availMap.has(a.teacher_id)) availMap.set(a.teacher_id, new Set())
-        availMap.get(a.teacher_id)!.add(a.day_of_week)
-      })
-
-      // Map selected days to day_of_week values
-      const dayMap: Record<string, string> = {
-        'Monday 3:30-9p': 'monday',
-        'Tuesday 3:30-9p': 'tuesday',
-        'Wednesday 3:30-9p': 'wednesday',
-        'Thursday 3:30-9p': 'thursday',
-        'Saturday 10am-3p': 'saturday',
-      }
-      const userDays = selectedDays
-        .map(d => dayMap[d])
-        .filter(Boolean)
-
-      let bestScore = 0
-      let bestTeacher: any = null
-
-      teachers.forEach((t: any) => {
-        let score = 0
-        const tInstruments: string[] = Array.isArray(t.instruments) ? t.instruments : []
-
-        // Instrument match: +35
-        const instMatch = selectedInstruments.some(si => tInstruments.some(ti => ti.toLowerCase() === si.toLowerCase()))
-        if (instMatch) score += 35
-
-        // Day overlap: +30 (proportional)
-        const tDays = availMap.get(t.id)
-        if (tDays && userDays.length > 0) {
-          const overlap = userDays.filter(d => tDays.has(d)).length
-          score += Math.round((overlap / userDays.length) * 30)
-        } else if (selectedDays.includes('Any of These Work') && tDays && tDays.size > 0) {
-          score += 30
-        }
-
-        // Age fit: +20
-        const ageRanges = [
-          ...(Array.isArray(t.preferred_age_range) ? t.preferred_age_range : []),
-          ...(Array.isArray(t.acceptable_age_range) ? t.acceptable_age_range : []),
-        ]
-        if (age && ageRanges.length > 0) {
-          // Convert numeric age to range label for matching
-          const ageNum = parseInt(age)
-          const ageLabel = ageNum < 5 ? 'Younger Than 5' : ageNum <= 10 ? '5-10' : ageNum <= 17 ? '11-17' : ageNum <= 25 ? '18-25' : '26 or older'
-          if (ageRanges.some((r: string) => r?.toLowerCase().includes(ageLabel.toLowerCase()))) {
-            score += 20
-          }
-        }
-
-        // Location match: +15 (teacher has availability at this location)
-        if (tDays && tDays.size > 0) score += 15
-
-        if (score > bestScore) {
-          bestScore = score
-          bestTeacher = t
-        }
-      })
-
-      setMatchScore(bestScore)
-      setMatchedTeacher(bestTeacher)
     } catch {
       setMatchScore(null)
       setMatchedTeacher(null)
     }
 
-    // Show loading for at least 2.5s
-    setTimeout(() => setMatchLoading(false), 2500)
+    // Show loading for at least 2.5s total
+    const elapsed = Date.now() - startTime
+    const remaining = Math.max(0, 2500 - elapsed)
+    setTimeout(() => setMatchLoading(false), remaining)
   }, [preferredLoc, selectedInstruments, selectedDays, age])
 
   // Trigger matching when entering step 6
@@ -426,6 +368,14 @@ export default function SignupLanding() {
   // ── Submit enrollment ──
   const handleSubmit = async () => {
     if (submitting) return
+
+    // Validate email format before submission
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email.trim())) {
+      setSubmitError('Please enter a valid email address.')
+      return
+    }
+
     setSubmitting(true)
     setSubmitError('')
 
@@ -449,10 +399,6 @@ export default function SignupLanding() {
           goals: s.goals || '',
         })),
       ]
-
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-lead-submit`
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (SUPABASE_ANON_KEY) headers['apikey'] = SUPABASE_ANON_KEY
 
       const payload = {
         school_slug: SCHOOL_CONFIG.slug,
@@ -483,23 +429,10 @@ export default function SignupLanding() {
       // Primary path: edge function
       let success = false
       try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 15000)
-        const res = await fetch(apiUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        })
-        clearTimeout(timeout)
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => '')
-          console.error(`Lead submit HTTP ${res.status}:`, text)
-          throw new Error(`Server error (${res.status}). Trying backup...`)
-        }
-
-        const result = await res.json()
+        const result = await safeFetch<{ success?: boolean; error?: string }>(
+          EDGE_FUNCTIONS.publicLeadSubmit,
+          { body: payload, skipAuth: true, timeoutMs: 15_000 },
+        )
         if (!result.success) throw new Error(result.error || 'Submission failed. Trying backup...')
         success = true
       } catch (edgeErr) {
@@ -991,6 +924,10 @@ export default function SignupLanding() {
           </div>
         )}
 
+        {emailError && (
+          <div style={{ color: '#ff4444', fontSize: 13, marginTop: -4, marginBottom: 8, textAlign: 'left', width: '100%' }}>{emailError}</div>
+        )}
+
         <div className="signup-sticky-cta">
           <button
             className="signup-next"
@@ -999,7 +936,15 @@ export default function SignupLanding() {
               !email.trim() ||
               !phone.trim()
             }
-            onClick={() => goToStep(4)}
+            onClick={() => {
+              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+              if (!emailRegex.test(email.trim())) {
+                setEmailError('Please enter a valid email address.')
+                return
+              }
+              setEmailError('')
+              goToStep(4)
+            }}
           >
             Next
           </button>

@@ -3,6 +3,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { useFindCoverage, useTransferBlock, type CoverageResult } from '../../hooks/useCallout'
 import { supabase } from '../../lib/supabase'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
+import { toast } from '../shared/Toast'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -34,20 +35,24 @@ export default function CalloutWizard({ locationId, locationName, onClose }: Pro
 
   // Load teachers at this location for selected date
   const loadTeachers = async () => {
-    const { data: blocks } = await supabase
-      .from('schedule_blocks')
-      .select('teacher_id')
-      .eq('location_id', locationId)
-      .eq('block_date', date)
-      .neq('student_id', null as any)
-    const teacherIds = [...new Set(blocks?.map((b: any) => b.teacher_id) ?? [])]
-    if (teacherIds.length === 0) { setTeachers([]); return }
+    try {
+      const { data: blocks } = await supabase
+        .from('schedule_blocks')
+        .select('teacher_id')
+        .eq('location_id', locationId)
+        .eq('block_date', date)
+        .neq('student_id', null as any)
+      const teacherIds = [...new Set(blocks?.map((b: any) => b.teacher_id) ?? [])]
+      if (teacherIds.length === 0) { setTeachers([]); return }
 
-    const { data: ts } = await supabase
-      .from('teachers')
-      .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
-      .in('id', teacherIds)
-    setTeachers(ts?.map((t: any) => ({ id: t.id, name: `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim() })) ?? [])
+      const { data: ts } = await supabase
+        .from('teachers')
+        .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+        .in('id', teacherIds)
+      setTeachers(ts?.map((t: any) => ({ id: t.id, name: `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim() })) ?? [])
+    } catch (err) {
+      console.warn('[CalloutWizard] Failed to load teachers:', err)
+    }
   }
 
   const handleFindCoverage = async () => {
@@ -59,13 +64,19 @@ export default function CalloutWizard({ locationId, locationName, onClose }: Pro
       setCurrentBlockIdx(0)
       setResults([])
       setStep('review')
+    } catch {
+      toast('Could not find coverage — please try again', 'error')
     } finally { setLoading(false) }
   }
 
   const handleTransfer = async (blockId: string, newTeacherId: string, availableBlockId: string | null, studentName: string, subName: string) => {
-    await transferBlock.mutateAsync({ blockId, newTeacherId, availableBlockId })
-    setResults((r) => [...r, { student: studentName, status: 'covered', subName }])
-    advanceBlock()
+    try {
+      await transferBlock.mutateAsync({ blockId, newTeacherId, availableBlockId })
+      setResults((r) => [...r, { student: studentName, status: 'covered', subName }])
+      advanceBlock()
+    } catch {
+      toast('Transfer failed — please try again', 'error')
+    }
   }
 
   const handleSkip = (studentName: string) => {

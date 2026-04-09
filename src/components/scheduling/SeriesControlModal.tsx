@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
+import { qk } from '../../lib/queryKeys'
 
 interface Props {
   blockId: string
@@ -38,15 +39,16 @@ export default function SeriesControlModal({ blockId, action, studentName, teach
       if (rpcErr) throw rpcErr
 
       // Invalidate all relevant caches
-      qc.invalidateQueries({ queryKey: ['schedule-grid'] })
-      qc.invalidateQueries({ queryKey: ['schedule-intelligence'] })
-      qc.invalidateQueries({ queryKey: ['student-blocks'] })
-      qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
+      qc.invalidateQueries({ queryKey: qk.students.all })
       qc.invalidateQueries({ queryKey: ['teacher-blocks'] })
 
       onComplete()
     } catch (err: any) {
       setError(err.message ?? 'Operation failed.')
+    } finally {
       setLoading(false)
     }
   }
