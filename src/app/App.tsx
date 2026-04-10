@@ -46,6 +46,8 @@ const KidsLessonsPage = lazy(() => import('../pages/KidsLessonsPage'))
 const AdultLessonsPage = lazy(() => import('../pages/AdultLessonsPage'))
 const BeginnerLessonsPage = lazy(() => import('../pages/BeginnerLessonsPage'))
 const PrivateLessonsPage = lazy(() => import('../pages/PrivateLessonsPage'))
+const AboutPage = lazy(() => import('../pages/AboutPage'))
+const LocationsPage = lazy(() => import('../pages/LocationsPage'))
 // FamilyPortal removed — parents use authenticated login
 
 // Public funnel pages
@@ -126,8 +128,8 @@ const queryClient = new QueryClient({
         if (isAuthError(error)) return false
         return failureCount < 1
       },
-      refetchOnWindowFocus: true,     // refetch stale queries when user returns to tab
-      refetchOnReconnect: true,       // refetch stale queries when network reconnects
+      refetchOnWindowFocus: false,    // disabled — realtime + navigation handle freshness; window focus caused refetch storms
+      refetchOnReconnect: false,      // disabled — reconnect storms compound with focus storms
       networkMode: 'offlineFirst',
       throwOnError: false,
     },
@@ -188,6 +190,8 @@ export default function App() {
             <Route path="/get-started" element={<LeadCaptureFormPage />} />
             <Route path="/trial" element={<CardCapturePage />} />
             {/* ── Supporting SEO pages ── */}
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/locations" element={<LocationsPage />} />
             <Route path="/kids-music-lessons" element={<KidsLessonsPage />} />
             <Route path="/adult-music-lessons" element={<AdultLessonsPage />} />
             <Route path="/beginner-music-lessons" element={<BeginnerLessonsPage />} />
@@ -203,13 +207,15 @@ export default function App() {
                 <Route path="piano" element={<PianoLanding />} />
                 <Route path="vocals" element={<VocalsLanding />} />
                 <Route path="more" element={<MoreLanding />} />
-                <Route path="guitar-lessons" element={<GuitarLanding />} />
-                <Route path="piano-lessons" element={<PianoLanding />} />
-                <Route path="drum-lessons" element={<DrumsLanding />} />
-                <Route path="vocal-lessons" element={<VocalsLanding />} />
+                {/* -lessons aliases → 301 to canonical instrument pages */}
+                <Route path="guitar-lessons" element={<Navigate to={`/${loc}/guitar`} replace />} />
+                <Route path="piano-lessons" element={<Navigate to={`/${loc}/piano`} replace />} />
+                <Route path="drum-lessons" element={<Navigate to={`/${loc}/drums`} replace />} />
+                <Route path="vocal-lessons" element={<Navigate to={`/${loc}/vocals`} replace />} />
+                <Route path="bass-guitar-lessons" element={<Navigate to={`/${loc}/more`} replace />} />
+                {/* Unique lesson pages — no /violin or /flute base counterpart */}
                 <Route path="violin-lessons" element={<ViolinLessonsLanding />} />
                 <Route path="flute-lessons" element={<FluteLessonsLanding />} />
-                <Route path="bass-guitar-lessons" element={<MoreLanding />} />
                 <Route path="signup" element={<SignupLanding />} />
               </Route>
             ))}
