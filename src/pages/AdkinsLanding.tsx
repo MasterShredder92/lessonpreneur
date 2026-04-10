@@ -103,7 +103,7 @@ export default function AdkinsLanding() {
   // Dynamic SEO: full meta tag coverage per location
   useEffect(() => {
     const l = LOCATIONS[loc]
-    const url = `https://www.lessonpreneur.io${l.route}`
+    const url = `https://www.adkinsmusiclessons.com${l.route}`
     const title = `${l.fullName} | Piano, Guitar, Vocals & Drums — Adkins Music Lessons`
     const desc = `Private music lessons in ${l.name}, NE. Piano, guitar, vocals, drums & more. Expert teachers, flexible scheduling, no contracts. 90-day free trial. ${l.phone}`
 
@@ -142,7 +142,7 @@ export default function AdkinsLanding() {
   // JSON-LD structured data: LocalBusiness + MusicSchool per location
   useEffect(() => {
     const l = LOCATIONS[loc]
-    const url = `https://www.lessonpreneur.io${l.route}`
+    const url = `https://www.adkinsmusiclessons.com${l.route}`
     const addressParts = l.address.split(', ')
     const streetAddress = addressParts[0]
     const city = l.name
@@ -160,8 +160,8 @@ export default function AdkinsLanding() {
       url,
       telephone: l.phone,
       email: l.email,
-      image: `https://www.lessonpreneur.io/og-image.png`,
-      logo: `https://www.lessonpreneur.io/favicon.png`,
+      image: `https://www.adkinsmusiclessons.com/og-image.png`,
+      logo: `https://www.adkinsmusiclessons.com/favicon.png`,
       priceRange: '$$',
       currenciesAccepted: 'USD',
       paymentAccepted: 'Credit Card, Debit Card',
@@ -252,8 +252,8 @@ export default function AdkinsLanding() {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.lessonpreneur.io' },
-        { '@type': 'ListItem', position: 2, name: l.fullName, item: `https://www.lessonpreneur.io${l.route}` },
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.adkinsmusiclessons.com' },
+        { '@type': 'ListItem', position: 2, name: l.fullName, item: `https://www.adkinsmusiclessons.com${l.route}` },
       ],
     }
     const id = 'ld-json-breadcrumb'

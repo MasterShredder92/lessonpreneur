@@ -16,7 +16,7 @@ import { join } from 'path'
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
-const BASE_URL = 'https://www.lessonpreneur.io'
+const BASE_URL = 'https://www.adkinsmusiclessons.com'
 
 interface LocSEO {
   slug: string
@@ -92,32 +92,8 @@ const LOCATIONS: LocSEO[] = [
 
 const INSTRUMENT_PAGES = ['guitar', 'piano', 'vocals', 'drums'] as const
 
-// SEO-optimized "-lessons" landing pages (keyword-targeted URLs)
+// Unique "-lessons" pages — these instruments have NO base /:loc/:instrument counterpart
 const LESSONS_PAGES: { slug: string; label: string; titlePrefix: string; descTemplate: (city: string) => string }[] = [
-  {
-    slug: 'guitar-lessons',
-    label: 'Guitar',
-    titlePrefix: 'Guitar Lessons',
-    descTemplate: (city) => `Private guitar lessons in ${city}, NE for all ages. Acoustic, electric, and classical guitar. Background-checked instructors, flexible scheduling, no contracts. Sign up today!`,
-  },
-  {
-    slug: 'piano-lessons',
-    label: 'Piano',
-    titlePrefix: 'Piano Lessons',
-    descTemplate: (city) => `Private piano lessons in ${city}, NE for kids and adults. Classical, pop, jazz, and more. Experienced background-checked instructors, flexible scheduling, no commitment required.`,
-  },
-  {
-    slug: 'drum-lessons',
-    label: 'Drum',
-    titlePrefix: 'Drum Lessons',
-    descTemplate: (city) => `Private drum lessons in ${city}, NE for all ages and skill levels. Rock, jazz, marching, and more. Background-checked instructors, flexible scheduling, no contracts.`,
-  },
-  {
-    slug: 'vocal-lessons',
-    label: 'Vocal',
-    titlePrefix: 'Vocal Lessons',
-    descTemplate: (city) => `Private vocal lessons in ${city}, NE for kids and adults. Build pitch, tone, range, and confidence. Background-checked instructors, flexible scheduling, no long-term commitment.`,
-  },
   {
     slug: 'violin-lessons',
     label: 'Violin',
@@ -130,12 +106,15 @@ const LESSONS_PAGES: { slug: string; label: string; titlePrefix: string; descTem
     titlePrefix: 'Flute Lessons',
     descTemplate: (city) => `Private flute lessons in ${city}, NE for kids and adults. Band support, solo repertoire, audition prep. Background-checked instructors, flexible scheduling, no contracts.`,
   },
-  {
-    slug: 'bass-guitar-lessons',
-    label: 'Bass Guitar',
-    titlePrefix: 'Bass Guitar Lessons',
-    descTemplate: (city) => `Private bass guitar lessons in ${city}, NE for all ages. Rock, jazz, funk, and more. Experienced background-checked instructors, flexible scheduling, no contracts. Book today!`,
-  },
+]
+
+// Redirect aliases — these "-lessons" slugs canonicalize to the base instrument page
+const LESSONS_REDIRECTS: { slug: string; canonicalSlug: string }[] = [
+  { slug: 'guitar-lessons', canonicalSlug: 'guitar' },
+  { slug: 'piano-lessons', canonicalSlug: 'piano' },
+  { slug: 'drum-lessons', canonicalSlug: 'drums' },
+  { slug: 'vocal-lessons', canonicalSlug: 'vocals' },
+  { slug: 'bass-guitar-lessons', canonicalSlug: 'more' },
 ]
 
 function buildJsonLd(loc: LocSEO): string {
@@ -208,6 +187,19 @@ function buildInstrumentJsonLd(loc: LocSEO, instrument: string): string {
     areaServed: { '@type': 'City', name: loc.city },
     description: `Professional ${instrument.toLowerCase()} lessons for all ages and skill levels in ${loc.city}, ${loc.state}. Experienced, background-checked instructors with flexible scheduling.`,
     url: `${BASE_URL}/${loc.slug}/${instrument.toLowerCase()}`,
+  })
+}
+
+function buildBreadcrumbJsonLd(items: Array<{ name: string; url: string }>): string {
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
   })
 }
 
@@ -427,11 +419,18 @@ function buildInstrumentBody(loc: LocSEO, instrument: string): string {
 function buildLessonsBody(loc: LocSEO, label: string, descText: string): string {
   const labelLower = label.toLowerCase()
 
-  // Cross-link to other lesson types at this location
-  const otherLessons = LESSONS_PAGES
-    .filter(lp => lp.label !== label)
+  // Cross-link to canonical instrument pages at this location
+  const allInstrumentLinks = [
+    { label: 'Guitar', href: `/${loc.slug}/guitar` },
+    { label: 'Piano', href: `/${loc.slug}/piano` },
+    { label: 'Vocals', href: `/${loc.slug}/vocals` },
+    { label: 'Drums', href: `/${loc.slug}/drums` },
+    { label: 'Violin', href: `/${loc.slug}/violin-lessons` },
+    { label: 'Flute', href: `/${loc.slug}/flute-lessons` },
+  ].filter(i => i.label !== label)
+  const otherLessons = allInstrumentLinks
     .slice(0, 4)
-    .map(lp => `<li><a href="/${loc.slug}/${lp.slug}">${lp.label} Lessons in ${loc.city}</a></li>`)
+    .map(i => `<li><a href="${i.href}">${i.label} Lessons in ${loc.city}</a></li>`)
     .join('\n            ')
 
   return `
@@ -518,11 +517,15 @@ function buildSupportingPageBody(sp: {
     `<li><a href="/${p.slug}">${p.label}</a></li>`
   ).join('\n            ')
 
-  // Cross-links to instrument-specific lessons pages
-  const instrumentLinks = LESSONS_PAGES.slice(0, 4).map(lp => {
-    // Link to Omaha as default, but list all locations
-    return `<li><a href="/omaha/${lp.slug}">${lp.label} Lessons</a></li>`
-  }).join('\n            ')
+  // Cross-links to instrument pages (canonical URLs)
+  const instrumentLinks = [
+    { label: 'Guitar', href: '/omaha/guitar' },
+    { label: 'Piano', href: '/omaha/piano' },
+    { label: 'Vocals', href: '/omaha/vocals' },
+    { label: 'Drums', href: '/omaha/drums' },
+    { label: 'Violin', href: '/omaha/violin-lessons' },
+    { label: 'Flute', href: '/omaha/flute-lessons' },
+  ].map(i => `<li><a href="${i.href}">${i.label} Lessons</a></li>`).join('\n            ')
 
   return `
     <div data-ssg="true">
@@ -569,6 +572,7 @@ function rewriteHtml(html: string, opts: {
   canonical: string
   jsonLd: string
   faqJsonLd?: string
+  breadcrumbJsonLd?: string
   city: string
   state: string
   lat: number
@@ -642,12 +646,13 @@ function rewriteHtml(html: string, opts: {
 
   // Inject geo meta and JSON-LD before </head>
   const faqScript = opts.faqJsonLd ? `\n    <script type="application/ld+json">${opts.faqJsonLd}</script>` : ''
+  const breadcrumbScript = opts.breadcrumbJsonLd ? `\n    <script type="application/ld+json">${opts.breadcrumbJsonLd}</script>` : ''
   const injection = `
     <meta name="geo.region" content="US-${opts.state}">
     <meta name="geo.placename" content="${opts.city}">
     <meta name="geo.position" content="${opts.lat};${opts.lng}">
     <meta name="ICBM" content="${opts.lat}, ${opts.lng}">
-    <script type="application/ld+json">${opts.jsonLd}</script>${faqScript}`
+    <script type="application/ld+json">${opts.jsonLd}</script>${faqScript}${breadcrumbScript}`
 
   result = result.replace('</head>', `${injection}\n  </head>`)
 
@@ -678,6 +683,10 @@ export default function locationSeoPlugin(): Plugin {
           canonical: `${BASE_URL}/${loc.slug}`,
           jsonLd: buildJsonLd(loc),
           faqJsonLd: buildFaqJsonLd(loc),
+          breadcrumbJsonLd: buildBreadcrumbJsonLd([
+            { name: 'Home', url: BASE_URL },
+            { name: `Music Lessons in ${loc.city}`, url: `${BASE_URL}/${loc.slug}` },
+          ]),
           city: loc.city,
           state: loc.state,
           lat: loc.lat,
@@ -696,6 +705,11 @@ export default function locationSeoPlugin(): Plugin {
             desc: `Professional ${instrument} lessons in ${loc.city}, NE for all ages and skill levels. Experienced, background-checked instructors. Flexible scheduling, no commitment. Start learning ${instrument} today!`,
             canonical: `${BASE_URL}/${loc.slug}/${instrument}`,
             jsonLd: buildInstrumentJsonLd(loc, instCap),
+            breadcrumbJsonLd: buildBreadcrumbJsonLd([
+              { name: 'Home', url: BASE_URL },
+              { name: `Music Lessons in ${loc.city}`, url: `${BASE_URL}/${loc.slug}` },
+              { name: `${instCap} Lessons`, url: `${BASE_URL}/${loc.slug}/${instrument}` },
+            ]),
             city: loc.city,
             state: loc.state,
             lat: loc.lat,
@@ -712,6 +726,11 @@ export default function locationSeoPlugin(): Plugin {
           desc: `Flute, violin, bass guitar, and more music lessons in ${loc.city}, NE. All ages and skill levels welcome. Background-checked instructors, flexible scheduling. Enroll today!`,
           canonical: `${BASE_URL}/${loc.slug}/more`,
           jsonLd: buildInstrumentJsonLd(loc, 'Flute, Violin & More'),
+          breadcrumbJsonLd: buildBreadcrumbJsonLd([
+            { name: 'Home', url: BASE_URL },
+            { name: `Music Lessons in ${loc.city}`, url: `${BASE_URL}/${loc.slug}` },
+            { name: 'More Instruments', url: `${BASE_URL}/${loc.slug}/more` },
+          ]),
           city: loc.city,
           state: loc.state,
           lat: loc.lat,
@@ -729,12 +748,36 @@ export default function locationSeoPlugin(): Plugin {
             desc: lp.descTemplate(loc.city),
             canonical: `${BASE_URL}/${loc.slug}/${lp.slug}`,
             jsonLd: buildInstrumentJsonLd(loc, lp.label),
+            breadcrumbJsonLd: buildBreadcrumbJsonLd([
+              { name: 'Home', url: BASE_URL },
+              { name: `Music Lessons in ${loc.city}`, url: `${BASE_URL}/${loc.slug}` },
+              { name: `${lp.titlePrefix}`, url: `${BASE_URL}/${loc.slug}/${lp.slug}` },
+            ]),
             city: loc.city,
             state: loc.state,
             lat: loc.lat,
             lng: loc.lng,
           }), buildLessonsBody(loc, lp.label, lp.descTemplate(loc.city)))
           writeFileSync(join(lpDir, 'index.html'), lpHtml)
+        }
+
+        // ─── Generate redirect HTML for merged -lessons aliases ───
+        for (const redir of LESSONS_REDIRECTS) {
+          const redirDir = join(locDir, redir.slug)
+          mkdirSync(redirDir, { recursive: true })
+          const canonicalUrl = `${BASE_URL}/${loc.slug}/${redir.canonicalSlug}`
+          const redirHtml = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="${canonicalUrl}" />
+  <meta http-equiv="refresh" content="0;url=/${loc.slug}/${redir.canonicalSlug}">
+  <title>Redirecting…</title>
+</head>
+<body><p>Redirecting to <a href="/${loc.slug}/${redir.canonicalSlug}">${loc.city} ${redir.canonicalSlug} lessons</a>.</p></body>
+</html>`
+          writeFileSync(join(redirDir, 'index.html'), redirHtml)
         }
       }
 
@@ -838,14 +881,126 @@ export default function locationSeoPlugin(): Plugin {
             areaServed: LOCATIONS.map(l => ({ '@type': 'City', name: l.city })),
           }),
           faqJsonLd,
+          breadcrumbJsonLd: buildBreadcrumbJsonLd([
+            { name: 'Home', url: BASE_URL },
+            { name: sp.h1, url: `${BASE_URL}/${sp.slug}` },
+          ]),
           city: 'Omaha', state: 'NE', lat: 41.2168, lng: -96.0262,
         }), buildSupportingPageBody(sp))
         writeFileSync(join(spDir, 'index.html'), spHtml)
       }
 
+      // ─── Generate /about static page ───
+      const aboutDir = join(distDir, 'about')
+      mkdirSync(aboutDir, { recursive: true })
+      const aboutHtml = injectBody(rewriteHtml(baseHtml, {
+        title: 'About Adkins Music Lessons | Founded by Zachary Adkins — Omaha Metro',
+        desc: 'Adkins Music Lessons was founded by Zachary Adkins, 2017 National Guitar Competition winner. Four locations across the Omaha metro — 30+ instructors, 400+ students.',
+        canonical: `${BASE_URL}/about`,
+        jsonLd: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'Adkins Music Lessons',
+          alternateName: 'Adkins Enterprises LLC',
+          url: BASE_URL,
+          founder: { '@type': 'Person', name: 'Zachary Adkins', description: '2017 National Guitar Competition winner', jobTitle: 'Founder & Owner' },
+          numberOfEmployees: { '@type': 'QuantitativeValue', minValue: 30 },
+          areaServed: LOCATIONS.map(l => ({ '@type': 'City', name: l.city })),
+        }),
+        breadcrumbJsonLd: buildBreadcrumbJsonLd([
+          { name: 'Home', url: BASE_URL },
+          { name: 'About', url: `${BASE_URL}/about` },
+        ]),
+        city: 'Omaha', state: 'NE', lat: 41.2168, lng: -96.0262,
+      }), `
+    <div data-ssg="true">
+      <header><h1>About Adkins Music Lessons</h1></header>
+      <main>
+        <section>
+          <h2>Our Story</h2>
+          <p>Founded by Zachary Adkins, 2017 National Guitar Competition winner. What started as a single teaching room in Omaha has grown into four studios across the metro area — Omaha, Bellevue, Elkhorn, and Gretna — with over 30 professional, background-checked instructors serving more than 400 active students.</p>
+        </section>
+        <section>
+          <h2>What Makes Us Different</h2>
+          <ul>
+            <li>AI-powered teacher-student matching — 95% compatibility rate</li>
+            <li>Every instructor background-checked, cameras in every room</li>
+            <li>No contracts, no enrollment fees — month-to-month billing</li>
+            <li>Four convenient locations across the Omaha metro</li>
+          </ul>
+        </section>
+        <nav>
+          <h2>Our Locations</h2>
+          <ul>
+            ${LOCATIONS.map(l => `<li><a href="/${l.slug}">${l.brandName}</a> — ${l.streetAddress}, ${l.city}, ${l.state} ${l.zip} — ${l.phone}</li>`).join('\n            ')}
+          </ul>
+        </nav>
+      </main>
+      <footer><p>&copy; ${new Date().getFullYear()} Adkins Music Lessons. Powered by Lessonpreneur.</p></footer>
+    </div>`)
+      writeFileSync(join(aboutDir, 'index.html'), aboutHtml)
+
+      // ─── Generate /locations static page ───
+      const locationsDir = join(distDir, 'locations')
+      mkdirSync(locationsDir, { recursive: true })
+      const locationsHtml = injectBody(rewriteHtml(baseHtml, {
+        title: 'Locations | Music Lessons in Omaha, Bellevue, Elkhorn & Gretna — Adkins Music',
+        desc: 'Adkins Music Lessons has four studio locations across the Omaha metro: Omaha, Bellevue, Elkhorn, and Gretna. Private music lessons for all ages.',
+        canonical: `${BASE_URL}/locations`,
+        jsonLd: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'EducationalOrganization',
+          name: 'Adkins Music Lessons',
+          url: BASE_URL,
+          numberOfLocations: 4,
+          location: LOCATIONS.map(l => ({
+            '@type': 'Place',
+            name: l.brandName,
+            address: { '@type': 'PostalAddress', streetAddress: l.streetAddress, addressLocality: l.city, addressRegion: l.state, postalCode: l.zip, addressCountry: 'US' },
+            telephone: l.phone,
+            url: `${BASE_URL}/${l.slug}`,
+          })),
+        }),
+        breadcrumbJsonLd: buildBreadcrumbJsonLd([
+          { name: 'Home', url: BASE_URL },
+          { name: 'Locations', url: `${BASE_URL}/locations` },
+        ]),
+        city: 'Omaha', state: 'NE', lat: 41.2168, lng: -96.0262,
+      }), `
+    <div data-ssg="true">
+      <header><h1>Our Locations</h1></header>
+      <main>
+        <p>Adkins Music Lessons operates four studios across the Omaha metropolitan area. Every location offers private, one-on-one lessons with professional, background-checked teachers.</p>
+        ${LOCATIONS.map(l => `
+        <section>
+          <h2>Music Lessons in ${l.city}</h2>
+          <address>
+            <p>${l.streetAddress}, ${l.city}, ${l.state} ${l.zip}</p>
+            <p>Phone: <a href="tel:${l.phone.replace(/[^\d+]/g, '')}">${l.phone}</a></p>
+            <p>Email: <a href="mailto:${l.email}">${l.email}</a></p>
+          </address>
+          <p>Instruments: ${l.instruments.join(', ')}</p>
+          <a href="/${l.slug}">View ${l.city} studio details</a>
+        </section>`).join('')}
+        <nav>
+          <h2>Explore by Lesson Type</h2>
+          <ul>
+            <li><a href="/kids-music-lessons">Kids Music Lessons</a></li>
+            <li><a href="/adult-music-lessons">Adult Music Lessons</a></li>
+            <li><a href="/beginner-music-lessons">Beginner Music Lessons</a></li>
+            <li><a href="/private-music-lessons">Private Music Lessons</a></li>
+          </ul>
+        </nav>
+      </main>
+      <footer><p>&copy; ${new Date().getFullYear()} Adkins Music Lessons. Powered by Lessonpreneur.</p></footer>
+    </div>`)
+      writeFileSync(join(locationsDir, 'index.html'), locationsHtml)
+
       // ─── Auto-generate sitemap.xml with all pages ───
       const sitemapUrls: { loc: string; priority: string; changefreq: string }[] = [
         { loc: `${BASE_URL}/`, priority: '1.0', changefreq: 'weekly' },
+        { loc: `${BASE_URL}/about`, priority: '0.7', changefreq: 'monthly' },
+        { loc: `${BASE_URL}/locations`, priority: '0.8', changefreq: 'monthly' },
       ]
 
       for (const loc of LOCATIONS) {
@@ -861,8 +1016,7 @@ export default function locationSeoPlugin(): Plugin {
         for (const lp of LESSONS_PAGES) {
           sitemapUrls.push({ loc: `${BASE_URL}/${loc.slug}/${lp.slug}`, priority: '0.8', changefreq: 'monthly' })
         }
-        // Signup page
-        sitemapUrls.push({ loc: `${BASE_URL}/${loc.slug}/signup`, priority: '0.6', changefreq: 'monthly' })
+        // Signup page — noindex funnel, excluded from sitemap
       }
 
       // Supporting SEO pages

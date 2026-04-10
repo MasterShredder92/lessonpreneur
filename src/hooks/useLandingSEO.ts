@@ -12,7 +12,7 @@ interface LandingSEOOptions {
 /** Sets all SEO meta tags + canonical + JSON-LD for a public landing page. */
 export function useLandingSEO({ loc, title, description, path, jsonLd }: LandingSEOOptions) {
   const l = LOCATIONS[loc]
-  const url = `https://www.lessonpreneur.io${path}`
+  const url = `https://www.adkinsmusiclessons.com${path}`
 
   useEffect(() => {
     document.title = title
@@ -56,7 +56,7 @@ export function useLandingSEO({ loc, title, description, path, jsonLd }: Landing
 /** Builds a Course + LocalBusiness JSON-LD for an instrument landing page. */
 export function buildInstrumentJsonLd(loc: LocKey, instrument: string, slug: string, instrumentDesc: string) {
   const l = LOCATIONS[loc]
-  const url = `https://www.lessonpreneur.io/${loc}/${slug}`
+  const url = `https://www.adkinsmusiclessons.com/${loc}/${slug}`
   return {
     '@context': 'https://schema.org',
     '@type': 'Course',

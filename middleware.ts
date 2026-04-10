@@ -5,18 +5,35 @@
 import { next } from '@vercel/edge'
 
 export const config = {
-  matcher: [
-    '/omaha', '/omaha/piano', '/omaha/guitar', '/omaha/vocals', '/omaha/drums', '/omaha/more', '/omaha/violin-lessons', '/omaha/flute-lessons',
-    '/bellevue', '/bellevue/piano', '/bellevue/guitar', '/bellevue/vocals', '/bellevue/drums', '/bellevue/more', '/bellevue/violin-lessons', '/bellevue/flute-lessons',
-    '/elkhorn', '/elkhorn/piano', '/elkhorn/guitar', '/elkhorn/vocals', '/elkhorn/drums', '/elkhorn/more', '/elkhorn/violin-lessons', '/elkhorn/flute-lessons',
-    '/gretna', '/gretna/piano', '/gretna/guitar', '/gretna/vocals', '/gretna/drums', '/gretna/more', '/gretna/violin-lessons', '/gretna/flute-lessons',
-    '/kids-music-lessons', '/adult-music-lessons', '/beginner-music-lessons', '/private-music-lessons',
-    '/about', '/locations',
-    '/start', '/trial', '/thank-you', '/get-started',
-  ],
+  // Match all non-asset paths so legacy domain redirects fire in middleware
+  // before filesystem or rewrites can intercept the request.
+  matcher: ['/((?!_next/static|_next/image|assets/|favicon\\.png|icon-|manifest\\.json|sw\\.js|data/).*)'],
+}
+
+// ── Legacy domain → adkinsmusiclessons.com permanent redirects ──
+const LEGACY_HOST_MAP: Record<string, string> = {
+  'omahaguitarandmusiclessons.com': '/omaha',
+  'www.omahaguitarandmusiclessons.com': '/omaha',
+  'musiclessonsbellevue.com': '/bellevue',
+  'www.musiclessonsbellevue.com': '/bellevue',
+  'elkhornlessons.com': '/elkhorn',
+  'www.elkhornlessons.com': '/elkhorn',
+  'gretnamusiclessons.com': '/gretna',
+  'www.gretnamusiclessons.com': '/gretna',
 }
 
 const NOINDEX_PATHS = new Set(['/start', '/trial', '/thank-you', '/get-started'])
+
+// Paths where this middleware does SEO work for lessonpreneur.io / adkinsmusiclessons.com
+const SEO_PATHS = new Set([
+  '/omaha', '/omaha/piano', '/omaha/guitar', '/omaha/vocals', '/omaha/drums', '/omaha/more', '/omaha/violin-lessons', '/omaha/flute-lessons',
+  '/bellevue', '/bellevue/piano', '/bellevue/guitar', '/bellevue/vocals', '/bellevue/drums', '/bellevue/more', '/bellevue/violin-lessons', '/bellevue/flute-lessons',
+  '/elkhorn', '/elkhorn/piano', '/elkhorn/guitar', '/elkhorn/vocals', '/elkhorn/drums', '/elkhorn/more', '/elkhorn/violin-lessons', '/elkhorn/flute-lessons',
+  '/gretna', '/gretna/piano', '/gretna/guitar', '/gretna/vocals', '/gretna/drums', '/gretna/more', '/gretna/violin-lessons', '/gretna/flute-lessons',
+  '/kids-music-lessons', '/adult-music-lessons', '/beginner-music-lessons', '/private-music-lessons',
+  '/about', '/locations',
+  '/start', '/trial', '/thank-you', '/get-started',
+])
 
 const LOCATIONS: Record<string, { name: string; fullName: string; phone: string; email: string; address: string; domain: string; lat: number; lng: number }> = {
   omaha: { name: 'Omaha', fullName: 'Omaha Music Lessons', phone: '(531) 270-0848', email: 'musiclessonsomaha@gmail.com', address: '4862 S 96th St Ste 1, Omaha, NE 68127', domain: 'omahaguitarandmusiclessons.com', lat: 41.2168, lng: -96.0262 },
@@ -124,7 +141,7 @@ function buildBreadcrumbJsonLd(items: Array<{ name: string; url: string }>) {
 }
 
 function buildSupportingJsonLd(slug: string, title: string, desc: string) {
-  const canonical = `https://www.lessonpreneur.io/${slug}`
+  const canonical = `https://www.adkinsmusiclessons.com/${slug}`
   return JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'EducationalOrganization',
@@ -168,6 +185,22 @@ async function rewriteHtml(request: Request, title: string, desc: string, canoni
 
 export default async function middleware(request: Request): Promise<Response> {
   const url = new URL(request.url)
+  const hostname = url.hostname
+
+  // ── Legacy domain redirects — must fire before anything else ──
+  const legacyBase = LEGACY_HOST_MAP[hostname]
+  if (legacyBase) {
+    // Preserve the path: gretnamusiclessons.com/guitar → adkinsmusiclessons.com/gretna/guitar
+    const subpath = url.pathname === '/' ? '' : url.pathname
+    const target = `https://www.adkinsmusiclessons.com${legacyBase}${subpath}`
+    return Response.redirect(target, 308)
+  }
+
+  // For non-SEO paths on the primary domain, pass through immediately
+  if (!SEO_PATHS.has(url.pathname)) {
+    return next()
+  }
+
   const segments = url.pathname.split('/').filter(Boolean)
 
   // Funnel pages — noindex to prevent thin/duplicate indexing
@@ -190,16 +223,16 @@ export default async function middleware(request: Request): Promise<Response> {
 
   // About page
   if (segments.length === 1 && segments[0] === 'about') {
-    const canonical = 'https://www.lessonpreneur.io/about'
+    const canonical = 'https://www.adkinsmusiclessons.com/about'
     const aboutJsonLd = JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'Organization',
       name: 'Adkins Music Lessons',
-      url: 'https://www.lessonpreneur.io',
+      url: 'https://www.adkinsmusiclessons.com',
       founder: { '@type': 'Person', name: 'Zachary Adkins', description: '2017 National Guitar Competition winner' },
     })
     const breadcrumb = buildBreadcrumbJsonLd([
-      { name: 'Home', url: 'https://www.lessonpreneur.io' },
+      { name: 'Home', url: 'https://www.adkinsmusiclessons.com' },
       { name: 'About', url: canonical },
     ])
     const combined = aboutJsonLd + `</script>\n  <script type="application/ld+json">${breadcrumb}`
@@ -208,17 +241,17 @@ export default async function middleware(request: Request): Promise<Response> {
 
   // Locations page
   if (segments.length === 1 && segments[0] === 'locations') {
-    const canonical = 'https://www.lessonpreneur.io/locations'
+    const canonical = 'https://www.adkinsmusiclessons.com/locations'
     const locsJsonLd = JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'EducationalOrganization',
       name: 'Adkins Music Lessons',
-      url: 'https://www.lessonpreneur.io',
+      url: 'https://www.adkinsmusiclessons.com',
       numberOfLocations: 4,
       areaServed: Object.values(LOCATIONS).map(l => ({ '@type': 'City', name: l.name })),
     })
     const breadcrumb = buildBreadcrumbJsonLd([
-      { name: 'Home', url: 'https://www.lessonpreneur.io' },
+      { name: 'Home', url: 'https://www.adkinsmusiclessons.com' },
       { name: 'Locations', url: canonical },
     ])
     const combined = locsJsonLd + `</script>\n  <script type="application/ld+json">${breadcrumb}`
@@ -229,7 +262,7 @@ export default async function middleware(request: Request): Promise<Response> {
   if (segments.length === 1 && SUPPORTING_PAGES[segments[0]]) {
     const slug = segments[0]
     const page = SUPPORTING_PAGES[slug]
-    const canonical = `https://www.lessonpreneur.io/${slug}`
+    const canonical = `https://www.adkinsmusiclessons.com/${slug}`
     // Combine EducationalOrganization + FAQPage schemas
     let combinedJsonLd = buildSupportingJsonLd(slug, page.title, page.desc)
     if (page.faqs.length > 0) {
@@ -245,7 +278,7 @@ export default async function middleware(request: Request): Promise<Response> {
       combinedJsonLd += `</script>\n  <script type="application/ld+json">${faqSchema}`
     }
     const breadcrumb = buildBreadcrumbJsonLd([
-      { name: 'Home', url: 'https://www.lessonpreneur.io' },
+      { name: 'Home', url: 'https://www.adkinsmusiclessons.com' },
       { name: page.title.split('|')[0].trim(), url: canonical },
     ])
     combinedJsonLd += `</script>\n  <script type="application/ld+json">${breadcrumb}`
@@ -267,16 +300,16 @@ export default async function middleware(request: Request): Promise<Response> {
   if (instrument) {
     title = `${instrument.label} Lessons in ${loc.name}, NE | Adkins Music Lessons`
     desc = `${instrument.desc} Expert teachers, flexible scheduling, no contracts. ${loc.phone}`
-    canonical = `https://www.lessonpreneur.io/${locKey}/${instrumentKey}`
+    canonical = `https://www.adkinsmusiclessons.com/${locKey}/${instrumentKey}`
   } else {
     title = `${loc.fullName} | Piano, Guitar, Vocals & Drums — Adkins Music Lessons`
     desc = `Private music lessons in ${loc.name}, NE. Piano, guitar, vocals, drums & more. Expert teachers, flexible scheduling, no contracts. 90-day free trial. ${loc.phone}`
-    canonical = `https://www.lessonpreneur.io/${locKey}`
+    canonical = `https://www.adkinsmusiclessons.com/${locKey}`
   }
 
   const jsonLd = buildJsonLd(loc, canonical, instrument)
-  const breadcrumbItems = [{ name: 'Home', url: 'https://www.lessonpreneur.io' }]
-  breadcrumbItems.push({ name: `Music Lessons in ${loc.name}`, url: `https://www.lessonpreneur.io/${locKey}` })
+  const breadcrumbItems = [{ name: 'Home', url: 'https://www.adkinsmusiclessons.com' }]
+  breadcrumbItems.push({ name: `Music Lessons in ${loc.name}`, url: `https://www.adkinsmusiclessons.com/${locKey}` })
   if (instrument) {
     breadcrumbItems.push({ name: `${instrument.label} Lessons`, url: canonical })
   }

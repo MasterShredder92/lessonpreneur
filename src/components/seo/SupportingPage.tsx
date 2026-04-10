@@ -18,14 +18,14 @@ export function SupportingPage({ content }: { content: SupportingPageContent }) 
     setMeta('name', 'description', content.metaDescription)
     setMeta('property', 'og:title', content.title)
     setMeta('property', 'og:description', content.metaDescription)
-    setMeta('property', 'og:url', `https://www.lessonpreneur.io/${content.slug}`)
+    setMeta('property', 'og:url', `https://www.adkinsmusiclessons.com/${content.slug}`)
     setMeta('property', 'og:type', 'website')
     setMeta('name', 'twitter:title', content.title)
     setMeta('name', 'twitter:description', content.metaDescription)
 
     let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null
     if (!canonical) { canonical = document.createElement('link'); canonical.setAttribute('rel', 'canonical'); document.head.appendChild(canonical) }
-    canonical.setAttribute('href', `https://www.lessonpreneur.io/${content.slug}`)
+    canonical.setAttribute('href', `https://www.adkinsmusiclessons.com/${content.slug}`)
 
     return () => { document.title = 'Lessonpreneur' }
   }, [content])

@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 
-const BASE_URL = 'https://www.lessonpreneur.io'
+const BASE_URL = 'https://www.adkinsmusiclessons.com'
 
 const INSTRUMENT_LABELS: Record<string, string> = {
   guitar: 'Guitar',
