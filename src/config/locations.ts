@@ -134,9 +134,10 @@ export const LOC_TO_OPT: Record<LocKey, string> = {
   gretna: 'Gretna (203rd Hwy 370)',
 }
 
-/** Look up a location by its domain hostname */
+/** Look up a location by its domain hostname (handles both apex and www variants) */
 export function getLocationByDomain(hostname: string): LocationConfig | undefined {
-  return Object.values(LOCATIONS).find(loc => loc.domain === hostname)
+  const bare = hostname.replace(/^www\./, '')
+  return Object.values(LOCATIONS).find(loc => loc.domain === bare || loc.domain === hostname)
 }
 
 /** Look up a location by its route path segment (e.g. "omaha" from "/omaha") */

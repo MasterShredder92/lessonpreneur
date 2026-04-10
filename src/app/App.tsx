@@ -104,6 +104,49 @@ function LocationLanding({ loc }: { loc: LocKey }) {
   )
 }
 
+/**
+ * Client-side hostname gate for the "/" route.
+ * Edge Middleware handles this at the CDN layer, but if it misses
+ * (cold start, cache bypass, apex DNS routing), this ensures the
+ * correct page renders instead of falling through to the SaaS page.
+ */
+
+// Adkins customer-facing domains → redirect to /omaha
+const ADKINS_HOSTS_CLIENT = new Set([
+  'adkinsmusiclessons.com',
+  'www.adkinsmusiclessons.com',
+])
+
+// Legacy per-location domains → redirect to location path
+const LEGACY_HOST_CLIENT: Record<string, string> = {
+  'omahaguitarandmusiclessons.com': '/omaha',
+  'www.omahaguitarandmusiclessons.com': '/omaha',
+  'musiclessonsbellevue.com': '/bellevue',
+  'www.musiclessonsbellevue.com': '/bellevue',
+  'elkhornlessons.com': '/elkhorn',
+  'www.elkhornlessons.com': '/elkhorn',
+  'gretnamusiclessons.com': '/gretna',
+  'www.gretnamusiclessons.com': '/gretna',
+}
+
+function HomepageRouter() {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+
+  // Adkins main domain → primary location
+  if (ADKINS_HOSTS_CLIENT.has(hostname)) {
+    return <Navigate to="/omaha" replace />
+  }
+
+  // Legacy per-location domain → location path
+  const legacyPath = LEGACY_HOST_CLIENT[hostname]
+  if (legacyPath) {
+    return <Navigate to={legacyPath} replace />
+  }
+
+  // SaaS domain (lessonpreneur.io, localhost, preview deploys) → SaaS landing
+  return <LandingPageV2 />
+}
+
 // Detect auth/JWT errors that cause the app to spin indefinitely
 function isAuthError(error: unknown): boolean {
   if (!error) return false
@@ -180,7 +223,7 @@ export default function App() {
         <PreviewBanner />
           <Suspense fallback={<PageLoader />}>
           <Routes>
-            <Route path="/" element={<LandingPageV2 />} />
+            <Route path="/" element={<HomepageRouter />} />
             {/* Routes removed — orphaned. Component files preserved for future use. */}
             <Route path="/login" element={<Login />} />
             <Route path="/intake/:slug" element={<Intake />} />
