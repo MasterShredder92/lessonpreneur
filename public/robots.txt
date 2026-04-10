@@ -7,4 +7,4 @@ Disallow: /login
 Disallow: /intake/
 Disallow: /pay/
 
-Sitemap: https://www.lessonpreneur.io/sitemap.xml
+Sitemap: https://www.adkinsmusiclessons.com/sitemap.xml

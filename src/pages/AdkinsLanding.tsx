@@ -105,7 +105,7 @@ export default function AdkinsLanding() {
     const l = LOCATIONS[loc]
     const url = `https://www.adkinsmusiclessons.com${l.route}`
     const title = `${l.fullName} | Piano, Guitar, Vocals & Drums — Adkins Music Lessons`
-    const desc = `Private music lessons in ${l.name}, NE. Piano, guitar, vocals, drums & more. Expert teachers, flexible scheduling, no contracts. 90-day free trial. ${l.phone}`
+    const desc = `Private music lessons in ${l.name}, NE. Piano, guitar, vocals, drums & more. Expert teachers, flexible scheduling, no contracts. ${l.phone}`
 
     document.title = title
 
@@ -137,6 +137,15 @@ export default function AdkinsLanding() {
     let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null
     if (!canonical) { canonical = document.createElement('link'); canonical.setAttribute('rel', 'canonical'); document.head.appendChild(canonical) }
     canonical.setAttribute('href', url)
+
+    // Location-specific favicon
+    const fav = `/favicon-${loc}.png`
+    const iconLink = document.querySelector('link[rel="icon"][sizes="192x192"]') as HTMLLinkElement | null
+    if (iconLink) iconLink.href = fav
+    const icon500 = document.querySelector('link[rel="icon"][sizes="500x500"]') as HTMLLinkElement | null
+    if (icon500) { icon500.href = fav; icon500.setAttribute('sizes', '192x192') }
+    const touchIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement | null
+    if (touchIcon) touchIcon.href = fav
   }, [loc])
 
   // JSON-LD structured data: LocalBusiness + MusicSchool per location

@@ -47,7 +47,7 @@ const LOCATIONS: LocSEO[] = [
     lat: 41.2112, lng: -96.0819,
     instruments: ['Guitar', 'Piano', 'Vocals', 'Drums', 'Bass Guitar', 'Flute', 'Violin', 'Percussion'],
     title: 'Music Lessons in Omaha, NE | Guitar, Piano, Drums, Vocals & More | Adkins Music',
-    desc: 'Looking for music lessons in Omaha? Guitar, piano, drums, vocal, flute & violin lessons for all ages. Professional background-checked instructors, flexible scheduling, no commitment. Book a trial lesson today!',
+    desc: 'Looking for music lessons in Omaha? Guitar, piano, drums, vocal, flute & violin lessons for all ages. Professional background-checked instructors, flexible scheduling, no commitment.',
   },
   {
     slug: 'bellevue',
@@ -577,8 +577,26 @@ function rewriteHtml(html: string, opts: {
   state: string
   lat: number
   lng: number
+  locationSlug?: string
 }): string {
   let result = html
+
+  // Replace favicon/icon links with location-specific versions
+  if (opts.locationSlug) {
+    const fav = `/favicon-${opts.locationSlug}.png`
+    result = result.replace(
+      /<link rel="icon"[^>]*href="\/favicon\.png[^"]*"[^>]*>/,
+      `<link rel="icon" type="image/png" sizes="192x192" href="${fav}">`
+    )
+    result = result.replace(
+      /<link rel="icon"[^>]*href="\/icon-192\.png[^"]*"[^>]*>/,
+      `<link rel="icon" type="image/png" sizes="192x192" href="${fav}">`
+    )
+    result = result.replace(
+      /<link rel="apple-touch-icon"[^>]*href="[^"]*"[^>]*>/,
+      `<link rel="apple-touch-icon" sizes="192x192" href="${fav}">`
+    )
+  }
 
   // Replace title
   result = result.replace(
@@ -691,6 +709,7 @@ export default function locationSeoPlugin(): Plugin {
           state: loc.state,
           lat: loc.lat,
           lng: loc.lng,
+          locationSlug: loc.slug,
         }), buildLocationBody(loc))
         writeFileSync(join(locDir, 'index.html'), locHtml)
 
@@ -714,6 +733,7 @@ export default function locationSeoPlugin(): Plugin {
             state: loc.state,
             lat: loc.lat,
             lng: loc.lng,
+            locationSlug: loc.slug,
           }), buildInstrumentBody(loc, instCap))
           writeFileSync(join(instDir, 'index.html'), instHtml)
         }
@@ -735,6 +755,7 @@ export default function locationSeoPlugin(): Plugin {
           state: loc.state,
           lat: loc.lat,
           lng: loc.lng,
+          locationSlug: loc.slug,
         }), buildInstrumentBody(loc, 'Flute, Violin & More'))
         writeFileSync(join(moreDir, 'index.html'), moreHtml)
 
@@ -757,6 +778,7 @@ export default function locationSeoPlugin(): Plugin {
             state: loc.state,
             lat: loc.lat,
             lng: loc.lng,
+            locationSlug: loc.slug,
           }), buildLessonsBody(loc, lp.label, lp.descTemplate(loc.city)))
           writeFileSync(join(lpDir, 'index.html'), lpHtml)
         }

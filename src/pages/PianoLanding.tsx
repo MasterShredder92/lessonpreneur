@@ -44,7 +44,7 @@ const BLACK_KEYS = [
 const ALL_KEYS = [...WHITE_KEYS, ...BLACK_KEYS]
 
 const FAQS = [
-  { q: 'What age can kids start piano?', a: "We work with students as young as 3 years old. For very young beginners we focus on listening, rhythm, and basic finger coordination before formal note reading. Most kids are ready for structured lessons around age 5 or 6 — but we'll tell you honestly after a trial lesson. We're always honest. It's kind of our thing." },
+  { q: 'What age can kids start piano?', a: "We work with students as young as 5 years old. At that age, most kids are ready for structured lessons — learning rhythm, basic finger coordination, and note reading from day one. Every student is different, so we'll assess readiness in the first lesson and build a plan that fits. We're always honest. It's kind of our thing." },
   { q: 'Do we need a piano or keyboard at home?', a: "A keyboard works perfectly to start — you don't need an acoustic piano. After a few lessons we can help you find the right option for your budget and space. We'll never push you toward an expensive purchase before you're ready." },
   { q: 'How much do lessons cost?', a: "Sessions are billed in 30-minute increments and sold in prepaid monthly packages. The total varies depending on how many students and instruments. Fill out the form and we'll walk you through all the options — no pressure, no surprises.", link: true },
   { q: 'Where are your locations?', a: "Four locations across the Omaha metro: Omaha (96th St), Gretna, Bellevue, and Elkhorn. We'll match you to the closest one." },

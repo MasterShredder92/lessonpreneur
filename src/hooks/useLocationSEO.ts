@@ -106,7 +106,7 @@ export function useLocationSEO() {
       canonical = `${BASE_URL}/${locKey}/${instrument}`
     } else {
       title = `Music Lessons in ${loc.name}, NE | Guitar, Piano, Drums, Vocals & More | Adkins Music`
-      desc = `Looking for music lessons in ${loc.name}? Guitar, piano, drums, vocal, flute & violin lessons for all ages. Professional background-checked instructors, flexible scheduling. Book a trial lesson today!`
+      desc = `Looking for music lessons in ${loc.name}? Guitar, piano, drums, vocal, flute & violin lessons for all ages. Professional background-checked instructors, flexible scheduling, no commitment.`
       canonical = `${BASE_URL}/${locKey}`
     }
 
@@ -127,5 +127,14 @@ export function useLocationSEO() {
 
     // JSON-LD
     setJsonLd(buildLocalBusinessJsonLd(loc))
+
+    // Location-specific favicon
+    const fav = `/favicon-${locKey}.png`
+    const iconLink = document.querySelector('link[rel="icon"][sizes="192x192"]') as HTMLLinkElement | null
+    if (iconLink) iconLink.href = fav
+    const icon500 = document.querySelector('link[rel="icon"][sizes="500x500"]') as HTMLLinkElement | null
+    if (icon500) { icon500.href = fav; icon500.setAttribute('sizes', '192x192') }
+    const touchIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement | null
+    if (touchIcon) touchIcon.href = fav
   }, [pathname])
 }

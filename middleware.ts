@@ -157,7 +157,7 @@ function buildSupportingJsonLd(slug: string, title: string, desc: string) {
   })
 }
 
-async function rewriteHtml(request: Request, title: string, desc: string, canonical: string, jsonLd: string): Promise<Response> {
+async function rewriteHtml(request: Request, title: string, desc: string, canonical: string, jsonLd: string, locationSlug?: string): Promise<Response> {
   const url = new URL(request.url)
   const originUrl = new URL('/', url.origin)
   const response = await fetch(originUrl.toString(), { headers: request.headers })
@@ -173,6 +173,14 @@ async function rewriteHtml(request: Request, title: string, desc: string, canoni
   html = html.replace(/<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${desc}">`)
   html = html.replace('</head>', `<script type="application/ld+json">${jsonLd}</script>\n  </head>`)
 
+  // Swap favicon/icon to location-specific version
+  if (locationSlug) {
+    const fav = `/favicon-${locationSlug}.png`
+    html = html.replace(/<link rel="icon"[^>]*href="\/favicon\.png[^"]*"[^>]*>/, `<link rel="icon" type="image/png" sizes="192x192" href="${fav}">`)
+    html = html.replace(/<link rel="icon"[^>]*href="\/icon-192\.png[^"]*"[^>]*>/, `<link rel="icon" type="image/png" sizes="192x192" href="${fav}">`)
+    html = html.replace(/<link rel="apple-touch-icon"[^>]*href="[^"]*"[^>]*>/, `<link rel="apple-touch-icon" sizes="192x192" href="${fav}">`)
+  }
+
   return new Response(html, {
     status: 200,
     headers: {
@@ -182,6 +190,12 @@ async function rewriteHtml(request: Request, title: string, desc: string, canoni
     },
   })
 }
+
+// Adkins customer-facing domains — root should show /omaha, not the SaaS page
+const ADKINS_HOSTS = new Set([
+  'adkinsmusiclessons.com',
+  'www.adkinsmusiclessons.com',
+])
 
 export default async function middleware(request: Request): Promise<Response> {
   const url = new URL(request.url)
@@ -194,6 +208,13 @@ export default async function middleware(request: Request): Promise<Response> {
     const subpath = url.pathname === '/' ? '' : url.pathname
     const target = `https://www.adkinsmusiclessons.com${legacyBase}${subpath}`
     return Response.redirect(target, 308)
+  }
+
+  // ── Adkins domain root → /omaha (primary location) ──
+  // adkinsmusiclessons.com is the customer-facing music school site.
+  // The Lessonpreneur SaaS landing page should only appear on lessonpreneur.io.
+  if (ADKINS_HOSTS.has(hostname) && url.pathname === '/') {
+    return Response.redirect('https://www.adkinsmusiclessons.com/omaha', 302)
   }
 
   // For non-SEO paths on the primary domain, pass through immediately
@@ -303,7 +324,7 @@ export default async function middleware(request: Request): Promise<Response> {
     canonical = `https://www.adkinsmusiclessons.com/${locKey}/${instrumentKey}`
   } else {
     title = `${loc.fullName} | Piano, Guitar, Vocals & Drums — Adkins Music Lessons`
-    desc = `Private music lessons in ${loc.name}, NE. Piano, guitar, vocals, drums & more. Expert teachers, flexible scheduling, no contracts. 90-day free trial. ${loc.phone}`
+    desc = `Private music lessons in ${loc.name}, NE. Piano, guitar, vocals, drums & more. Expert teachers, flexible scheduling, no contracts. ${loc.phone}`
     canonical = `https://www.adkinsmusiclessons.com/${locKey}`
   }
 
@@ -314,5 +335,5 @@ export default async function middleware(request: Request): Promise<Response> {
     breadcrumbItems.push({ name: `${instrument.label} Lessons`, url: canonical })
   }
   const fullJsonLd = jsonLd + `</script>\n  <script type="application/ld+json">${buildBreadcrumbJsonLd(breadcrumbItems)}`
-  return rewriteHtml(request, title, desc, canonical, fullJsonLd)
+  return rewriteHtml(request, title, desc, canonical, fullJsonLd, locKey)
 }

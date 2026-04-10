@@ -87,11 +87,14 @@ function playBuffer(buf: AudioBuffer) {
   src.start()
 }
 
-function playBufferAt(buf: AudioBuffer, when: number) {
+function playBufferAt(buf: AudioBuffer, when: number, gain = 1) {
   const ctx = initAudioCtx()
   const src = ctx.createBufferSource()
   src.buffer = buf
-  src.connect(ctx.destination)
+  const g = ctx.createGain()
+  g.gain.value = gain
+  src.connect(g)
+  g.connect(ctx.destination)
   src.start(when)
 }
 
@@ -187,7 +190,7 @@ export default function GuitarLanding() {
     initAudioCtx()
   }, [])
 
-  // Strum the selected chord
+  // Strum the selected chord — humanized timing + velocity for natural feel
   const strumChord = useCallback(async () => {
     if (strumming) return
     setStrumming(true)
@@ -197,6 +200,9 @@ export default function GuitarLanding() {
     const chord = CHORDS[selectedChord]
     const ctx = initAudioCtx()
     let delay = 0
+    // Base strum speed 18-28ms per string (faster = more realistic)
+    const baseGap = 0.018 + Math.random() * 0.010
+    let stringIdx = 0
 
     for (const str of STRINGS) {
       const fret = chord.frets[str]
@@ -204,9 +210,14 @@ export default function GuitarLanding() {
       const url = `/audio/guitar/${str}/${fret}.wav?v=${Math.random()}`
       const buf = await loadBuffer(url)
       if (buf) {
-        playBufferAt(buf, ctx.currentTime + delay)
+        // Strum starts louder on bass strings, slightly softer on treble
+        const vol = 0.85 + 0.15 * (1 - stringIdx / 5)
+        playBufferAt(buf, ctx.currentTime + delay, vol)
       }
-      delay += 0.04
+      // Humanize: slight random jitter per string (±4ms)
+      const jitter = (Math.random() - 0.5) * 0.008
+      delay += baseGap + jitter
+      stringIdx++
     }
   }, [selectedChord, strumming, ensurePreloaded])
 
@@ -245,7 +256,7 @@ export default function GuitarLanding() {
     setFreePlayMsg(null)
   }, [])
 
-  // Strum free play chord
+  // Strum free play chord — humanized timing + velocity
   const strumFreePlay = useCallback(async () => {
     if (strumming) return
     setStrumming(true)
@@ -255,6 +266,8 @@ export default function GuitarLanding() {
     const ctx = initAudioCtx()
     let delay = 0
     let playedStrings = 0
+    const baseGap = 0.018 + Math.random() * 0.010
+    let stringIdx = 0
 
     for (const str of STRINGS) {
       const fret = customFrets[str]
@@ -263,9 +276,12 @@ export default function GuitarLanding() {
       const url = `/audio/guitar/${str}/${fret}.wav?v=${Math.random()}`
       const buf = await loadBuffer(url)
       if (buf) {
-        playBufferAt(buf, ctx.currentTime + delay)
+        const vol = 0.85 + 0.15 * (1 - stringIdx / 5)
+        playBufferAt(buf, ctx.currentTime + delay, vol)
       }
-      delay += 0.04
+      const jitter = (Math.random() - 0.5) * 0.008
+      delay += baseGap + jitter
+      stringIdx++
     }
 
     // Check if it matches a known chord
