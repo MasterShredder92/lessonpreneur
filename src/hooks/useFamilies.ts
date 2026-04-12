@@ -21,6 +21,8 @@ export interface FamilyStudent {
   sessions_per_month?: number
   pause_reason?: string | null
   deactivated_at?: string | null
+  /** false = excluded from multi-student tier until duplicate review resolved */
+  counts_toward_family_tier?: boolean | null
 }
 
 export interface FamilyFile {
@@ -72,6 +74,8 @@ export interface Family {
   contract_status: string | null
   // Computed
   activeStudentCount: number
+  /** Active students that count toward multi-student / family tier (excludes pending duplicate candidates). */
+  tierEligibleStudentCount: number
   hasOverdueInvoice: boolean
   paymentStatus: 'current' | 'overdue' | 'scheduled' | 'paused' | 'no_invoice' | 'cancelled'
   overdueAmountDisplay: string | null
@@ -131,7 +135,7 @@ export function useFamiliesPage(opts?: { enabled?: boolean }) {
       // Get all students with teacher info
       const { data: students } = await supabase
         .from('students')
-        .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id')
+        .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id, counts_toward_family_tier')
         .eq('tenant_id', tenantId!)
         .order('last_name')
         .limit(5000)
@@ -228,6 +232,7 @@ export function useFamiliesPage(opts?: { enabled?: boolean }) {
       return families.map((f: any) => {
         const studs = familyStudents.get(f.id) ?? []
         const activeStuds = studs.filter((s) => s.status === 'active')
+        const tierEligible = activeStuds.filter((s) => (s as FamilyStudent).counts_toward_family_tier !== false)
         const instruments = [...new Set(activeStuds.map((s) => s.instrument).filter(Boolean))]
         const tNames = [...new Set(
           activeStuds
@@ -241,6 +246,7 @@ export function useFamiliesPage(opts?: { enabled?: boolean }) {
           rate_tier: f.rate_tier ?? DEFAULT_RATE_TIER_CENTS,
           balance: f.balance ?? 0,
           activeStudentCount: activeStuds.length,
+          tierEligibleStudentCount: tierEligible.length,
           instrumentList: instruments,
           students: studs,
           teacherNames: tNames,
@@ -289,7 +295,7 @@ export async function enrichFamiliesForRosterBatch(families: any[], tenantId: st
   ] = await Promise.all([
     supabase
       .from('students')
-      .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id')
+      .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id, counts_toward_family_tier')
       .eq('tenant_id', tenantId)
       .in('family_id', ids),
     supabase.from('locations').select('id, name, color').eq('tenant_id', tenantId),
@@ -367,6 +373,7 @@ export async function enrichFamiliesForRosterBatch(families: any[], tenantId: st
   return families.map((f: any) => {
     const studs = familyStudents.get(f.id) ?? []
     const activeStuds = studs.filter((s) => s.status === 'active')
+    const tierEligible = activeStuds.filter((s) => (s as FamilyStudent).counts_toward_family_tier !== false)
     const instruments = [...new Set(activeStuds.map((s) => s.instrument).filter(Boolean))]
     const tNames = [...new Set(
       activeStuds
@@ -380,6 +387,7 @@ export async function enrichFamiliesForRosterBatch(families: any[], tenantId: st
       rate_tier: f.rate_tier ?? DEFAULT_RATE_TIER_CENTS,
       balance: f.balance ?? 0,
       activeStudentCount: activeStuds.length,
+      tierEligibleStudentCount: tierEligible.length,
       instrumentList: instruments,
       students: studs,
       teacherNames: tNames,
@@ -485,7 +493,7 @@ export function useFamilyDetail(familyId: string | undefined) {
 
       const { data: students } = await supabase
         .from('students')
-        .select('id, first_name, last_name, instrument, status, teacher_id, sessions_per_month, pause_reason, deactivated_at, created_at')
+        .select('id, first_name, last_name, instrument, status, teacher_id, sessions_per_month, pause_reason, deactivated_at, created_at, counts_toward_family_tier')
         .eq('tenant_id', tenantId!)
         .eq('family_id', familyId!)
         .order('status')
@@ -511,6 +519,7 @@ export function useFamilyDetail(familyId: string | undefined) {
       }))
 
       const activeStuds = studs.filter((s) => s.status === 'active')
+      const tierEligible = activeStuds.filter((s) => s.counts_toward_family_tier !== false)
       const instruments = [...new Set(activeStuds.map((s) => s.instrument).filter(Boolean))]
       const tNames = [...new Set(activeStuds.map((s) => s.teacher_name).filter((n) => n && n !== '---') as string[])]
 
@@ -548,6 +557,7 @@ export function useFamilyDetail(familyId: string | undefined) {
         rate_tier: family.rate_tier ?? DEFAULT_RATE_TIER_CENTS,
         balance: family.balance ?? 0,
         activeStudentCount: activeStuds.length,
+        tierEligibleStudentCount: tierEligible.length,
         instrumentList: instruments,
         students: studs,
         teacherNames: tNames,

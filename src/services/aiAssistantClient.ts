@@ -12,6 +12,19 @@ export type AiAssistantJson = {
   error?: string
   proposed_action?: ProposedAction
   usage?: unknown
+  /** Server-normalized chat session id (persisted to ai_conversations). */
+  ai_session_id?: string | null
+  /** Last assistant turn in ai_messages (for thumbs feedback). */
+  assistant_message_id?: string | null
+}
+
+/** Shared telemetry for ai-assistant edge (persisted server-side). */
+export type AiAssistantTelemetry = {
+  aiSessionId?: string | null
+  /** e.g. ziro_business | ziro_schedule | whats_important */
+  source?: string
+  clientRoute?: string | null
+  clientPageContext?: Record<string, unknown> | null
 }
 
 export interface ProposedAction {
@@ -49,13 +62,25 @@ export function pickAiAssistantAnswerText(data: AiAssistantJson | null | undefin
 }
 
 /**
- * Single HTTP path for `ai-assistant` (Star modal, Students insight, Schedule chat, etc.).
+ * Single HTTP path for `ai-assistant` (Ziro panel, Students insight, Schedule chat, etc.).
  * Supabase Edge gateway expects:
  * - `Authorization: Bearer <user access_token>` — end-user JWT
  * - `apikey: <anon key>` — project anon key (omit → HTTP 401 from gateway)
  *
  * Do not call `fetch(EDGE_FUNCTIONS.aiAssistant, …)` elsewhere; extend this helper if needed.
  */
+function mergeTelemetry(
+  base: Record<string, unknown>,
+  telemetry?: AiAssistantTelemetry,
+): Record<string, unknown> {
+  if (!telemetry) return base
+  if (telemetry.aiSessionId) base.ai_session_id = telemetry.aiSessionId
+  if (telemetry.source) base.source = telemetry.source
+  if (telemetry.clientRoute != null) base.client_route = telemetry.clientRoute
+  if (telemetry.clientPageContext != null) base.client_page_context = telemetry.clientPageContext
+  return base
+}
+
 async function invokeAiAssistantEdge(
   body: Record<string, unknown>,
   timeoutMs: number,
@@ -81,6 +106,7 @@ export async function postAiAssistantBusinessOverride(params: {
   systemOverride: string
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
   timeoutMs?: number
+  telemetry?: AiAssistantTelemetry
 }): Promise<AiAssistantJson> {
   const so = params.systemOverride?.trim()
   if (!so) {
@@ -91,12 +117,15 @@ export async function postAiAssistantBusinessOverride(params: {
   }
 
   return invokeAiAssistantEdge(
-    {
-      question: params.question.trim(),
-      tenant_id: params.tenantId,
-      conversation_history: params.conversationHistory ?? [],
-      system_override: so,
-    },
+    mergeTelemetry(
+      {
+        question: params.question.trim(),
+        tenant_id: params.tenantId,
+        conversation_history: params.conversationHistory ?? [],
+        system_override: so,
+      },
+      params.telemetry,
+    ),
     params.timeoutMs ?? 60_000,
   )
 }
@@ -105,7 +134,7 @@ export async function postAiAssistantBusinessOverride(params: {
 export const postAiAssistantBusinessSnapshot = postAiAssistantBusinessOverride
 
 /**
- * Interactive Star chat: either **scheduling** (grid + tools) or **business** (`system_override`),
+ * Interactive assistant: either **scheduling** (grid + tools) or **business** (`system_override`),
  * matching `useAI` / edge contract. Prefer `postAiAssistantBusinessOverride` when you only need business path.
  * Refuses the request (returns `{ error }`) if both `businessContext` and `scheduleContext` are absent.
  */
@@ -117,27 +146,31 @@ export async function postAiAssistantInteractive(params: {
   /** If set, becomes `system_override` (business path). Empty string is treated as absent. */
   businessContext?: string | null
   timeoutMs?: number
+  telemetry?: AiAssistantTelemetry
 }): Promise<AiAssistantJson> {
   const bizTrim = params.businessContext?.trim()
   const hasSchedule = params.scheduleContext != null
   if (!bizTrim && !hasSchedule) {
     return {
       error:
-        'Star: missing both business snapshot and schedule context — refusing request (would hit wrong edge mode).',
+        'Ziro: missing both business snapshot and schedule context — refusing request (would hit wrong edge mode).',
     }
   }
 
   const ctx = params.scheduleContext ?? undefined
   return invokeAiAssistantEdge(
-    {
-      question: params.question.trim(),
-      tenant_id: params.tenantId,
-      conversation_history: params.conversationHistory ?? [],
-      schedule_context: ctx,
-      business_context: bizTrim || undefined,
-      timezone: ctx?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-      system_override: bizTrim || undefined,
-    },
+    mergeTelemetry(
+      {
+        question: params.question.trim(),
+        tenant_id: params.tenantId,
+        conversation_history: params.conversationHistory ?? [],
+        schedule_context: ctx,
+        business_context: bizTrim || undefined,
+        timezone: ctx?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+        system_override: bizTrim || undefined,
+      },
+      params.telemetry,
+    ),
     params.timeoutMs ?? 15_000,
   )
 }

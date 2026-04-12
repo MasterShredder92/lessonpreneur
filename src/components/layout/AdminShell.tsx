@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useContext, createContext, useCallback, lazy, Suspense, type ReactNode } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import PageTransition from '../shared/PageTransition'
 import MobileTabBar from './MobileTabBar'
 import { useAuthContext } from '../../app/AuthContext'
@@ -7,12 +7,13 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
 import { ADMIN_NAV_ITEMS } from '../../lib/constants'
 import { useTheme } from '../../hooks/useTheme'
-import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Star, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Sparkles, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound, LineChart } from 'lucide-react'
 import ChangePasswordModal from '../shared/ChangePasswordModal'
 import TopViewTabs from '../shared/TopViewTabs'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
-const StarModal = lazy(() => import('../ai/StarModal'))
+const ZiroPanel = lazy(() => import('../ziro/ZiroPanel'))
 import { OnboardingProvider } from '../../contexts/OnboardingContext'
+import { ZiroShellProvider, useZiroShell } from '../../contexts/ZiroContext'
 import StudioDirectorIssueButton from '../shared/StudioDirectorIssueButton'
 
 const NAV_ICONS: Record<string, ReactNode> = {
@@ -25,12 +26,14 @@ const NAV_ICONS: Record<string, ReactNode> = {
   'book': <BookOpen size={18} />,
 }
 
-export default function AdminShell() {
+function AdminShellInner() {
+  const navigate = useNavigate()
   const { profile, tenantId, signOut } = useAuthContext()
   const { isStudioDirector, isCompanyDirector, isOwner, role: effectiveRole } = usePermissions()
+  const showZiroInsights = isOwner || isCompanyDirector
   const { preview } = usePreviewMode()
   const location = useLocation()
-  const [aiPanelOpen, setAiPanelOpen] = useState(false)
+  const { panelOpen: aiPanelOpen, togglePanel, closePanel } = useZiroShell()
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [hoverExpanded, setHoverExpanded] = useState(false)
@@ -82,15 +85,16 @@ export default function AdminShell() {
 
 
 
-  // Listen for AI panel open events from other components
   useEffect(() => {
-    const handler = () => setAiPanelOpen(true)
-    window.addEventListener('open-ai-panel', handler)
-    return () => window.removeEventListener('open-ai-panel', handler)
-  }, [])
+    const onNav = (e: Event) => {
+      const detail = (e as CustomEvent<{ path: string }>).detail
+      if (detail?.path?.startsWith('/admin')) navigate(detail.path)
+    }
+    window.addEventListener('ziro-navigate', onNav as EventListener)
+    return () => window.removeEventListener('ziro-navigate', onNav as EventListener)
+  }, [navigate])
 
   return (
-    <OnboardingProvider>
     <div className="admin-shell" style={preview.active ? { paddingTop: 40 } : undefined}>
       {/* ATMOSPHERIC BACKGROUND - required for V9 design */}
       <div className="lp-bg">
@@ -138,7 +142,7 @@ export default function AdminShell() {
           {sidebarOpen && (
             <div className="sidebar-brand-text">
               <div className="sidebar-brand-name">{theme.studioName}</div>
-              <div className="sidebar-brand-sub">powered by Lessonpreneur</div>
+              <div className="sidebar-brand-sub">powered by ZiroWork</div>
             </div>
           )}
         </div>
@@ -238,14 +242,26 @@ export default function AdminShell() {
         <div className="sidebar-footer">
           <button
             className={`nav-item ${aiPanelOpen ? 'active' : ''}`}
-            onClick={(e) => { e.stopPropagation(); setAiPanelOpen(!aiPanelOpen) }}
-            title={!sidebarOpen ? 'AI Assistant' : undefined}
+            onClick={(e) => { e.stopPropagation(); togglePanel() }}
+            title={!sidebarOpen ? 'Ziro — AI operating layer' : undefined}
           >
-            <Star size={15} />
-            <span className="nav-label">Star</span>
+            <Sparkles size={15} />
+            <span className="nav-label">Ziro</span>
           </button>
 
-<NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={isStudioDirector ? { display: 'none' } : undefined}>
+{showZiroInsights && (
+            <NavLink
+              to="/admin/ziro-insights"
+              title={!sidebarOpen ? 'Ziro insights' : undefined}
+              onClick={(e) => e.stopPropagation()}
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <LineChart size={15} />
+              <span className="nav-label">Ziro insights</span>
+            </NavLink>
+          )}
+
+          <NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={isStudioDirector ? { display: 'none' } : undefined}>
             <Plug size={15} />
             <span className="nav-label">Integrations</span>
           </NavLink>
@@ -288,9 +304,18 @@ export default function AdminShell() {
       <FloatingIssueReporter />
 
       <Suspense fallback={null}>
-        <StarModal open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
+        <ZiroPanel open={aiPanelOpen} onClose={closePanel} />
       </Suspense>
     </div>
+  )
+}
+
+export default function AdminShell() {
+  return (
+    <OnboardingProvider>
+      <ZiroShellProvider>
+        <AdminShellInner />
+      </ZiroShellProvider>
     </OnboardingProvider>
   )
 }

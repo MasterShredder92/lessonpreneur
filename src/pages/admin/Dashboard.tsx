@@ -10,7 +10,7 @@ import { useBillingSnapshot } from '../../hooks/useBillingSnapshot'
 import { useUserLocations } from '../../hooks/useUserLocations'
 import { useLocations } from '../../hooks/useLocations'
 import { supabase } from '../../lib/supabase'
-import { Star, Video, FileWarning } from 'lucide-react'
+import { Video, FileWarning } from 'lucide-react'
 import { useFamilyFilesStats } from '../../hooks/useFamilyFiles'
 import TaskCenter from '../../components/tasks/TaskCenter'
 import WhatsImportantNow from '../../components/admin/WhatsImportantNow'
@@ -19,6 +19,7 @@ import DirectorCloseoutSection from '../../components/admin/DirectorCloseoutSect
 import BillingSnapshotCard from '../../components/admin/BillingSnapshotCard'
 import { getLocationColor } from '../../utils/locationColor'
 import { IssueContextProvider } from '../../contexts/IssueContext'
+import { useZiroShell } from '../../contexts/ZiroContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import DashboardPageGuide from '../../components/admin/DashboardPageGuide'
 import { useDashboardRealtime } from '../../hooks/useDashboardRealtime'
@@ -26,6 +27,10 @@ import { qk } from '../../lib/queryKeys'
 
 export default function Dashboard() {
   const { tenantId } = useAuthContext()
+  const { setPageContext } = useZiroShell()
+  useEffect(() => {
+    setPageContext({ page: 'dashboard' })
+  }, [setPageContext])
   useDashboardRealtime()
   const { isStudioDirector, locationIds: allowedLocationIds } = usePermissions()
   const { data: userLocations } = useUserLocations()
@@ -59,7 +64,7 @@ export default function Dashboard() {
 
   // Last month virtual sessions summary — tenant-scoped, hard-capped row count, abortable, batched IN counts
   const { data: virtualSummary } = useQuery({
-    queryKey: ['virtual-summary-last-month', tenantId],
+    queryKey: ['virtual-summary-last-month', tenantId, userLocations],
     enabled: !!tenantId,
     queryFn: async ({ signal }) => {
       const now = new Date()
@@ -71,7 +76,7 @@ export default function Dashboard() {
       const VIRTUAL_BLOCK_CAP = 8000
       const IN_CHUNK = 120
 
-      const { data: virtualBlocks, error: vbErr } = await supabase
+      let vq = supabase
         .from('schedule_blocks')
         .select('id, location_id')
         .eq('tenant_id', tenantId!)
@@ -80,6 +85,10 @@ export default function Dashboard() {
         .lte('block_date', endStr)
         .limit(VIRTUAL_BLOCK_CAP)
         .abortSignal(signal)
+      if (userLocations && userLocations.length > 0) {
+        vq = vq.in('location_id', userLocations)
+      }
+      const { data: virtualBlocks, error: vbErr } = await vq
 
       if (vbErr) throw vbErr
       if (!virtualBlocks || virtualBlocks.length === 0) return null
@@ -127,7 +136,7 @@ export default function Dashboard() {
     const checkInsight = async () => {
       try {
         const { data: rows, error } = await supabase
-          .from('ai_conversations')
+          .from('ai_legacy_message_log')
           .select('id, content, metadata')
           .eq('tenant_id', tenantId)
           .eq('profile_id', profile.id)
@@ -149,8 +158,8 @@ export default function Dashboard() {
   const dismissInsight = async () => {
     if (insightModal) {
       try {
-        const { data: row } = await supabase.from('ai_conversations').select('metadata').eq('id', insightModal.id).single()
-        await supabase.from('ai_conversations').update({ metadata: { ...row?.metadata, shown: true } }).eq('id', insightModal.id)
+        const { data: row } = await supabase.from('ai_legacy_message_log').select('metadata').eq('id', insightModal.id).single()
+        await supabase.from('ai_legacy_message_log').update({ metadata: { ...row?.metadata, shown: true } }).eq('id', insightModal.id)
       } catch { /* silent */ }
     }
     setInsightModal(null)
@@ -174,7 +183,7 @@ export default function Dashboard() {
   return (
     <div className="page">
       <IssueContextProvider page="Studio Overview">
-      {/* Business Header + Star AI Bar */}
+      {/* Business Header — Ziro lives in the app shell sidebar */}
       <div className="dash-business-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
         <div className="dash-business-identity">
           {tenant?.logo_url ? (
@@ -190,14 +199,6 @@ export default function Dashboard() {
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </span>
           </div>
-        </div>
-        <div
-          className="ai-ask-bar"
-          onClick={() => window.dispatchEvent(new CustomEvent('open-ai-panel'))}
-        >
-          <Star size={14} style={{ color: '#FFB800', flexShrink: 0 }} />
-          <span className="ai-ask-text">Ask Star anything about your business...</span>
-          <span className="ai-ask-badge">Star</span>
         </div>
         <ReportIssueButton />
         <DashboardPageGuide />
@@ -438,7 +439,7 @@ export default function Dashboard() {
       <DirectorCloseoutSection />
       </IssueContextProvider>
 
-      {/* Star Onboarding Insight Modal */}
+      {/* Ziro onboarding insight modal */}
       {insightModal && (
         <div className="modal-overlay" onClick={dismissInsight}>
           <div
@@ -468,25 +469,13 @@ export default function Dashboard() {
               }}>
                 {insightModal.content}
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <button
-                  className="btn-primary"
-                  style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 14 }}
-                  onClick={() => {
-                    dismissInsight()
-                    window.dispatchEvent(new CustomEvent('open-ai-panel'))
-                  }}
-                >
-                  <Star size={14} /> Ask Star about your studio →
-                </button>
-                <button
-                  className="btn-ghost"
-                  style={{ width: '100%', justifyContent: 'center', padding: '10px 16px' }}
-                  onClick={dismissInsight}
-                >
-                  Got it
-                </button>
-              </div>
+              <button
+                className="btn-primary"
+                style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 14 }}
+                onClick={dismissInsight}
+              >
+                Got it
+              </button>
             </div>
           </div>
         </div>

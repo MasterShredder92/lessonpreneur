@@ -1,5 +1,5 @@
 /**
- * Star — unified business AI context layer (Lessonpreneur OS).
+ * Ziro / Star — unified business AI context layer (Lessonpreneur OS). User-facing name: Ziro.
  *
  * - **Global context:** `loadStarGlobalContext` + `formatStarPrompt` (live RPC + billing snapshot for role/location scope).
  * - **Page context:** `appendPageContextToStarPrompt` — thin adapters; no duplicate metric definitions here.

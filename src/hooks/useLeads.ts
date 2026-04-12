@@ -41,6 +41,7 @@ export interface LeadRow {
   matched_teacher_id: string | null
   referral_source: string | null
   secondary_location_ids: string[] | null
+  intake_submission_id: string | null
   created_at: string
   updated_at: string
   // Enriched

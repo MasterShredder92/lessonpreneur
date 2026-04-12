@@ -5,6 +5,7 @@ import {
   type ScheduleContext,
   type ProposedAction,
   type AiAssistantJson,
+  type AiAssistantTelemetry,
   postAiAssistantInteractive,
   pickAiAssistantAnswerText,
   postAiAssistantBusinessOverride,
@@ -15,9 +16,18 @@ export type { ScheduleContext, ProposedAction, AiAssistantJson } from '../servic
 /** @deprecated Use `postAiAssistantBusinessOverride` from `services/aiAssistantClient`. */
 export { postAiAssistantBusinessOverride, postAiAssistantBusinessSnapshot }
 
-interface Message {
+export interface ZiroChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Populated for assistant rows when edge persisted the turn. */
+  assistantMessageId?: string | null
+}
+
+export interface UseAiOptions {
+  /** Business path only: transform assistant text before it is stored (e.g. strip `ZIRO_ACTION` lines). Second arg = persisted session id when known. */
+  transformBusinessAssistantText?: (text: string, aiSessionId: string | null) => string
+  /** Merged into ai-assistant `client_page_context` for observability (Ziro shell pageContext). */
+  getClientPageContext?: () => Record<string, unknown>
 }
 
 /**
@@ -29,25 +39,37 @@ interface Message {
  *
  * Prefer named hooks: **`useStarBusinessChat`** vs **`useScheduleStarChat`** instead of positional `useAI`.
  *
- * @deprecated Three-arg `useAI(tenantId, schedule?, business?)` is easy to confuse — use `useStarBusinessChat` / `useScheduleStarChat`.
+ * @deprecated Four-arg `useAI` — prefer `useStarBusinessChat` / `useScheduleStarChat`.
  */
-export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext | null, businessContext?: string | null) {
-  const [messages, setMessages] = useState<Message[]>([])
+export function useAI(
+  tenantId: string | null,
+  scheduleContext?: ScheduleContext | null,
+  businessContext?: string | null,
+  options?: UseAiOptions,
+) {
+  const [messages, setMessages] = useState<ZiroChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<ProposedAction | null>(null)
 
-  const messagesRef = useRef<Message[]>([])
+  const messagesRef = useRef<ZiroChatMessage[]>([])
   messagesRef.current = messages
   const contextRef = useRef(scheduleContext)
   contextRef.current = scheduleContext
   const bizContextRef = useRef(businessContext)
   bizContextRef.current = businessContext
+  const aiSessionIdRef = useRef<string | null>(null)
+  const [aiSessionId, setAiSessionId] = useState<string | null>(null)
+
+  const syncAiSessionId = useCallback((id: string | null) => {
+    aiSessionIdRef.current = id
+    setAiSessionId(id)
+  }, [])
 
   const sendMessage = useCallback(async (question: string) => {
     if (!tenantId || !question.trim()) return
 
-    const userMsg: Message = { role: 'user', content: question.trim() }
+    const userMsg: ZiroChatMessage = { role: 'user', content: question.trim() }
     setMessages((prev) => [...prev, userMsg])
     setIsLoading(true)
     setError(null)
@@ -61,6 +83,21 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
         )
       }
 
+      if (!aiSessionIdRef.current) syncAiSessionId(crypto.randomUUID())
+
+      const modeSource: AiAssistantTelemetry['source'] = ctx
+        ? 'ziro_schedule'
+        : biz?.trim()
+          ? 'ziro_business'
+          : 'ziro_interactive'
+
+      const telemetry: AiAssistantTelemetry = {
+        aiSessionId: aiSessionIdRef.current,
+        source: modeSource,
+        clientRoute: typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : undefined,
+        clientPageContext: options?.getClientPageContext?.() ?? null,
+      }
+
       const data: AiAssistantJson = await postAiAssistantInteractive({
         tenantId,
         question: question.trim(),
@@ -68,14 +105,27 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
         scheduleContext: ctx,
         businessContext: biz,
         timeoutMs: 15_000,
+        telemetry,
       })
+
+      if (data.ai_session_id) syncAiSessionId(data.ai_session_id)
 
       if (data.error) {
         setError(data.error)
         setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: ' + data.error }])
       } else {
-        const text = pickAiAssistantAnswerText(data)
-        setMessages((prev) => [...prev, { role: 'assistant', content: text || 'Star had no response — please try rephrasing your question.' }])
+        let text = pickAiAssistantAnswerText(data)
+        if (biz?.trim() && options?.transformBusinessAssistantText) {
+          text = options.transformBusinessAssistantText(text, aiSessionIdRef.current)
+        }
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: text || 'Ziro had no response — please try rephrasing your question.',
+            assistantMessageId: data.assistant_message_id ?? null,
+          },
+        ])
         if (data.proposed_action) {
           setPendingAction(data.proposed_action as ProposedAction)
         }
@@ -83,13 +133,13 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
     } catch (err: unknown) {
       const e = err as { name?: string; message?: string }
       const isTimeout = e?.name === 'AbortError'
-      const msg = isTimeout ? 'Star took too long to respond — try a simpler question or try again.' : 'Failed to reach Star. Check your connection and try again.'
+      const msg = isTimeout ? 'Ziro took too long to respond — try a simpler question or try again.' : 'Failed to reach Ziro. Check your connection and try again.'
       setError(isTimeout ? 'timeout' : e?.message ?? null)
       setMessages((prev) => [...prev, { role: 'assistant', content: msg }])
     } finally {
       setIsLoading(false)
     }
-  }, [tenantId])
+  }, [tenantId, options?.transformBusinessAssistantText, options?.getClientPageContext, syncAiSessionId])
 
   const confirmAction = useCallback(async () => {
     if (!pendingAction || !tenantId) return
@@ -129,28 +179,51 @@ export function useAI(tenantId: string | null, scheduleContext?: ScheduleContext
     setMessages([])
     setError(null)
     setPendingAction(null)
-  }, [])
+    syncAiSessionId(null)
+  }, [syncAiSessionId])
 
-  return { messages, isLoading, error, sendMessage, clearConversation, pendingAction, confirmAction, rejectAction }
+  return {
+    messages,
+    isLoading,
+    error,
+    sendMessage,
+    clearConversation,
+    pendingAction,
+    confirmAction,
+    rejectAction,
+    /** Persisted chat session id (ai_conversations) when edge returns `ai_session_id`. */
+    aiSessionId,
+  }
 }
 
 /** Internal business-only prompt if caller passes empty string (must never reach edge as empty `system_override`). */
 const STAR_BUSINESS_GUARD_EMPTY =
-  '[STAR INTERNAL] Configuration error: empty business context. Reply only: "Star is misconfigured — please refresh." Do not use scheduling tools.'
+  '[ZIRO INTERNAL] Configuration error: empty business context. Reply only: "Ziro is misconfigured — please refresh." Do not use scheduling tools.'
 
-/** Business snapshot / STAR modal path — `system_override` only. Pass a non-empty string; loading states should use an explicit loading prompt, not null. */
-export function useStarBusinessChat(tenantId: string | null, businessContext: string) {
+/** Business snapshot / Ziro panel path — `system_override` only. Pass a non-empty string; loading states should use an explicit loading prompt, not null. */
+export function useStarBusinessChat(
+  tenantId: string | null,
+  businessContext: string,
+  options?: UseAiOptions,
+) {
   const safe = businessContext.trim() ? businessContext : STAR_BUSINESS_GUARD_EMPTY
   if (import.meta.env.DEV && !businessContext.trim()) {
     console.error('[useStarBusinessChat] Empty businessContext — using guard string to avoid scheduling-mode fallback')
   }
-  return useAI(tenantId, null, safe)
+  return useAI(tenantId, null, safe, options)
 }
+
+/** Ziro slideout / business Q&A — same as `useStarBusinessChat` (legacy name retained for imports). */
+export const useZiroBusinessChat = useStarBusinessChat
 
 /**
  * Schedule page adapter: Star in **scheduling/tools** mode (grid + proposed actions).
  * For school-wide business Q&A, use `useStarGlobalContext` + `useStarComposedBusinessPrompt` or `useStarBusinessChat` with composed prompt.
  */
-export function useScheduleStarChat(tenantId: string | null, scheduleContext: ScheduleContext | null | undefined) {
-  return useAI(tenantId, scheduleContext ?? null, null)
+export function useScheduleStarChat(
+  tenantId: string | null,
+  scheduleContext: ScheduleContext | null | undefined,
+  options?: UseAiOptions,
+) {
+  return useAI(tenantId, scheduleContext ?? null, null, options)
 }

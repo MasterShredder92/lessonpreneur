@@ -30,6 +30,7 @@ import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
 import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
 import LinkFamilyModal from '../../components/students/LinkFamilyModal'
 import { qk } from '../../lib/queryKeys'
+import { OriginalIntakePanel } from '../../components/leads/OriginalIntakePanel'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -798,6 +799,16 @@ export default function StudentDetail() {
           </div>
         </div>
       </div>
+
+      {student.intake_submission_id && (
+        <div className="location-card" style={{ padding: 18, marginBottom: 14, cursor: 'default' }}>
+          <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FFB800, #FF5500)', boxShadow: '0 0 12px rgba(255,184,0,0.35)' }} />
+          <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <OriginalIntakePanel intakeSubmissionId={student.intake_submission_id} compact />
+          </div>
+        </div>
+      )}
 
       {/* Row 2: Bio — full width */}
       <div className="location-card" style={{ padding: 18, marginBottom: 14, cursor: 'pointer' }} onClick={() => setShowBioModal(true)}>

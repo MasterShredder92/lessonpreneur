@@ -7,8 +7,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { useLocations } from '../../hooks/useLocations'
 import { useFamiliesPage, useFamiliesRosterInfinite, useFamilyTabCounts, useFamilyDetail, useUpdateFamilyInfo, useChangeFamilyBillingStatus, useUploadFamilyFile, useDeleteFamilyFile, useFamilyActivityLog, type Family, type FamilyFile, type ActivityEvent } from '../../hooks/useFamilies'
 import { formatRate, getRateTierColor } from '../../hooks/useFamilyRate'
-import { useStarBusinessChat } from '../../hooks/useAI'
-import { useStarComposedBusinessPrompt } from '../../hooks/useStarComposedBusinessPrompt'
+import { useZiroShell } from '../../contexts/ZiroContext'
 import { toast } from '../../components/shared/Toast'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import { X, Lock, Shield, CreditCard, Users, Pencil, Star, ChevronRight, ChevronDown, Receipt, Bell, MessageCircle, Send, Plus, Check, XCircle } from 'lucide-react'
@@ -28,6 +27,7 @@ import AddFamilyModal from '../../components/admin/AddFamilyModal'
 import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
 import { useLastReviewRequest } from '../../hooks/useReviewRequest'
 import FamilyDocumentsSection from '../../components/admin/FamilyDocumentsSection'
+import DuplicateStudentReviewBanner from '../../components/admin/DuplicateStudentReviewBanner'
 
 // ═══════════════════════════════════════
 // DISPLAY HELPERS
@@ -288,6 +288,8 @@ export default function Families() {
           <ReportIssueButton />
         </div>
       </div>
+
+      {canView && <DuplicateStudentReviewBanner />}
 
       {/* FILTERS — matches Students page layout */}
       <div className="schedule-filters" style={{ marginBottom: '16px' }}>
@@ -729,7 +731,7 @@ function MobileNotificationPrefs({ family, toggleStyle, thumbStyle }: {
   )
 }
 
-/** Text block for Star: single-family facts from loaded family detail (authoritative for this modal). */
+/** Text block for Ziro: single-family facts from loaded family detail (authoritative for this modal). */
 function familyOperatorBlockFromDetail(family: Family): string {
   return [
     `Family: ${family.name}`,
@@ -754,27 +756,34 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
 }) {
   const { role, tenantId, profile } = useAuthContext()
   const { isStudioDirector: sdFromPerm } = usePermissions()
+  const { setPageContext } = useZiroShell()
   const { data: family, isLoading } = useFamilyDetail(familyId)
   const updateFamily = useUpdateFamilyInfo()
   const changeBillingStatus = useChangeFamilyBillingStatus()
   const uploadFile = useUploadFamilyFile()
   const deleteFile = useDeleteFamilyFile()
 
-  const { systemPrompt: familyStarBusinessPrompt } = useStarComposedBusinessPrompt({
-    pageId: 'family_detail',
-    pageBody: family ? familyOperatorBlockFromDetail(family) : '',
-    overridePrompt:
-      !family
-        ? isLoading
-          ? '[STAR INTERNAL] Family detail is loading. Do not use scheduling tools. Reply only: "Family data is still loading."'
-          : '[STAR INTERNAL] Family not loaded. Do not use scheduling tools. Reply only: "Family could not be loaded."'
-        : undefined,
-  })
-
-  const { messages: aiMessages, isLoading: aiLoading, sendMessage: aiSend, clearConversation: aiClear } = useStarBusinessChat(
-    tenantId,
-    familyStarBusinessPrompt,
-  )
+  useEffect(() => {
+    if (!family) return
+    const summary = familyOperatorBlockFromDetail(family)
+    setPageContext((prev) => ({
+      ...prev,
+      page: 'family_detail',
+      familyId: family.id,
+      familyOperatorSummary: summary,
+    }))
+    return () => {
+      setPageContext((prev) => {
+        const next = { ...prev }
+        if (next.familyId === family.id) {
+          delete next.familyId
+          delete next.familyOperatorSummary
+          if (next.page === 'family_detail') delete next.page
+        }
+        return next
+      })
+    }
+  }, [family, setPageContext])
   const [activityLimit, setActivityLimit] = useState(20)
   const { data: activityLog } = useFamilyActivityLog(familyId, activityLimit)
 
@@ -783,7 +792,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   const [mobileTab, setMobileTab] = useState<MobileTab>('account')
   const [confirmAction, setConfirmAction] = useState<{ status: string } | null>(null)
   const [editing, setEditing] = useState(false)
-  const [showStar, setShowStar] = useState(false)
   const [showPausedStudents, setShowPausedStudents] = useState(false)
   const reactivateStudent = useReactivateStudent()
   const [uploadType, setUploadType] = useState<string>('other')
@@ -895,13 +903,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
       await deleteFile.mutateAsync({ fileId: f.id, familyId: f.family_id, fileUrl: f.file_url })
       toast('File deleted', 'success'); setDeleteConfirm(null)
     } catch (err: any) { toast(err.message ?? 'Delete failed', 'error') }
-  }
-
-  const askStar = () => {
-    if (!family) return
-    aiClear()
-    setShowStar(true)
-    aiSend('Give a concise operator summary for this family based on the system context (school snapshot + family detail).')
   }
 
   const status = family?.billing_status ?? 'active'
@@ -1146,23 +1147,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   }}>
                     <Receipt size={14} /> Create Invoice
                   </button>
-                )}
-                <button onClick={askStar} style={{
-                  marginTop: 8, width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 13, fontWeight: 700,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44,
-                  background: 'transparent', border: '1px solid rgba(212,34,106,0.25)', color: '#E8488A',
-                }}>
-                  <Star size={14} /> Ask Star
-                </button>
-                {showStar && (
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginTop: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#FFB800', fontSize: 12, fontWeight: 700 }}><Star size={12} /> Star</div>
-                      <button className="btn-ghost" onClick={() => setShowStar(false)} style={{ fontSize: 10, padding: '2px 8px' }}>Close</button>
-                    </div>
-                    {aiLoading ? <div style={{ fontSize: 13, color: '#8080A8' }}>Thinking...</div>
-                      : (aiMessages?.length ?? 0) > 0 ? <div style={{ fontSize: 13, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{aiMessages[aiMessages.length - 1]?.content}</div> : null}
-                  </div>
                 )}
               </>)}
 
@@ -1486,27 +1470,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
               {/* NOTIFICATIONS */}
               <NotificationPrefs family={family} />
 
-              {/* STAR AI */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 16, paddingTop: 16 }}>
-                {!showStar ? (
-                  <button onClick={askStar} style={{
-                    width: '100%', padding: '12px 20px', borderRadius: 12, cursor: 'pointer',
-                    background: 'transparent', border: '1px solid rgba(212,34,106,0.25)',
-                    color: '#E8488A', fontSize: 13, fontWeight: 700,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    boxShadow: '0 0 20px rgba(212,34,106,0.06)',
-                  }}><Star size={14} /> Ask Star About This Family</button>
-                ) : (
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#FFB800', fontSize: 12, fontWeight: 700 }}><Star size={12} /> Star's Summary</div>
-                      <button className="btn-ghost" onClick={() => setShowStar(false)} style={{ fontSize: 10, padding: '2px 8px' }}>Close</button>
-                    </div>
-                    {aiLoading ? <div style={{ fontSize: 13, color: '#8080A8' }}>Thinking...</div>
-                      : (aiMessages?.length ?? 0) > 0 ? <div style={{ fontSize: 13, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{aiMessages[aiMessages.length - 1]?.content}</div> : null}
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -1730,28 +1693,48 @@ function CreateInvoiceFromFamily({ family, onClose }: { family: any; onClose: ()
     return next.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   })
 
-  // Fetch student effective rates for this family
-  const { data: familyStudents } = useQuery({
-    queryKey: ['family_inv_students', family.id],
+  // Fetch student effective rates + tier flags (exclude pending duplicate candidates from tier math)
+  const { data: invoiceStudentBundle } = useQuery({
+    queryKey: ['family_inv_students', TENANT_ID, family.id],
     queryFn: async () => {
-      const { data } = await supabase.from('student_effective_rate')
+      const { data: rows, error: rErr } = await supabase.from('student_effective_rate')
         .select('student_id, family_id, first_name, last_name, instrument, sessions_per_month, rate_per_session, monthly_cents, location_id')
         .eq('family_id', family.id)
-      return data ?? []
+      if (rErr) throw rErr
+      const list = rows ?? []
+      const ids = [...new Set(list.map((s: any) => s.student_id).filter(Boolean))]
+      let tierMap = new Map<string, boolean | null>()
+      if (ids.length) {
+        const { data: flags, error: fErr } = await supabase
+          .from('students')
+          .select('id, counts_toward_family_tier')
+          .eq('tenant_id', TENANT_ID)
+          .in('id', ids)
+        if (fErr) throw fErr
+        tierMap = new Map((flags ?? []).map((f: any) => [f.id, f.counts_toward_family_tier]))
+      }
+      return { rows: list, tierMap }
     },
   })
 
-  // Recalculate rates with military toggle
+  // Recalculate rates with military toggle (tier tier uses only students that count toward family tier)
   const students = useMemo(() => {
-    if (!familyStudents) return []
-    const activeCount = familyStudents.length
-    const totalSessions = familyStudents.reduce((s: number, st: any) => s + (st.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH), 0)
+    if (!invoiceStudentBundle) return []
+    const { rows: familyStudents, tierMap } = invoiceStudentBundle
+    const eligible = familyStudents.filter((st: any) => tierMap.get(st.student_id) !== false)
+    const activeCount = eligible.length
+    const totalSessions = eligible.reduce((s: number, st: any) => s + (st.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH), 0)
     const rate = calculatePreviewRate(activeCount, totalSessions, isMilitary)
     return familyStudents.map((s: any) => {
       const sessions = s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH
       return { ...s, computed_rate: rate, computed_monthly: rate * sessions }
     })
-  }, [familyStudents, isMilitary])
+  }, [invoiceStudentBundle, isMilitary])
+
+  const tierEligibleCountForLabel = useMemo(() => {
+    if (!invoiceStudentBundle) return students.length
+    return invoiceStudentBundle.rows.filter((st: any) => invoiceStudentBundle.tierMap.get(st.student_id) !== false).length
+  }, [invoiceStudentBundle, students.length])
 
   const totalCents = students.reduce((s: number, st: any) => s + st.computed_monthly, 0)
 
@@ -1874,7 +1857,7 @@ function CreateInvoiceFromFamily({ family, onClose }: { family: any; onClose: ()
               <div style={{ fontSize: 11, color: '#A0A0C8' }}>
                 {students.length} student{students.length !== 1 ? 's' : ''} &middot; ${(students[0]?.computed_rate / 100).toFixed(2)}/session
                 {isMilitary && <span style={{ color: '#FFB800', fontWeight: 700 }}> &middot; Military rate</span>}
-                {!isMilitary && students.length >= 2 && <span style={{ color: '#FFB800', fontWeight: 700 }}> &middot; Multi-student rate</span>}
+                {!isMilitary && tierEligibleCountForLabel >= 2 && <span style={{ color: '#FFB800', fontWeight: 700 }}> &middot; Multi-student rate</span>}
               </div>
             </div>
           )}

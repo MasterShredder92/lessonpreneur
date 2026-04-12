@@ -1,23 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useStudents, useStudentsRosterInfinite, useStudentInstrumentOptions, useCreateStudent, useUpdateStudent, useFamilies, useStudentTabCounts, type StudentRow } from '../../hooks/useStudents'
 import { useLeads } from '../../hooks/useLeads'
-import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../../services/aiAssistantClient'
-import {
-  appendPageContextToStarPrompt,
-  buildStarUserScope,
-  buildStudentsLightInsightPageBody,
-  buildStudentsPageStarSystemPrompt,
-  starPageDisplayName,
-  STUDENTS_FIRST_INSIGHT_QUESTION,
-} from '../../star'
-import { useStarGlobalContext } from '../../hooks/useStarContext'
+import { useZiroShell } from '../../contexts/ZiroContext'
 import { useLocations } from '../../hooks/useLocations'
 import { useTeachers } from '../../hooks/useTeachers'
-import { Star, Check, XCircle } from 'lucide-react'
+import { Check, XCircle } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
 import RetentionCaptureModal from '../../components/students/RetentionCaptureModal'
 import CsvImportFlow from '../../components/shared/CsvImportFlow'
@@ -194,10 +186,8 @@ export default function Students() {
   const [exportSelections, setExportSelections] = useState<Record<string, boolean>>({ active: true, former: false, leads: false })
   const [showImport, setShowImport] = useState(false)
   const studentImport = useImportStudents()
-  const [starInsight, setStarInsight] = useState<string | null>(null)
-  const [starLoading, setStarLoading] = useState(false)
-  /** Warm STAR snapshot cache (same RPC as Star modal); click handler still refreshes via fetch if needed. */
-  const { data: starCtx } = useStarGlobalContext()
+  const qc = useQueryClient()
+  const { setPageContext: setZiroPageContext } = useZiroShell()
   const [showMasterSheet, setShowMasterSheet] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [showAddStudent, setShowAddStudent] = useState(false)
@@ -205,6 +195,25 @@ export default function Students() {
   const statusFilter = isStudioDirector ? 'active' : (activeTab === 'former' ? 'former' : 'active')
   const locId = lockedLocationId || locationFilter || undefined
   const teachId = teacherFilter || undefined
+  const locationScopeKey = useMemo(() => {
+    if (!scopedLocationIds?.length) return 'none'
+    return [...scopedLocationIds].sort().join(',')
+  }, [scopedLocationIds])
+  const ziroStudentsPatch = useMemo(
+    () => ({
+      page: 'students',
+      activeTab: isStudioDirector ? 'active' : activeTab,
+      locationId: locId ?? null,
+      teacherId: teachId ?? null,
+      instrument: instrumentFilter || null,
+      search: search || null,
+      showIncomplete,
+    }),
+    [isStudioDirector, activeTab, locId, teachId, instrumentFilter, search, showIncomplete],
+  )
+  useEffect(() => {
+    setZiroPageContext(ziroStudentsPatch)
+  }, [setZiroPageContext, ziroStudentsPatch])
   const filters = useMemo(() => ({ status: statusFilter, locationId: locId, teacherId: teachId }), [statusFilter, locId, teachId])
   const useFullList = showIncomplete
 
@@ -404,110 +413,6 @@ export default function Students() {
             className="filter-select"
             style={{ minWidth: 160, flex: 1 }}
           />
-          <button
-            className="btn-outline"
-            onClick={async () => {
-              if (starLoading) return
-              setStarLoading(true)
-              setStarInsight(null)
-              try {
-                const filterLines: string[] = []
-                if (locationFilter && locations?.length) {
-                  const loc = locations.find((l: { id: string }) => l.id === locationFilter)
-                  if (loc) filterLines.push(`Location: ${(loc as { name?: string }).name ?? locationFilter}`)
-                } else if (isStudioDirector && lockedLocationId) {
-                  const loc = locations?.find((l: { id: string }) => l.id === lockedLocationId)
-                  if (loc) filterLines.push(`Location (studio director scope): ${(loc as { name?: string }).name ?? lockedLocationId}`)
-                }
-                if (teacherFilter && teacherList?.length) {
-                  const t = teacherList.find((x: { id: string }) => x.id === teacherFilter) as {
-                    first_name?: string; last_name?: string; profile?: { first_name?: string; last_name?: string }
-                  } | undefined
-                  const nm = t
-                    ? `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim()
-                    : teacherFilter
-                  if (nm) filterLines.push(`Teacher: ${nm}`)
-                }
-                if (instrumentFilter) filterLines.push(`Instrument filter: ${instrumentFilter}`)
-                if (search.trim()) filterLines.push(`Search: ${search.trim()}`)
-                if (showIncomplete) filterLines.push('View: incomplete enrollments only')
-
-                const leadsPipelineCount = (allLeads ?? []).filter((l) => !['enrolled', 'lost'].includes(l.stage)).length
-                const lightBody = buildStudentsLightInsightPageBody({
-                  activeTab: isStudioDirector ? 'active' : activeTab,
-                  tabCounts: { active: activeCt, former: formerCt, all: allCt },
-                  filterLines,
-                  rosterRowsForSample: filtered,
-                  leadsPipelineCount,
-                })
-
-                const warm = starCtx?.summary?.trim() ?? ''
-                const snapOk = warm.length > 0 && !warm.startsWith('Business context unavailable')
-                const scope = buildStarUserScope({
-                  tenantId,
-                  effectiveRole,
-                  isStudioDirector,
-                  allowedLocationIds: scopedLocationIds ?? [],
-                })
-                const baseSnapshot = snapOk
-                  ? appendPageContextToStarPrompt(warm, {
-                      pageId: 'students',
-                      displayName: starPageDisplayName('students'),
-                      body: lightBody,
-                    })
-                  : scope
-                    ? await buildStudentsPageStarSystemPrompt(scope, lightBody)
-                    : `Business context unavailable — use PAGE CONTEXT only.\n\n${lightBody}`
-
-                const systemOverride = `${baseSnapshot}
-
-Instructions: Answer with student-roster focused insights. Use PAGE CONTEXT for current filters and the visible-roster instrument sample; use LIVE BUSINESS SNAPSHOT for school-wide KPIs and billing. Do not assume a full export — the page block is intentionally lightweight.`
-
-                const body = await postAiAssistantBusinessOverride({
-                  tenantId: tenantId!,
-                  question: STUDENTS_FIRST_INSIGHT_QUESTION,
-                  systemOverride,
-                  timeoutMs: 55_000,
-                })
-
-                const timeoutOrOverloadMessage =
-                  'Star could not finish student insights in time. Click the button to try again — the request uses a lightweight summary. You can also open Star from the header to continue in chat.'
-
-                if (body.error === 'Request timed out') {
-                  setStarInsight(timeoutOrOverloadMessage)
-                  return
-                }
-
-                const rawAnswer = pickAiAssistantAnswerText(body)
-                if (/took too long/i.test(rawAnswer) || /simpler question/i.test(rawAnswer)) {
-                  setStarInsight(timeoutOrOverloadMessage)
-                  return
-                }
-
-                if (body.error) {
-                  setStarInsight(`Could not load student insights (${body.error}). Try again, or use Star in the header.`)
-                  return
-                }
-
-                if (!rawAnswer.trim()) {
-                  setStarInsight('Star did not return student insights. Try again in a moment.')
-                  return
-                }
-
-                setStarInsight(rawAnswer)
-              } catch {
-                setStarInsight(
-                  'Something went wrong loading student insights. Check your connection, then click the button again or use Star in the header.',
-                )
-              } finally {
-                setStarLoading(false)
-              }
-            }}
-            style={{ fontSize: 11, padding: '5px 14px', color: '#FFB800', borderColor: 'rgba(255,184,0,0.25)', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
-          >
-            <Star size={12} />
-            {starLoading ? 'Thinking...' : 'Ask Star About My Students'}
-          </button>
         </div>
         <div className="student-filter-row-2">
           <select value={instrumentFilter} onChange={(e) => setInstrumentFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
@@ -557,22 +462,6 @@ Instructions: Answer with student-roster focused insights. Use PAGE CONTEXT for 
         </div>
         <span className="visibility-count">Showing {filtered.length} student{filtered.length !== 1 ? 's' : ''}</span>
       </div>
-
-      {/* Star Insight Panel */}
-      {starInsight && (
-        <div className="lead-star-section" style={{ marginBottom: 16, background: 'rgba(255,184,0,0.03)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 8, background: 'linear-gradient(135deg, #FFB800, #FF8C00)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 3px 10px rgba(255,184,0,0.3)' }}>
-                <Star size={13} />
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#FFB800' }}>Star's Student Insights</span>
-            </div>
-            <button className="btn-ghost" onClick={() => setStarInsight(null)} style={{ padding: '4px 8px', fontSize: 11 }}>Dismiss</button>
-          </div>
-          <div style={{ fontSize: 13.5, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{starInsight}</div>
-        </div>
-      )}
 
       {useFullList && (
         <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 10 }}>

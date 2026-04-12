@@ -61,8 +61,14 @@ export const qk = {
   // ── Leads ──────────────────────────────────────
   leads: {
     all: ['leads'] as const,
-    list: (tenantId: string | null) => ['leads', tenantId] as const,
+    list: (tenantId: string | null, filters?: { locationId?: string; instrument?: string }) =>
+      ['leads', tenantId, filters?.locationId ?? '', filters?.instrument ?? ''] as const,
     lost: ['lost-leads'] as const,
+    duplicateReviews: (tenantId: string | null) => ['student_duplicate_reviews', tenantId] as const,
+  },
+
+  intakeSubmission: {
+    detail: (id: string) => ['intake_submission', id] as const,
   },
 
   // ── Teachers ───────────────────────────────────
@@ -166,10 +172,15 @@ export const qk = {
     adminFamilyLocation: (locationId: string) => ['admin-family-msg-location', locationId] as const,
   },
 
-  // ── Star / AI ──────────────────────────────────
+  // ── Ziro (AI operating layer) / legacy Star cache key ──────────────────
+  ziro: {
+    context: (tenantId: string | null, role?: string, locationKey?: string, billingKey?: string) =>
+      ['ziro-context', tenantId, role ?? 'unknown', locationKey ?? 'none', billingKey ?? 'all'] as const,
+  },
+  /** @deprecated Use qk.ziro.context — kept for one-off cache reads during migration */
   star: {
     context: (tenantId: string | null, role?: string, locationKey?: string, billingKey?: string) =>
-      ['star-context', tenantId, role ?? 'unknown', locationKey ?? 'none', billingKey ?? 'all'] as const,
+      ['ziro-context', tenantId, role ?? 'unknown', locationKey ?? 'none', billingKey ?? 'all'] as const,
   },
 
   // ── SMS Stats ──────────────────────────────────
@@ -400,5 +411,32 @@ export const qk = {
   // ── At-risk students ───────────────────────────
   atRisk: {
     students: ['at-risk-students'] as const,
+  },
+
+  // ── Ziro / AI observability (internal report) ──
+  aiObservability: {
+    report: (
+      tenantId: string,
+      f: {
+        dateFrom: string
+        dateTo: string
+        profileId: string
+        routeContains: string
+        source: string
+        actionId: string
+      },
+    ) =>
+      [
+        'ai-observability',
+        'report',
+        tenantId,
+        f.dateFrom,
+        f.dateTo,
+        f.profileId,
+        f.routeContains,
+        f.source,
+        f.actionId,
+      ] as const,
+    teamProfiles: (tenantId: string | null) => ['ai-observability', 'team-profiles', tenantId] as const,
   },
 } as const

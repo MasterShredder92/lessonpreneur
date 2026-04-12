@@ -1,39 +1,36 @@
 import { useMemo } from 'react'
 import { appendPageContextToStarPrompt, starPageDisplayName, type StarPageId } from '../star'
-import { useStarGlobalContext, type StarContext } from './useStarContext'
+import { useZiroGlobalContext, type ZiroGlobalSnapshot } from './useZiroGlobalContext'
 
-const STAR_BUSINESS_LOADING_PROMPT =
-  '[STAR INTERNAL] School snapshot is still loading. Do not use scheduling tools or invent metrics. If the user sends a message, reply only: "School data is still loading — please wait a moment."'
+const ZIRO_BUSINESS_LOADING_PROMPT =
+  '[ZIRO INTERNAL] School snapshot is still loading. Do not use scheduling tools or invent metrics. If the user sends a message, reply only: "School data is still loading — please wait a moment."'
 
 export interface UseStarComposedBusinessPromptOptions {
   pageId: StarPageId
-  /** Row-level or page export text; omitted or empty → global-only prompt. */
   pageBody?: string | null
-  /** Override display name in the PAGE CONTEXT header. */
   pageDisplayName?: string
-  /**
-   * When set, this string becomes the entire system prompt (e.g. sub-resource still loading).
-   * Matches prior Family modal behavior when detail is not ready.
-   */
   overridePrompt?: string | null
+  /**
+   * When false, do not prefetch `get_star_context` until needed (e.g. family modal before "Ask Ziro" is opened).
+   */
+  enableGlobalSnapshot?: boolean
 }
 
 export interface StarComposedBusinessPrompt {
   systemPrompt: string
-  raw: StarContext['raw']
-  billingSnapshot: StarContext['billingSnapshot']
+  raw: ZiroGlobalSnapshot['raw']
+  billingSnapshot: ZiroGlobalSnapshot['billingSnapshot']
   globalLoading: boolean
   globalFetching: boolean
 }
 
 /**
  * Layer 1 (global live snapshot) + optional layer 2 (page adapter).
- * Use from Family detail, future Billing/Lead panels, etc.
  */
 export function useStarComposedBusinessPrompt(
   options: UseStarComposedBusinessPromptOptions,
 ): StarComposedBusinessPrompt {
-  const global = useStarGlobalContext()
+  const global = useZiroGlobalContext({ enabled: options.enableGlobalSnapshot ?? true })
 
   return useMemo(() => {
     if (options.overridePrompt != null && options.overridePrompt !== '') {
@@ -49,7 +46,7 @@ export function useStarComposedBusinessPrompt(
     const loading = global.isLoading || global.isFetching
     if (loading) {
       return {
-        systemPrompt: STAR_BUSINESS_LOADING_PROMPT,
+        systemPrompt: ZIRO_BUSINESS_LOADING_PROMPT,
         raw: global.data?.raw ?? null,
         billingSnapshot: global.data?.billingSnapshot ?? null,
         globalLoading: true,
@@ -87,5 +84,6 @@ export function useStarComposedBusinessPrompt(
     options.pageBody,
     options.pageId,
     options.pageDisplayName,
+    options.enableGlobalSnapshot,
   ])
 }

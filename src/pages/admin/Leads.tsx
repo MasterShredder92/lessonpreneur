@@ -15,6 +15,8 @@ import { toast } from '../../components/shared/Toast'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import LeadsPageGuide from '../../components/admin/LeadsPageGuide'
+import DuplicateStudentReviewPanel from '../../components/admin/DuplicateStudentReviewPanel'
+import { OriginalIntakePanel } from '../../components/leads/OriginalIntakePanel'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
@@ -55,6 +57,31 @@ interface SoloLead {
   lead: LeadRow
 }
 type PipelineItem = FamilyGroup | SoloLead
+
+/** Enrolled-tab only: multiple inquiry rows linked to the same roster student after dedupe. */
+type LeadWithMerged = LeadRow & { _mergedSiblingLeads?: LeadRow[] }
+
+/** Collapse duplicate enrolled pipeline cards when `converted_student_id` matches (multi-location inquiries). */
+function dedupeEnrolledByStudent(leads: LeadRow[]): LeadWithMerged[] {
+  const enrolled = leads.filter((l) => l.stage === 'enrolled' && l.converted_student_id)
+  const other = leads.filter((l) => !(l.stage === 'enrolled' && l.converted_student_id))
+  const byStudent = new Map<string, LeadRow[]>()
+  for (const l of enrolled) {
+    const sid = l.converted_student_id!
+    const arr = byStudent.get(sid) ?? []
+    arr.push(l)
+    byStudent.set(sid, arr)
+  }
+  const deduped: LeadWithMerged[] = []
+  for (const [, arr] of byStudent) {
+    arr.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    const [first, ...sibs] = arr
+    deduped.push(sibs.length ? { ...first, _mergedSiblingLeads: sibs } : first)
+  }
+  return [...other, ...deduped].sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  )
+}
 
 function groupLeadsIntoFamilies(leads: LeadRow[]): PipelineItem[] {
   const familyMap = new Map<string, LeadRow[]>()
@@ -197,11 +224,14 @@ export default function Leads() {
   })
 
   // Group into family cards + solo cards for pipeline display
-  const pipelineItems = groupLeadsIntoFamilies(filteredLeads)
+  const leadsForPipeline =
+    leadView === 'enrolled' ? dedupeEnrolledByStudent(filteredLeads) : filteredLeads
+  const pipelineItems = groupLeadsIntoFamilies(leadsForPipeline as LeadRow[])
   // Family-aware counts for tabs
   const allItems = groupLeadsIntoFamilies(leads ?? [])
   const activeCount = allItems.filter(i => i.type === 'family' ? !['enrolled', 'lost'].includes(i.stage) : !['enrolled', 'lost'].includes(i.lead.stage)).length
-  const enrolledCount = allItems.filter(i => i.type === 'family' ? i.stage === 'enrolled' : i.lead.stage === 'enrolled').length
+  const enrolledLeadsRaw = (leads ?? []).filter((l) => l.stage === 'enrolled')
+  const enrolledCount = dedupeEnrolledByStudent(enrolledLeadsRaw).length
   const lostCount = allItems.filter(i => i.type === 'family' ? i.stage === 'lost' : i.lead.stage === 'lost').length
 
   const handleAdvance = async (lead: LeadRow) => {
@@ -388,6 +418,8 @@ export default function Leads() {
         </button>
       </div>
 
+      {canEdit && <DuplicateStudentReviewPanel variant="full" />}
+
       {/* Filters — only on active tab */}
       {leadView === 'active' && <div className="schedule-filters" style={{ marginBottom: '16px' }}>
         <div className="filter-group">
@@ -433,6 +465,7 @@ export default function Leads() {
               return (
                 <div
                   key={`fam-${fg.familyId}`}
+                  data-lead-id={primaryLead.id}
                   data-guide-id={itemIdx === 0 ? 'leads-first-card' : undefined}
                   className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
                   onClick={() => { setDetailLead(primaryLead); aiMatch.clearMatch() }}
@@ -488,14 +521,15 @@ export default function Leads() {
                     </div>
                   </div>
                   <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); setDetailLead(primaryLead); aiMatch.runMatch(primaryLead.id, tenantId!) }}>
-                    <Star size={13} /><span>{fg.stage === 'lost' ? 'Get Them Back' : 'Ask Star'}</span>
+                    <UserPlus size={13} /><span>{fg.stage === 'lost' ? 'Get Them Back' : 'Find best teacher'}</span>
                   </button>
                 </div>
               )
             }
 
             // Solo lead card — same as before
-            const lead = item.lead
+            const lead = item.lead as LeadWithMerged
+            const mergedSiblings = lead._mergedSiblingLeads ?? []
             const studentName = `${lead.first_name} ${lead.last_name ?? ''}`.trim()
             const parentName = lead.parent_name && lead.parent_name !== studentName ? lead.parent_name : null
             const stageColor = STAGE_COLORS[lead.stage] ?? 'var(--text-muted)'
@@ -504,6 +538,7 @@ export default function Leads() {
             return (
               <div
                 key={lead.id}
+                data-lead-id={lead.id}
                 data-guide-id={itemIdx === 0 ? 'leads-first-card' : undefined}
                 className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
                 onClick={() => { setDetailLead(lead); aiMatch.clearMatch() }}
@@ -552,6 +587,15 @@ export default function Leads() {
                   <div className="lead-card-meta">
                     {lead.instrument && <span className="lead-card-chip">{instrumentWithEmojiTitle(lead.instrument)}</span>}
                     {lead.location_name && <span className="lead-card-chip"><MapPin size={12} />{lead.location_name}</span>}
+                    {mergedSiblings.length > 0 && (
+                      <span
+                        className="lead-card-chip"
+                        title={[lead, ...mergedSiblings].map(l => l.location_name ?? '—').join(' · ')}
+                        style={{ color: '#2DD4BF', borderColor: 'rgba(45,212,191,0.35)', background: 'rgba(45,212,191,0.08)' }}
+                      >
+                        Multi-inquiry ({1 + mergedSiblings.length})
+                      </span>
+                    )}
                     {lead.compatibility_score != null && lead.compatibility_score >= 91 ? (
                       <span className="lead-card-chip" style={{ color: '#22C55E', borderColor: 'rgba(34,197,94,0.25)', background: 'rgba(34,197,94,0.08)' }}>{lead.compatibility_score}% Match</span>
                     ) : lead.compatibility_score != null || lead.matched_teacher_id ? (
@@ -574,7 +618,7 @@ export default function Leads() {
                   </div>
                 </div>
                 <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); setDetailLead(lead); aiMatch.runMatch(lead.id, tenantId!) }}>
-                  <Star size={13} /><span>{lead.stage === 'lost' ? 'Get Them Back' : 'Ask Star'}</span>
+                  <UserPlus size={13} /><span>{lead.stage === 'lost' ? 'Get Them Back' : 'Find best teacher'}</span>
                 </button>
               </div>
             )
@@ -850,7 +894,13 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
           <button className={`lead-detail-tab${tab === 'form' ? ' active' : ''}`} onClick={() => setTab('form')}>Contact Form</button>
         </div>
 
-        {/* Star's Recommendation — STATIC between tabs, always visible */}
+        {lead.intake_submission_id && (
+          <div style={{ padding: '0 18px', flexShrink: 0 }}>
+            <OriginalIntakePanel intakeSubmissionId={lead.intake_submission_id} />
+          </div>
+        )}
+
+        {/* Ziro's recommendation — STATIC between tabs, always visible */}
         {canEdit && lead.stage !== 'enrolled' && (
           <div style={{ padding: '12px 18px 0', flexShrink: 0, maxHeight: '40vh', overflowY: 'auto' }} className="star-recommendation-scroll">
                 <div className="lead-star-section" style={lead.stage === 'lost' ? { background: 'rgba(239,68,68,0.03)', borderColor: 'rgba(239,68,68,0.12)' } : undefined}>
@@ -858,7 +908,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div className="lead-star-icon" style={lead.stage === 'lost' ? { background: 'linear-gradient(135deg, #EF4444, #FF7730)' } : undefined}><Star size={13} /></div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: lead.stage === 'lost' ? '#EF4444' : '#FFB800' }}>
-                        {lead.stage === 'lost' ? "Here's How We Get Them Back" : "Star's Recommendation"}
+                        {lead.stage === 'lost' ? "Here's How We Get Them Back" : "Ziro's Recommendation"}
                       </span>
                     </div>
                     <button
@@ -905,7 +955,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                         <Star size={11} style={{ color: lead.stage === 'lost' ? '#EF4444' : '#FFB800' }} />
                         <span style={{ fontSize: 11, fontWeight: 700, color: lead.stage === 'lost' ? '#EF4444' : '#FFB800', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          {lead.stage === 'lost' ? 'Recovery Analysis' : "Star's Analysis"}
+                          {lead.stage === 'lost' ? 'Recovery Analysis' : "Ziro's Analysis"}
                         </span>
                       </div>
                       <div style={{ fontSize: 13, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
@@ -917,7 +967,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     <p style={{ fontSize: 12.5, color: '#8080A8' }}>
                       {lead.stage === 'lost'
                         ? 'Click "Get Recovery Plan" to find out why this lead was lost and how to get them back.'
-                        : 'Click "Find Best Teacher" to get Star\'s personalized recommendation.'}
+                        : 'Click "Find Best Teacher" to get Ziro\'s personalized recommendation.'}
                     </p>
                   )}
                 </div>
@@ -1019,7 +1069,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                   <textarea
                     value={personalityDraft}
                     onChange={(e) => { setPersonalityDraft(e.target.value); savePersonality(e.target.value) }}
-                    placeholder="Describe the student's personality, learning style, and goals. Star uses this to recommend the best teacher match..."
+                    placeholder="Describe the student's personality, learning style, and goals. Ziro uses this to recommend the best teacher match..."
                     style={{
                       width: '100%', minHeight: 80, fontSize: 13, color: '#E0E0F4', lineHeight: 1.6,
                       background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
@@ -1032,7 +1082,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                   </div>
                 )}
                 <p style={{ fontSize: 10.5, color: '#8080A8', marginTop: 8, fontStyle: 'italic' }}>
-                  Star uses this to build a compatibility profile and recommend the best teacher match.
+                  Ziro uses this to build a compatibility profile and recommend the best teacher match.
                 </p>
               </div>}
 
@@ -1314,7 +1364,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                   <textarea
                     value={personalityDraft}
                     onChange={(e) => { setPersonalityDraft(e.target.value); savePersonality(e.target.value) }}
-                    placeholder="Describe the student's personality, learning style, and goals. Star uses this to recommend the best teacher match..."
+                    placeholder="Describe the student's personality, learning style, and goals. Ziro uses this to recommend the best teacher match..."
                     style={{
                       width: '100%', minHeight: 80, fontSize: 13, color: '#E0E0F4', lineHeight: 1.6,
                       background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
@@ -1327,7 +1377,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                   </div>
                 )}
                 <p style={{ fontSize: 10.5, color: '#8080A8', marginTop: 10, fontStyle: 'italic' }}>
-                  Star uses this to build a compatibility profile and recommend the best teacher match.
+                  Ziro uses this to build a compatibility profile and recommend the best teacher match.
                 </p>
               </div>
 

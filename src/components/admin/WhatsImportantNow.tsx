@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../../services/aiAssistantClient'
@@ -25,10 +25,6 @@ const priorityConfig: Record<Insight['priority'], { color: string; bg: string; b
 
 const PRIORITY_ORDER: Record<Insight['priority'], number> = { critical: 0, warning: 1, info: 2, positive: 3 }
 
-// Module-level guard — persists across unmount/remount cycles within the same page session.
-// Prevents the call storm where React re-mounting fires duplicate requests.
-let _insightsAttempted = false
-
 // ─── Main Component ──────────────────────────────────
 
 interface Props {
@@ -43,14 +39,8 @@ export default function WhatsImportantNow({ data, heroStats }: Props) {
   const [loading, setLoading] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (_insightsAttempted || !data || !tenantId) return
-    _insightsAttempted = true
-    let cancelled = false
-    generate().then(() => { if (cancelled) return })
-    return () => { cancelled = true }
-  }, [data, tenantId])
+  /** Ziro analytics / daily issues — only fetched after explicit user action (no auto-run on dashboard mount). */
+  const [userRequested, setUserRequested] = useState(false)
 
   const generate = async () => {
     setLoading(true)
@@ -109,6 +99,11 @@ Rules:
         tenantId,
         question: `Analyze this music school data and return structured insights:\n\n${context}`,
         systemOverride,
+        telemetry: {
+          source: 'dashboard_whats_important',
+          clientRoute: typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : undefined,
+          clientPageContext: { widget: 'whats_important_now' },
+        },
       })
 
       if (result.error) {
@@ -157,19 +152,96 @@ Rules:
     setLoading(false)
   }
 
+  const requestInsights = () => {
+    if (!data || !tenantId) return
+    setUserRequested(true)
+    setError(null)
+    setActiveIndex(0)
+    void generate()
+  }
+
   // Swipe support for mobile
   const touchStartX = useRef(0)
 
-  // Graceful fallback on error — never retry, never return null on failure
+  // Idle — no network until the user asks for Ziro analytics / daily issues
+  if (!userRequested) {
+    return (
+      <div style={{ marginBottom: 24 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+          padding: '0 2px',
+        }}>
+          <Star size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            What Matters Right Now
+          </span>
+        </div>
+        <div style={{
+          padding: '18px 20px',
+          borderRadius: 14,
+          background: 'rgba(245,158,11,0.04)',
+          border: '1px solid rgba(245,158,11,0.12)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          alignItems: 'flex-start',
+        }}>
+          <p style={{ margin: 0, fontSize: 13, color: '#A0A0C8', lineHeight: 1.5 }}>
+            Get Ziro analytics: personalized priorities and daily operational issues from your live dashboard numbers.
+          </p>
+          <button
+            type="button"
+            onClick={requestInsights}
+            disabled={!data || !tenantId}
+            style={{
+              padding: '10px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              color: '#0a0a12',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: !data || !tenantId ? 'not-allowed' : 'pointer',
+              opacity: !data || !tenantId ? 0.5 : 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <Star size={16} />
+            Load Ziro analytics
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Graceful fallback on error — user can retry (explicit action only)
   if (error) {
     return (
       <div style={{ marginBottom: 24 }}>
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '14px 16px',
           borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
         }}>
           <AlertTriangle size={14} style={{ color: '#8080A8', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: '#8080A8' }}>Unable to load insights right now.</span>
+          <span style={{ fontSize: 12, color: '#8080A8', flex: 1 }}>Unable to load insights right now.</span>
+          <button
+            type="button"
+            onClick={requestInsights}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(255,255,255,0.06)',
+              color: '#E0E0F4',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Try again
+          </button>
         </div>
       </div>
     )

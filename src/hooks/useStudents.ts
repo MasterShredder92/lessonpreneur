@@ -27,6 +27,8 @@ export interface StudentRow {
   reactivation_date?: string | null
   total_fifth_weeks?: number
   total_callouts?: number
+  /** When false, excluded from multi-student / family tier counts until duplicate review is resolved. */
+  counts_toward_family_tier?: boolean | null
   // Joined
   family_name?: string
   family_email?: string | null
@@ -487,6 +489,7 @@ export function useUpdateFamily() {
 
 export function useCreateStudent() {
   const qc = useQueryClient()
+  const { tenantId } = useAuthContext()
   return useMutation({
     mutationFn: async (params: {
       tenant_id: string; family_id: string; location_id: string; teacher_id: string | null
@@ -529,6 +532,7 @@ export function useCreateStudent() {
       qc.invalidateQueries({ queryKey: qk.students.tabCounts })
       qc.invalidateQueries({ queryKey: qk.retention.churnRisk })
       qc.invalidateQueries({ queryKey: qk.families.all })
+      qc.invalidateQueries({ queryKey: qk.leads.duplicateReviews(tenantId) })
       await Promise.all([
         qc.invalidateQueries({ queryKey: qk.families.page }),
         qc.invalidateQueries({ queryKey: qk.families.roster }),

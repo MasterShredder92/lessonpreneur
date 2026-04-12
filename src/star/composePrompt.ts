@@ -1,7 +1,7 @@
 import type { StarPageAttach, StarPageId } from './types'
 
 const PAGE_TITLES: Record<StarPageId, string> = {
-  global_modal: 'Global (Star modal)',
+  global_modal: 'Global (Ziro panel)',
   dashboard: 'Dashboard',
   students: 'Students',
   families: 'Families',

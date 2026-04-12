@@ -52,7 +52,7 @@ export async function fetchStarContext(
   })
 
   if (error || !data) {
-    console.error('[Star] Context fetch failed:', error)
+    console.error('[Ziro] Context fetch failed:', error)
     return null
   }
 
@@ -66,7 +66,7 @@ export async function fetchStarContext(
     try {
       billing_snapshot = await fetchBillingSnapshotData(tenantId, options?.billingLocationId)
     } catch (e) {
-      console.error('[Star] Billing snapshot fetch failed:', e)
+      console.error('[Ziro] Billing snapshot fetch failed:', e)
       billing_snapshot = null
     }
   }
@@ -113,7 +113,7 @@ export function formatStarPrompt(ctx: StarPromptContext, role?: string | null): 
 
   return `${roleHeader}
 
-You are Star, the AI business intelligence assistant for Lessonpreneur.
+You are Ziro, the AI operating layer for Lessonpreneur.
 You are given a fixed aggregated snapshot below (see timestamp). Use only figures and facts that appear in that snapshot and in any additional context the app adds — do not invent metrics, names, or amounts.
 If the user asks for something not present in the provided context, say clearly that it is not in the current snapshot and point them to the relevant area of the app when possible.
 Always be specific and data-driven. Think like a sharp music school operator.
