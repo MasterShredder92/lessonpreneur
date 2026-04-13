@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import TeacherDetail from './TeacherDetail'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -42,6 +43,8 @@ export default function Teachers() {
   const { data: locations } = useLocations()
   const { data: monthlyTally } = useTeachersMonthlyTally()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const detailTeacherId = searchParams.get('id')
   const { isStudioDirector, canViewTeacherCompensation, canViewTeacherDocuments, isAtLeast } = usePermissions()
   const canEdit = isAtLeast('studio_director')
   const { saveScroll } = useScrollRestore('teachers')
@@ -118,6 +121,15 @@ export default function Teachers() {
   const activeTeachers = sortAlpha(applyFilters(baseActive))
   const filteredInactive = sortAlpha(applyFilters(inactiveTeachers))
   const displayList = teacherTab === 'active' ? activeTeachers : filteredInactive
+
+  if (detailTeacherId) {
+    return (
+      <TeacherDetail
+        propId={detailTeacherId}
+        onBack={() => navigate('/admin/teachers')}
+      />
+    )
+  }
 
   return (
     <IssueContextProvider page="The Band — Teachers">
@@ -251,7 +263,7 @@ export default function Teachers() {
               key={t.id}
               data-tour-id={__idx === 0 ? 'teacher-card-first' : undefined}
               className={`lead-card${isInactive ? ' lead-card-stale' : ''}`}
-              onClick={() => { saveScroll(); navigate(`/admin/teachers/${t.id}`) }}
+              onClick={() => { saveScroll(); navigate(`/admin/teachers?id=${t.id}`) }}
             >
               {/* Edge accent */}
               <div className="lead-card-edge" style={{

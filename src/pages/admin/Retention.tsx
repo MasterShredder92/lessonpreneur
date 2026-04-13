@@ -686,7 +686,7 @@ function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
         {(students ?? []).map(s => (
           <div key={s.id} style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.03)', border: '1px solid rgba(239,68,68,0.08)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <AlertTriangle size={14} style={{ color: '#EF4444', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 160, cursor: 'pointer' }} onClick={() => navigate(`/admin/students/${s.id}`)}>
+            <div style={{ flex: 1, minWidth: 160, cursor: 'pointer' }} onClick={() => navigate(`/admin/students?id=${s.id}`)}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
               <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{instrumentWithEmojiTitle(s.instrument)}</span>
               {s.familyName && <div style={{ fontSize: 10, color: '#606088' }}>{s.familyName}</div>}
@@ -763,7 +763,7 @@ function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
             const isDue = s.reactivationDate && new Date(s.reactivationDate) <= new Date()
             return (
               <div key={s.id} style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: `1px solid ${isDue ? 'rgba(255,184,0,0.15)' : 'rgba(255,255,255,0.05)'}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 160, cursor: 'pointer' }} onClick={() => navigate(`/admin/students/${s.id}`)}>
+                <div style={{ flex: 1, minWidth: 160, cursor: 'pointer' }} onClick={() => navigate(`/admin/students?id=${s.id}`)}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>{s.name}</span>
                   <span style={{ fontSize: 11, color: '#8080A8', marginLeft: 8 }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                   {s.familyName && <div style={{ fontSize: 10, color: '#606088' }}>{s.familyName}</div>}

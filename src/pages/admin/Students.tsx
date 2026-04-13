@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import StudentDetail from './StudentDetail'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -693,6 +694,8 @@ function LocationStudentPanel({
 export default function Students() {
   const { role, tenantId } = useAuthContext()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const detailStudentId = searchParams.get('id')
   const { data: locations } = useLocations()
   const { data: teacherList } = useTeachers()
   const canEdit = role === 'owner' || role === 'admin'
@@ -760,7 +763,7 @@ export default function Students() {
   const handleNavigateToStudent = useCallback((studentId: string) => {
     setSelectedLocationId(null)
     saveScroll()
-    navigate(`/admin/students/${studentId}`)
+    navigate(`/admin/students?id=${studentId}`)
   }, [navigate, saveScroll])
 
   const handleEditSave = async (data: any) => {
@@ -794,6 +797,15 @@ export default function Students() {
       reactivation_date: exitData.reactivation_date || null,
     })
     setExitStudent(null)
+  }
+
+  if (detailStudentId) {
+    return (
+      <StudentDetail
+        propId={detailStudentId}
+        onBack={() => navigate('/admin/students')}
+      />
+    )
   }
 
   return (

@@ -580,7 +580,7 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
               {error && <div className="form-error">{error}</div>}
 
               <div className="modal-actions" style={{ justifyContent: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <button className="btn-primary" onClick={() => navigate(`/admin/students/${result.student_id}`)}>
+                <button className="btn-primary" onClick={() => navigate(`/admin/students?id=${result.student_id}`)}>
                   View Student Profile
                 </button>
                 {resultFamilyId && (

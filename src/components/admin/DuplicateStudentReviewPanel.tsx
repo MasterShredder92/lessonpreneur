@@ -296,12 +296,12 @@ function ReviewCard({
         <button
           type="button"
           disabled={resolve.isPending}
-          onClick={() => navigate(`/admin/students/${r.new_student_id}`)}
+          onClick={() => navigate(`/admin/students?id=${r.new_student_id}`)}
           style={btnGhost}
         >
           Edit new student
         </button>
-        <button type="button" disabled={resolve.isPending} onClick={() => navigate(`/admin/students/${r.candidate_existing_student_id}`)} style={btnGhost}>
+        <button type="button" disabled={resolve.isPending} onClick={() => navigate(`/admin/students?id=${r.candidate_existing_student_id}`)} style={btnGhost}>
           Edit matched student
         </button>
         {r.lead_id && (

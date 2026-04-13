@@ -67,9 +67,7 @@ import InstallPrompt from '../components/shared/InstallPrompt'
 const Dashboard = lazy(() => import('../pages/admin/Dashboard'))
 const Schedule = lazy(() => import('../pages/admin/Schedule'))
 const Students = lazy(() => import('../pages/admin/Students'))
-const StudentDetail = lazy(() => import('../pages/admin/StudentDetail'))
 const Teachers = lazy(() => import('../pages/admin/Teachers'))
-const TeacherDetail = lazy(() => import('../pages/admin/TeacherDetail'))
 const Families = lazy(() => import('../pages/admin/Families'))
 const Leads = lazy(() => import('../pages/admin/Leads'))
 const Billing = lazy(() => import('../pages/admin/Billing'))
@@ -290,10 +288,8 @@ export default function App() {
               <Route path="schedule" element={<Schedule />} />
               <Route path="families" element={<Families />} />
               <Route path="students" element={<Students />} />
-              <Route path="students/:id" element={<StudentDetail />} />
               <Route path="retention" element={<Retention />} />
               <Route path="teachers" element={<Teachers />} />
-              <Route path="teachers/:id" element={<TeacherDetail />} />
               <Route path="billing" element={<Billing />} />
               <Route path="payroll" element={<Payroll />} />
               <Route path="financials" element={<Financials />} />

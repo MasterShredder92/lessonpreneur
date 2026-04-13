@@ -179,7 +179,7 @@ export default function OnboardingPipeline() {
                     </div>
 
                     <button
-                      onClick={() => navigate(`/admin/students/${seq.student_id}`)}
+                      onClick={() => navigate(`/admin/students?id=${seq.student_id}`)}
                       style={{
                         padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600,
                         background: 'rgba(255,255,255,0.04)', color: '#A0A0C8',

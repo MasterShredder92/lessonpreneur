@@ -46,8 +46,9 @@ function formatDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-export default function StudentDetail() {
-  const { id } = useParams<{ id: string }>()
+export default function StudentDetail({ propId, onBack }: { propId?: string; onBack?: () => void } = {}) {
+  const { id: routeId } = useParams<{ id: string }>()
+  const id = propId ?? routeId
   const navigate = useNavigate()
   const { role, profile, tenantId } = useAuthContext()
   const canEdit = role === 'owner' || role === 'admin' || role === 'studio_director'
@@ -308,7 +309,7 @@ export default function StudentDetail() {
   if (error || !student) {
     return (
       <div className="page">
-        <button className="btn-ghost" onClick={() => navigate('/admin/students')}>← Back</button>
+        <button className="btn-ghost" onClick={() => onBack ? onBack() : navigate('/admin/students')}>← Back</button>
         <div className="form-error" style={{ marginTop: '16px' }}>Failed to load student.</div>
       </div>
     )
@@ -364,7 +365,7 @@ export default function StudentDetail() {
   return (
     <IssueContextProvider page="Roster — Students" section="Student Detail">
     <div className="page">
-      <button className="btn-ghost" onClick={() => navigate('/admin/students')} style={{ marginBottom: 12 }}>
+      <button className="btn-ghost" onClick={() => onBack ? onBack() : navigate('/admin/students')} style={{ marginBottom: 12 }}>
         ← Back to Students
       </button>
       <StudentsPageGuide mode="detail" />
@@ -583,7 +584,7 @@ export default function StudentDetail() {
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 6 }}>Siblings</div>
                 {student.siblings.map((sib: any) => (
-                  <div key={sib.id} onClick={() => navigate(`/admin/students/${sib.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#A0A0C8', cursor: 'pointer', padding: '3px 0' }}>
+                  <div key={sib.id} onClick={() => navigate(`/admin/students?id=${sib.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#A0A0C8', cursor: 'pointer', padding: '3px 0' }}>
                     <span style={{ fontWeight: 600, color: '#C0C0E0' }}>{sib.first_name}</span>
                     <span style={{ color: '#8080A8' }}>{instrumentWithEmojiTitle(sib.instrument)}</span>
                   </div>

@@ -40,8 +40,9 @@ const sectionLabelStyle: React.CSSProperties = { fontSize: 10, fontWeight: 700, 
 const fieldLabelStyle: React.CSSProperties = { fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }
 const fieldValueStyle: React.CSSProperties = { fontSize: 12, color: '#C0C0E0', lineHeight: 1.5 }
 
-export default function TeacherDetail() {
-  const { id } = useParams<{ id: string }>()
+export default function TeacherDetail({ propId, onBack }: { propId?: string; onBack?: () => void } = {}) {
+  const { id: routeId } = useParams<{ id: string }>()
+  const id = propId ?? routeId
   const navigate = useNavigate()
   const { role, tenantId, profile: authProfile } = useAuthContext()
   const { data: teacher, isLoading, error: teacherError } = useTeacher(id)
@@ -203,7 +204,7 @@ export default function TeacherDetail() {
   if (teacherError || !teacher) {
     return (
       <div className="page">
-        <button className="btn-ghost" onClick={() => navigate('/admin/teachers')} style={{ marginBottom: 16 }}>← Back to Teachers</button>
+        <button className="btn-ghost" onClick={() => onBack ? onBack() : navigate('/admin/teachers')} style={{ marginBottom: 16 }}>← Back to Teachers</button>
         <div className="form-error">Failed to load teacher: {(teacherError as Error)?.message ?? 'Not found'}</div>
       </div>
     )
@@ -239,7 +240,7 @@ export default function TeacherDetail() {
     <IssueContextProvider page="The Band — Teachers" section="Teacher Detail">
     <div className="page teacher-detail-page">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <button className="btn-ghost" onClick={() => navigate('/admin/teachers')}>
+        <button className="btn-ghost" onClick={() => onBack ? onBack() : navigate('/admin/teachers')}>
           ← Back to Teachers
         </button>
         <ReportIssueButton />
@@ -546,7 +547,7 @@ export default function TeacherDetail() {
                     return (
                       <div
                         key={s.id}
-                        onClick={() => navigate(`/admin/students/${s.id}`)}
+                        onClick={() => navigate(`/admin/students?id=${s.id}`)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 10,
                           padding: '10px 12px', borderRadius: 10, cursor: 'pointer',

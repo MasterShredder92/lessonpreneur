@@ -440,7 +440,7 @@ export default function Families() {
           familyId={selectedFamilyId}
           canEdit={canEdit}
           onClose={() => setSelectedFamilyId(null)}
-          onNavigateStudent={(id) => { setSelectedFamilyId(null); navigate(`/admin/students/${id}`) }}
+          onNavigateStudent={(id) => { setSelectedFamilyId(null); navigate(`/admin/students?id=${id}`) }}
         />
       )}
 

@@ -122,9 +122,9 @@ export function usePageTitle() {
 
     if (!title) {
 
-      if (pathname.startsWith('/admin/students/')) title = 'Student Detail'
+      if (pathname === '/admin/students' && new URLSearchParams(window.location.search).has('id')) title = 'Student Detail'
 
-      else if (pathname.startsWith('/admin/teachers/')) title = 'Teacher Detail'
+      else if (pathname === '/admin/teachers' && new URLSearchParams(window.location.search).has('id')) title = 'Teacher Detail'
 
     }
 
