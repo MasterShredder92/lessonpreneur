@@ -57,10 +57,91 @@ const LABELS: Record<string, string> = {
 
 function formatValue(v: unknown): string {
   if (v === null || v === undefined) return '—'
-  if (Array.isArray(v)) return v.map((x) => String(x)).join(', ')
+  if (Array.isArray(v)) {
+    if (v.length === 0) return '—'
+    if (typeof v[0] === 'object' && v[0] !== null) return JSON.stringify(v, null, 2)
+    return v.map((x) => String(x)).join(', ')
+  }
   if (typeof v === 'object') return JSON.stringify(v, null, 2)
   if (typeof v === 'boolean') return v ? 'Yes' : 'No'
   return String(v)
+}
+
+interface IntakeStudent {
+  name?: string
+  first_name?: string
+  last_name?: string
+  instrument?: string
+  age_range?: string
+  age?: string
+  experience?: string
+  personality_notes?: string
+  notes?: string
+  goals?: string
+  preferred_days?: string | string[]
+  [key: string]: unknown
+}
+
+function StudentCards({ students }: { students: IntakeStudent[] }) {
+  if (!students || students.length === 0) return <span style={{ color: '#8080A8' }}>—</span>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+      {students.map((s, i) => {
+        const displayName = s.name ?? [s.first_name, s.last_name].filter(Boolean).join(' ') ?? `Student ${i + 1}`
+        const days = Array.isArray(s.preferred_days)
+          ? s.preferred_days.join(', ')
+          : typeof s.preferred_days === 'string'
+          ? s.preferred_days
+          : null
+        return (
+          <div
+            key={i}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderLeft: '3px solid rgba(212,34,106,0.45)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#E0E0F4' }}>{displayName}</span>
+              {s.instrument && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#A0A0C8' }}>· {s.instrument}</span>
+              )}
+              {(s.age_range ?? s.age) && (
+                <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.06)', color: '#8080A8' }}>
+                  {s.age_range ?? s.age}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {s.experience && (
+                <div style={{ fontSize: 11, color: '#A0A0C8' }}>
+                  <span style={{ color: '#6060A0', fontWeight: 600 }}>Experience: </span>{s.experience}
+                </div>
+              )}
+              {(s.personality_notes ?? s.notes) && (
+                <div style={{ fontSize: 11, color: '#A0A0C8', fontStyle: 'italic' }}>
+                  "{s.personality_notes ?? s.notes}"
+                </div>
+              )}
+              {s.goals && (
+                <div style={{ fontSize: 11, color: '#A0A0C8' }}>
+                  <span style={{ color: '#6060A0', fontWeight: 600 }}>Goals: </span>{s.goals}
+                </div>
+              )}
+              {days && (
+                <div style={{ fontSize: 11, color: '#A0A0C8' }}>
+                  <span style={{ color: '#6060A0', fontWeight: 600 }}>Preferred days: </span>{days}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function orderedEntries(raw: Record<string, unknown>): [string, unknown][] {
@@ -141,12 +222,33 @@ export function OriginalIntakePanel({
         </span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: compact ? 200 : 360, overflowY: 'auto' }}>
-        {entries.map(([key, val]) => (
-          <div key={key} style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(100px,140px) 1fr' : '160px 1fr', gap: 8, fontSize: 12, alignItems: 'start' }}>
-            <span style={{ color: '#8080A8', fontWeight: 600 }}>{LABELS[key] ?? key}</span>
-            <span style={{ color: '#E0E0F4', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{formatValue(val)}</span>
-          </div>
-        ))}
+        {entries.map(([key, val]) => {
+          const isStudents = key === 'students' && Array.isArray(val) && val.length > 0 && typeof val[0] === 'object'
+          return (
+            <div
+              key={key}
+              style={{
+                display: isStudents ? 'flex' : 'grid',
+                flexDirection: isStudents ? 'column' : undefined,
+                gridTemplateColumns: isStudents ? undefined : (compact ? 'minmax(100px,140px) 1fr' : '160px 1fr'),
+                gap: 8,
+                fontSize: 12,
+                alignItems: 'start',
+              }}
+            >
+              <span style={{ color: '#8080A8', fontWeight: 600, marginBottom: isStudents ? 2 : 0 }}>
+                {LABELS[key] ?? key}
+              </span>
+              {isStudents ? (
+                <StudentCards students={val as IntakeStudent[]} />
+              ) : (
+                <span style={{ color: '#E0E0F4', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {formatValue(val)}
+                </span>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
