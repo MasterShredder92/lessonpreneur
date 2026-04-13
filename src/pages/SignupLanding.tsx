@@ -597,7 +597,7 @@ export default function SignupLanding() {
       )
     }
 
-    // Sub 1: Experience + personality/goals (optional, skippable)
+    // Sub 1: Experience + personality/goals (required)
     return (
       <div className="signup-step-wrap">
         <div className={`signup-step ${slideClass}`}>
@@ -620,11 +620,14 @@ export default function SignupLanding() {
             </div>
           </div>
           <div className="signup-field">
+            <div className="signup-label">
+              {forSelf ? 'Goals & learning style' : 'Personality, learning style & goals'}
+            </div>
             <textarea
               className="signup-input signup-textarea"
               placeholder={forSelf
-                ? 'Goals or learning style? (optional)'
-                : 'Personality, learning style, or goals? (optional)'
+                ? 'Tell us about your goals and learning style'
+                : `Tell us about ${displayName}'s personality, learning style, and goals`
               }
               value={freeText}
               onChange={e => setFreeText(e.target.value)}
@@ -634,15 +637,10 @@ export default function SignupLanding() {
           <div className="signup-sticky-cta">
             <button
               className="signup-next"
+              disabled={!experience || !freeText.trim()}
               onClick={() => { setStep2Sub(0); goToStep(2) }}
             >
               Next
-            </button>
-            <button
-              className="signup-skip"
-              onClick={() => { setStep2Sub(0); goToStep(2) }}
-            >
-              Skip
             </button>
           </div>
         </div>
@@ -961,7 +959,7 @@ export default function SignupLanding() {
             </div>
             <button
               className="signup-next"
-              disabled={!addStudentName.trim()}
+              disabled={!addStudentName.trim() || !addStudentBio.trim() || !addStudentGoals.trim()}
               onClick={confirmAddStudent}
             >
               Add Student
