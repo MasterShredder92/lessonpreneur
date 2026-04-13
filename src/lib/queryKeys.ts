@@ -218,6 +218,26 @@ export const qk = {
       ['financials', 'payment-facts', tenantId, monthKey] as const,
   },
 
+  // ── Finance (Plaid-powered) ──────────────────
+  finance: {
+    all: ['finance'] as const,
+    plaidItems: (tenantId: string | null) => ['finance', 'plaid-items', tenantId] as const,
+    accounts: (tenantId: string | null) => ['finance', 'accounts', tenantId] as const,
+    locations: (tenantId: string | null) => ['finance', 'locations', tenantId] as const,
+    transactions: (tenantId: string | null, monthKey: string) =>
+      ['finance', 'transactions', tenantId, monthKey] as const,
+    balances: (tenantId: string | null) => ['finance', 'balances', tenantId] as const,
+    categoryGroups: (tenantId: string | null) => ['finance', 'category-groups', tenantId] as const,
+    categories: (tenantId: string | null) => ['finance', 'categories', tenantId] as const,
+    recurringRules: (tenantId: string | null) => ['finance', 'recurring-rules', tenantId] as const,
+    uncategorized: (tenantId: string | null, monthKey: string) =>
+      ['finance', 'uncategorized', tenantId, monthKey] as const,
+    monthlySummary: (tenantId: string | null, monthKey: string) =>
+      ['finance', 'monthly-summary', tenantId, monthKey] as const,
+    exports: (tenantId: string | null) => ['finance', 'exports', tenantId] as const,
+    syncRuns: (tenantId: string | null) => ['finance', 'sync-runs', tenantId] as const,
+  },
+
   // ── Analytics ──────────────────────────────────
   analytics: {
     all: ['analytics'] as const,
