@@ -72,7 +72,9 @@ export function useDashboard(locationIds?: string[] | null) {
       ] = await Promise.all([
         supabase.from('students').select('id, status, location_id').eq('tenant_id', tenantId!).limit(2000),
         supabase.from('leads').select('id, stage, parent_name, first_name, updated_at, created_at, instrument').eq('tenant_id', tenantId!).limit(2000),
-        supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).gte('block_date', mondayStr).lte('block_date', sundayStr),
+        // Open slots only — was fetching every block for the week (huge) then filtering client-side;
+        // that path ran on every dashboard load and every realtime invalidation (session_log, etc.).
+        supabase.from('schedule_blocks').select('id, status, location_id, teacher_id').eq('tenant_id', tenantId!).eq('status', 'available').gte('block_date', mondayStr).lte('block_date', sundayStr),
         supabase.from('schedule_blocks').select('id, status, location_id, teacher_id, student_id, start_time, block_type').eq('tenant_id', tenantId!).eq('block_date', today),
         supabase.from('teachers').select('id, is_active, ai_context, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!).limit(500),
         supabase.from('locations').select('id, name').eq('tenant_id', tenantId!),
@@ -98,7 +100,7 @@ export function useDashboard(locationIds?: string[] | null) {
       })
 
       // Open slots this week (filtered by location if scoped)
-      const openWeek = weekBlocks?.filter((b: any) => b.status === 'available' && locFilter(b.location_id)) ?? []
+      const openWeek = weekBlocks?.filter((b: any) => locFilter(b.location_id)) ?? []
       const slotsByLoc: Record<string, number> = {}
       openWeek.forEach((b: any) => {
         const loc = locMap.get(b.location_id) ?? 'Unknown'

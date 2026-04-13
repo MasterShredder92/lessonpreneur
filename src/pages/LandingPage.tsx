@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import AtmosphericBackground from '../components/landing/AtmosphericBackground'
+import PublicBrandBar from '../components/landing/PublicBrandBar'
 import FoldSection from '../components/landing/FoldSection'
 import WhoItsForSection from '../components/landing/WhoItsForSection'
 import ChaosStackSection from '../components/landing/ChaosStackSection'
@@ -15,8 +17,19 @@ import Reveal from '../components/landing/Reveal'
 import { COLORS, FONT, mobileSectionCss } from '../components/landing/shared'
 import StopTheBleedingBar from '../components/landing/StopTheBleedingBar'
 import InlineTestimonial from '../components/landing/InlineTestimonial'
+import { ZW } from '../config/zwBrand'
 
 export default function LandingPage() {
+  useEffect(() => {
+    let meta = document.querySelector('meta[name="description"]') as HTMLMetaElement | null
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'description')
+      document.head.appendChild(meta)
+    }
+    meta.content = `${ZW.productByline}. ${ZW.musicSchoolsPowered}. ${ZW.umbrellaLine}`
+  }, [])
+
   return (
     <div
       style={{
@@ -30,38 +43,16 @@ export default function LandingPage() {
       <style>{mobileSectionCss}</style>
       <AtmosphericBackground />
 
-      {/* Wordmark */}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 2,
-          padding: '20px',
-        }}
-      >
-        <span
-          style={{
-            fontFamily: FONT,
-            fontWeight: 800,
-            fontSize: '20px',
-            display: 'inline-block',
-            background: 'linear-gradient(90deg, #D4226A, #FF5500, #FFB800)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
-          lessonpreneur
-        </span>
-      </div>
+      <PublicBrandBar />
 
       <main style={{ position: 'relative', zIndex: 1 }}>
         <FoldSection />
         <Reveal><WhoItsForSection /></Reveal>
         <Reveal><ChaosStackSection /></Reveal>
         <InlineTestimonial
-          quote="I built Lessonpreneur from the pressure of holding a real music school together and refusing to believe chaos was the only way."
+          quote={`I built ${ZW.product} on ${ZW.parent} from the pressure of holding a real music school together and refusing to believe chaos was the only way.`}
           name="Zachary Adkins"
-          descriptor="Founder, Lessonpreneur · Owner, Adkins Music Lessons"
+          descriptor={`Founder, ${ZW.parent} & ${ZW.product} · Owner, Adkins Music Lessons`}
           align="left"
         />
         <Reveal><RevenueLeakSection /></Reveal>

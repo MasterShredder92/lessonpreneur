@@ -140,6 +140,9 @@ export const qk = {
     paid: ['billing_paid'] as const,
     periods: ['billing_periods'] as const,
     remaining: ['billing_remaining'] as const,
+    squareInvoiceSummary: ['billing_square_invoice_summary'] as const,
+    squareInvoicesPaged: ['billing_square_invoices_paged'] as const,
+    familiesOneOff: ['billing_families_oneoff'] as const,
     manualPay: ['manual-pay-families'] as const,
     autopayStats: ['autopay-stats'] as const,
   },
@@ -211,6 +214,8 @@ export const qk = {
     expenses: ['expenses'] as const,
     plSummary: ['pl-summary'] as const,
     refunds: ['refunds'] as const,
+    paymentFacts: (tenantId: string | null, monthKey: string) =>
+      ['financials', 'payment-facts', tenantId, monthKey] as const,
   },
 
   // ── Analytics ──────────────────────────────────
@@ -332,11 +337,6 @@ export const qk = {
     brand: ['brand-settings'] as const,
     theme: ['theme'] as const,
     platform: ['platform-tenants'] as const,
-  },
-
-  // ── Square sync ────────────────────────────────
-  square: {
-    sync: (tenantId: string | null) => ['square-sync', tenantId] as const,
   },
 
   // ── Campaigns ──────────────────────────────────

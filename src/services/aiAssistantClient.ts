@@ -1,5 +1,4 @@
-import { EDGE_FUNCTIONS } from '../lib/config'
-import { safeFetch } from '../lib/safeFetch'
+import { supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errors'
 
 // ─── Types (edge `ai-assistant` JSON body / response) ───────────────────────
@@ -86,10 +85,16 @@ async function invokeAiAssistantEdge(
   timeoutMs: number,
 ): Promise<AiAssistantJson> {
   try {
-    return await safeFetch<AiAssistantJson>(EDGE_FUNCTIONS.aiAssistant, {
+    const { data, error } = await supabase.functions.invoke('ai-assistant', {
       body,
-      timeoutMs,
+      timeout: timeoutMs,
     })
+    if (error) {
+      // FunctionsHttpError / FunctionsRelayError / FunctionsFetchError
+      const msg = error?.message || 'Edge function error'
+      return { error: msg }
+    }
+    return (data ?? {}) as AiAssistantJson
   } catch (err) {
     return { error: getErrorMessage(err) }
   }

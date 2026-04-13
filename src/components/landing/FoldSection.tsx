@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { COLORS, FONT, PrimaryButton, TrustChips, sectionStyle } from './shared'
+import { ZW } from '../../config/zwBrand'
 
 export default function FoldSection() {
   const navigate = useNavigate()
@@ -74,7 +75,7 @@ export default function FoldSection() {
             cy="70"
             r="60"
             fill="none"
-            stroke="#D4226A"
+            stroke={COLORS.teal}
             strokeWidth="3"
             strokeLinecap="round"
             strokeDasharray="376.991"
@@ -119,6 +120,20 @@ export default function FoldSection() {
         </div>
       </div>
 
+      <p
+        style={{
+          fontFamily: FONT,
+          fontSize: '11px',
+          fontWeight: 700,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          color: COLORS.teal,
+          margin: '0 0 16px',
+        }}
+      >
+        {ZW.musicSchoolsPowered} · {ZW.productByline}
+      </p>
+
       <h1
         className="lp-h1"
         style={{
@@ -150,9 +165,10 @@ export default function FoldSection() {
           marginBottom: 0,
         }}
       >
-        Lessonpreneur replaces the scattered texting, spreadsheets, billing
-        headaches, and dropped leads that eat your days — with one system
-        built from the ground up for private music schools.
+        {ZW.runWithoutWork} — <strong style={{ color: '#F1F5F9', fontWeight: 700 }}>{ZW.productByline}</strong> is{' '}
+        {ZW.operatingSystem.toLowerCase()}, powered by <strong style={{ color: COLORS.teal }}>{ZW.parent}</strong>. It
+        replaces scattered texting, spreadsheets, billing headaches, and dropped leads — with one system built for
+        private music schools.
       </p>
 
       {/* REPLACE WITH ACTUAL VSL EMBED */}

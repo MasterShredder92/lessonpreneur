@@ -1,11 +1,15 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { FunctionsHttpError } from '@supabase/supabase-js'
+import { supabase } from '../../lib/supabase'
+import { useAuthContext } from '../../app/AuthContext'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useLocations } from '../../hooks/useLocations'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import {
-  useBillingHeroStats,
   useBillingFamilies,
+  useBillingFamiliesForOneOff,
   useNextCycle,
   useRemainingToCollect,
   useOverdueFamilies,
@@ -25,6 +29,7 @@ import {
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import BillingPageGuide from '../../components/admin/BillingPageGuide'
+import BillingInvoicesPanel from '../../components/admin/BillingInvoicesPanel'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 
 // ══════════════════════════════════════════
@@ -37,7 +42,7 @@ function dollars(cents: number | null | undefined): string {
   return `${cents < 0 ? '-' : ''}$${abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-type SectionKey = 'invoices' | 'next' | 'remaining' | 'overdue' | 'paid'
+type SectionKey = 'none' | 'invoices' | 'next' | 'remaining' | 'overdue' | 'paid'
 
 // ══════════════════════════════════════════
 // GLASS CARD STYLES
@@ -190,15 +195,28 @@ function LocationSnapshotCard({ locationId, name, color, onSelect }: {
 // MAIN PAGE
 // ══════════════════════════════════════════
 
+const SQUARE_SYNC_STORAGE_OK = 'lp_square_sync_last_ok'
+const SQUARE_SYNC_STORAGE_ERR = 'lp_square_sync_last_err'
+
 function BillingInner() {
   const { data: locations } = useLocations()
   const { isStudioDirector, locationIds } = usePermissions()
+  const { role } = useAuthContext()
+  const canSquareSync = role === 'owner' || role === 'admin' || role === 'company_director'
 
   const { getParam, setParam } = useUrlFilters()
   const locationFilter = isStudioDirector ? (locationIds?.[0] ?? '') : getParam('location')
   const setLocationFilter = (v: string) => setParam('location', v)
-  const activeSection = (getParam('tab') || 'invoices') as SectionKey
-  const setActiveSection = (v: SectionKey) => setParam('tab', v === 'invoices' ? '' : v)
+  const tabRaw = getParam('tab')
+  const activeSection = (
+    tabRaw === 'invoices' || tabRaw === 'next' || tabRaw === 'remaining' || tabRaw === 'overdue' || tabRaw === 'paid'
+      ? tabRaw
+      : 'none'
+  ) as SectionKey
+  const setActiveSection = (v: SectionKey) => {
+    if (v === 'none') setParam('tab', '')
+    else setParam('tab', v)
+  }
   const search = getParam('q')
   const setSearch = (v: string) => setParam('q', v)
   const sortBy = getParam('sort') || 'name'
@@ -212,14 +230,14 @@ function BillingInner() {
   const directorLocId = isStudioDirector ? (locationIds?.[0] ?? undefined) : undefined
   const { data: snapshotDirectorLoc } = useBillingSnapshot(directorLocId)
 
-  // Data hooks
-  const { data: heroStats, isLoading: heroLoading } = useBillingHeroStats(locationFilter || undefined)
-  const { data: families, isLoading: familiesLoading } = useBillingFamilies(locationFilter)
-  const { data: nextCycle, isLoading: nextLoading } = useNextCycle(locationFilter)
-  const { data: remaining, isLoading: remainingLoading } = useRemainingToCollect(locationFilter)
-  const { data: overdue, isLoading: overdueLoading } = useOverdueFamilies(locationFilter)
-  const { data: paidData, isLoading: paidLoading } = usePaidThisMonth(locationFilter)
-  const { data: credits } = useCreditsLedger(locationFilter)
+  // Data hooks — each section loads only when its tab is active (faster initial paint)
+  const { data: families, isLoading: familiesLoading } = useBillingFamilies(locationFilter, activeSection === 'invoices')
+  const { data: oneOffFamilies } = useBillingFamiliesForOneOff(showOneOff)
+  const { data: nextCycle, isLoading: nextLoading } = useNextCycle(locationFilter, activeSection === 'next')
+  const { data: remaining, isLoading: remainingLoading } = useRemainingToCollect(locationFilter, activeSection === 'remaining')
+  const { data: overdue, isLoading: overdueLoading } = useOverdueFamilies(locationFilter, activeSection === 'overdue')
+  const { data: paidData, isLoading: paidLoading } = usePaidThisMonth(locationFilter, activeSection === 'paid')
+  const { data: credits } = useCreditsLedger(locationFilter, showCreditsLedger)
 
   // Mutations
   const createAdj = useCreateBillingAdjustment()
@@ -401,12 +419,24 @@ function BillingInner() {
         <button data-tour-id="billing-oneoff-btn" onClick={() => setShowOneOff(true)} style={utilBtn}>
           <Plus size={13} /> One-Off Invoice
         </button>
-        {!isStudioDirector && (
-          <button onClick={() => setShowSquareSync(true)} style={utilBtn}>
+        {!isStudioDirector && canSquareSync && (
+          <button type="button" data-tour-id="billing-square-sync-btn" onClick={() => setShowSquareSync(true)} style={utilBtn}>
             <RefreshCw size={13} /> Square Sync
           </button>
         )}
       </div>
+
+      <BillingInvoicesPanel
+        isStudioDirector={isStudioDirector}
+        directorLocationId={directorLocId}
+        activeLocations={activeLocations.map((l: any) => ({ id: l.id, name: l.name }))}
+      />
+
+      {activeSection === 'none' && (
+        <div style={{ color: '#8080A8', fontSize: 13, padding: '8px 0 16px', textAlign: 'center' }}>
+          Choose a section below for family billing detail, cycles, and payments.
+        </div>
+      )}
 
       {/* SECTION TABS */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, overflowX: 'auto' }}>
@@ -486,7 +516,7 @@ function BillingInner() {
       )}
       {showOneOff && (
         <OneOffInvoiceModal
-          families={families ?? []}
+          families={oneOffFamilies ?? []}
           onClose={() => setShowOneOff(false)}
           onSubmit={async (data) => {
             try {
@@ -501,7 +531,7 @@ function BillingInner() {
         />
       )}
       {showSquareSync && (
-        <SquareSyncModal onClose={() => setShowSquareSync(false)} />
+        <SquareSyncModal canSync={canSquareSync} onClose={() => setShowSquareSync(false)} />
       )}
 
       {/* RESPONSIVE STYLES */}
@@ -1104,30 +1134,203 @@ function OneOffInvoiceModal({
 // MODAL: SQUARE SYNC
 // ══════════════════════════════════════════
 
-function SquareSyncModal({ onClose }: { onClose: () => void }) {
+type SquareSyncFnResponse = {
+  success?: boolean
+  error?: string
+  request_id?: string
+  synced_at?: string
+  invoices?: { fetched?: number; deduplicated?: number; upserted?: number; upsert_errors?: number }
+  families?: { matched?: number; unmatched?: number; overdue_updated?: number; square_id_backfilled?: number }
+}
+
+async function squareSyncInvokeErrorMessage(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError && error.context instanceof Response) {
+    try {
+      const body = await error.context.clone().json() as { error?: string; request_id?: string }
+      let msg =
+        body?.error && typeof body.error === 'string'
+          ? body.error
+          : 'Edge Function returned a non-2xx status code'
+      if (body?.request_id && typeof body.request_id === 'string' && !msg.includes(body.request_id)) {
+        msg = `${msg} (request_id: ${body.request_id})`
+      }
+      return msg
+    } catch {
+      /* use fallback */
+    }
+  }
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: string }).message === 'string') {
+    return (error as { message: string }).message
+  }
+  return 'Square sync failed'
+}
+
+function SquareSyncModal({ canSync, onClose }: { canSync: boolean; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [syncing, setSyncing] = useState(false)
+  const syncInFlight = useRef(false)
+  const [lastOk, setLastOk] = useState<{ at: string; body: string; requestId?: string } | null>(null)
+  const [lastErr, setLastErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SQUARE_SYNC_STORAGE_OK)
+      if (raw) {
+        const p = JSON.parse(raw) as { at: string; body: string; requestId?: string }
+        if (p?.at && p?.body) {
+          setLastOk(p)
+          setLastErr(null)
+        }
+      } else {
+        const er = sessionStorage.getItem(SQUARE_SYNC_STORAGE_ERR)
+        if (er) setLastErr(er)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const invalidateAfterSync = useCallback(() => {
+    qc.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey[0]
+        return typeof k === 'string' && (k.startsWith('billing') || k.startsWith('financials'))
+      },
+    })
+  }, [qc])
+
+  const runSync = async () => {
+    if (!canSync) {
+      toast('Your role cannot run Square sync', 'error')
+      return
+    }
+    if (syncInFlight.current) return
+    syncInFlight.current = true
+    setSyncing(true)
+    setLastErr(null)
+    try {
+      const { data, error } = await supabase.functions.invoke<SquareSyncFnResponse>('square-payment-sync', {
+        method: 'POST',
+        body: {},
+      })
+
+      if (error) {
+        const msg = await squareSyncInvokeErrorMessage(error)
+        setLastErr(msg)
+        try {
+          sessionStorage.setItem(SQUARE_SYNC_STORAGE_ERR, msg)
+        } catch {
+          /* ignore */
+        }
+        toast(msg, 'error')
+        return
+      }
+      if (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error) {
+        const msg = String((data as { error: string }).error)
+        setLastErr(msg)
+        try {
+          sessionStorage.setItem(SQUARE_SYNC_STORAGE_ERR, msg)
+        } catch {
+          /* ignore */
+        }
+        toast(msg, 'error')
+        return
+      }
+      if (data?.success) {
+        const at = data.synced_at ?? new Date().toISOString()
+        const inv = data.invoices
+        const fam = data.families
+        const line = [
+          inv?.upserted != null ? `${inv.upserted} invoices saved` : null,
+          fam?.matched != null ? `${fam.matched} invoice rows matched to families` : null,
+          data.request_id ? `Request ${data.request_id}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+        const ok = { at, body: line || 'Sync completed.', requestId: data.request_id }
+        setLastOk(ok)
+        try {
+          sessionStorage.setItem(SQUARE_SYNC_STORAGE_OK, JSON.stringify(ok))
+          sessionStorage.removeItem(SQUARE_SYNC_STORAGE_ERR)
+        } catch {
+          /* ignore */
+        }
+        toast('Square sync finished', 'success')
+        invalidateAfterSync()
+      } else {
+        const msg = 'Unexpected response from Square sync'
+        setLastErr(msg)
+        try {
+          sessionStorage.setItem(SQUARE_SYNC_STORAGE_ERR, msg)
+        } catch {
+          /* ignore */
+        }
+        toast(msg, 'error')
+      }
+    } catch (e: unknown) {
+      let msg = 'Square sync failed'
+      if (e instanceof DOMException && (e.name === 'AbortError' || e.name === 'TimeoutError')) {
+        msg = 'Square sync timed out. If this persists, try again or check Edge Function logs.'
+      } else if (e instanceof Error) {
+        msg = e.message.includes('timed out') ? 'Square sync timed out. Try again in a moment.' : e.message
+      }
+      setLastErr(msg)
+      try {
+        sessionStorage.setItem(SQUARE_SYNC_STORAGE_ERR, msg)
+      } catch {
+        /* ignore */
+      }
+      toast(msg, 'error')
+    } finally {
+      syncInFlight.current = false
+      setSyncing(false)
+    }
+  }
+
   return (
     <ModalShell title="Square Sync" onClose={onClose}>
       <div style={{ textAlign: 'center', padding: '20px 0' }}>
-        <RefreshCw size={32} style={{ color: '#606088', marginBottom: 12 }} />
+        <RefreshCw size={32} style={{ color: '#606088', marginBottom: 12 }} aria-hidden />
         <div style={{ fontSize: 14, color: '#A0A0C8', marginBottom: 16 }}>
-          Sync payment data from Square to update balances and payment history.
+          Imports Square invoice and payment status for reconciliation (amounts, paid/unpaid, hosted invoice links).
+          Updates <code style={{ color: '#C0C0E0' }}>square_invoices</code> and family balances from that data.
+          Schedules and recurring lessons are managed only in Lessonpreneur — not via Square.
         </div>
         <div style={{
           padding: '10px 14px', borderRadius: 8,
           background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-          fontSize: 12, color: '#606088', marginBottom: 16,
+          fontSize: 12, color: '#606088', marginBottom: 16, textAlign: 'left', lineHeight: 1.45,
         }}>
-          Last sync: Manual trigger not yet connected
+          {!canSync ? (
+            <span style={{ color: '#F87171' }}>Your role cannot run Square sync.</span>
+          ) : lastOk ? (
+            <>
+              <div style={{ color: '#A0A0C8', marginBottom: 4 }}>Last successful sync</div>
+              <div style={{ color: '#E0E0F4' }}>{new Date(lastOk.at).toLocaleString()}</div>
+              <div style={{ marginTop: 8 }}>{lastOk.body}</div>
+            </>
+          ) : lastErr ? (
+            <>
+              <div style={{ color: '#F87171', marginBottom: 4 }}>Last attempt</div>
+              <div>{lastErr}</div>
+            </>
+          ) : (
+            <>Owner, admin, or company director. Requires Square API access for payment data (deploy secrets).</>
+          )}
         </div>
         <button
-          onClick={() => toast('Square sync coming soon', 'info')}
+          type="button"
+          aria-busy={syncing}
+          disabled={syncing || !canSync}
+          onClick={() => void runSync()}
           style={{
             background: '#D4226A', color: '#fff', border: 'none',
             borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 700,
-            cursor: 'pointer', minHeight: 44,
+            cursor: syncing || !canSync ? 'not-allowed' : 'pointer', minHeight: 44,
+            opacity: syncing || !canSync ? 0.75 : 1,
           }}
         >
-          Sync Now
+          {syncing ? 'Syncing…' : 'Sync Now'}
         </button>
       </div>
     </ModalShell>

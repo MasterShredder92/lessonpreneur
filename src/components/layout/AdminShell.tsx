@@ -29,7 +29,7 @@ const NAV_ICONS: Record<string, ReactNode> = {
 function AdminShellInner() {
   const navigate = useNavigate()
   const { profile, tenantId, signOut } = useAuthContext()
-  const { isStudioDirector, isCompanyDirector, isOwner, role: effectiveRole } = usePermissions()
+  const { isStudioDirector, isCompanyDirector, isOwner, canUseZiro, role: effectiveRole } = usePermissions()
   const showZiroInsights = isOwner || isCompanyDirector
   const { preview } = usePreviewMode()
   const location = useLocation()
@@ -240,14 +240,16 @@ function AdminShellInner() {
         </NavTooltipProvider>
 
         <div className="sidebar-footer">
-          <button
-            className={`nav-item ${aiPanelOpen ? 'active' : ''}`}
-            onClick={(e) => { e.stopPropagation(); togglePanel() }}
-            title={!sidebarOpen ? 'Ziro — AI operating layer' : undefined}
-          >
-            <Sparkles size={15} />
-            <span className="nav-label">Ziro</span>
-          </button>
+          {canUseZiro && (
+            <button
+              className={`nav-item ${aiPanelOpen ? 'active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); togglePanel() }}
+              title={!sidebarOpen ? 'Ziro — AI operating layer' : undefined}
+            >
+              <Sparkles size={15} />
+              <span className="nav-label">Ziro</span>
+            </button>
+          )}
 
 {showZiroInsights && (
             <NavLink
@@ -303,9 +305,11 @@ function AdminShellInner() {
       <MobileTabBar />
       <FloatingIssueReporter />
 
-      <Suspense fallback={null}>
-        <ZiroPanel open={aiPanelOpen} onClose={closePanel} />
-      </Suspense>
+      {canUseZiro && (
+        <Suspense fallback={null}>
+          <ZiroPanel open={aiPanelOpen} onClose={closePanel} />
+        </Suspense>
+      )}
     </div>
   )
 }

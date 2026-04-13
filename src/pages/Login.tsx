@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthContext } from '../app/AuthContext'
 import { ROLE_DEFAULT_ROUTES } from '../lib/constants'
+import { ZW } from '../config/zwBrand'
 
 export default function Login() {
   const { user, role, signIn, isLoading } = useAuthContext()
@@ -31,7 +32,11 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <img src="/lp-logo.png?v=2" alt="Lessonpreneur" style={{ width: 72, height: 72, borderRadius: 16, display: 'block', margin: '0 auto 8px' }} />
+        <img src="/lp-logo.png?v=2" alt={ZW.productByline} style={{ width: 72, height: 72, borderRadius: 16, display: 'block', margin: '0 auto 8px' }} />
+        <div style={{ textAlign: 'center', marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: '#64748b', textTransform: 'uppercase' }}>{ZW.parent}</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9', marginTop: 4 }}>{ZW.productByline}</div>
+        </div>
         <p className="login-subtitle">Sign in to your account</p>
 
         <form onSubmit={handleSubmit} className="login-form">

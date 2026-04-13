@@ -1,4 +1,5 @@
 import { COLORS, FONT, sectionStyle } from './shared'
+import { ZW } from '../../config/zwBrand'
 
 export default function BuiltInRealSchoolsSection() {
   return (
@@ -28,9 +29,9 @@ export default function BuiltInRealSchoolsSection() {
           }}
         >
           I'm Zach Adkins — I own four music schools in Omaha with 600+ students and 40+ teachers.
-          I built Lessonpreneur because nothing on the market actually understood how a music school
-          runs. Every feature exists because I needed it in my real schools, and LP is live in
-          production right now — not a demo, but the system I use every single day.
+          I built {ZW.productByline} because nothing on the market actually understood how a music school
+          runs. Every feature exists because I needed it in my real schools, and it is live in production on{' '}
+          {ZW.parent} right now — not a demo, but the system I use every single day.
         </p>
       </div>
 
@@ -67,7 +68,7 @@ export default function BuiltInRealSchoolsSection() {
             Zach Adkins
           </div>
           <div style={{ fontFamily: FONT, fontSize: '14px', color: COLORS.pink }}>
-            Founder, Lessonpreneur
+            Founder, {ZW.parent} & {ZW.product}
           </div>
           <div style={{ fontFamily: FONT, fontSize: '14px', color: 'rgba(255,255,255,0.55)' }}>
             Owner, Adkins Music Lessons — 4 locations · 600+ students

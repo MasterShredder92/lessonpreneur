@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ZW } from '../../config/zwBrand'
+import PublicBrandBar from '../../components/landing/PublicBrandBar'
 
 /* ═══════════════════════════════════════════════════════
    /trial — CARD CAPTURE PAGE
@@ -82,6 +84,8 @@ export default function CardCapturePage() {
     <div className="ccp">
       <style>{styles}</style>
 
+      <PublicBrandBar variant="funnel" />
+
       {/* Progress bar */}
       <div className="ccp-progress">
         <div className="ccp-progress-bar">
@@ -134,9 +138,9 @@ export default function CardCapturePage() {
             <path d="M5.5 8.5l2 2 3.5-3.5" stroke="#22C55E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <p className="ccp-reassure-text">
-            No catch. No credit card charge for 60 full days. See exactly how much time and money
-            Lessonpreneur saves your studio — completely free. If it's not for you, cancel before
-            day 60 and you'll never pay a cent.
+            No catch. No credit card charge for 60 full days. See exactly how much time and money{' '}
+            {ZW.productByline} saves your studio — completely free. If it&apos;s not for you, cancel before
+            day 60 and you&apos;ll never pay a cent.
           </p>
         </div>
 

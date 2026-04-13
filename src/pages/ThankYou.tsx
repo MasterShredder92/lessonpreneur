@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
+import { ZW } from '../config/zwBrand'
 import { setLocColors } from '../lib/setLocColors'
 import PianoWidget from '../components/instruments/PianoWidget'
 import GuitarWidget from '../components/instruments/GuitarWidget'
@@ -138,6 +139,22 @@ export default function ThankYou() {
       >
         &larr; Return to Home
       </Link>
+
+      <p
+        style={{
+          marginTop: 36,
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'rgba(255,255,255,0.28)',
+          textAlign: 'center',
+        }}
+      >
+        {ZW.musicSchoolsPowered}
+        <span style={{ margin: '0 0.6em', opacity: 0.5 }}>·</span>
+        {ZW.poweredBy}
+      </p>
     </div>
   )
 }

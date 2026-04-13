@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, ChevronDown, HelpCircle, Star, Lock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, HelpCircle, Lock } from 'lucide-react'
 import type { GridBlock } from '../../hooks/useScheduleGrid'
 import { getInstrumentEmoji } from '../../utils/instrumentEmoji'
 import { getLocationColor, abbreviateRoom } from '../../utils/locationColor'
@@ -39,8 +39,6 @@ interface MobileScheduleProps {
   selectedDate: string
   onNavigateDate: (days: number) => void
   utilization?: UtilizationItem[]
-  onStarOpen?: () => void
-  starOpen?: boolean
   teacherAvailability?: Map<string, { start: string; end: string }> | null
   isStudioDirector?: boolean
 }
@@ -71,7 +69,7 @@ const LEGEND_ITEMS = [
   { type: 'teacher_training', label: 'Training' },
 ]
 
-export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime, onBlockClick, onOpenSlotClick, onDragDrop, locations, selectedLocation, onLocationChange, selectedDate, onNavigateDate, utilization, onStarOpen, starOpen, teacherAvailability, isStudioDirector }: MobileScheduleProps) {
+export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime, onBlockClick, onOpenSlotClick, onDragDrop, locations, selectedLocation, onLocationChange, selectedDate, onNavigateDate, utilization, teacherAvailability, isStudioDirector }: MobileScheduleProps) {
   const [focusedTeacher, setFocusedTeacher] = useState<string | null>(null)
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null)
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
@@ -421,7 +419,7 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', overflow: 'hidden' }}>
-      {/* Row 1 — Location dropdown + Star button */}
+      {/* Row 1 — Location dropdown */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '6px 10px', flexShrink: 0, position: 'relative',
@@ -490,22 +488,6 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
           </div>
         )}
 
-        {/* Right: Star button */}
-        {onStarOpen && (
-          <button
-            onClick={onStarOpen}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px',
-              borderRadius: 8, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
-              background: starOpen ? 'rgba(255,184,0,0.15)' : 'rgba(255,184,0,0.08)',
-              border: `1px solid ${starOpen ? 'rgba(255,184,0,0.35)' : 'rgba(255,184,0,0.2)'}`,
-              color: '#FFB800', fontSize: 11, fontWeight: 700,
-            }}
-          >
-            <Star size={13} />
-            Ask Star
-          </button>
-        )}
       </div>
 
       {/* Row 2 — Date nav + Legend */}

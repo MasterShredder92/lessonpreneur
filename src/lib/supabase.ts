@@ -7,8 +7,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-// Global fetch wrapper with a 30s timeout — prevents hung requests from
-// leaving mutations in a permanent "isPending" state (stuck Save buttons).
+/** Edge Function calls (e.g. Square sync) can run minutes; 30s abort caused (canceled) in DevTools. */
+const DEFAULT_FETCH_TIMEOUT_MS = 30_000
+const EDGE_FUNCTION_FETCH_TIMEOUT_MS = 300_000
+
+function requestUrlString(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input
+  if (input instanceof Request) return input.url
+  return input.href
+}
+
+// Global fetch wrapper with timeout — prevents hung mutations; Edge Functions get a longer budget.
 const fetchWithTimeout: typeof fetch = (input, init) => {
   const controller = new AbortController()
   const existingSignal = init?.signal
@@ -16,7 +25,13 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
     if (existingSignal.aborted) controller.abort()
     else existingSignal.addEventListener('abort', () => controller.abort(), { once: true })
   }
-  const timeoutId = setTimeout(() => controller.abort(new DOMException('Request timed out after 30s', 'TimeoutError')), 30000)
+  const url = requestUrlString(input)
+  const timeoutMs = url.includes('/functions/v1/') ? EDGE_FUNCTION_FETCH_TIMEOUT_MS : DEFAULT_FETCH_TIMEOUT_MS
+  const timeoutId = setTimeout(() => {
+    controller.abort(
+      new DOMException(`Request timed out after ${Math.round(timeoutMs / 1000)}s`, 'TimeoutError'),
+    )
+  }, timeoutMs)
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeoutId))
 }
 

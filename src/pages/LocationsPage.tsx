@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import SiteHeader from '../components/site/SiteHeader'
+import { ZW } from '../config/zwBrand'
 import '../components/seo/seo-sections.css'
 
 const LOCATIONS = [
@@ -90,7 +91,7 @@ export default function LocationsPage() {
     })
 
     return () => {
-      document.title = 'Lessonpreneur'
+      document.title = ZW.parent
       script?.remove()
     }
   }, [])
@@ -169,7 +170,7 @@ export default function LocationsPage() {
 
       <footer className="seo-footer">
         <div className="seo-container">
-          <p>&copy; {new Date().getFullYear()} Adkins Music Lessons. Powered by <Link to="/">Lessonpreneur</Link>.</p>
+          <p>&copy; {new Date().getFullYear()} Adkins Music Lessons. Music schools powered by <Link to="/">{ZW.parent}</Link>.</p>
         </div>
       </footer>
     </div>

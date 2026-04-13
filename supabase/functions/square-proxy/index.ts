@@ -1,16 +1,10 @@
 /**
- * Square Proxy — Edge Function
+ * Square Proxy — Edge Function (read-only into LP policy)
  *
- * Proxies all Square API calls server-side so the access token
- * never reaches the browser. Authenticates via Supabase JWT.
+ * Outbound creation of cards, payments, customers, or invoices in Square is disabled.
+ * Optional: list-customers (GET) for debugging — does not send LP records to Square.
  *
  * Deploy: supabase functions deploy square-proxy
- * URL:    https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/square-proxy
- *
- * Supported actions:
- *   - list-customers     GET  /v2/customers
- *   - create-card        POST /v2/cards
- *   - create-payment     POST /v2/payments
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -98,35 +92,14 @@ Deno.serve(async (req) => {
       return json(result.data, result.status)
     }
 
-    if (action === 'create-card') {
-      const { source_id, reference_id } = body
-      if (!source_id) return json({ error: 'Missing source_id' }, 400)
-
-      const result = await squareFetch('/v2/cards', SQUARE_TOKEN, 'POST', {
-        idempotency_key: crypto.randomUUID(),
-        source_id,
-        card: { reference_id: reference_id ?? undefined },
-      })
-      return json(result.data, result.status)
-    }
-
-    if (action === 'create-payment') {
-      const { source_id, amount_cents, currency, reference_id, note } = body
-      if (!source_id || !amount_cents) {
-        return json({ error: 'Missing source_id or amount_cents' }, 400)
-      }
-
-      const result = await squareFetch('/v2/payments', SQUARE_TOKEN, 'POST', {
-        source_id,
-        idempotency_key: crypto.randomUUID(),
-        amount_money: {
-          amount: amount_cents,
-          currency: currency ?? 'USD',
+    if (action === 'create-card' || action === 'create-payment') {
+      return json(
+        {
+          error:
+            'Square outbound actions are disabled. Integration is read-only from Square into Lessonpreneur.',
         },
-        reference_id: reference_id ?? undefined,
-        note: note ?? undefined,
-      })
-      return json(result.data, result.status)
+        403,
+      )
     }
 
     return json({ error: `Unknown action: ${action}` }, 400)

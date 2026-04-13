@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { COLORS, FONT, PrimaryButton, TrustChips, sectionStyle } from './shared'
+import { ZW } from '../../config/zwBrand'
 
 export default function FinalCTASection() {
   const navigate = useNavigate()
@@ -24,7 +25,8 @@ export default function FinalCTASection() {
           width: '400px',
           height: '400px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(212,34,106,0.15) 0%, rgba(212,34,106,0) 70%)',
+          background:
+            'radial-gradient(circle, rgba(13,148,136,0.18) 0%, rgba(212,34,106,0.1) 45%, rgba(212,34,106,0) 70%)',
           filter: 'blur(40px)',
           pointerEvents: 'none',
           zIndex: 0,
@@ -43,7 +45,8 @@ export default function FinalCTASection() {
           zIndex: 1,
         }}
       >
-        Stop being the system. <span style={{ color: COLORS.pink }}>Build one.</span>
+        Stop being the system. <span style={{ color: COLORS.teal }}>Build one</span>{' '}
+        <span style={{ color: COLORS.pink }}>on {ZW.parent}.</span>
       </h2>
 
       <p
@@ -56,10 +59,8 @@ export default function FinalCTASection() {
           margin: '24px 0 0 0',
         }}
       >
-        Every week you run your school on manual texts, scattered spreadsheets, and memory is a
-        week of dropped leads, lost revenue, and admin hours you are never getting back. The trial
-        is free for 60 days. The setup is guided. The system is already running in real schools.
-        The only question is whether you want in.
+        Every week you run your school on manual texts, scattered spreadsheets, and memory is a week of dropped leads,
+        lost revenue, and admin hours you are never getting back. <strong style={{ color: 'rgba(255,255,255,0.92)' }}>{ZW.productByline}</strong> is the music-school product on {ZW.parent}. The trial is free for 60 days. The setup is guided. The system is already running in real schools. The only question is whether you want in.
       </p>
 
       <div
@@ -86,7 +87,7 @@ export default function FinalCTASection() {
           fontSize: '14px',
         }}
       >
-        © 2025 Lessonpreneur. Built by a music school owner, for music school owners.
+        © {new Date().getFullYear()} {ZW.parent}. {ZW.productByline} — built by a music school owner, for music school owners.
       </div>
     </section>
   )

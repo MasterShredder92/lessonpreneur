@@ -1,11 +1,11 @@
 {
-  "name": "Lessonpreneur",
-  "short_name": "Lessonpreneur",
-  "description": "AI-first operating system for music schools",
+  "name": "Lessonpreneur by ZiroWork",
+  "short_name": "ZiroWork",
+  "description": "ZiroWork — the operating layer for owner-led schools. Lessonpreneur is music schools powered by ZiroWork.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#08080c",
-  "theme_color": "#D4226A",
+  "background_color": "#020209",
+  "theme_color": "#0D9488",
   "orientation": "portrait-primary",
   "icons": [
     {

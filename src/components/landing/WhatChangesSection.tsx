@@ -1,11 +1,12 @@
 import { Zap, CreditCard, Calendar, Users, Bell } from 'lucide-react'
+import { ZW } from '../../config/zwBrand'
 import { COLORS, FONT, GlassCard, sectionStyle } from './shared'
 import Reveal from './Reveal'
 
 const CARDS = [
   {
     title: 'Leads Follow Themselves Up',
-    body: 'The moment a lead comes in, LP sends a text automatically. No one has to remember. No manual step. The lead gets a response in seconds — and you find out after it\'s already handled. You stop losing families to faster schools.',
+    body: `The moment a lead comes in, ${ZW.product} sends a text automatically. No one has to remember. No manual step. The lead gets a response in seconds — and you find out after it's already handled. You stop losing families to faster schools.`,
     Icon: Zap,
   },
   {
@@ -30,7 +31,7 @@ const CARDS = [
   },
   {
     title: 'Your Morning Briefing in 60 Seconds',
-    body: "Every morning, Star — LP's AI assistant — gives you a snapshot of your school: who's at risk of dropping, which leads need attention, revenue trends, and what actually requires you today. From your phone. Before your coffee is cold.",
+    body: `Every morning, Ziro — ${ZW.product}'s AI operating layer on ${ZW.parent} — gives you a snapshot of your school: who's at risk of dropping, which leads need attention, revenue trends, and what actually requires you today. From your phone. Before your coffee is cold.`,
     Icon: null,
   },
 ]
@@ -49,7 +50,7 @@ export default function WhatChangesSection() {
           margin: 0,
         }}
       >
-        Here's what running a school on LP <span style={{ color: COLORS.pink }}>actually</span> looks like.
+        Here&apos;s what running a school on {ZW.productByline} <span style={{ color: COLORS.pink }}>actually</span> looks like.
       </h2>
 
       <div
@@ -67,7 +68,7 @@ export default function WhatChangesSection() {
             {idx === 5 ? (
               <img
                 src="/lp-logo.png"
-                alt="Lessonpreneur"
+                alt={ZW.productByline}
                 style={{ width: '40px', height: '40px', objectFit: 'contain' }}
               />
             ) : (

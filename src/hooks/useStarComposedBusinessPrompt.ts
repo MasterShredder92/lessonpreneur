@@ -43,12 +43,12 @@ export function useStarComposedBusinessPrompt(
       }
     }
 
-    const loading = global.isLoading || global.isFetching
-    if (loading) {
+    // Only gate on initial load — background refetches should not block the prompt.
+    if (global.isLoading && !global.data) {
       return {
         systemPrompt: ZIRO_BUSINESS_LOADING_PROMPT,
-        raw: global.data?.raw ?? null,
-        billingSnapshot: global.data?.billingSnapshot ?? null,
+        raw: null,
+        billingSnapshot: null,
         globalLoading: true,
         globalFetching: global.isFetching,
       }

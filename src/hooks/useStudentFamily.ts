@@ -165,6 +165,7 @@ export function useCreateStudentWithFamily() {
         qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
         qc.invalidateQueries({ queryKey: qk.tasks.all }),
         qc.invalidateQueries({ queryKey: qk.onboarding.pipeline }),
+        qc.invalidateQueries({ queryKey: qk.leads.duplicateReviews(params.tenant_id) }),
       ])
 
       return { student, family: { id: familyId }, isNewFamily }

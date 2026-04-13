@@ -223,7 +223,7 @@ function buildFaqJsonLd(loc: LocSEO): string {
     },
     {
       q: 'How long are lessons?',
-      a: 'Lessons are 30 minutes each. Students who want longer sessions can book back-to-back 30-minute slots for a full hour.',
+      a: 'Every lesson is a 30-minute block. Students book as many blocks as they want—across days, teachers, and schedules. Longer visits are multiple blocks in a row; there is no separate “hour lesson” package.',
     },
     {
       q: `Are your ${loc.city} teachers background-checked?`,
@@ -313,7 +313,7 @@ function buildLocationBody(loc: LocSEO): string {
             <dt>What if I need to cancel a lesson?</dt>
             <dd>We offer flexible rescheduling. Just give us advance notice and we will work with you to find another time.</dd>
             <dt>How long are lessons?</dt>
-            <dd>Lessons are 30 minutes each. Students who want longer sessions can book back-to-back 30-minute slots for a full hour.</dd>
+            <dd>Every lesson is a 30-minute block. Students book as many blocks as they want—across days, teachers, and schedules. Longer visits are multiple blocks in a row; there is no separate “hour lesson” package.</dd>
             <dt>Are your ${loc.city} teachers background-checked?</dt>
             <dd>Yes — every single instructor at our ${loc.city} location passes a comprehensive background check before teaching. We also have cameras in every lesson room for added safety.</dd>
           </dl>
@@ -863,7 +863,7 @@ export default function locationSeoPlugin(): Plugin {
           h1: 'Private Music Lessons',
           audience: 'all students',
           sections: [
-            { heading: 'How Private Lessons Work', body: 'Each session is 30 or 60 minutes at one of our four studio locations. Your teacher prepares specifically for your lesson — reviewing progress, selecting new material, and planning exercises for exactly where you are.' },
+            { heading: 'How Private Lessons Work', body: 'Each lesson is a 30-minute block at one of our four studio locations. Book one block or stack several—same day or different days, one teacher or more than one when it helps. Your teacher prepares for every block with your progress and goals in mind.' },
             { heading: 'Private Lessons vs. Group Classes', body: 'In a private lesson, everything adapts to you. Your teacher can change the plan mid-lesson, spend an entire session on one concept, or move quickly through material you\'ve grasped. That flexibility is why private students progress faster.' },
             { heading: 'Who Benefits from Private Instruction', body: 'Complete beginners who need patient guidance. Advanced students with specific challenges. Kids who are distracted in groups. Adults with limited time. Teens preparing for auditions. Students with learning differences.' },
           ],

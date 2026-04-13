@@ -80,6 +80,8 @@ export interface Student {
   status: 'active' | 'inactive' | 'former'
   blocks_per_week: number
   rate_per_session: number
+  /** Immutable website intake row (public-lead-submit). */
+  intake_submission_id?: string | null
 }
 
 export interface AuthState {

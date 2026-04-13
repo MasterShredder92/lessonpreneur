@@ -236,7 +236,7 @@ export default function AdkinsLanding() {
       { q: 'Do you teach adults?', a: 'Absolutely. We have students of all ages and our teachers are experienced working with adult learners. Adults often progress faster than kids because of their focus and life experience.' },
       { q: 'Do I need my own instrument?', a: 'Not necessarily. Some students start without one. During enrollment we will ask and can help you figure out the best path — renting, buying, or borrowing.' },
       { q: 'What if I need to cancel?', a: 'Month to month. Cancel anytime, no questions asked. No contracts, no fees, no drama.' },
-      { q: 'How long are lessons?', a: 'Standard lessons are 30 minutes. Some students do 45 or 60 minute sessions depending on age and level.' },
+      { q: 'How long are lessons?', a: 'Every lesson is a 30-minute block. Book as many blocks as you want—on the days that work for you, with the teacher (or teachers) that fit your goals. Stack blocks back-to-back when you want a longer visit, or spread them across the week. We\'re flexible by design.' },
     ]
     const faqSchema = {
       '@context': 'https://schema.org',
@@ -609,7 +609,7 @@ export default function AdkinsLanding() {
             { q: 'Do you teach adults?', a: 'Absolutely. We have students of all ages and our teachers are experienced working with adult learners. Adults often progress faster than kids because of their focus and life experience. You are not too old. Book a first session and see for yourself.' },
             { q: 'Do I need my own instrument?', a: 'Not necessarily. Some students start without one. During enrollment we will ask and can help you figure out the best path — renting, buying, or borrowing.' },
             { q: 'What if I need to cancel?', a: 'Month to month. Cancel anytime, no questions asked. No contracts, no fees, no drama.' },
-            { q: 'How long are lessons?', a: 'Standard lessons are 30 minutes. Some students do 45 or 60 minute sessions depending on age and level.' },
+            { q: 'How long are lessons?', a: 'Every lesson is a 30-minute block. Book as many blocks as you want—on the days that work for you, with the teacher (or teachers) that fit your goals. Stack blocks back-to-back when you want a longer visit, or spread them across the week. We\'re flexible by design.' },
           ].map((f, i) => (
             <div className="ak-faq-card" key={i}>
               <h3 className="ak-faq-q">{f.q}</h3>
@@ -736,7 +736,7 @@ export default function AdkinsLanding() {
           </div>
         </nav>
 
-        <div className="ak-fpow">Powered by <span>Lessonpreneur</span></div>
+        <div className="ak-fpow">Powered by <span>ZiroWork</span></div>
       </footer>
 
       {/* CORNELIUS MASCOT */}

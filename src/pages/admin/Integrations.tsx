@@ -48,7 +48,7 @@ const INTEGRATIONS: IntegrationDef[] = [
   { id: 'quo', name: 'QUO', category: 'Communication', description: 'Two-way SMS messaging with families.', icon: 'message' },
   { id: 'slack', name: 'Slack', category: 'Communication', description: 'Get real-time alerts and team notifications.', icon: 'message' },
   // Billing & Accounting
-  { id: 'square', name: 'Square', category: 'Billing & Accounting', description: 'Process payments and manage transactions.', icon: 'credit' },
+  { id: 'square', name: 'Square', category: 'Billing & Accounting', description: 'Card and invoice payments; Lessonpreneur owns schedules and billing rules.', icon: 'credit' },
   { id: 'stripe', name: 'Stripe', category: 'Billing & Accounting', description: 'Subscription billing and payment processing.', icon: 'credit' },
   { id: 'quickbooks', name: 'QuickBooks', category: 'Billing & Accounting', description: 'Sync revenue and expenses for accounting.', icon: 'credit' },
   // Automation Tools

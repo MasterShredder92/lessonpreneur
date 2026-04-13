@@ -19,7 +19,7 @@
 
 ## 1. Lessonpreneur (LP) — B2B SaaS
 
-**What it replaces:** Square scheduling, Google Drive, Make/n8n scattered workflows, My Music Staff, Jackrabbit, Opus1, Google Sheets.
+**What it replaces:** Disconnected scheduling and spreadsheets, Google Drive, Make/n8n scattered workflows, My Music Staff, Jackrabbit, Opus1, Google Sheets. (Square may remain the payment processor; LP owns schedules and billing logic.)
 
 **What it covers:** Leads, scheduling, students, teachers, billing, two-way SMS (QUO), automation (n8n), and AI-powered growth tools.
 

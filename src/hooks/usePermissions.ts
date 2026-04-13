@@ -112,6 +112,11 @@ export function usePermissions() {
   const canViewTeacherCompensation = isOwner || isCompanyDirector
   const canViewTeacherDocuments = isOwner || isCompanyDirector
 
+  // Ziro access — hard policy. Mirrors edge-function enforcement.
+  // owner / admin / company_director / studio_director only.
+  // teachers / parents / students get NO Ziro access path.
+  const canUseZiro = isOwner || isCompanyDirector || isStudioDirector
+
   return {
     canDo, isAtLeast,
     role: effectiveRole, // exposed role is always the effective one
@@ -124,6 +129,7 @@ export function usePermissions() {
     isPreviewActive: preview.active,
     canViewTeacherCompensation,
     canViewTeacherDocuments,
+    canUseZiro,
   }
 }
 

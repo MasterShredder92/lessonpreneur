@@ -26,10 +26,10 @@ Create `.env` in the project root:
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_SQUARE_ACCESS_TOKEN=your-square-token
-VITE_SQUARE_APP_ID=your-square-app-id
 VITE_W9_ENCRYPTION_KEY=your-encryption-key
 ```
+
+**Square (Edge Functions only — never put the access token in `VITE_*`):** In Supabase Dashboard → **Project Settings → Edge Functions → Secrets**, set `SQUARE_ACCESS_TOKEN` to your production access token. Optional: `SYNC_SECRET` for non-browser callers to `square-payment-sync`.
 
 ## Roles
 

@@ -34,6 +34,7 @@ export default function DuplicateStudentReviewPanel({
   maxItems = 6,
   className,
   style,
+  onResolved,
 }: DuplicateReviewPanelProps) {
   const navigate = useNavigate()
   const { tenantId } = useAuthContext()

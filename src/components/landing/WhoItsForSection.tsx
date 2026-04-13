@@ -73,7 +73,7 @@ export default function WhoItsForSection() {
           marginBottom: '32px',
         }}
       >
-        Lessonpreneur was built for exactly this kind of owner.
+        Lessonpreneur by ZiroWork was built for exactly this kind of owner.
       </p>
 
       <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -96,7 +96,7 @@ export default function ChaosStackSection() {
           marginRight: 'auto',
         }}
       >
-        Lessonpreneur was built to fix every single one of those. By someone who lived all of them.
+        Lessonpreneur by ZiroWork was built to fix every single one of those. By someone who lived all of them.
       </p>
     </section>
   )

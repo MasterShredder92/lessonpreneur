@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Download } from 'lucide-react'
+import { ZW } from '../../config/zwBrand'
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
@@ -43,8 +44,8 @@ export default function InstallPrompt() {
     }}>
       <Download size={18} style={{ color: '#f59e0b', flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>Install Lessonpreneur</div>
-        <div style={{ fontSize: 11, color: '#8080A8' }}>Add to your home screen for the best experience</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4' }}>Install {ZW.product}</div>
+        <div style={{ fontSize: 11, color: '#8080A8' }}>{ZW.poweredBy} · Add to your home screen</div>
       </div>
       <button onClick={handleInstall} style={{
         padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700,

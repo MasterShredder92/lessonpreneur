@@ -7,8 +7,8 @@ import { useLocationTracking } from '../hooks/useLocationTracking'
 import { trackLead, trackEnrollmentStarted, trackStudentNameEntered, trackInstrumentSelected, trackAdditionalStudentAdded } from '../lib/tracking'
 import { MapPin } from 'lucide-react'
 import { LOCATIONS, type LocKey } from '../config/locations'
-import { supabase } from '../lib/supabase'
 import { SCHOOL_CONFIG } from '../config/school'
+import { ZW } from '../config/zwBrand'
 import { EDGE_FUNCTIONS } from '../lib/config'
 import { safeFetch } from '../lib/safeFetch'
 import { useLocationHours } from '../hooks/useLocationHours'
@@ -426,97 +426,18 @@ export default function SignupLanding() {
         students,
       }
 
-      // Primary path: edge function
-      let success = false
-      try {
-        const result = await safeFetch<{ success?: boolean; error?: string }>(
-          EDGE_FUNCTIONS.publicLeadSubmit,
-          { body: payload, skipAuth: true, timeoutMs: 15_000 },
+      const result = await safeFetch<{
+        success?: boolean
+        error?: string
+        lead_id?: string
+        intake_submission_id?: string
+      }>(EDGE_FUNCTIONS.publicLeadSubmit, { body: payload, skipAuth: true, timeoutMs: 15_000 })
+
+      if (!result.success) {
+        throw new Error(
+          result.error ||
+            'We could not save your enrollment. Please try again in a moment or call the studio directly.',
         )
-        if (!result.success) throw new Error(result.error || 'Submission failed. Trying backup...')
-        success = true
-      } catch (edgeErr) {
-        console.warn('Edge function failed, using direct insert fallback:', edgeErr)
-      }
-
-      // Fallback: direct Supabase insert if edge function fails
-      if (!success) {
-        try {
-          // Look up tenant
-          const { data: tenant } = await supabase
-            .from('tenants')
-            .select('id')
-            .eq('slug', SCHOOL_CONFIG.slug)
-            .single()
-          if (!tenant) throw new Error('Could not resolve school')
-
-          // Check for existing family or create one
-          let familyId: string | null = null
-          const cleanEmail = email.trim().toLowerCase()
-          const { data: existingFamily } = await supabase
-            .from('families')
-            .select('id')
-            .eq('primary_email', cleanEmail)
-            .limit(1)
-            .single()
-
-          if (existingFamily) {
-            familyId = existingFamily.id
-          } else {
-            const familyContactName = (forSelf ? fullName : parentName).trim()
-            const nameParts = familyContactName.split(' ')
-            const { data: newFamily } = await supabase
-              .from('families')
-              .insert({
-                name: `${nameParts[nameParts.length - 1]} Family`,
-                parent_name: familyContactName,
-                primary_email: cleanEmail,
-                primary_phone: phone.trim(),
-                is_military: isMilitary,
-                tenant_id: tenant.id,
-                billing_status: 'active',
-              })
-              .select('id')
-              .single()
-            if (newFamily) familyId = newFamily.id
-          }
-
-          // Insert lead
-          const { error: leadErr } = await supabase
-            .from('leads')
-            .insert({
-              tenant_id: tenant.id,
-              location_id: locId,
-              family_id: familyId,
-              stage: 'inquiry',
-              source: 'website_form',
-              how_heard: referralSource || 'website_form',
-              first_name: payload.first_name,
-              last_name: payload.last_name,
-              student_name: payload.student_name,
-              parent_name: payload.parent_name,
-              email: cleanEmail,
-              phone: phone.trim(),
-              instrument: payload.instrument,
-              age_range: payload.age_range,
-              experience: payload.experience,
-              preferred_days: payload.preferred_days,
-              preferred_locations: payload.preferred_locations,
-              secondary_location_ids: payload.secondary_location_ids,
-              has_instrument: payload.has_instrument,
-              personality_notes: payload.personality_notes,
-              goals: payload.goals,
-              is_military: isMilitary,
-              compatibility_score: payload.compatibility_score,
-              matched_teacher_id: payload.matched_teacher_id,
-            })
-
-          if (leadErr) throw new Error(`Failed to save: ${leadErr.message}`)
-          success = true
-        } catch (fallbackErr: any) {
-          console.error('Fallback insert also failed:', fallbackErr)
-          throw new Error(fallbackErr?.message || 'We could not save your information. Please call us directly.')
-        }
       }
 
       const allInstruments = [...selectedInstruments, ...additionalStudents.flatMap(s => s.instruments)]
@@ -1242,6 +1163,23 @@ export default function SignupLanding() {
         {step === 5 && renderStep5()}
         {step === 6 && renderStep6()}
       </div>
+
+      <footer
+        className="signup-zw-footer"
+        style={{
+          textAlign: 'center',
+          padding: '20px 16px 28px',
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: 'rgba(255,255,255,0.28)',
+        }}
+      >
+        {ZW.musicSchoolsPowered}
+        <span style={{ margin: '0 0.6em', opacity: 0.5 }}>·</span>
+        {ZW.poweredBy}
+      </footer>
     </div>
   )
 }

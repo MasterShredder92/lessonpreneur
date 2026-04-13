@@ -4,7 +4,7 @@
  * Called by the unauthenticated signup page to match a prospective student
  * with available teachers. Uses the service role key to bypass RLS.
  *
- * Returns ONLY safe, customer-facing data — no IDs, rates, or internal notes.
+ * Customer-facing match summary; matched_teacher.id is required for signup submit.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -60,6 +60,17 @@ Deno.serve(async (req) => {
       return json({ success: false, error: 'Unknown school' }, 400)
     }
 
+    const { data: locRow, error: locErr } = await sb
+      .from('locations')
+      .select('id')
+      .eq('id', location_id)
+      .eq('tenant_id', tenant.id)
+      .maybeSingle()
+
+    if (locErr || !locRow) {
+      return json({ success: false, error: 'Invalid location for this school' }, 400)
+    }
+
     // ── Get active teachers with their match-relevant data ──
     const { data: teachers, error: teacherErr } = await sb
       .from('teachers')
@@ -93,7 +104,7 @@ Deno.serve(async (req) => {
     const teacherList = teachers ?? []
     const availList = availability ?? []
 
-    console.log(`[public-teacher-match] ${teacherList.length} teachers, ${availList.length} availability rows at location ${location_id}`)
+    console.log(`[public-teacher-match] teachers=${teacherList.length} availability_rows=${availList.length}`)
 
     // ── Build availability map: teacher_id → Set<day_of_week> ──
     const availMap = new Map<string, Set<string>>()

@@ -15,11 +15,11 @@ export interface DuplicateReviewRow {
   created_at: string
 }
 
-async function tryApplyFamilyTier(familyId: string) {
-  try {
-    await supabase.rpc('apply_family_rate_tier', { p_family_id: familyId })
-  } catch {
-    // Optional RPC on some deployments
+/** Post-merge / keep-separate: ensure DB tier matches roster. Supabase RPC returns { error }, it does not throw. */
+async function applyFamilyRateTierAfterDuplicateResolve(familyId: string) {
+  const { error } = await supabase.rpc('apply_family_rate_tier', { p_family_id: familyId })
+  if (error) {
+    console.error('[billing] apply_family_rate_tier failed after duplicate resolve', error.message, familyId)
   }
 }
 
@@ -65,7 +65,12 @@ export function useResolveStudentDuplicateReview() {
       await qc.invalidateQueries({ queryKey: qk.families.page })
       await qc.invalidateQueries({ queryKey: qk.leads.all })
       const fid = (data as { family_id?: string } | null)?.family_id
-      if (fid) await tryApplyFamilyTier(fid)
+      if (fid) {
+        await applyFamilyRateTierAfterDuplicateResolve(fid)
+        await qc.invalidateQueries({ queryKey: qk.families.rate(fid) })
+        await qc.invalidateQueries({ queryKey: qk.families.invStudents(fid) })
+        await qc.invalidateQueries({ queryKey: qk.families.detail(fid) })
+      }
     },
   })
 }

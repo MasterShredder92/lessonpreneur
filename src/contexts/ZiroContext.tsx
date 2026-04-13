@@ -49,7 +49,7 @@ const ZiroShellContext = createContext<ZiroShellContextValue | null>(null)
 export function ZiroShellProvider({ children }: { children: ReactNode }) {
   const { pathname, search } = useLocation()
   const { tenantId } = useAuthContext()
-  const { role, locationIds, isStudioDirector } = usePermissions()
+  const { role, locationIds, isStudioDirector, canUseZiro } = usePermissions()
   const [pageContext, setPageState] = useState<ZiroPageContext>({})
   const [panelOpen, setPanelOpen] = useState(false)
   const [pendingSeedMessage, setPendingSeedMessage] = useState<string | null>(null)
@@ -58,18 +58,29 @@ export function ZiroShellProvider({ children }: { children: ReactNode }) {
     setPageState({})
   }, [pathname, search])
 
+  // Hard gate: if a forbidden role somehow has panel state set true (e.g.,
+  // from a stale render or prior session), force it closed.
+  useEffect(() => {
+    if (!canUseZiro && panelOpen) setPanelOpen(false)
+  }, [canUseZiro, panelOpen])
+
   const clearPendingSeed = useCallback(() => setPendingSeedMessage(null), [])
 
   const openPanel = useCallback((opts?: OpenZiroAssistantOptions) => {
+    if (!canUseZiro) return // hard fail-closed
     if (opts?.seedMessage) setPendingSeedMessage(opts.seedMessage)
     setPanelOpen(true)
-  }, [])
+  }, [canUseZiro])
 
   const closePanel = useCallback(() => setPanelOpen(false), [])
-  const togglePanel = useCallback(() => setPanelOpen((o) => !o), [])
+  const togglePanel = useCallback(() => {
+    if (!canUseZiro) return // hard fail-closed
+    setPanelOpen((o) => !o)
+  }, [canUseZiro])
 
   useEffect(() => {
     const open = (e: Event) => {
+      if (!canUseZiro) return // hard fail-closed: forbidden roles can't open via event
       const d = (e as CustomEvent<OpenZiroAssistantOptions>).detail
       if (d?.seedMessage) setPendingSeedMessage(d.seedMessage)
       setPanelOpen(true)
@@ -80,7 +91,7 @@ export function ZiroShellProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('open-ai-panel', open)
       window.removeEventListener('open-ziro-panel', open)
     }
-  }, [])
+  }, [canUseZiro])
 
   const setPageContext = useCallback(
     (patch: Partial<ZiroPageContext> | ((prev: ZiroPageContext) => ZiroPageContext)) => {

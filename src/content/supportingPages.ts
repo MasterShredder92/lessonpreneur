@@ -165,7 +165,7 @@ export const privateLessonsPage: SupportingPageContent = {
     {
       heading: 'How Private Lessons Work',
       body: [
-        'Each session is 30 or 60 minutes, depending on the student\'s age, level, and preference. Lessons happen at the same time each week at one of our four studio locations. Your teacher prepares specifically for your lesson — reviewing your progress, selecting new material, and planning exercises that address exactly where you are right now.',
+        'Each lesson is a 30-minute block. Book one or stack several—same day or different days, one teacher or more than one when it helps. Most students keep a recurring weekly time at one of our four studio locations. Your teacher prepares for every block — reviewing your progress, selecting new material, and planning exercises that address exactly where you are right now.',
         'Between lessons, students have clear practice goals. Your teacher assigns specific exercises and pieces to work on, so practice time at home is focused and productive rather than aimless.',
       ],
     },
@@ -184,7 +184,7 @@ export const privateLessonsPage: SupportingPageContent = {
       ],
       faqs: [
         { q: 'What instruments do you offer private lessons in?', a: 'Piano, guitar, vocals, drums, violin, bass guitar, flute, and other band instruments. All lessons are private and one-on-one.' },
-        { q: 'How long is each private lesson?', a: 'Sessions are 30 minutes or 60 minutes. Younger beginners typically start with 30-minute lessons. Advancing students and adults often prefer 60-minute sessions.' },
+        { q: 'How long is each private lesson?', a: 'Every lesson is a 30-minute block. You choose how many blocks to book—stack them for a longer visit or spread them across the week, with one teacher or several. We\'re flexible by design.' },
         { q: 'Do you require contracts for private lessons?', a: 'No. Enrollment is month-to-month at all four locations. There are no semester commitments, no registration fees, and no cancellation penalties.' },
         { q: 'How are students matched with teachers?', a: 'We match students based on goals, learning style, personality, and scheduling. The right teacher-student pairing is one of the most important factors in long-term success, and we take it seriously.' },
         { q: 'Where are your studios?', a: 'We have private lesson studios in Omaha, Bellevue, Elkhorn, and Gretna — four convenient locations across the metro area.' },

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { qk } from '../lib/queryKeys'
+import { useAuthContext } from '../app/AuthContext'
 
 export interface ScheduleInsight {
   type: 'utilization' | 'coverage' | 'opportunity'
@@ -33,20 +34,37 @@ const LOCATION_COLORS: Record<string, string> = {
   '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#00A651',
 }
 
-export function useScheduleIntelligence(weekStart: string, weekEnd: string) {
+export function useScheduleIntelligence(
+  weekStart: string,
+  weekEnd: string,
+  opts?: { tenantId?: string | null; locationIds?: string[] | null },
+) {
+  const { tenantId: authTenant } = useAuthContext()
+  const tenantId = opts?.tenantId ?? authTenant
+  const locationIds = opts?.locationIds
+  const scopeKey = locationIds === null || locationIds === undefined ? 'all' : locationIds.join(',')
+
   return useQuery<{ utilization: LocationUtilization[]; overall: OverallUtilization; insights: ScheduleInsight[] }>({
-    queryKey: [...qk.schedule.intelligence, weekStart, weekEnd],
-    enabled: !!weekStart && !!weekEnd,
+    queryKey: [...qk.schedule.intelligence, weekStart, weekEnd, tenantId, scopeKey],
+    enabled: !!weekStart && !!weekEnd && !!tenantId && (locationIds === null || locationIds === undefined || locationIds.length > 0),
     staleTime: 60_000,
     queryFn: async () => {
-      // Get all blocks for the week
-      const { data: blocks } = await supabase
+      let blockQuery = supabase
         .from('schedule_blocks')
         .select('id, status, location_id, teacher_id, student_id, block_date, block_type')
+        .eq('tenant_id', tenantId!)
         .gte('block_date', weekStart)
         .lte('block_date', weekEnd)
+      if (locationIds && locationIds.length > 0) {
+        blockQuery = blockQuery.in('location_id', locationIds)
+      }
+      const { data: blocks } = await blockQuery
 
-      const { data: locations } = await supabase.from('locations').select('id, name').eq('is_active', true)
+      let locQuery = supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).eq('is_active', true)
+      if (locationIds && locationIds.length > 0) {
+        locQuery = locQuery.in('id', locationIds)
+      }
+      const { data: locations } = await locQuery
       const locMap = new Map((locations ?? []).map(l => [l.id, l.name?.replace(' Music Lessons', '') ?? '']))
 
       // Calculate utilization per location

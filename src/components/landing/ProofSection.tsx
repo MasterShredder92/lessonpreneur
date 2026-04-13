@@ -1,4 +1,5 @@
 import { COLORS, FONT, GlassCard, sectionStyle } from './shared'
+import { ZW } from '../../config/zwBrand'
 
 export default function ProofSection() {
   return (
@@ -30,7 +31,7 @@ export default function ProofSection() {
               margin: 0,
             }}
           >
-            LP is currently in active beta inside Adkins Music Lessons — four locations, 600+
+            {ZW.productByline} is currently in active beta inside Adkins Music Lessons — four locations, 600+
             active students, 40+ teachers. Every feature you see was built, tested, and refined in
             a real music school before it was ever offered to anyone else.
           </p>

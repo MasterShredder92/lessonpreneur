@@ -96,10 +96,12 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
   const { tenantId, profile } = useAuthContext()
   const ziroShell = useZiroShell()
   const { pendingSeedMessage, clearPendingSeed } = ziroShell
-  const { data: starContext, isLoading: starCtxLoading, isFetching: starCtxFetching } = useZiroGlobalContext()
+  const { data: starContext, isLoading: starCtxLoading, isFetching: starCtxFetching, error: starCtxError } = useZiroGlobalContext()
   const theme = useTheme()
 
-  const starSnapshotReady = !starCtxLoading && !starCtxFetching
+  // Gate only on initial load — allow background refetches to proceed without blocking the UI.
+  // Also treat errors as "ready" so the panel degrades gracefully instead of hanging.
+  const starSnapshotReady = !starCtxLoading || !!starCtxError
   const businessSystemPrompt = useMemo(() => {
     if (!starSnapshotReady) return ZIRO_BUSINESS_LOADING_PROMPT
     const base =
@@ -523,7 +525,7 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
                   )}
                   <div style={{
                     maxWidth: '88%', padding: '10px 14px', borderRadius: 12,
-                    fontSize: 13, lineHeight: 1.65, whiteSpace: 'pre-wrap',
+                    fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap',
                     ...(msg.role === 'user'
                       ? { background: 'rgba(212,34,106,0.12)', border: '1px solid rgba(212,34,106,0.2)', color: '#fff' }
                       : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)' }),

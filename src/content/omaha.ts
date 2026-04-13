@@ -7,7 +7,7 @@ export const omahaContent: LocationSEOContent = {
     body: [
       'Omaha Music Lessons offers private, one-on-one instruction in piano, guitar, vocals, drums, and more at our studio near 96th and L Street. We serve students from across the Omaha metro — from Aksarben Village and Millard to Ralston, Papillion, and everywhere in between.',
       'Every student gets a dedicated instructor matched to their goals, learning style, and personality. Whether your child is picking up an instrument for the first time or you\'re an adult returning to music after years away, our Omaha studio provides a structured, encouraging environment where real progress happens week after week.',
-      'We teach all ages, all skill levels, and all genres. Lessons run 30 or 60 minutes, and scheduling is flexible enough to work around school, sports, and work. No long-term contracts — just consistent, high-quality private instruction from teachers who care about every student\'s growth.',
+      'We teach all ages, all skill levels, and all genres. Every lesson is a 30-minute block—book as many as you want, on the days that work for you, with the teachers that fit your goals. Scheduling bends around school, sports, and work. No long-term contracts — just consistent, high-quality private instruction from teachers who care about every student\'s growth.',
       'Founded by Zachary Adkins, Adkins Music Lessons started right here in Omaha. What began as a handful of students has grown into a multi-location music school serving hundreds of families across the metro area. Omaha is where it all started, and it remains the heart of everything we do.',
     ],
   },

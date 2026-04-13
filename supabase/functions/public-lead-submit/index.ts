@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,6 +13,57 @@ function json(body: Record<string, unknown>, status = 200) {
   })
 }
 
+/** Reject cross-tenant FK injection: location(s) and optional teacher must belong to tenant. */
+async function assertTenantScopedPayload(
+  supabase: SupabaseClient,
+  tenantId: string,
+  body: Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const locationId = body.location_id as string
+
+  const { data: loc, error: locErr } = await supabase
+    .from('locations')
+    .select('id')
+    .eq('id', locationId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+
+  if (locErr || !loc) {
+    return { ok: false, error: 'Invalid location for this school' }
+  }
+
+  const secondary = body.secondary_location_ids
+  if (Array.isArray(secondary) && secondary.length > 0) {
+    for (const sid of secondary) {
+      if (typeof sid !== 'string') continue
+      const { data: sLoc } = await supabase
+        .from('locations')
+        .select('id')
+        .eq('id', sid)
+        .eq('tenant_id', tenantId)
+        .maybeSingle()
+      if (!sLoc) {
+        return { ok: false, error: 'Invalid secondary location for this school' }
+      }
+    }
+  }
+
+  const teacherId = body.matched_teacher_id
+  if (teacherId != null && teacherId !== '') {
+    const { data: t, error: tErr } = await supabase
+      .from('teachers')
+      .select('id')
+      .eq('id', teacherId as string)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+    if (tErr || !t) {
+      return { ok: false, error: 'Invalid teacher for this school' }
+    }
+  }
+
+  return { ok: true }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders })
@@ -23,7 +74,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = await req.json()
+    const body = await req.json() as Record<string, unknown>
 
     // ── Validate required fields ──
     const { school_slug, location_id, first_name, email, phone } = body
@@ -37,13 +88,11 @@ Deno.serve(async (req) => {
       return json({ success: false, error: `Missing required fields: ${missing.join(', ')}` }, 400)
     }
 
-    // ── Init Supabase with service role (bypasses RLS) ──
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // ── Resolve tenant from slug ──
     const { data: tenant, error: tenantErr } = await supabase
       .from('tenants')
       .select('id')
@@ -56,7 +105,32 @@ Deno.serve(async (req) => {
 
     const tenantId = tenant.id
 
-    // ── Build notes from students array ──
+    const scope = await assertTenantScopedPayload(supabase, tenantId, body)
+    if (!scope.ok) {
+      return json({ success: false, error: scope.error }, 400)
+    }
+
+    // ── Immutable intake row (source of truth) ──
+    const { data: intakeRow, error: intakeErr } = await supabase
+      .from('intake_submissions')
+      .insert({
+        tenant_id: tenantId,
+        location_id: location_id as string,
+        source: (body.source as string) || 'website_form',
+        form_version: '1',
+        raw_payload: body,
+        lead_ids: [],
+      })
+      .select('id')
+      .single()
+
+    if (intakeErr || !intakeRow) {
+      console.error('intake_submissions insert failed:', intakeErr?.code, intakeErr?.message)
+      return json({ success: false, error: 'Failed to record intake' }, 500)
+    }
+
+    const intakeSubmissionId = intakeRow.id
+
     const students: Array<{
       name?: string
       instrument?: string
@@ -78,21 +152,37 @@ Deno.serve(async (req) => {
         .join('\n')
     }
 
-    // ── Check for existing family by email ──
     let familyId: string | null = null
-    const cleanEmail = email.trim().toLowerCase()
+    const cleanEmail = (email as string).trim().toLowerCase()
+    const phoneDigits = String(phone as string).replace(/\D/g, '')
 
-    const { data: existingFamily } = await supabase
+    const { data: existingByEmail } = await supabase
       .from('families')
       .select('id')
       .eq('primary_email', cleanEmail)
+      .eq('tenant_id', tenantId)
       .limit(1)
-      .single()
+      .maybeSingle()
 
-    if (existingFamily) {
-      familyId = existingFamily.id
-    } else if (body.parent_name || first_name) {
-      const contactName = (body.parent_name || first_name).trim()
+    if (existingByEmail) {
+      familyId = existingByEmail.id
+    } else if (phoneDigits.length >= 10) {
+      const { data: familiesForPhone } = await supabase
+        .from('families')
+        .select('id, primary_phone')
+        .eq('tenant_id', tenantId)
+        .not('primary_phone', 'is', null)
+        .limit(500)
+
+      const match = familiesForPhone?.find((f: { id: string; primary_phone: string | null }) => {
+        const d = String(f.primary_phone ?? '').replace(/\D/g, '')
+        return d.length >= 10 && d === phoneDigits
+      })
+      if (match) familyId = match.id
+    }
+
+    if (!familyId && (body.parent_name || first_name)) {
+      const contactName = ((body.parent_name as string) || (first_name as string)).trim()
       const nameParts = contactName.split(' ')
       const familyName = `${nameParts[nameParts.length - 1]} Family`
 
@@ -102,8 +192,8 @@ Deno.serve(async (req) => {
           name: familyName,
           parent_name: contactName,
           primary_email: cleanEmail,
-          primary_phone: phone.trim(),
-          is_military: body.is_military || false,
+          primary_phone: (phone as string).trim(),
+          is_military: Boolean(body.is_military),
           tenant_id: tenantId,
           billing_status: 'active',
         })
@@ -115,24 +205,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Generate submission_id for multi-student batches ──
     const submissionId = students.length > 1 ? crypto.randomUUID() : null
 
-    // ── Insert primary lead ──
-    const lead: Record<string, unknown> = {
+    const leadBase: Record<string, unknown> = {
       tenant_id: tenantId,
       location_id,
       family_id: familyId,
       submission_id: submissionId,
+      intake_submission_id: intakeSubmissionId,
       stage: 'inquiry',
       source: body.source || 'website_form',
       how_heard: body.referral_source || body.source || 'website_form',
-      first_name: first_name.trim(),
-      last_name: body.last_name?.trim() || null,
-      student_name: body.student_name?.trim() || first_name.trim(),
-      parent_name: body.parent_name?.trim() || null,
+      first_name: (first_name as string).trim(),
+      last_name: (body.last_name as string | undefined)?.trim() || null,
+      student_name: (body.student_name as string | undefined)?.trim() || (first_name as string).trim(),
+      parent_name: (body.parent_name as string | undefined)?.trim() || null,
       email: cleanEmail,
-      phone: phone.trim(),
+      phone: (phone as string).trim(),
       instrument: body.instrument || firstStudent.instrument || null,
       age_range: body.age_range || null,
       experience: body.experience || null,
@@ -142,7 +231,7 @@ Deno.serve(async (req) => {
       has_instrument: body.has_instrument || null,
       personality_notes: body.personality_notes || firstStudent.personality_notes || null,
       goals: body.goals || firstStudent.goals || null,
-      is_military: body.is_military || false,
+      is_military: Boolean(body.is_military),
       compatibility_score: body.compatibility_score || null,
       matched_teacher_id: body.matched_teacher_id || null,
       notes: notes || null,
@@ -150,36 +239,48 @@ Deno.serve(async (req) => {
 
     const { data: inserted, error: leadErr } = await supabase
       .from('leads')
-      .insert(lead)
+      .insert(leadBase)
       .select('id')
       .single()
 
     if (leadErr) {
-      console.error('Lead insert error:', leadErr)
+      console.error('Lead insert error:', leadErr.code)
       return json({ success: false, error: 'Failed to create lead' }, 500)
     }
 
-    // ── Insert additional student leads ──
+    const allLeadIds: string[] = [inserted.id]
+
     if (students.length > 1) {
       for (const student of students.slice(1)) {
-        await supabase.from('leads').insert({
-          ...lead,
-          student_name: student.name?.trim() || null,
-          first_name: student.name?.split(' ')[0]?.trim() || first_name.trim(),
-          last_name: student.name?.split(' ').slice(1).join(' ')?.trim() || null,
-          instrument: student.instrument || null,
-          personality_notes: student.personality_notes || null,
-          goals: student.goals || null,
-          compatibility_score: null,
-          matched_teacher_id: null,
-          notes: null,
-        })
+        const { data: subLead, error: subErr } = await supabase
+          .from('leads')
+          .insert({
+            ...leadBase,
+            student_name: student.name?.trim() || null,
+            first_name: student.name?.split(' ')[0]?.trim() || (first_name as string).trim(),
+            last_name: student.name?.split(' ').slice(1).join(' ')?.trim() || null,
+            instrument: student.instrument || null,
+            personality_notes: student.personality_notes || null,
+            goals: student.goals || null,
+            compatibility_score: null,
+            matched_teacher_id: null,
+            notes: null,
+          })
+          .select('id')
+          .single()
+        if (!subErr && subLead?.id) allLeadIds.push(subLead.id)
+        if (subErr) console.error('Secondary lead insert error:', subErr.code)
       }
     }
 
-    return json({ success: true, lead_id: inserted.id })
+    await supabase
+      .from('intake_submissions')
+      .update({ lead_ids: allLeadIds })
+      .eq('id', intakeSubmissionId)
+
+    return json({ success: true, lead_id: inserted.id, intake_submission_id: intakeSubmissionId })
   } catch (err) {
-    console.error('Unexpected error:', err)
+    console.error('Unexpected error:', err instanceof Error ? err.name : 'unknown')
     return json({ success: false, error: 'Internal server error' }, 500)
   }
 })

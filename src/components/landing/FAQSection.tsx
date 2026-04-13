@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { COLORS, FONT, sectionStyle } from './shared'
+import { ZW } from '../../config/zwBrand'
 
 const FAQS = [
   {
     q: "I'm already on Square. Do I have to leave it?",
-    a: 'No. LP connects with Square. You keep your payment processor. LP adds visibility, automation, and control on top of what you already have. Nothing gets ripped out.',
+    a: `No. ${ZW.product} works with Square for payments. You keep your payment processor. ${ZW.product} is where your school actually runs — schedules, students, and billing logic — with visibility and control in one place. Nothing gets ripped out.`,
   },
   {
     q: 'What happens to my current student data?',
@@ -12,11 +13,11 @@ const FAQS = [
   },
   {
     q: "I'm not technical. Will this be hard to learn?",
-    a: 'LP was built for operators, not developers. If you can run a group text and update a spreadsheet, you can run LP.',
+    a: `${ZW.product} was built for operators, not developers. If you can run a group text and update a spreadsheet, you can run ${ZW.product}.`,
   },
   {
     q: 'Is this ready, or is it still being built?',
-    a: "LP is running in production in Zach's own schools right now — four locations, 600+ students, 40+ teachers. You're getting access to the exact system he uses every day.",
+    a: `${ZW.product} is running in production in Zach's own schools right now — four locations, 600+ students, 40+ teachers. You're getting access to the exact system he uses every day.`,
   },
   {
     q: 'What happens after 60 days?',
@@ -24,9 +25,9 @@ const FAQS = [
   },
   {
     q: 'I only have one location and 30 students. Is this overkill?',
-    a: "LP scales down just as well as it scales up. Solo owners and single-location schools are exactly who it was designed for first. It grows with you when you're ready.",
+    a: `${ZW.product} scales down just as well as it scales up. Solo owners and single-location schools are exactly who it was designed for first. It grows with you when you're ready.`,
   },
-]
+] as const
 
 export default function FAQSection() {
   const [open, setOpen] = useState<number>(0)

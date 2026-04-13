@@ -27,7 +27,7 @@ four-location music school, $1M+/year revenue.
 - Vercel — deployment (vercel --prod for manual deploys)
 - n8n — automation workflows
 - QUO SMS — two-way SMS communication
-- Square — billing processor only (LP is source of truth)
+- Square — payment processor and payment/invoice status only (LP owns schedules, students, and billing logic)
 - SignWell — contracts and document signing
 - GitHub: MasterShredder92/lessonpreneur
 

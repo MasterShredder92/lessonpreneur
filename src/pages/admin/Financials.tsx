@@ -1,14 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
 import { useAuthContext } from '../../app/AuthContext'
-import { usePLSummary, useExpenses, useCreateExpense, useDeleteExpense, EXPENSE_CATEGORIES } from '../../hooks/useFinancials'
+import {
+  usePLSummary,
+  useExpenses,
+  useCreateExpense,
+  useDeleteExpense,
+  EXPENSE_CATEGORIES,
+  usePaymentFactsSummary,
+  useSyncSquarePaymentFacts,
+  getCurrentMonthKey,
+  shiftMonthKey,
+  monthKeyToDateRange,
+  monthKeyToSyncWindowIso,
+} from '../../hooks/useFinancials'
 import { useLocations } from '../../hooks/useLocations'
 import { toast } from '../../components/shared/Toast'
 import MusicLoader from '../../components/shared/MusicLoader'
-import { Plus, Trash2, DollarSign, Download } from 'lucide-react'
+import { Plus, Trash2, Download, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { exportFinancials } from '../../hooks/useExport'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 
+/** Whole dollars — location comparison & non-metric lines */
 function dollars(cents: number): string {
   if (!cents) return '$0'
   return `$${(Math.abs(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -18,6 +31,42 @@ function dollarsFull(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+/** Metric cards — always USD with cents for scan consistency */
+function moneyMetric(cents: number): string {
+  const abs = Math.abs(cents) / 100
+  const s = abs.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return cents < 0 ? `−${s}` : s
+}
+
+function formatMonthHeading(monthKey: string): string {
+  const [y, m] = monthKey.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
+}
+
+/** Short range line under month picker — UTC, matches synced reporting_date */
+function formatUtcMonthRangeLine(monthKey: string): string {
+  const { start, end } = monthKeyToDateRange(monthKey)
+  const s = new Date(`${start}T12:00:00Z`)
+  const e = new Date(`${end}T12:00:00Z`)
+  const a = s.toLocaleString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const b = e.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+  return `Calendar month: ${a} – ${b} · UTC`
+}
+
+function formatUtcYmdLong(ymd: string): string {
+  const d = new Date(`${ymd}T12:00:00Z`)
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
+const glassSection: CSSProperties = {
+  background: 'rgba(255,255,255,0.03)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 16,
+  padding: '22px 22px 20px',
+  marginBottom: 28,
+  boxShadow: '0 8px 40px rgba(0,0,0,0.12)',
+}
+
 const LOCATION_COLORS: Record<string, string> = {
   Omaha: '#D41113', Gretna: '#00A651', Bellevue: '#A333FF', Elkhorn: '#00A5E8',
 }
@@ -25,6 +74,9 @@ const LOCATION_COLORS: Record<string, string> = {
 export default function Financials() {
   const { role, tenantId } = useAuthContext()
   const { data: pl, isLoading: plLoading } = usePLSummary()
+  const [paymentMonthKey, setPaymentMonthKey] = useState(getCurrentMonthKey)
+  const { data: payFacts, isLoading: payLoading, isError: payError, error: payErrorObj } = usePaymentFactsSummary(paymentMonthKey)
+  const syncPaymentFacts = useSyncSquarePaymentFacts()
   const { data: expenses, isLoading: expLoading } = useExpenses()
   const { data: locations } = useLocations()
   const createExpense = useCreateExpense()
@@ -42,12 +94,8 @@ export default function Financials() {
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  if (role !== 'owner' && role !== 'admin') {
-    return <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Owner access only.</div>
-  }
-
-  if (plLoading) {
-    return <div className="page"><div className="page-header"><h1>Financials</h1></div><div style={{ height: 300 }}><MusicLoader /></div></div>
+  if (role !== 'owner' && role !== 'admin' && role !== 'company_director') {
+    return <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Owner, admin, or company director access only.</div>
   }
 
   const marginDelta = pl ? pl.marginPercent - pl.prevMonthMarginPercent : 0
@@ -105,15 +153,446 @@ export default function Financials() {
         <ReportIssueButton />
       </div>
 
-      {/* P&L HERO */}
-      {pl && (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 12, marginBottom: 28 }}>
-          <PLCard label="Gross Revenue" cents={pl.grossRevenueCents} color="#22C55E" compact={isMobile} />
-          <PLCard label="Teacher Payroll" cents={-pl.teacherPayrollCents} color="#fb923c" compact={isMobile} sub={`${((pl.teacherPayrollCents / Math.max(pl.grossRevenueCents, 1)) * 100).toFixed(0)}% of revenue`} />
-          <PLCard label="Operating Expenses" cents={-pl.operatingExpensesCents} color="#EF4444" compact={isMobile} sub={`${Object.keys(pl.expensesByCategory).length} categories`} />
-          {role === 'owner' && <PLCard label="Owner Take-Home" cents={pl.ownerTakeHomeCents} color="#FFB800" compact={isMobile} highlight sub={`${pl.marginPercent.toFixed(1)}% margin${marginDelta !== 0 ? ` (${marginDelta > 0 ? '+' : ''}${marginDelta.toFixed(1)}% vs last month)` : ''}`} />}
+      {/* ── Payment activity (Square facts) — separate from invoice AR below ── */}
+      <div style={glassSection}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 16,
+            marginBottom: 18,
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            paddingBottom: 18,
+          }}
+        >
+          <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#E8E8FC', letterSpacing: '-0.02em' }}>
+                Payment activity
+              </h2>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  color: '#22C55E',
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  background: 'rgba(34,197,94,0.12)',
+                  border: '1px solid rgba(34,197,94,0.28)',
+                }}
+              >
+                Square · synced
+              </span>
+            </div>
+            <p style={{ fontSize: 12, color: '#9090B0', margin: 0, lineHeight: 1.55, maxWidth: 560 }}>
+              Actual card and wallet charges and refunds from Square, matched to your locations. Use this to see cash movement and fees—not tuition invoices.
+            </p>
+          </div>
+
+          <div
+            style={{
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: isMobile ? 'stretch' : 'flex-end',
+              gap: 6,
+              minWidth: isMobile ? '100%' : 220,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                aria-label="Previous month"
+                onClick={() => setPaymentMonthKey(k => shiftMonthKey(k, -1))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.05)',
+                  color: '#D0D0E8',
+                }}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <div style={{ textAlign: 'center', flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#F0F0FA', letterSpacing: '-0.02em' }}>
+                  {formatMonthHeading(paymentMonthKey)}
+                </div>
+                <div style={{ fontSize: 11, color: '#707090', marginTop: 4, fontWeight: 500 }}>
+                  {formatUtcMonthRangeLine(paymentMonthKey)}
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={() => setPaymentMonthKey(k => shiftMonthKey(k, 1))}
+                disabled={paymentMonthKey >= getCurrentMonthKey()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  cursor: paymentMonthKey >= getCurrentMonthKey() ? 'not-allowed' : 'pointer',
+                  opacity: paymentMonthKey >= getCurrentMonthKey() ? 0.35 : 1,
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.05)',
+                  color: '#D0D0E8',
+                }}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+            <span style={{ fontSize: 10, color: '#606078', textAlign: isMobile ? 'center' : 'right' }}>
+              Month filter is the full calendar month; totals only include rows already synced.
+            </span>
+          </div>
         </div>
-      )}
+
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            marginBottom: 16,
+            paddingBottom: 16,
+            borderBottom: '1px solid rgba(255,255,255,0.05)',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 12, color: '#8080A0', maxWidth: 420, lineHeight: 1.5 }}>
+            Pulls read-only payment and refund facts from Square into Lessonpreneur. Does not change invoices or charge anyone.
+          </p>
+          <button
+            type="button"
+            disabled={syncPaymentFacts.isPending}
+            onClick={() => {
+              const win = monthKeyToSyncWindowIso(paymentMonthKey)
+              syncPaymentFacts.mutate(win, {
+                onSuccess: data => {
+                  const p = data?.payments_upserted ?? 0
+                  const r = data?.refunds_upserted ?? 0
+                  const rid = data?.request_id
+                  toast(
+                    `Payment facts updated · ${p} payment rows · ${r} refund rows${rid ? ` · ${rid}` : ''}`,
+                    'success',
+                  )
+                },
+                onError: err => {
+                  toast(err instanceof Error ? err.message : 'Sync failed', 'error')
+                },
+              })
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              flexShrink: 0,
+              padding: '10px 18px',
+              borderRadius: 12,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: syncPaymentFacts.isPending ? 'wait' : 'pointer',
+              opacity: syncPaymentFacts.isPending ? 0.75 : 1,
+              border: '1px solid rgba(212,34,106,0.35)',
+              background: 'rgba(212,34,106,0.12)',
+              color: '#F472B6',
+            }}
+          >
+            <RefreshCw size={16} />
+            {syncPaymentFacts.isPending ? 'Syncing…' : `Sync ${formatMonthHeading(paymentMonthKey)}`}
+          </button>
+        </div>
+
+        {payError && (
+          <div
+            style={{
+              padding: '14px 16px',
+              borderRadius: 12,
+              marginBottom: 16,
+              background: 'rgba(248,113,113,0.08)',
+              border: '1px solid rgba(248,113,113,0.25)',
+              fontSize: 13,
+              color: '#FCA5A5',
+              lineHeight: 1.45,
+            }}
+          >
+            {(payErrorObj as Error)?.message ?? 'Could not load payment activity. Try again or check your connection.'}
+          </div>
+        )}
+
+        {payLoading ? (
+          <div style={{ minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <MusicLoader />
+          </div>
+        ) : payFacts ? (
+          <>
+            {payFacts.paymentRowCount + payFacts.refundRowCount === 0 ? (
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  marginBottom: 18,
+                  background: 'rgba(96,96,128,0.12)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  fontSize: 13,
+                  color: '#B0B0D0',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong style={{ color: '#D8D8F0' }}>No payment data for this month yet.</strong>{' '}
+                Run <strong style={{ color: '#E8E8FC' }}>Sync {formatMonthHeading(paymentMonthKey)}</strong> above to pull Square payment and refund rows for this calendar window (read-only).
+              </div>
+            ) : payFacts.partialCalendarCoverage && payFacts.dataSpanMin && payFacts.dataSpanMax ? (
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  marginBottom: 18,
+                  background: 'rgba(251,191,36,0.08)',
+                  border: '1px solid rgba(251,191,36,0.35)',
+                  fontSize: 13,
+                  color: '#FCD34D',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong style={{ color: '#FDE68A' }}>Partial data for this calendar month.</strong> Rows in Lessonpreneur run{' '}
+                <strong style={{ color: '#FFFBEB' }}>
+                  {formatUtcYmdLong(payFacts.dataSpanMin)} – {formatUtcYmdLong(payFacts.dataSpanMax)}
+                </strong>{' '}
+                (UTC reporting dates). The month selector is the full month (
+                {(() => {
+                  const { start, end } = monthKeyToDateRange(paymentMonthKey)
+                  return `${formatUtcYmdLong(start)} – ${formatUtcYmdLong(end)}`
+                })()}
+                {' '}
+                UTC). Totals below sum only what is stored—missing days were either not synced or had no activity; run <strong style={{ color: '#FFFBEB' }}>Sync</strong> to pull the full month from Square.
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 12,
+                  marginBottom: 18,
+                  background: 'rgba(34,197,94,0.06)',
+                  border: '1px solid rgba(34,197,94,0.22)',
+                  fontSize: 12,
+                  color: '#86EFAC',
+                  lineHeight: 1.45,
+                }}
+              >
+                <strong style={{ color: '#BBF7D0' }}>Data reaches month boundaries.</strong> Reporting dates in synced rows span{' '}
+                {formatUtcYmdLong(payFacts.dataSpanMin!)} through {formatUtcYmdLong(payFacts.dataSpanMax!)} (UTC), matching the full calendar month range. Totals include all synced rows for this month.
+                {payFacts.latestPaymentSyncedAt && (
+                  <span style={{ display: 'block', marginTop: 8, fontSize: 11, color: '#6EE7B7', opacity: 0.9 }}>
+                    Latest payment row sync: {new Date(payFacts.latestPaymentSyncedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div style={{ marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#707090', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Summary
+              </span>
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))',
+                gap: 12,
+                marginBottom: 22,
+              }}
+            >
+              <PLCard
+                label="Total collected"
+                cents={payFacts.totalCollectedCents}
+                color="#22C55E"
+                compact={isMobile}
+                money
+                sub="Settled card & wallet payments (completed / approved)"
+              />
+              <PLCard
+                label="Fees"
+                cents={payFacts.feesCents}
+                color="#F97316"
+                compact={isMobile}
+                money
+                sub="Processing and application fees on those payments"
+              />
+              <PLCard
+                label="Net total"
+                cents={payFacts.netTotalCents}
+                color="#38BDF8"
+                compact={isMobile}
+                money
+                sub="After Square fees on each payment; refunds listed separately"
+              />
+              <PLCard
+                label="Returns"
+                cents={payFacts.returnsCents}
+                color="#A78BFA"
+                compact={isMobile}
+                money
+                sub="Refunds issued in this period (by refund date)"
+              />
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#707090', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                By tender type
+              </span>
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))',
+                gap: 12,
+                marginBottom: 14,
+              }}
+            >
+              <PLCard
+                label="Tips"
+                cents={payFacts.tipsCents}
+                color="#FB7185"
+                compact={isMobile}
+                money
+                sub="Tips on counted payments"
+              />
+              <PLCard
+                label="Card"
+                cents={payFacts.tenderCardCents}
+                color="#D41113"
+                compact={isMobile}
+                money
+                sub="Card-present and keyed card volume"
+              />
+              <PLCard
+                label="Cash App"
+                cents={payFacts.tenderCashAppCents}
+                color="#00C853"
+                compact={isMobile}
+                money
+                sub="Cash App Pay volume"
+              />
+              <PLCard
+                label="Bank transfer"
+                cents={payFacts.tenderBankTransferCents}
+                color="#3B82F6"
+                compact={isMobile}
+                money
+                sub="ACH / bank transfer volume"
+              />
+            </div>
+
+            {payFacts.paymentRowCount === 0 && payFacts.refundRowCount === 0 ? (
+              <p style={{ fontSize: 12, color: '#707090', margin: 0, fontStyle: 'italic' }}>
+                No payment or refund data for this month. Sync a period that includes activity, or choose another month.
+              </p>
+            ) : (
+              <p style={{ fontSize: 11, color: '#585878', margin: 0 }}>
+                {payFacts.paymentRowCount} payment record{payFacts.paymentRowCount === 1 ? '' : 's'} · {payFacts.refundRowCount} refund
+                {payFacts.refundRowCount === 1 ? '' : 's'} in range
+              </p>
+            )}
+          </>
+        ) : null}
+      </div>
+
+      {/* ── Invoice & planning (AR) — current calendar month, not payment cash ── */}
+      {plLoading ? (
+        <div style={{ ...glassSection, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <MusicLoader />
+        </div>
+      ) : pl ? (
+        <div style={glassSection}>
+          <div style={{ marginBottom: 18, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#E8E8FC', letterSpacing: '-0.02em' }}>
+                Tuition & invoices
+              </h2>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  color: '#FFB800',
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  background: 'rgba(255,184,0,0.1)',
+                  border: '1px solid rgba(255,184,0,0.28)',
+                }}
+              >
+                AR · this month
+              </span>
+            </div>
+            <p style={{ fontSize: 12, color: '#9090B0', margin: 0, lineHeight: 1.55, maxWidth: 640 }}>
+              {formatMonthHeading(getCurrentMonthKey())}: billed lesson amounts from synced Square invoices in Lessonpreneur (paid, unpaid, and scheduled). For billing and planning—not the same as cash collected above.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile
+                ? '1fr'
+                : role === 'owner'
+                  ? 'repeat(4, minmax(0, 1fr))'
+                  : 'repeat(3, minmax(0, 1fr))',
+              gap: 12,
+              marginBottom: 0,
+            }}
+          >
+            <PLCard
+              label="Total invoiced (month)"
+              cents={pl.syncedInvoiceMonthTotalCents}
+              color="#22C55E"
+              compact={isMobile}
+              money
+              sub="PAID + UNPAID + SCHEDULED · from invoice sync"
+            />
+            <PLCard
+              label="Teacher payroll (estimate)"
+              cents={-pl.teacherPayrollCents}
+              color="#fb923c"
+              compact={isMobile}
+              money
+              sub={`${((pl.teacherPayrollCents / Math.max(pl.syncedInvoiceMonthTotalCents, 1)) * 100).toFixed(0)}% of invoiced amount`}
+            />
+            <PLCard
+              label="Operating expenses"
+              cents={-pl.operatingExpensesCents}
+              color="#EF4444"
+              compact={isMobile}
+              money
+              sub={`${Object.keys(pl.expensesByCategory).length} categories in your books`}
+            />
+            {role === 'owner' && (
+              <PLCard
+                label="Owner take-home (estimate)"
+                cents={pl.ownerTakeHomeCents}
+                color="#FFB800"
+                compact={isMobile}
+                money
+                highlight
+                sub={`${pl.marginPercent.toFixed(1)}% margin${marginDelta !== 0 ? ` (${marginDelta > 0 ? '+' : ''}${marginDelta.toFixed(1)}% vs prior month)` : ''}`}
+              />
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {/* EXPENSE BUTTONS */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 28 }}>
@@ -285,15 +764,18 @@ export default function Financials() {
         </div>
       )}
 
-      {/* LOCATION COMPARISON */}
+      {/* LOCATION COMPARISON — invoice basis (same month as tuition & invoices) */}
       {pl && pl.locationBreakdown.length > 0 && (() => {
         const mobileLocs = isMobile ? [pl.locationBreakdown[selectedLocIdx] ?? pl.locationBreakdown[0]] : pl.locationBreakdown
         return (
           <div style={{ marginBottom: 28 }}>
             <div className="section-header" style={{ marginBottom: isMobile ? 8 : undefined }}>
-              <span className="section-label">Location Comparison</span>
+              <span className="section-label">By location · invoiced revenue</span>
               <div className="section-line" />
             </div>
+            <p style={{ fontSize: 11, color: '#606088', margin: '0 0 14px', maxWidth: 640, lineHeight: 1.45 }}>
+              {formatMonthHeading(getCurrentMonthKey())} · amounts follow the invoice sync, not payment activity above.
+            </p>
 
             {/* Mobile: location picker pills */}
             {isMobile && (
@@ -329,7 +811,7 @@ export default function Financials() {
                     {!isMobile && <div style={{ fontSize: 15, fontWeight: 800, color, marginBottom: 12 }}>{loc.locationName}</div>}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#8080A8' }}>Revenue</span>
+                        <span style={{ color: '#8080A8' }}>Invoiced</span>
                         <span style={{ color: '#E0E0F4', fontWeight: 600, fontFamily: 'monospace' }}>{dollars(loc.revenueCents)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -380,40 +862,78 @@ export default function Financials() {
 
 // ─── P&L Card ────────────────────────────────────────
 
-function PLCard({ label, cents, color, sub, highlight, compact }: { label: string; cents: number; color: string; sub?: string; highlight?: boolean; compact?: boolean }) {
+function PLCard({
+  label,
+  cents,
+  color,
+  sub,
+  highlight,
+  compact,
+  money,
+}: {
+  label: string
+  cents: number
+  color: string
+  sub?: string
+  highlight?: boolean
+  compact?: boolean
+  /** Use currency with cents — Financials metric cards */
+  money?: boolean
+}) {
+  const value = money ? moneyMetric(cents) : `${cents < 0 ? '−' : ''}${dollars(Math.abs(cents))}`
+  const valueSize = compact ? 20 : 26
   if (compact) {
     return (
       <div style={{
-        padding: '10px 14px', borderRadius: 10,
+        padding: '12px 14px', borderRadius: 12,
+        minHeight: 72,
         background: highlight ? `${color}08` : 'rgba(255,255,255,0.02)',
         border: `1px solid ${highlight ? `${color}30` : 'rgba(255,255,255,0.06)'}`,
         borderLeft: `3px solid ${color}`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 10,
       }}>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-          {sub && <div style={{ fontSize: 10, color: '#606088', marginTop: 1 }}>{sub}</div>}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#9090B0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+          {sub && <div style={{ fontSize: 10, color: '#606088', marginTop: 3, lineHeight: 1.35 }}>{sub}</div>}
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: highlight ? color : '#E0E0F4', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
-          {cents < 0 ? '-' : ''}{dollars(Math.abs(cents))}
+        <div style={{
+          fontSize: valueSize,
+          fontWeight: 800,
+          color: highlight ? color : '#E8E8FC',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          letterSpacing: '-0.02em',
+          flexShrink: 0,
+        }}>
+          {value}
         </div>
       </div>
     )
   }
   return (
     <div style={{
-      padding: '18px 20px', borderRadius: 14,
+      padding: '18px 18px 16px', borderRadius: 14,
+      minHeight: 118,
+      display: 'flex',
+      flexDirection: 'column',
       background: highlight ? `${color}08` : 'rgba(255,255,255,0.02)',
       border: `1px solid ${highlight ? `${color}30` : 'rgba(255,255,255,0.06)'}`,
       borderTop: `3px solid ${color}`,
     }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#9090B0', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
         {label}
       </div>
-      <div style={{ fontSize: 28, fontWeight: 800, color: highlight ? color : '#E0E0F4', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
-        {cents < 0 ? '-' : ''}{dollars(Math.abs(cents))}
+      <div style={{
+        fontSize: 28,
+        fontWeight: 800,
+        color: highlight ? color : '#E8E8FC',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        letterSpacing: '-0.02em',
+        marginBottom: 'auto',
+      }}>
+        {value}
       </div>
-      {sub && <div style={{ fontSize: 11, color: '#8080A8', marginTop: 4 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 11, color: '#8080A8', marginTop: 8, lineHeight: 1.4 }}>{sub}</div>}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import type { SupportingPageContent } from '../../content/types'
 import SiteHeader from '../site/SiteHeader'
+import { ZW } from '../../config/zwBrand'
 import './seo-sections.css'
 
 export function SupportingPage({ content }: { content: SupportingPageContent }) {
@@ -27,7 +28,7 @@ export function SupportingPage({ content }: { content: SupportingPageContent }) 
     if (!canonical) { canonical = document.createElement('link'); canonical.setAttribute('rel', 'canonical'); document.head.appendChild(canonical) }
     canonical.setAttribute('href', `https://www.adkinsmusiclessons.com/${content.slug}`)
 
-    return () => { document.title = 'Lessonpreneur' }
+    return () => { document.title = ZW.parent }
   }, [content])
 
   // FAQPage JSON-LD
@@ -150,7 +151,7 @@ export function SupportingPage({ content }: { content: SupportingPageContent }) 
 
       <footer className="seo-footer">
         <div className="seo-container">
-          <p>&copy; {new Date().getFullYear()} Adkins Music Lessons. Powered by <Link to="/">Lessonpreneur</Link>.</p>
+          <p>&copy; {new Date().getFullYear()} Adkins Music Lessons. Music schools powered by <Link to="/">{ZW.parent}</Link>.</p>
         </div>
       </footer>
     </div>

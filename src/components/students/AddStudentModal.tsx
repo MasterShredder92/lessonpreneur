@@ -10,6 +10,7 @@ import { toast } from '../shared/Toast'
 import { ALL_INSTRUMENTS, CORE_INSTRUMENTS, OTHER_INSTRUMENTS, DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_PER_SESSION } from '../../lib/constants'
 import { Search, Plus, Check, X, Users } from 'lucide-react'
 import { qk } from '../../lib/queryKeys'
+import DuplicateStudentReviewPanel from '../admin/DuplicateStudentReviewPanel'
 
 interface AddStudentModalProps {
   onClose: () => void
@@ -358,9 +359,25 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
         qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
         qc.invalidateQueries({ queryKey: qk.tasks.all }),
         qc.invalidateQueries({ queryKey: qk.onboarding.pipeline }),
+        qc.invalidateQueries({ queryKey: qk.leads.duplicateReviews(tenantId!) }),
       ])
 
-      toast('Student added successfully', 'success')
+      const { data: dupReview } = await supabase
+        .from('student_duplicate_reviews')
+        .select('id')
+        .eq('tenant_id', tenantId!)
+        .eq('new_student_id', student.id)
+        .eq('status', 'pending')
+        .maybeSingle()
+
+      if (dupReview) {
+        toast(
+          'Student added. Possible duplicate — same family and name as another active student. Resolve under Families or Leads.',
+          'warning',
+        )
+      } else {
+        toast('Student added successfully', 'success')
+      }
       onClose()
     } catch (err: any) {
       setError(err.message ?? 'Failed to add student.')
@@ -407,6 +424,11 @@ export default function AddStudentModal({ onClose }: AddStudentModalProps) {
 
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px 24px', WebkitOverflowScrolling: 'touch' }}>
+          <DuplicateStudentReviewPanel
+            variant="compact"
+            filterByFamilyId={selectedFamily?.id}
+            maxItems={4}
+          />
           {activeTab === 'details' && (
             <>
               {/* Student Name */}

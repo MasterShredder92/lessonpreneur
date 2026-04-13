@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { COLORS, FONT, GlassCard, PrimaryButton, sectionStyle } from './shared'
+import { ZW } from '../../config/zwBrand'
 
 const GREEN = '#22C55E'
 const RED = '#EF4444'
@@ -198,7 +199,7 @@ export default function RevenueLeakSection() {
           textAlign: 'center',
         }}
       >
-        Here's what operational chaos is actually costing you — and what LP would plug.
+        Here's what operational chaos is actually costing you — and what Lessonpreneur by ZiroWork would plug.
       </p>
 
       <div style={{ marginTop: '40px', maxWidth: '720px', marginLeft: 'auto', marginRight: 'auto' }}>
@@ -254,7 +255,7 @@ export default function RevenueLeakSection() {
                   }}
                 >
                   A school your size is losing six figures a year to operational drag. Let's get on
-                  a call and figure out what LP looks like for you specifically.
+                  a call and figure out what {ZW.productByline} looks like for you specifically.
                 </div>
               </div>
             ) : (
@@ -298,7 +299,7 @@ export default function RevenueLeakSection() {
                         opacity: 0.9,
                       }}
                     >
-                      With Lessonpreneur
+                      With Lessonpreneur by ZiroWork
                     </div>
                     <div
                       className="lp-compare-big"
@@ -338,7 +339,7 @@ export default function RevenueLeakSection() {
                         lineHeight: 1.5,
                       }}
                     >
-                      net after ${LP_PRICE_MONTHLY}/mo LP
+                      {`net after $${LP_PRICE_MONTHLY}/mo ${ZW.product}`}
                     </div>
                   </div>
 
@@ -363,7 +364,7 @@ export default function RevenueLeakSection() {
                         opacity: 0.9,
                       }}
                     >
-                      Without Lessonpreneur
+                      Without it
                     </div>
                     <div
                       className="lp-compare-big"

@@ -17,14 +17,22 @@ export interface ZiroGlobalSnapshot {
 /** @deprecated Use ZiroGlobalSnapshot */
 export type StarContext = ZiroGlobalSnapshot
 
+const FALLBACK_SNAPSHOT: ZiroGlobalSnapshot = {
+  summary: 'Business context unavailable — answer only from what the user tells you.',
+  raw: null,
+  billingSnapshot: null,
+}
+
 /**
  * Live tenant snapshot for Ziro. Pass `{ enabled: false }` to avoid prefetching on pages
  * that should not load the RPC until an explicit action (or open Ziro).
  */
 export function useZiroGlobalContext(options?: { enabled?: boolean }) {
   const { tenantId } = useAuthContext()
-  const { role: effectiveRole, isStudioDirector, locationIds: allowedLocationIds } = usePermissions()
-  const enabledFlag = options?.enabled ?? true
+  const { role: effectiveRole, isStudioDirector, locationIds: allowedLocationIds, canUseZiro } = usePermissions()
+  // Hard gate: forbidden roles never trigger the RPC. The edge function and
+  // RPC also enforce this — this is the client-side fail-closed.
+  const enabledFlag = (options?.enabled ?? true) && canUseZiro
 
   const scope = useMemo(
     () =>
@@ -50,26 +58,29 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
     queryKey,
     enabled: enabledFlag && !!scope,
     staleTime: 2 * 60_000,
+    retry: false,
     queryFn: async () => {
       if (!scope) {
-        return {
-          summary: 'Business context unavailable — answer only from what the user tells you.',
-          raw: null,
-          billingSnapshot: null,
-        }
+        return FALLBACK_SNAPSHOT
       }
-      const raw = await loadStarGlobalContext(scope)
-      if (!raw) {
-        return {
-          summary: 'Business context unavailable — answer only from what the user tells you.',
-          raw: null,
-          billingSnapshot: null,
+      try {
+        const raw = await Promise.race([
+          loadStarGlobalContext(scope),
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('Ziro snapshot timed out')), 12_000),
+          ),
+        ])
+        if (!raw) {
+          return FALLBACK_SNAPSHOT
         }
-      }
-      return {
-        summary: formatStarPrompt(raw, scope.effectiveRole),
-        raw,
-        billingSnapshot: raw.billing_snapshot,
+        return {
+          summary: formatStarPrompt(raw, scope.effectiveRole),
+          raw,
+          billingSnapshot: raw.billing_snapshot,
+        }
+      } catch (e) {
+        console.warn('[Ziro] Snapshot load failed, degrading gracefully:', e)
+        return FALLBACK_SNAPSHOT
       }
     },
   })
@@ -94,25 +105,23 @@ export function ziroSnapshotQueryOptions(
     queryKey,
     staleTime: 2 * 60_000,
     queryFn: async () => {
-      if (!scope) {
+      if (!scope) return FALLBACK_SNAPSHOT
+      try {
+        const raw = await Promise.race([
+          loadStarGlobalContext(scope),
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('Ziro snapshot timed out')), 12_000),
+          ),
+        ])
+        if (!raw) return FALLBACK_SNAPSHOT
         return {
-          summary: 'Business context unavailable — answer only from what the user tells you.',
-          raw: null,
-          billingSnapshot: null,
+          summary: formatStarPrompt(raw, scope.effectiveRole),
+          raw,
+          billingSnapshot: raw.billing_snapshot,
         }
-      }
-      const raw = await loadStarGlobalContext(scope)
-      if (!raw) {
-        return {
-          summary: 'Business context unavailable — answer only from what the user tells you.',
-          raw: null,
-          billingSnapshot: null,
-        }
-      }
-      return {
-        summary: formatStarPrompt(raw, scope.effectiveRole),
-        raw,
-        billingSnapshot: raw.billing_snapshot,
+      } catch (e) {
+        console.warn('[Ziro] Snapshot load failed:', e)
+        return FALLBACK_SNAPSHOT
       }
     },
   }

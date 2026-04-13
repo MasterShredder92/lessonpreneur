@@ -1,28 +1,30 @@
 /**
  * Square Payment Sync — Edge Function
  *
- * Called by n8n on a schedule (or manually). Fetches all invoices from Square,
- * upserts into square_invoices, matches to families, and updates overdue balances.
+ * Payment rail only: reads Square Invoices, upserts `square_invoices`, reconciles to LP families and money fields.
+ * Lesson schedules and lesson recurrence live in Lessonpreneur only — not in Square.
+ *
+ * Auth: (1) Optional `SYNC_SECRET` (Bearer or ?secret=) for server-to-server callers only.
+ *       (2) Supabase user JWT — owner | admin | company_director (tenant-scoped profile).
  *
  * Deploy: supabase functions deploy square-payment-sync --no-verify-jwt
- * URL:    https://dhsyxyhtoadrqfrlmsqe.supabase.co/functions/v1/square-payment-sync
- *
- * Auth: Pass SYNC_SECRET in the Authorization header or as ?secret= query param.
+ * Scope: see SCOPE.md in this folder.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
+/** Every response must include these so browser + supabase-js (apikey, x-client-info) pass CORS. */
+const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'content-type, authorization',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 }
 
-function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
+function json(body: Record<string, unknown>, status = 200, requestId?: string) {
+  const headers: Record<string, string> = { ...corsHeaders, 'Content-Type': 'application/json' }
+  if (requestId) headers['X-Request-Id'] = requestId
+  return new Response(JSON.stringify(body), { status, headers })
 }
 
 // ── Constants ──
@@ -78,25 +80,72 @@ async function fetchAllInvoicesForLocation(locationId: string, token: string): P
 
 // ── Main handler ──
 Deno.serve(async (req) => {
+  const requestId = crypto.randomUUID()
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: { ...corsHeaders, 'X-Request-Id': requestId } })
   }
 
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed', request_id: requestId }, 405, requestId)
+  }
+
+  let t0 = 0
   try {
-    // Auth: check secret
+    // Auth: (1) optional SYNC_SECRET for server-only callers, or (2) Supabase session JWT for owner/admin/company_director
     const SYNC_SECRET = Deno.env.get('SYNC_SECRET') ?? ''
     const SQUARE_TOKEN = Deno.env.get('SQUARE_ACCESS_TOKEN') ?? ''
     const url = new URL(req.url)
-    const authHeader = req.headers.get('authorization')?.replace('Bearer ', '') ?? ''
+    const authHeader = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
     const querySecret = url.searchParams.get('secret') ?? ''
-    const providedSecret = authHeader || querySecret
+    const provided = authHeader || querySecret
 
-    if (!SYNC_SECRET || providedSecret !== SYNC_SECRET) {
-      return json({ error: 'Unauthorized' }, 401)
+    const authorizedBySecret = !!SYNC_SECRET && provided === SYNC_SECRET
+
+    let authorizedByUser = false
+    if (!authorizedBySecret && provided && provided.split('.').length === 3) {
+      try {
+        const authClient = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        )
+        const { data: userData, error: jwtErr } = await authClient.auth.getUser(provided)
+        if (!jwtErr && userData.user) {
+          const { data: prof } = await authClient
+            .from('profiles')
+            .select('role, tenant_id')
+            .eq('id', userData.user.id)
+            .eq('tenant_id', TENANT_ID)
+            .maybeSingle()
+          const role = prof?.role as string | undefined
+          if (role === 'owner' || role === 'admin' || role === 'company_director') {
+            authorizedByUser = true
+          }
+        }
+      } catch {
+        // invalid JWT
+      }
+    }
+
+    if (!authorizedBySecret && !authorizedByUser) {
+      console.warn(JSON.stringify({ msg: 'square-payment-sync', request_id: requestId, event: 'auth_failed' }))
+      return json({ error: 'Unauthorized', request_id: requestId }, 401, requestId)
     }
     if (!SQUARE_TOKEN) {
-      return json({ error: 'SQUARE_ACCESS_TOKEN not configured' }, 500)
+      console.error(JSON.stringify({ msg: 'square-payment-sync', request_id: requestId, event: 'missing_square_token' }))
+      return json({ error: 'SQUARE_ACCESS_TOKEN not configured', request_id: requestId }, 500, requestId)
     }
+
+    console.log(
+      JSON.stringify({
+        msg: 'square-payment-sync',
+        request_id: requestId,
+        event: 'start',
+        auth_mode: authorizedBySecret ? 'sync_secret' : 'user_jwt',
+      }),
+    )
+
+    t0 = performance.now()
 
     // Supabase client with service role (bypasses RLS)
     const supabase = createClient(
@@ -104,11 +153,23 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // ── Step 1: Fetch ALL families for matching ──
+    // ── Step 1: Fetch families for matching (tenant-scoped) ──
     const { data: families, error: famErr } = await supabase
       .from('families')
       .select('id, name, primary_email, square_customer_id')
+      .eq('tenant_id', TENANT_ID)
     if (famErr) throw new Error(`Failed to load families: ${famErr.message}`)
+
+    console.log(
+      JSON.stringify({
+        msg: 'square-payment-sync',
+        request_id: requestId,
+        event: 'step_timing',
+        step: 'families_loaded',
+        elapsed_ms: Math.round(performance.now() - t0),
+        family_count: (families ?? []).length,
+      }),
+    )
 
     const familyBySquareId = new Map<string, string>()
     const familyByEmail = new Map<string, string>()
@@ -120,12 +181,30 @@ Deno.serve(async (req) => {
     // ── Step 2: Fetch invoices from ALL active Square locations ──
     let allInvoices: any[] = []
     for (const locId of ACTIVE_SQUARE_LOCATIONS) {
-      const locInvoices = await fetchAllInvoicesForLocation(locId, SQUARE_TOKEN)
-      allInvoices.push(...locInvoices)
+      try {
+        const locInvoices = await fetchAllInvoicesForLocation(locId, SQUARE_TOKEN)
+        allInvoices.push(...locInvoices)
+      } catch (locErr: unknown) {
+        const m = locErr instanceof Error ? locErr.message : String(locErr)
+        console.error(JSON.stringify({ msg: 'square-payment-sync', request_id: requestId, event: 'square_location_error', location: locId, error: m }))
+        throw new Error(`Square invoice fetch failed for location ${locId}: ${m}`)
+      }
     }
 
     // Deduplicate by invoice ID
     const deduped = [...new Map(allInvoices.map(inv => [inv.id, inv])).values()]
+
+    console.log(
+      JSON.stringify({
+        msg: 'square-payment-sync',
+        request_id: requestId,
+        event: 'step_timing',
+        step: 'square_fetch_done',
+        elapsed_ms: Math.round(performance.now() - t0),
+        raw_invoices: allInvoices.length,
+        deduplicated: deduped.length,
+      }),
+    )
 
     // ── Step 3: Transform to DB rows ──
     const now = new Date().toISOString()
@@ -144,8 +223,8 @@ Deno.serve(async (req) => {
       if (custId) familyId = familyBySquareId.get(custId) ?? null
       if (!familyId && custEmail) familyId = familyByEmail.get(custEmail) ?? null
 
-      // Recurring series ID (for identifying subscription chains)
-      const recurringId = inv.subscription_id ?? inv.recurring_details?.subscription_id ?? ''
+      // Square payment/subscription reference from their API only (opaque metadata). Not LP lesson recurrence.
+      const squarePaymentRef = inv.subscription_id ?? inv.recurring_details?.subscription_id ?? ''
 
       return {
         tenant_id: TENANT_ID,
@@ -166,7 +245,7 @@ Deno.serve(async (req) => {
         paid_at: completedAmount > 0 ? (inv.updated_at ?? now) : null,
         square_created_at: inv.created_at ?? null,
         synced_at: now,
-        recurring_series_id: recurringId || null,
+        recurring_series_id: squarePaymentRef || null,
         customer_email: custEmail,
         customer_name: custName,
         raw_data: inv,
@@ -183,12 +262,38 @@ Deno.serve(async (req) => {
         .from('square_invoices')
         .upsert(chunk, { onConflict: 'square_invoice_id' })
       if (upErr) {
-        console.error(`Upsert batch ${i} failed:`, upErr.message)
+        console.error(
+          JSON.stringify({
+            msg: 'square-payment-sync',
+            request_id: requestId,
+            event: 'upsert_batch_failed',
+            batch_index: i,
+            error: upErr.message,
+          }),
+        )
         upsertErrors++
       } else {
         upserted += chunk.length
       }
     }
+
+    if (upsertErrors > 0) {
+      throw new Error(
+        `square_invoices upsert failed for ${upsertErrors} batch(es); overdue updates skipped. request_id=${requestId}`,
+      )
+    }
+
+    console.log(
+      JSON.stringify({
+        msg: 'square-payment-sync',
+        request_id: requestId,
+        event: 'step_timing',
+        step: 'upsert_done',
+        elapsed_ms: Math.round(performance.now() - t0),
+        row_count: rows.length,
+        upserted,
+      }),
+    )
 
     // ── Step 4b: Backfill square_customer_id on families matched by email ──
     // If a family was matched via email but has no square_customer_id, save it
@@ -211,6 +316,7 @@ Deno.serve(async (req) => {
           .from('families')
           .update({ square_customer_id: row.square_customer_id })
           .eq('id', row.family_id)
+          .eq('tenant_id', TENANT_ID)
         if (!error) {
           backfilled++
           // Update in-memory map so overdue calc uses it
@@ -250,6 +356,7 @@ Deno.serve(async (req) => {
         .from('families')
         .update({ overdue_balance_cents: overdueCents })
         .eq('id', familyId)
+        .eq('tenant_id', TENANT_ID)
       if (!error) overdueUpdated++
     }
 
@@ -262,10 +369,23 @@ Deno.serve(async (req) => {
           .from('families')
           .update({ overdue_balance_cents: 0 })
           .eq('id', fid)
+          .eq('tenant_id', TENANT_ID)
           .gt('overdue_balance_cents', 0)
         if (!error) clearedCount++
       }
     }
+
+    console.log(
+      JSON.stringify({
+        msg: 'square-payment-sync',
+        request_id: requestId,
+        event: 'step_timing',
+        step: 'overdue_updates_done',
+        elapsed_ms: Math.round(performance.now() - t0),
+        overdue_updated: overdueUpdated,
+        overdue_cleared: clearedCount,
+      }),
+    )
 
     // ── Step 6: Summary stats ──
     const statusCounts: Record<string, number> = {}
@@ -276,8 +396,9 @@ Deno.serve(async (req) => {
     const matchedFamilies = rows.filter(r => r.family_id).length
     const unmatchedCount = rows.filter(r => !r.family_id).length
 
-    return json({
+    const payload = {
       success: true,
+      request_id: requestId,
       synced_at: now,
       invoices: {
         fetched: allInvoices.length,
@@ -293,9 +414,32 @@ Deno.serve(async (req) => {
         overdue_cleared: clearedCount,
         square_id_backfilled: backfilled,
       },
-    })
-  } catch (err: any) {
-    console.error('square-payment-sync error:', err)
-    return json({ error: err.message ?? 'Unknown error' }, 500)
+    }
+    const totalMs = Math.round(performance.now() - t0)
+    console.log(
+      JSON.stringify({
+        msg: 'square-payment-sync',
+        request_id: requestId,
+        event: 'complete',
+        total_ms: totalMs,
+        upserted,
+        upsert_errors: upsertErrors,
+        deduplicated: deduped.length,
+      }),
+    )
+    return json({ ...payload, timing_ms: totalMs } as Record<string, unknown>, 200, requestId)
+  } catch (err: unknown) {
+    const m = err instanceof Error ? err.message : String(err)
+    const totalMs = t0 > 0 ? Math.round(performance.now() - t0) : undefined
+    console.error(
+      JSON.stringify({
+        msg: 'square-payment-sync',
+        request_id: requestId,
+        event: 'error',
+        error: m,
+        total_ms: totalMs,
+      }),
+    )
+    return json({ error: m, request_id: requestId, ...(totalMs != null ? { timing_ms: totalMs } : {}) }, 500, requestId)
   }
 })

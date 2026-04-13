@@ -460,7 +460,7 @@ export default function SessionNoteModal({
               letterSpacing: '0.06em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6,
             }}>
               <Sparkles size={12} />
-              Star's Version
+              Ziro's Version
             </div>
             <div style={{
               background: 'rgba(255,184,0,0.06)',

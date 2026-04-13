@@ -11,6 +11,8 @@ import {
   postAiAssistantBusinessOverride,
   postAiAssistantBusinessSnapshot,
 } from '../services/aiAssistantClient'
+import { cleanZiroResponseText } from '../ziro/cleanZiroResponseText'
+import { classifyQuery, enforceZiroResponsePolicy } from '../ziro/enforceZiroResponsePolicy'
 
 export type { ScheduleContext, ProposedAction, AiAssistantJson } from '../services/aiAssistantClient'
 /** @deprecated Use `postAiAssistantBusinessOverride` from `services/aiAssistantClient`. */
@@ -104,17 +106,25 @@ export function useAI(
         conversationHistory: messagesRef.current.slice(-10),
         scheduleContext: ctx,
         businessContext: biz,
-        timeoutMs: 15_000,
+        timeoutMs: 30_000,
         telemetry,
       })
 
       if (data.ai_session_id) syncAiSessionId(data.ai_session_id)
 
       if (data.error) {
+        const isTimeoutError = /timed?\s*out/i.test(data.error)
+        const errorDisplay = isTimeoutError
+          ? 'Ziro took too long to respond — try a simpler question or try again.'
+          : data.error
         setError(data.error)
-        setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: ' + data.error }])
+        setMessages((prev) => [...prev, { role: 'assistant', content: errorDisplay }])
       } else {
-        let text = pickAiAssistantAnswerText(data)
+        const intent = classifyQuery(question.trim())
+        let text = enforceZiroResponsePolicy(
+          cleanZiroResponseText(pickAiAssistantAnswerText(data)),
+          intent,
+        )
         if (biz?.trim() && options?.transformBusinessAssistantText) {
           text = options.transformBusinessAssistantText(text, aiSessionIdRef.current)
         }

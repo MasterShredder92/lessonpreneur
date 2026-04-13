@@ -380,7 +380,7 @@ export default function MoreLanding() {
       <footer className="ak-footer">
         <div className="ak-fname">{LD.fullName.toUpperCase()}</div>
         <div style={{ fontSize: 11, color: '#55516E', marginBottom: 8 }}>By Adkins Music Lessons</div>
-        <div className="ak-fpow">Powered by <span>Lessonpreneur</span></div>
+        <div className="ak-fpow">Powered by <span>ZiroWork</span></div>
       </footer>
     </div>
   )

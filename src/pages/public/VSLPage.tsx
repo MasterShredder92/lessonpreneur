@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import StickyRevenueCounter from '../../components/public/StickyRevenueCounter'
+import { ZW } from '../../config/zwBrand'
 
 /* ═══════════════════════════════════════════════════════
    /start — VSL PAGE
@@ -77,9 +78,11 @@ export default function VSLPage() {
       <style>{styles}</style>
       <BackgroundOrbs />
 
-      {/* Logo */}
+      {/* Brand hierarchy */}
       <header className="vsl-logo">
-        <span className="vsl-logo-text">Lessonpreneur</span>
+        <div className="vsl-logo-parent">{ZW.parent}</div>
+        <div className="vsl-logo-product">{ZW.productByline}</div>
+        <div className="vsl-logo-tag">{ZW.musicSchoolsPowered}</div>
       </header>
 
       {/* Video — top of page, immediately below logo */}
@@ -113,8 +116,8 @@ export default function VSLPage() {
           <span className="text-gradient">Keep More Of What You Earn.</span>
         </h1>
         <p className="vsl-sub">
-          Lessonpreneur is the only AI-powered operating system built specifically
-          for music school owners and private music teachers. Built by a real school owner.
+          {ZW.productByline} is the AI-powered music-school operating system on {ZW.parent} — built for owners and
+          teachers who run real schools. Built by a real school owner.
         </p>
       </section>
 
@@ -195,6 +198,7 @@ function BackgroundOrbs() {
     <div className="vsl-orbs" aria-hidden="true">
       <div className="vsl-orb vsl-orb-1" />
       <div className="vsl-orb vsl-orb-2" />
+      <div className="vsl-orb vsl-orb-3" />
     </div>
   )
 }
@@ -233,22 +237,40 @@ const styles = `
   background: radial-gradient(circle, #FF5500, transparent 70%);
   bottom: 20%; left: -200px;
 }
+.vsl-orb-3 {
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, #0D9488, transparent 72%);
+  top: 35%; right: -120px;
+  opacity: 0.12;
+}
 
-/* Logo */
+/* Logo / brand hierarchy */
 .vsl-logo {
   text-align: center;
   padding: 40px 24px 0;
   position: relative;
   z-index: 1;
 }
-.vsl-logo-text {
-  font-size: 20px;
+.vsl-logo-parent {
+  font-size: 26px;
   font-weight: 900;
-  letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #D4226A 0%, #FF5500 55%, #FFB800 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  letter-spacing: -0.03em;
+  color: #F8FAFC;
+}
+.vsl-logo-product {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2DD4BF;
+  letter-spacing: 0.02em;
+}
+.vsl-logo-tag {
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.38);
 }
 
 /* Hero */

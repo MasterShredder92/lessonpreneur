@@ -1,6 +1,16 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { ZW, ZW_COLOR } from '../../config/zwBrand'
 
 const FONT = 'Plus Jakarta Sans, system-ui, -apple-system, sans-serif'
+
+function MockBrandMark({ size = 9 }: { size?: number }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+      <span style={{ fontFamily: FONT, fontSize: size, fontWeight: 800, color: ZW_COLOR.teal }}>ZiroWork</span>
+      <span style={{ fontFamily: FONT, fontSize: size - 1, fontWeight: 700, color: '#D4226A' }}>{ZW.product}</span>
+    </div>
+  )
+}
 
 const cssVars = `
   .lp-dm-section { padding: 80px 20px; }
@@ -205,9 +215,7 @@ function Phone() {
       >
         {/* Top bar */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontFamily: FONT, fontSize: '9px', fontWeight: 800, color: '#D4226A' }}>
-            lessonpreneur
-          </span>
+          <MockBrandMark size={9} />
           <span
             style={{
               fontFamily: FONT,
@@ -365,9 +373,7 @@ function Tablet() {
       >
         {/* Top bar */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontFamily: FONT, fontSize: '10px', fontWeight: 800, color: '#D4226A' }}>
-            lessonpreneur
-          </span>
+          <MockBrandMark size={10} />
           <span
             style={{
               fontFamily: FONT,
@@ -549,16 +555,8 @@ function Laptop() {
                 {l}
               </span>
             ))}
-            <span
-              style={{
-                fontFamily: FONT,
-                fontSize: '10px',
-                fontWeight: 800,
-                color: '#D4226A',
-                marginLeft: 'auto',
-              }}
-            >
-              lessonpreneur
+            <span style={{ marginLeft: 'auto' }}>
+              <MockBrandMark size={10} />
             </span>
           </div>
 

@@ -13,9 +13,10 @@ export const EDGE_FUNCTIONS = {
   sendSms: `${SUPABASE_URL}/functions/v1/send-sms`,
   sendEmail: `${SUPABASE_URL}/functions/v1/send-email`,
   squareProxy: `${SUPABASE_URL}/functions/v1/square-proxy`,
+  /** Read-only Square Payments/Refunds → LP facts (reporting layer; not invoice AR). */
+  squarePaymentsSync: `${SUPABASE_URL}/functions/v1/square-payments-sync`,
   w9Handler: `${SUPABASE_URL}/functions/v1/w9-handler`,
   moderateContent: `${SUPABASE_URL}/functions/v1/moderate-content`,
-  squarePaymentSync: `${SUPABASE_URL}/functions/v1/square-payment-sync`,
   signwellWebhook: `${SUPABASE_URL}/functions/v1/signwell-webhook`,
   createCheckout: `${SUPABASE_URL}/functions/v1/create-checkout`,
   customerPortal: `${SUPABASE_URL}/functions/v1/customer-portal`,

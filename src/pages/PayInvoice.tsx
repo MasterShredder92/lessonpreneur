@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import MusicLoader from '../components/shared/MusicLoader'
 import { supabase as anonClient } from '../lib/supabase'
 import { usePublicTenantId } from '../hooks/usePublicTenantId'
 import { DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_PER_SESSION } from '../lib/constants'
 import { instrumentWithEmojiTitle } from '../utils/instrumentEmoji'
+import { ZW } from '../config/zwBrand'
 
 // ═══════════════════════════════════════
 // TYPES
@@ -90,22 +91,6 @@ const TEXT_MUTED = '#94A3B8'
 const TEXT_DIM = '#64748B'
 
 // ═══════════════════════════════════════
-// SQUARE WEB PAYMENTS
-// ═══════════════════════════════════════
-
-function loadSquareScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (document.getElementById('square-web-sdk')) { resolve(); return }
-    const script = document.createElement('script')
-    script.id = 'square-web-sdk'
-    script.src = 'https://web.squarecdn.com/v1/square.js'
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load Square SDK'))
-    document.head.appendChild(script)
-  })
-}
-
-// ═══════════════════════════════════════
 // FONT LOADER
 // ═══════════════════════════════════════
 
@@ -128,18 +113,11 @@ export default function PayInvoice() {
   const [loading, setLoading] = useState(true)
   const [invoice, setInvoice] = useState<InvoiceData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [paying, setPaying] = useState(false)
-  const [payError, setPayError] = useState<string | null>(null)
   const [paid, setPaid] = useState(false)
-  const [saveCard, setSaveCard] = useState(true)
   const [showFlag, setShowFlag] = useState(false)
   const [flagReason, setFlagReason] = useState('')
   const [flagSent, setFlagSent] = useState(false)
   const [flagSending, setFlagSending] = useState(false)
-  const [cardSaveWarning, setCardSaveWarning] = useState<string | null>(null)
-  const cardContainerRef = useRef<HTMLDivElement>(null)
-  const cardInstanceRef = useRef<any>(null)
-  const cardInitRef = useRef(false)
 
   useEffect(() => { loadFonts() }, [])
 
@@ -231,112 +209,6 @@ export default function PayInvoice() {
 
     load()
   }, [token])
-
-  // Initialize Square card form — only once
-  useEffect(() => {
-    if (!invoice || invoice.family.card_last_four || paid || cardInitRef.current) return
-    cardInitRef.current = true
-
-    async function init() {
-      try {
-        await loadSquareScript()
-        const appId = import.meta.env.VITE_SQUARE_APP_ID
-        const locationId = invoice.location?.id
-        if (!appId || !locationId) return
-
-        const payments = (window as any).Square.payments(appId, locationId)
-        const card = await payments.card()
-        if (cardContainerRef.current) {
-          await card.attach(cardContainerRef.current)
-          cardInstanceRef.current = card
-        }
-      } catch (err) {
-        console.error('Failed to init Square card:', err)
-        cardInitRef.current = false
-      }
-    }
-
-    init()
-  }, [invoice, paid])
-
-  // Handle payment — all Square API calls go through edge function
-  async function handlePay() {
-    if (!cardInstanceRef.current || !invoice) return
-    setPaying(true)
-    setPayError(null)
-
-    const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/square-proxy`
-
-    async function proxyCall(action: string, payload: Record<string, unknown>) {
-      const { data: { session } } = await anonClient.auth.getSession()
-      const token = session?.access_token ?? ''
-      const res = await fetch(PROXY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action, ...payload }),
-      })
-      const data = await res.json().catch(() => null)
-      if (!res.ok) {
-        throw new Error(data?.errors?.[0]?.detail ?? data?.error ?? 'Request failed')
-      }
-      return data
-    }
-
-    try {
-      const result = await cardInstanceRef.current.tokenize()
-      if (result.status !== 'OK') {
-        setPayError('Please check your card details and try again.')
-        setPaying(false)
-        return
-      }
-
-      let sourceId = result.token
-
-      if (saveCard) {
-        try {
-          const cardData = await proxyCall('create-card', {
-            source_id: result.token,
-            reference_id: invoice.family.id,
-          })
-          const savedCard = cardData.card
-          if (savedCard?.id) {
-            sourceId = savedCard.id
-            await anonClient.from('families').update({
-              square_card_id: savedCard.id,
-              card_brand: savedCard.card_brand ?? null,
-              card_last_four: savedCard.last_4 ?? null,
-              card_exp_month: savedCard.exp_month ?? null,
-              card_exp_year: savedCard.exp_year ?? null,
-            }).eq('id', invoice.family.id)
-          }
-        } catch (err) {
-          console.error('[PayInvoice] Card save failed:', err)
-          setCardSaveWarning('Card saved for this payment, but autopay setup failed. You can set up autopay later from your parent portal.')
-        }
-      }
-
-      const payData = await proxyCall('create-payment', {
-        source_id: sourceId,
-        amount_cents: invoice.amount_cents,
-        reference_id: invoice.token,
-        note: `${invoice.family.name} — ${invoice.billing_period_label ?? 'Music Sessions'}`,
-      })
-
-      await anonClient
-        .from('invoice_tokens')
-        .update({ status: 'paid', paid_at: new Date().toISOString(), square_payment_id: payData.payment?.id ?? null })
-        .eq('token', invoice.token)
-
-      setPaid(true)
-    } catch (err) {
-      setPayError(err instanceof Error ? err.message : 'Payment failed. Please try again.')
-    } finally {
-      setPaying(false)
-    }
-  }
 
   // ═══════════════════════════════════════
   // RENDER
@@ -513,11 +385,6 @@ export default function PayInvoice() {
               <div style={{ fontSize: 32, marginBottom: 8, color: '#4ADE80' }}>&#10003;</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#4ADE80', marginBottom: 4, fontFamily: BEBAS, letterSpacing: '0.02em' }}>Payment Received — Thank You!</div>
               {invoice.paid_at && <div style={{ fontSize: 13, color: TEXT_MUTED }}>Paid on {formatDate(invoice.paid_at)}</div>}
-              {cardSaveWarning && (
-                <div style={{ marginTop: 14, padding: '12px 16px', borderRadius: 10, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', fontSize: 13, color: '#FBBF24', lineHeight: 1.5, textAlign: 'left' }}>
-                  {cardSaveWarning}
-                </div>
-              )}
             </div>
           ) : hasCard ? (
             <div style={{
@@ -535,44 +402,21 @@ export default function PayInvoice() {
               </div>
             </div>
           ) : (
-            <div style={{ padding: '20px 0' }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: TEXT, marginBottom: 14, fontFamily: BEBAS, letterSpacing: '0.02em' }}>Pay Now</div>
-              <div style={{
-                padding: 16, borderRadius: 14, marginBottom: 14,
-                background: 'rgba(20,20,32,0.6)', border: '1px solid rgba(255,255,255,0.06)',
-              }}>
-                <div ref={cardContainerRef} style={{ minHeight: 44 }} />
-              </div>
-              <label onClick={() => setSaveCard(!saveCard)} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 18, cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{
-                  width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                  background: saveCard ? `rgba(${rgb},0.6)` : 'rgba(255,255,255,0.06)',
-                  border: saveCard ? `1px solid rgba(${rgb},0.4)` : '1px solid rgba(255,255,255,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {saveCard && <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            <div style={{
+              padding: '22px 20px', borderRadius: 16,
+              background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.25)',
+            }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#FBBF24', marginBottom: 10, fontFamily: BEBAS, letterSpacing: '0.04em' }}>Pay through your school</div>
+              <p style={{ fontSize: 13, color: TEXT_MUTED, lineHeight: 1.65, margin: 0 }}>
+                Card payments are not processed in this app. Lessonpreneur does not send billing or payment instructions to Square from here.
+                Please pay using the method your studio uses (in person, bank transfer, or the payment link your school sent outside this page).
+              </p>
+              {fam.primary_phone && (
+                <div style={{ fontSize: 13, color: TEXT, marginTop: 14 }}>
+                  <span style={{ color: TEXT_DIM }}>Questions: </span>
+                  <a href={`tel:${fam.primary_phone.replace(/\D/g, '')}`} style={{ color: C, fontWeight: 600 }}>{fam.primary_phone}</a>
                 </div>
-                <span style={{ fontSize: 11, color: TEXT_DIM }}>Save card for automatic monthly payments</span>
-              </label>
-              {payError && <div style={{ fontSize: 13, color: '#EF4444', marginBottom: 12 }}>{payError}</div>}
-              <button
-                onClick={handlePay}
-                disabled={paying}
-                style={{
-                  width: '100%', padding: '16px 0', borderRadius: 12,
-                  border: 'none',
-                  background: paying ? '#333' : `linear-gradient(135deg, ${C}, ${darken(C, 0.25)})`,
-                  color: '#fff', fontSize: 20, fontWeight: 400, fontFamily: BEBAS, letterSpacing: '0.06em',
-                  cursor: paying ? 'default' : 'pointer',
-                  boxShadow: paying ? 'none' : `0 6px 30px rgba(${rgb},0.35)`,
-                  transition: 'all 150ms',
-                  transform: 'translateY(0)',
-                }}
-                onMouseEnter={e => { if (!paying) e.currentTarget.style.transform = 'translateY(-3px)' }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}
-              >
-                {paying ? 'Processing...' : `PAY ${formatDollars(invoice.amount_cents)}`}
-              </button>
+              )}
             </div>
           )}
 
@@ -589,7 +433,7 @@ export default function PayInvoice() {
 
         {/* FOOTER */}
         <div style={{ textAlign: 'center', padding: '28px 0 44px', fontSize: 12, color: TEXT_DIM }}>
-          {loc ? loc.name : 'Lessonpreneur'} — Powered by Lessonpreneur
+          {loc ? loc.name : ZW.product} — {ZW.poweredBy}
         </div>
       </div>
 

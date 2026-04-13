@@ -3,11 +3,254 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// ═══════════════════════════════════════
+// ZIRO ACCESS CONTROL — HARD SECURITY BOUNDARY
+// ═══════════════════════════════════════
+// Policy:
+//   owner / admin / company_director → full access (all locations)
+//   studio_director                  → assigned location(s) only
+//   teacher / student / parent       → NO ACCESS (403)
+//
+// This is enforced server-side. Client-supplied tenant_id, role,
+// and system_override are NEVER trusted for sensitive data.
+const ZIRO_ALLOWED_ROLES = new Set(["owner", "admin", "company_director", "studio_director"]);
+const ZIRO_FORBIDDEN_ROLES = new Set(["teacher", "student", "parent"]);
+
+interface ZiroCallerIdentity {
+  profileId: string;
+  tenantId: string;
+  role: string;
+  allowedLocationIds: string[] | null; // null = all locations (owner/admin)
+  isLocationScoped: boolean;
+}
+
+/**
+ * Validates the JWT and returns the trusted caller identity.
+ * Throws Response on failure (401 missing JWT, 403 forbidden role/tenant).
+ */
+async function authorizeZiroCaller(
+  req: Request,
+  sb: ReturnType<typeof createClient>,
+  requestedTenantId: string,
+): Promise<ZiroCallerIdentity> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new Response(
+      JSON.stringify({ error: "Authentication required." }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  // CRITICAL: validate the JWT signature via Supabase auth.getUser().
+  // Decoding base64 alone is NOT secure — anyone could forge a payload.
+  const token = authHeader.replace("Bearer ", "");
+  const { data: userData, error: userErr } = await sb.auth.getUser(token);
+  if (userErr || !userData?.user?.id) {
+    throw new Response(
+      JSON.stringify({ error: "Invalid authentication token." }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  const profileId = userData.user.id;
+
+  // Look up the profile (server-side, service role — JWT contents are NOT trusted)
+  const { data: profile, error: profErr } = await sb
+    .from("profiles")
+    .select("id, tenant_id, role")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (profErr || !profile) {
+    throw new Response(
+      JSON.stringify({ error: "Profile not found. Access denied." }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const role = String(profile.role ?? "").toLowerCase().trim();
+
+  // Hard block forbidden roles BEFORE any data access
+  if (ZIRO_FORBIDDEN_ROLES.has(role)) {
+    throw new Response(
+      JSON.stringify({ error: "Ziro is not available for your role." }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  if (!ZIRO_ALLOWED_ROLES.has(role)) {
+    throw new Response(
+      JSON.stringify({ error: "Ziro access denied for this role." }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  // Verify the requested tenant matches the caller's tenant
+  if (requestedTenantId && profile.tenant_id !== requestedTenantId) {
+    throw new Response(
+      JSON.stringify({ error: "Tenant mismatch. Access denied." }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  // For studio_director, load assigned locations and verify at least one exists
+  let allowedLocationIds: string[] | null = null;
+  let isLocationScoped = false;
+  if (role === "studio_director") {
+    const { data: locs } = await sb
+      .from("profile_locations")
+      .select("location_id")
+      .eq("profile_id", profileId);
+    allowedLocationIds = (locs ?? []).map((l: any) => l.location_id);
+    isLocationScoped = true;
+    if (allowedLocationIds.length === 0) {
+      throw new Response(
+        JSON.stringify({ error: "Studio director has no assigned locations." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
+
+  return {
+    profileId,
+    tenantId: profile.tenant_id,
+    role,
+    allowedLocationIds,
+    isLocationScoped,
+  };
+}
+
+// ═══════════════════════════════════════
+// SERVER-SIDE BUSINESS PROMPT BUILDER
+// ═══════════════════════════════════════
+// Mirrors `formatStarPrompt()` from src/services/starContext.ts but runs
+// in the edge function with TRUSTED data fetched server-side via the
+// caller's JWT. The client's `system_override` is IGNORED for sensitive
+// business data — only the server-built prompt is sent to Claude.
+
+function formatMoney(cents: number): string {
+  const v = (cents ?? 0) / 100;
+  return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildZiroBusinessPromptServerSide(ctx: any, role: string): string {
+  const ts = ctx?.generated_at ? new Date(ctx.generated_at).toLocaleString() : new Date().toLocaleString();
+
+  const roleHeaders: Record<string, string> = {
+    owner: "USER ROLE: Owner — full access to all data and actions.",
+    admin: "USER ROLE: Company Director — can see revenue/payroll/collections but NOT owner take-home or profit margin.",
+    company_director: "USER ROLE: Company Director — can see revenue/payroll/collections but NOT owner take-home or profit margin.",
+    studio_director: "USER ROLE: Studio Director — can ONLY answer questions about their assigned location. For any cross-location, company-wide, or other-location question, refuse and say owner/admin/company_director access is required.",
+  };
+  const roleHeader = roleHeaders[role] ?? "USER ROLE: Unknown";
+
+  const billingBlock =
+    ctx?.billing_snapshot != null
+      ? `BILLING SNAPSHOT (same definitions as Dashboard → Billing Snapshot)
+- Collected This Month: ${formatMoney(ctx.billing_snapshot.collectedCents)}
+- Total Invoiced This Month: ${formatMoney(ctx.billing_snapshot.totalInvoicedCents)}
+- Discounted This Month: ${formatMoney(ctx.billing_snapshot.discountedCents)}
+- Next Month (${ctx.billing_snapshot.nextMonthLabel} Projected): ${formatMoney(ctx.billing_snapshot.nextMonthCents)}
+- Scheduled Payments: ${formatMoney(ctx.billing_snapshot.scheduledPaymentsCents)}`
+      : `BILLING SNAPSHOT: Not included for your role or unavailable. Do not cite dollar amounts for billing.`;
+
+  const mixedQuestionRule =
+    role === "studio_director"
+      ? `\n\nMIXED-QUESTION RULE: If the user asks about other locations, company-wide totals, or any data outside their assigned location, answer ONLY the portion that is within their location. Then explicitly say: "Cross-location and company-wide data requires owner, admin, or company director access." Never include other-location data even if you know it.`
+      : "";
+
+  return `${roleHeader}
+
+You are Ziro — the AI operator inside Lessonpreneur. You work alongside the user like a sharp business partner who knows their school inside-out.
+
+RESPONSE STYLE — THIS IS CRITICAL:
+- Be conversational and direct. Talk like a trusted operator, not a report generator.
+- Default to SHORT replies: 1-3 sentences for most questions. Just answer the thing they asked.
+- Do NOT dump all related data. Give the most useful answer first. If there is more to unpack, ask a smart follow-up question instead.
+- Avoid markdown headings (###), long bullet walls, and summary blocks. Use plain language.
+- When the user asks something broad, give a quick pulse — the one or two most important things — then ask what they want to zoom into.
+- When the user asks something specific, answer it directly in one line.
+- Only give a longer, detailed breakdown when the user explicitly asks for one.
+- Never start with "Great question!" or similar filler.
+
+DATA RULES:
+- Use only figures and facts from the snapshot below. Do not invent metrics, names, or amounts.
+- If something is not in the snapshot, say so briefly and point them to the right area of the app.
+- Sessions are always 30-minute increments. Never make up numbers.${mixedQuestionRule}
+
+== LIVE BUSINESS SNAPSHOT (as of ${ts}) ==
+
+SCHOOL OVERVIEW
+- Active students: ${ctx?.students?.active ?? 0}
+- Paused students: ${ctx?.students?.paused ?? 0}
+- Inactive/former students: ${ctx?.students?.inactive ?? 0}
+- Total families: ${ctx?.families?.total ?? 0}
+- Active teachers: ${ctx?.teachers?.active ?? 0}
+
+${billingBlock}
+
+STUDENTS BY LOCATION:
+${(ctx?.students?.by_location ?? []).map((l: any) => `- ${l.location}: ${l.count} students`).join("\n") || "- No location data"}
+
+TOP INSTRUMENTS:
+${(ctx?.students?.by_instrument ?? []).map((i: any) => `- ${i.instrument}: ${i.count}`).join("\n") || "- No instrument data"}
+
+SCHEDULE (this week)
+- Booked slots: ${ctx?.schedule?.booked_this_week ?? 0}
+- Available slots: ${ctx?.schedule?.available_this_week ?? 0}
+- Utilization: ${ctx?.schedule?.utilization_pct ?? 0}%
+- Booked this month: ${ctx?.schedule?.booked_this_month ?? 0}
+- Callouts this week: ${ctx?.schedule?.callouts_this_week ?? 0}
+
+SCHEDULE BY LOCATION (this week):
+${(ctx?.schedule?.by_location_this_week ?? []).map((l: any) => `- ${l.location}: ${l.booked} booked / ${l.available} available`).join("\n") || "- No schedule data"}
+
+LEADS
+- Active leads in pipeline: ${ctx?.leads?.active_total ?? 0}
+- Leads needing follow-up: ${ctx?.leads?.needing_followup ?? 0}
+- New leads (last 7 days): ${ctx?.leads?.new_last_7_days ?? 0}
+- New leads (last 30 days): ${ctx?.leads?.new_last_30_days ?? 0}
+- Converted (last 30 days): ${ctx?.leads?.converted_last_30_days ?? 0}
+- Lost (last 30 days): ${ctx?.leads?.lost_last_30_days ?? 0}
+
+TEACHER LOADS:
+${(ctx?.teachers?.load_by_teacher ?? []).map((t: any) => `- ${t.name}: ${t.active_students} students${t.instruments?.length ? ` (${t.instruments.join(", ")})` : ""}`).join("\n") || "- No teacher data"}
+
+Teachers with no students: ${ctx?.teachers?.no_students ?? 0}
+Teachers missing contract: ${ctx?.teachers?.contract_missing ?? 0}
+
+RETENTION
+- Students paused: ${ctx?.retention?.students_paused ?? 0}
+- Students who may return: ${ctx?.retention?.students_may_return ?? 0}
+- Students gone inactive (last 60 days): ${ctx?.retention?.students_inactive_last_60_days ?? 0}
+- Active retention campaigns: ${ctx?.retention?.active_campaigns ?? 0}
+
+SESSIONS (last 30 days)
+- Total sessions logged: ${ctx?.sessions?.total_last_30_days ?? 0}
+- Sessions last 7 days: ${ctx?.sessions?.total_last_7_days ?? 0}
+- Notes written last 7 days: ${ctx?.sessions?.notes_written_last_7_days ?? 0}
+
+TASKS
+- Open tasks: ${ctx?.tasks?.open ?? 0}
+- Overdue tasks: ${ctx?.tasks?.overdue ?? 0}
+- High priority open: ${ctx?.tasks?.high_priority_open ?? 0}
+
+LOCATIONS (operational — not billing dollars):
+${(ctx?.locations ?? []).map((l: any) => `- ${l.name}: ${l.active_students ?? 0} students, ${l.booked_this_week ?? 0} sessions this week`).join("\n") || "- No location data"}
+
+== END SNAPSHOT ==
+
+Answer using only the data above. When asked about revenue or billing, use the BILLING SNAPSHOT figures only.
+For students, teachers, schedule, or leads — use the numbers shown. Do not estimate or approximate beyond what is shown. If data for a specific question isn't in the snapshot, say so briefly and suggest the right page in the app.
+
+REMINDER: Keep it short. Answer the question, then offer to go deeper — do not go deeper by default.`;
+}
 
 // ═══════════════════════════════════════
 // FUZZY NAME MATCHING
@@ -147,6 +390,87 @@ function getDateStringInTimezone(tz: string): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Normalized ai_conversations + ai_messages (service role — never throws to client). */
+async function persistZiroExchange(
+  sb: ReturnType<typeof createClient>,
+  req: Request,
+  opts: {
+    tenantId: string;
+    question: string;
+    answer: string;
+    usage: unknown;
+    source: string;
+    aiSessionId?: string | null;
+    clientRoute?: string | null;
+    pageContext?: Record<string, unknown> | null;
+    model: string;
+    errorText?: string | null;
+    assistantMetadata?: Record<string, unknown>;
+  },
+): Promise<{ sessionId: string | null; assistantMessageId: string | null }> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return { sessionId: null, assistantMessageId: null };
+  try {
+    const token = authHeader.replace("Bearer ", "");
+    const profileId = JSON.parse(atob(token.split(".")[1])).sub as string | undefined;
+    if (!profileId) return { sessionId: null, assistantMessageId: null };
+
+    const sessionId =
+      opts.aiSessionId && UUID_RE.test(String(opts.aiSessionId))
+        ? String(opts.aiSessionId)
+        : crypto.randomUUID();
+
+    const nowIso = new Date().toISOString();
+    const { error: upErr } = await sb.from("ai_conversations").upsert(
+      {
+        id: sessionId,
+        tenant_id: opts.tenantId,
+        profile_id: profileId,
+        source: opts.source,
+        client_route: opts.clientRoute ?? null,
+        page_context: opts.pageContext ?? {},
+        metadata: {},
+        updated_at: nowIso,
+      },
+      { onConflict: "id" },
+    );
+    if (upErr) console.error("[ai-assistant] ai_conversations upsert:", upErr);
+
+    const u = {
+      conversation_id: sessionId,
+      tenant_id: opts.tenantId,
+      profile_id: profileId,
+    };
+    const { error: uErr } = await sb.from("ai_messages").insert({
+      ...u,
+      role: "user",
+      content: opts.question,
+      metadata: { source: opts.source },
+      seq: 0,
+    });
+    if (uErr) console.error("[ai-assistant] ai_messages user:", uErr);
+    const { data: aRow, error: aErr } = await sb.from("ai_messages").insert({
+      ...u,
+      role: "assistant",
+      content: opts.answer,
+      error_text: opts.errorText ?? null,
+      metadata: opts.assistantMetadata ?? {},
+      model: opts.model,
+      usage: opts.usage ?? null,
+      seq: 0,
+    }).select("id").single();
+    if (aErr) console.error("[ai-assistant] ai_messages assistant:", aErr);
+
+    const assistantMessageId = (aRow as { id?: string } | null)?.id ?? null;
+    return { sessionId, assistantMessageId };
+  } catch (e) {
+    console.error("[ai-assistant] persistZiroExchange:", e);
+    return { sessionId: null, assistantMessageId: null };
+  }
+}
+
 // ═══════════════════════════════════════
 // MAIN HANDLER
 // ═══════════════════════════════════════
@@ -159,7 +483,19 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { question, conversation_history, tenant_id, schedule_context, timezone, system_override } = await req.json();
+    const body = await req.json();
+    const {
+      question,
+      conversation_history,
+      tenant_id,
+      schedule_context,
+      timezone,
+      system_override,
+      ai_session_id,
+      source: clientSource,
+      client_route,
+      client_page_context,
+    } = body;
     if (!question || !tenant_id) {
       return new Response(JSON.stringify({ error: "question and tenant_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -168,10 +504,52 @@ Deno.serve(async (req) => {
     const todayStr = getDateStringInTimezone(tz);
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // ─── FAST PATH: business context mode (system_override) ───
-    // When the client sends system_override, all business data is already
-    // in the prompt. Skip all DB queries and go straight to Claude.
+    // ─── HARD AUTH: validate JWT, role, tenant ──────────────
+    // This is the security boundary. Any failure throws a Response which is
+    // re-thrown to the outer try/catch and returned as-is to the client.
+    let caller: ZiroCallerIdentity;
+    try {
+      caller = await authorizeZiroCaller(req, sb, tenant_id);
+    } catch (authResponse) {
+      if (authResponse instanceof Response) return authResponse;
+      throw authResponse;
+    }
+
+    // For studio_director, validate schedule_context location_id is in their allowed set
+    if (caller.isLocationScoped && schedule_context?.location_id) {
+      if (!caller.allowedLocationIds!.includes(schedule_context.location_id)) {
+        return new Response(
+          JSON.stringify({ error: "Access denied: this location is not in your assigned scope." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    // ─── BUSINESS PATH: server-side prompt rebuild ──────────
+    // The client may send `system_override` but it is IGNORED for sensitive
+    // business data. We rebuild the prompt server-side using `get_star_context`
+    // called with the user's JWT (RPC enforces role/location filtering).
     if (system_override) {
+      // Server-side fetch of business context using the caller's JWT
+      // (Supabase auth.uid() inside the RPC = caller.profileId)
+      const userScopedSb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+      });
+
+      const { data: rpcData, error: rpcErr } = await userScopedSb.rpc("get_star_context", {
+        p_tenant_id: caller.tenantId,
+      });
+
+      if (rpcErr) {
+        console.error("[ai-assistant] get_star_context failed:", rpcErr);
+        return new Response(
+          JSON.stringify({ error: "Failed to load business context. Access may be restricted for your role." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Build the system prompt server-side from trusted data
+      const trustedSystemPrompt = buildZiroBusinessPromptServerSide(rpcData ?? {}, caller.role);
       const messages: any[] = [];
       if (conversation_history && Array.isArray(conversation_history)) {
         for (const msg of conversation_history.slice(-10)) messages.push({ role: msg.role, content: msg.content });
@@ -187,14 +565,32 @@ Deno.serve(async (req) => {
           method: "POST",
           signal: claudeController.signal,
           headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1024, system: system_override, messages }),
+          body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 500, system: trustedSystemPrompt, messages }),
         });
       } catch (fetchErr: any) {
         if (fetchErr.name === "AbortError") {
+          const timeoutAns =
+            "Ziro timed out while generating a response. Please try again in a moment. If this keeps happening, your prompt may be very large — open Ziro from the sidebar or retry after a short wait.";
+          const timeoutSessionId = ai_session_id && UUID_RE.test(String(ai_session_id)) ? String(ai_session_id) : crypto.randomUUID();
+
+          // Fire-and-forget persistence — don't block the timeout response on DB writes
+          persistZiroExchange(sb, req, {
+            tenantId: tenant_id,
+            question,
+            answer: timeoutAns,
+            usage: null,
+            source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_business",
+            aiSessionId: timeoutSessionId,
+            clientRoute: typeof client_route === "string" ? client_route : null,
+            pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
+            model: "claude-sonnet-4-6",
+            errorText: "timeout",
+          }).catch((e) => console.error("[ai-assistant] background persist (timeout) failed:", e));
+
           return new Response(
             JSON.stringify({
-              answer:
-                "Star timed out while generating a response. Please try again in a moment. If this keeps happening, your prompt may be very large — open Star from the header or retry after a short wait.",
+              answer: timeoutAns,
+              ai_session_id: timeoutSessionId,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
@@ -214,41 +610,98 @@ Deno.serve(async (req) => {
       for (const block of (claudeData.content ?? [])) {
         if (block.type === "text") answer += block.text;
       }
-      if (!answer) answer = "Star had no response — please try rephrasing your question.";
+      if (!answer) answer = "Ziro had no response — please try rephrasing your question.";
 
-      // Log conversation (non-blocking)
-      const authHeader = req.headers.get("Authorization");
-      if (authHeader) {
-        try {
-          const token = authHeader.replace("Bearer ", "");
-          const profileId = JSON.parse(atob(token.split(".")[1])).sub;
-          if (profileId) {
-            sb.from("ai_conversations").insert([
-              { tenant_id, profile_id: profileId, role: "user", content: question, metadata: { source: "star_business" } },
-              { tenant_id, profile_id: profileId, role: "assistant", content: answer, metadata: { model: "claude-sonnet-4-6", usage: claudeData.usage } },
-            ]).then(() => {});
-          }
-        } catch { /* ok */ }
-      }
+      // Pre-compute session ID so we can return it immediately
+      const sessionId = ai_session_id && UUID_RE.test(String(ai_session_id)) ? String(ai_session_id) : crypto.randomUUID();
 
-      return new Response(JSON.stringify({ answer, usage: claudeData.usage }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      // Fire-and-forget persistence — don't block the response on DB writes
+      persistZiroExchange(sb, req, {
+        tenantId: tenant_id,
+        question,
+        answer,
+        usage: claudeData.usage,
+        source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_business",
+        aiSessionId: sessionId,
+        clientRoute: typeof client_route === "string" ? client_route : null,
+        pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
+        model: "claude-sonnet-4-6",
+      }).catch((e) => console.error("[ai-assistant] background persist failed:", e));
+
+      return new Response(
+        JSON.stringify({
+          answer,
+          usage: claudeData.usage,
+          ai_session_id: sessionId,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // ─── SCHEDULING MODE: full context with tools ───
-    // Gather context — only what's needed for scheduling
+    // Gather context — only what's needed for scheduling.
+    //
+    // SECURITY: For studio directors, every lookup table is narrowed to their
+    // assigned locations. Owners/admins/company_directors get the full tenant set.
+    // This prevents the fuzzy-match name lookups (and the resulting system prompt
+    // sent to Claude) from exposing students/teachers/families outside scope.
+    const isScoped = caller.isLocationScoped;
+    const allowedLocs = caller.allowedLocationIds ?? [];
+
+    // Pre-resolve teacher_ids and family_ids for studio directors
+    let scopedTeacherIds: string[] | null = null;
+    let scopedFamilyIds: string[] | null = null;
+    if (isScoped) {
+      // Teachers that operate at one of the caller's locations
+      const { data: tlocs } = await sb
+        .from("teacher_locations")
+        .select("teacher_id")
+        .in("location_id", allowedLocs);
+      scopedTeacherIds = Array.from(new Set((tlocs ?? []).map((r: any) => r.teacher_id)));
+
+      // Families with at least one active student at one of the caller's locations
+      const { data: scopedStudents } = await sb
+        .from("students")
+        .select("family_id")
+        .eq("tenant_id", tenant_id)
+        .eq("status", "active")
+        .in("location_id", allowedLocs)
+        .not("family_id", "is", null);
+      scopedFamilyIds = Array.from(new Set((scopedStudents ?? []).map((s: any) => s.family_id).filter(Boolean)));
+    }
+
+    // Build the four parallel queries with conditional location narrowing
+    const tenantQ = sb.from("tenants").select("name, slug").eq("id", tenant_id).single();
+
+    let locationsQ = sb.from("locations").select("id, name, is_active").eq("tenant_id", tenant_id);
+    if (isScoped) locationsQ = locationsQ.in("id", allowedLocs);
+
+    let teachersQ = sb.from("teachers")
+      .select("id, first_name, last_name, instruments, is_active, profile:profiles!teachers_profile_id_fkey(first_name, last_name)")
+      .eq("tenant_id", tenant_id);
+    if (isScoped) {
+      // If no teachers operate in scope, force an empty result instead of returning all
+      teachersQ = teachersQ.in("id", scopedTeacherIds!.length > 0 ? scopedTeacherIds! : ["00000000-0000-0000-0000-000000000000"]);
+    }
+
+    let studentsQ = sb.from("students")
+      .select("id, first_name, last_name, instrument, status, location_id, teacher_id, family_id")
+      .eq("tenant_id", tenant_id)
+      .eq("status", "active");
+    if (isScoped) studentsQ = studentsQ.in("location_id", allowedLocs);
+
+    let familiesQ = sb.from("families").select("id, name, is_military").eq("tenant_id", tenant_id);
+    if (isScoped) {
+      familiesQ = familiesQ.in("id", scopedFamilyIds!.length > 0 ? scopedFamilyIds! : ["00000000-0000-0000-0000-000000000000"]);
+    }
+
     const [
       { data: tenant },
       { data: locations },
       { data: teachers },
       { data: students },
       { data: families },
-    ] = await Promise.all([
-      sb.from("tenants").select("name, slug").eq("id", tenant_id).single(),
-      sb.from("locations").select("id, name, is_active").eq("tenant_id", tenant_id),
-      sb.from("teachers").select("id, first_name, last_name, instruments, is_active, profile:profiles!teachers_profile_id_fkey(first_name, last_name)").eq("tenant_id", tenant_id),
-      sb.from("students").select("id, first_name, last_name, instrument, status, location_id, teacher_id, family_id").eq("tenant_id", tenant_id).eq("status", "active"),
-      sb.from("families").select("id, name, is_military").eq("tenant_id", tenant_id),
-    ]);
+    ] = await Promise.all([tenantQ, locationsQ, teachersQ, studentsQ, familiesQ]);
 
     const locMap: Record<string, string> = {};
     locations?.forEach((l: any) => { locMap[l.id] = l.name?.replace(" Music Lessons", ""); });
@@ -328,6 +781,13 @@ RULES:
 - When a slot is taken, say who's there and list open times.
 - Fuzzy name matching is enabled — "Candice" will match "Kandice", etc. If corrected, note it.
 
+SCHEDULING INTENT — CRITICAL:
+- "move", "switch", "transfer" a student TO another teacher or time → use move_lesson. This REMOVES the lesson from the current teacher/time and creates it at the new one. This is NOT the same as booking.
+- "add", "book", "extra lesson", "another appointment" → use book_student. This creates a NEW lesson WITHOUT touching existing ones.
+- "move permanently", "move going forward", "transfer from now on", "switch recurring" → use move_lesson with move_scope="all_future". This cancels all future lessons with the old teacher and creates recurring with the new one.
+- If the user says "move" and does NOT say "permanently" or "going forward", default to move_scope="this_instance" (single date only).
+- NEVER use book_student when the user says "move" or "switch" — that would leave the old lesson in place, which is wrong.
+
 NOT-BOOKABLE BLOCKS:
 - "not_bookable" blocks mark times a teacher is unavailable. They are NOT student lessons.
 - You CANNOT move, cancel, or modify not_bookable blocks with your tools. They are managed in Settings.
@@ -352,7 +812,7 @@ CANCELLATION RULES:
     const tools = [
       {
         name: "move_lesson",
-        description: "Move a student's lesson to a different time/date/teacher.",
+        description: "TRANSFER a student's lesson: REMOVES the existing lesson from the current teacher/time and books it at the new teacher/time. Use for 'move', 'switch', 'transfer'. Do NOT use book_student for moves — that would leave the old lesson in place.",
         input_schema: {
           type: "object",
           properties: {
@@ -360,13 +820,14 @@ CANCELLATION RULES:
             target_time: { type: "string", description: "HH:MM 24h format" },
             target_date: { type: "string", description: `YYYY-MM-DD. Default: ${ctxDate}` },
             target_teacher_name: { type: "string", description: "Optional — keeps current teacher if omitted" },
+            move_scope: { type: "string", enum: ["this_instance", "all_future"], description: "this_instance = move only today's lesson (default). all_future = cancel all future lessons with old teacher and create recurring with new teacher." },
           },
           required: ["student_name", "target_time"],
         },
       },
       {
         name: "book_student",
-        description: "Book a student into a time slot. Default: student_session, recurring weekly.",
+        description: "Book a student into a NEW time slot WITHOUT removing any existing lessons. Use for 'add', 'book', 'extra lesson', 'another appointment'. Do NOT use for moves/transfers — use move_lesson instead.",
         input_schema: {
           type: "object",
           properties: {
@@ -527,6 +988,11 @@ CANCELLATION RULES:
               resolvedParams.target_teacher_display = t.name;
             }
             if (!resolvedParams.target_date && schedule_context?.date) resolvedParams.target_date = schedule_context.date;
+            if (!resolvedParams.move_scope) resolvedParams.move_scope = "this_instance";
+            // Resolve current teacher name for the confirmation description
+            if (s.teacher_id && teacherMap[s.teacher_id]) {
+              resolvedParams.source_teacher_display = teacherMap[s.teacher_id];
+            }
 
           } else if (toolName === "cancel_lesson") {
             const s = await resolveStudentFull(toolInput.student_name);
@@ -638,9 +1104,14 @@ CANCELLATION RULES:
           let description = "";
           const recurLabel = (r: boolean) => r ? " (recurring weekly)" : " (one-time)";
           if (toolName === "move_lesson") {
-            description = `Move ${resolvedParams.student_display}'s lesson to ${formatTime(resolvedParams.target_time + ":00")}`;
+            const scopeLabel = resolvedParams.move_scope === "all_future" ? " (+ all future recurring)" : "";
+            const fromTeacher = resolvedParams.source_teacher_display ? ` from ${resolvedParams.source_teacher_display}` : "";
+            const toTeacher = resolvedParams.target_teacher_display ? ` to ${resolvedParams.target_teacher_display}` : "";
+            description = `Move ${resolvedParams.student_display}'s lesson${fromTeacher}${toTeacher} at ${formatTime(resolvedParams.target_time + ":00")}`;
             if (resolvedParams.target_date) description += ` on ${resolvedParams.target_date}`;
-            if (resolvedParams.target_teacher_display) description += ` with ${resolvedParams.target_teacher_display}`;
+            description += scopeLabel;
+            description += `\nThis will remove the existing session${fromTeacher ? fromTeacher + "'s schedule" : ""} and book it${toTeacher ? toTeacher + "'s schedule" : ""}.`;
+            if (resolvedParams.move_scope === "all_future") description += " All future recurring lessons will also transfer.";
           } else if (toolName === "book_student") {
             const typeLabel = resolvedParams.block_type === "student_session" ? "" : ` (${resolvedParams.block_type.replace(/_/g, " ")})`;
             description = `Book ${resolvedParams.student_display} at ${formatTime(resolvedParams.target_time + ":00")} with ${resolvedParams.teacher_display ?? "their teacher"}${typeLabel}${recurLabel(resolvedParams.recurring)}`;
@@ -681,22 +1152,30 @@ CANCELLATION RULES:
     }
     if (!answer) answer = "No response from AI.";
 
-    // Log
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader) {
-      try {
-        const token = authHeader.replace("Bearer ", "");
-        const profileId = JSON.parse(atob(token.split(".")[1])).sub;
-        if (profileId) {
-          await createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY).from("ai_conversations").insert([
-            { tenant_id, profile_id: profileId, role: "user", content: question, metadata: { source: "schedule_panel" } },
-            { tenant_id, profile_id: profileId, role: "assistant", content: answer, metadata: { model: "claude-sonnet-4-6", usage: claudeData.usage } },
-          ]);
-        }
-      } catch { /* ok */ }
-    }
+    // Pre-compute session ID so we can return it immediately
+    const schedSessionId = ai_session_id && UUID_RE.test(String(ai_session_id)) ? String(ai_session_id) : crypto.randomUUID();
 
-    const payload: any = { answer, usage: claudeData.usage };
+    // Fire-and-forget persistence — don't block the response on DB writes
+    persistZiroExchange(sb, req, {
+      tenantId: tenant_id,
+      question,
+      answer,
+      usage: claudeData.usage,
+      source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_schedule",
+      aiSessionId: schedSessionId,
+      clientRoute: typeof client_route === "string" ? client_route : null,
+      pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
+      model: "claude-sonnet-4-6",
+      assistantMetadata: typeof proposed_action !== "undefined" && proposed_action
+        ? { proposed_action }
+        : {},
+    }).catch((e) => console.error("[ai-assistant] background persist (schedule) failed:", e));
+
+    const payload: any = {
+      answer,
+      usage: claudeData.usage,
+      ai_session_id: schedSessionId,
+    };
     if (proposed_action) payload.proposed_action = proposed_action;
     return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {

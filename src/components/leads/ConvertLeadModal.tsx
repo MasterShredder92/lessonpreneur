@@ -8,6 +8,8 @@ import SearchableCombobox from '../shared/SearchableCombobox'
 import type { LeadRow } from '../../hooks/useLeads'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { qk } from '../../lib/queryKeys'
+import { toast } from '../shared/Toast'
+import DuplicateStudentReviewPanel from '../admin/DuplicateStudentReviewPanel'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -65,6 +67,8 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
   const [resultFamilyId, setResultFamilyId] = useState<string | null>(null)
   const [creatingInvoice, setCreatingInvoice] = useState(false)
   const [invoiceCreated, setInvoiceCreated] = useState(false)
+  /** Set when RPC returns `possible_duplicate_review` so the done step can embed the review panel. */
+  const [pendingDupReviewId, setPendingDupReviewId] = useState<string | null>(null)
 
   // Auto-calculate rate tier
   const totalSessions = numStudents * 4
@@ -102,6 +106,10 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
       })
     return () => { cancelled = true }
   }, [lead.email, tenantId])
+
+  useEffect(() => {
+    setPendingDupReviewId(null)
+  }, [lead.id])
 
   // Load teachers at lead's location
   useEffect(() => {
@@ -185,7 +193,26 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
 
       if (rpcErr) throw rpcErr
 
-      setResult(data)
+      const payload = data as {
+        student_id: string
+        student_name: string
+        possible_duplicate_review?: { review_id?: string; candidate_student_id?: string; new_student_id?: string; reason?: string } | null
+      }
+
+      const dup = payload?.possible_duplicate_review
+      const hasDupReview =
+        dup != null && typeof dup === 'object' && dup !== null && 'review_id' in dup && dup.review_id
+      if (hasDupReview && dup && 'review_id' in dup && dup.review_id) {
+        setPendingDupReviewId(String(dup.review_id))
+        toast(
+          'Possible duplicate student — same family and name as an existing active student. Resolve below; tier pricing excludes this enrollment until resolved.',
+          'warning',
+        )
+      } else {
+        setPendingDupReviewId(null)
+      }
+
+      setResult({ student_id: payload.student_id, student_name: payload.student_name })
       setStep('done')
 
       // Capture family_id for invoice creation
@@ -193,7 +220,7 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
         setResultFamilyId(selectedFamilyId)
       } else {
         // New family was created by RPC — look up the student's family_id
-        const { data: sRow } = await supabase.from('students').select('family_id').eq('id', data.student_id).single()
+        const { data: sRow } = await supabase.from('students').select('family_id').eq('id', payload.student_id).single()
         setResultFamilyId(sRow?.family_id ?? null)
       }
 
@@ -209,11 +236,12 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
         qc.invalidateQueries({ queryKey: qk.families.roster }),
       ])
       qc.invalidateQueries({ queryKey: qk.families.tabCounts })
+      qc.invalidateQueries({ queryKey: qk.leads.duplicateReviews(tenantId) })
       qc.invalidateQueries({ queryKey: qk.schedule.all })
       qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
       qc.invalidateQueries({ queryKey: qk.students.blocks })
 
-      onConverted(data.student_id)
+      onConverted(payload.student_id)
     } catch (err: any) {
       setError(err.message ?? 'Conversion failed.')
     } finally {
@@ -453,6 +481,16 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
                   Student record created. Lead moved to Enrolled.
                 </p>
               </div>
+
+              {pendingDupReviewId && (
+                <div style={{ textAlign: 'left', marginTop: 8 }}>
+                  <DuplicateStudentReviewPanel
+                    filterByReviewId={pendingDupReviewId}
+                    variant="full"
+                    onResolved={() => setPendingDupReviewId(null)}
+                  />
+                </div>
+              )}
 
               {/* Invoice creation prompt */}
               {resultFamilyId && !invoiceCreated && (

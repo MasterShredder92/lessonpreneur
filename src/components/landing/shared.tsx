@@ -1,10 +1,14 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
+import { ZW_COLOR } from '../../config/zwBrand'
 
 export const COLORS = {
   bg: '#020209',
   pink: '#D4226A',
   orange: '#FF5500',
   gold: '#FFB800',
+  /** ZiroWork / parent-brand accent (teal) — use for hierarchy lines, gauges, secondary emphasis */
+  teal: ZW_COLOR.teal,
+  tealDeep: ZW_COLOR.tealDeep,
   textPrimary: '#FFFFFF',
   textSecondary: 'rgba(255,255,255,0.65)',
   textMuted: 'rgba(255,255,255,0.4)',

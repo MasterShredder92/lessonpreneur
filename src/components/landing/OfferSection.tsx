@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { COLORS, FONT, PrimaryButton, TrustChips } from './shared'
+import { ZW } from '../../config/zwBrand'
 import { useInView } from './useInView'
 
 const ROWS = [
@@ -14,7 +15,7 @@ const ROWS = [
   },
   {
     title: 'Works With Square — No Billing Migration',
-    body: 'Keep your payment processor. LP adds visibility and control on top of what you already use. Nothing gets ripped out.',
+    body: `Keep your payment processor. ${ZW.product} adds visibility and control on top of what you already use. Nothing gets ripped out.`,
   },
   {
     title: 'Founder Access During Beta',

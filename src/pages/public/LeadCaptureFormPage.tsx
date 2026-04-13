@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import PublicBrandBar from '../../components/landing/PublicBrandBar'
 
 /* ═══════════════════════════════════════════════════════
    /get-started — LEAD CAPTURE FORM
@@ -177,6 +178,8 @@ export default function LeadCaptureFormPage() {
   return (
     <div className="lcf">
       <style>{styles}</style>
+
+      <PublicBrandBar variant="funnel" />
 
       {/* Progress bar */}
       <div className="lcf-progress">
