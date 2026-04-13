@@ -7,6 +7,10 @@ import PianoWidget from '../components/instruments/PianoWidget'
 import GuitarWidget from '../components/instruments/GuitarWidget'
 import DrumsWidget from '../components/instruments/DrumsWidget'
 import VocalsWidget from '../components/instruments/VocalsWidget'
+import './signup.css'
+import './piano.css'
+import './guitar.css'
+import './vocals.css'
 
 // ── After-hours check (Central Time) ──
 function isAfterHoursCST(): boolean {
@@ -98,7 +102,7 @@ export default function ThankYou() {
           <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', marginBottom: 12, textAlign: 'center', letterSpacing: 1 }}>
             🪘 DRUMS
           </div>
-          <DrumsWidget />
+          <DrumsWidget compact />
         </div>
 
         {/* Vocals — same mic recorder as /omaha/vocals */}

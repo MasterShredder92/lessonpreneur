@@ -973,10 +973,15 @@
 
 /* ── Thank You instrument widgets ── */
 .thankyou-widgets {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   width: 100%;
-  max-width: 720px;
+  max-width: 920px;
   margin-top: 32px;
+}
+@media (max-width: 720px) {
+  .thankyou-widgets {
+    grid-template-columns: 1fr;
+  }
 }

@@ -117,7 +117,7 @@ const PATTERN: { step: number; ids: PieceId[] }[] = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function DrumsWidget() {
+export default function DrumsWidget({ compact = false }: { compact?: boolean }) {
   const audioCtxRef = useRef<AudioContext | null>(null)
   const [activeHits, setActiveHits] = useState<Set<PieceId>>(new Set())
   const [showKeys, setShowKeys] = useState(false)
@@ -275,27 +275,25 @@ export default function DrumsWidget() {
 
   const kickLit = isHit('kick')
 
-  return (
-    <section style={{
-      width: '100%', background: '#0A0A10',
-      borderTop: '1px solid #1C1C2A', borderBottom: '1px solid #1C1C2A',
-      padding: '48px 16px',
-    }}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{
-          fontSize: 11, fontWeight: 800, letterSpacing: '0.12em',
-          textTransform: 'uppercase' as const, color: 'var(--c, #D4226A)', marginBottom: 8,
-        }}>Interactive</div>
-        <h2 style={{
-          fontFamily: "'Bebas Neue', sans-serif", fontSize: 'clamp(28px, 6vw, 48px)',
-          color: '#fff', lineHeight: 0.95, letterSpacing: '0.5px', margin: 0,
-        }}>
-          Play The <em style={{ fontStyle: 'normal', color: 'var(--c, #D4226A)' }}>Kit.</em>
-        </h2>
-        <p style={{
-          fontSize: 14, color: '#888', maxWidth: 400, margin: '12px auto 0', lineHeight: 1.6,
-        }}>Tap any piece. Real sounds, no downloads.</p>
-      </div>
+  const kitContent = (
+    <>
+      {!compact && (
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{
+            fontSize: 11, fontWeight: 800, letterSpacing: '0.12em',
+            textTransform: 'uppercase' as const, color: 'var(--c, #D4226A)', marginBottom: 8,
+          }}>Interactive</div>
+          <h2 style={{
+            fontFamily: "'Bebas Neue', sans-serif", fontSize: 'clamp(28px, 6vw, 48px)',
+            color: '#fff', lineHeight: 0.95, letterSpacing: '0.5px', margin: 0,
+          }}>
+            Play The <em style={{ fontStyle: 'normal', color: 'var(--c, #D4226A)' }}>Kit.</em>
+          </h2>
+          <p style={{
+            fontSize: 14, color: '#888', maxWidth: 400, margin: '12px auto 0', lineHeight: 1.6,
+          }}>Tap any piece. Real sounds, no downloads.</p>
+        </div>
+      )}
 
       <div style={{ width: '100%', maxWidth: 640, margin: '0 auto', position: 'relative' }}>
         <svg
@@ -495,6 +493,20 @@ export default function DrumsWidget() {
           )}
         </div>
       )}
+    </>
+  )
+
+  if (compact) {
+    return <div style={{ width: '100%' }}>{kitContent}</div>
+  }
+
+  return (
+    <section style={{
+      width: '100%', background: '#0A0A10',
+      borderTop: '1px solid #1C1C2A', borderBottom: '1px solid #1C1C2A',
+      padding: '48px 16px',
+    }}>
+      {kitContent}
     </section>
   )
 }
