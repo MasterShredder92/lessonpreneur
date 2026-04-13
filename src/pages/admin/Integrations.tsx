@@ -612,6 +612,10 @@ export default function Integrations() {
         </div>
       )}
 
+      {/* API Token Management + Outbound Webhooks — above the fold */}
+      <ApiTokenPanel />
+      <OutboundDeliveryLog />
+
       {isLoading && (
         <div style={{ textAlign: 'center', padding: '40px 0', color: '#606088', fontSize: 13 }}>Loading integrations...</div>
       )}
@@ -763,12 +767,6 @@ export default function Integrations() {
           </div>
         )
       })}
-
-      {/* Outbound Delivery Log */}
-      <OutboundDeliveryLog />
-
-      {/* API Token Management */}
-      <ApiTokenPanel />
 
       {/* Connect Modal */}
       {connectModal && (
