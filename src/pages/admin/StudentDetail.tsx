@@ -50,7 +50,7 @@ export default function StudentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { role, profile, tenantId } = useAuthContext()
-  const canEdit = role === 'owner' || role === 'admin'
+  const canEdit = role === 'owner' || role === 'admin' || role === 'studio_director'
   const { canDo, isAtLeast } = usePermissions()
   const canViewSensitive = canDo('files.view_sensitive')
   const qc = useQueryClient()
