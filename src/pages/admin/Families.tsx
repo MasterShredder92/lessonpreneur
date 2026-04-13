@@ -208,6 +208,434 @@ const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: 
 const valueStyle: React.CSSProperties = { marginTop: 3, fontSize: 14, color: '#D0D0E8' }
 const sectionLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#6060A0', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.06)' }
 
+// Location brand colors — keyed by Supabase UUID (CLAUDE.md authoritative source)
+const LOCATION_COLORS: Record<string, string> = {
+  'f7b52dd5-12ee-437f-9c60-f8adf454ac31': '#A333FF', // Bellevue
+  'cebd97d4-c241-4de2-8ade-49e5cc0070d5': '#00A5E8', // Elkhorn
+  '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#00A651', // Gretna
+  'd48229c1-b70a-4d29-893e-5079887dab76': '#D41113', // Omaha
+}
+
+// ---- Tier 1: Location Overview Grid ----
+function FamilyLocationGrid({
+  locations,
+  locationCounts,
+  totalActive,
+  onSelectLocation,
+  isStudioDirector,
+  lockedLocationId,
+}: {
+  locations: any[] | undefined
+  locationCounts: Record<string, number> | undefined
+  totalActive: number | undefined
+  onSelectLocation: (id: string) => void
+  isStudioDirector: boolean
+  lockedLocationId: string | null
+}) {
+  const visible = useMemo(() => {
+    if (!locations) return []
+    if (isStudioDirector && lockedLocationId) return locations.filter((l) => l.id === lockedLocationId)
+    return locations.filter((l) => l.is_active)
+  }, [locations, isStudioDirector, lockedLocationId])
+
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: '#8080A8', marginBottom: 20, marginTop: 4 }}>
+        Click a location to view its family roster. Data loads on demand — no delay.
+      </p>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+        gap: 14,
+      }}>
+        {visible.map((loc) => {
+          const color = LOCATION_COLORS[loc.id] ?? '#D4226A'
+          const count = locationCounts?.[loc.id]
+          return (
+            <button
+              key={loc.id}
+              onClick={() => onSelectLocation(loc.id)}
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 16,
+                padding: 0,
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                overflow: 'hidden',
+                transition: 'border-color 150ms ease, background 150ms ease, transform 150ms ease',
+              }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLElement).style.borderColor = color + '60'
+                ;(e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)'
+                ;(e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'
+              }}
+            >
+              <div style={{ width: 5, background: color, flexShrink: 0, borderRadius: '16px 0 0 16px' }} />
+              <div style={{ padding: '22px 20px', flex: 1 }}>
+                <div style={{ fontWeight: 800, color: '#E0E0F4', fontSize: 15, marginBottom: 10 }}>
+                  {loc.name.replace(' Music Lessons', '')}
+                </div>
+                <div style={{
+                  fontWeight: 900,
+                  color,
+                  fontSize: 38,
+                  lineHeight: 1,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  marginBottom: 2,
+                }}>
+                  {count !== undefined ? count.toLocaleString() : '…'}
+                </div>
+                <div style={{ fontSize: 11, color: '#606088', marginBottom: 10 }}>active families</div>
+                {loc.city && (
+                  <div style={{ fontSize: 11, color: '#8080A8' }}>
+                    {loc.city}, {loc.state}
+                  </div>
+                )}
+              </div>
+            </button>
+          )
+        })}
+
+        {/* All Families aggregate card */}
+        {!isStudioDirector && (
+          <button
+            onClick={() => onSelectLocation('all')}
+            style={{
+              background: 'rgba(212,34,106,0.04)',
+              border: '1px solid rgba(212,34,106,0.12)',
+              borderRadius: 16,
+              padding: 0,
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              overflow: 'hidden',
+              transition: 'border-color 150ms ease, background 150ms ease',
+            }}
+            onMouseEnter={(e) => {
+              ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(212,34,106,0.3)'
+              ;(e.currentTarget as HTMLElement).style.background = 'rgba(212,34,106,0.07)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(212,34,106,0.12)'
+              ;(e.currentTarget as HTMLElement).style.background = 'rgba(212,34,106,0.04)'
+            }}
+          >
+            <div style={{ width: 5, background: '#D4226A', flexShrink: 0, borderRadius: '16px 0 0 16px' }} />
+            <div style={{ padding: '22px 20px', flex: 1 }}>
+              <div style={{ fontWeight: 800, color: '#E0E0F4', fontSize: 15, marginBottom: 10 }}>All Families</div>
+              <div style={{
+                fontWeight: 900,
+                color: '#D4226A',
+                fontSize: 38,
+                lineHeight: 1,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                marginBottom: 2,
+              }}>
+                {totalActive !== undefined ? totalActive.toLocaleString() : '…'}
+              </div>
+              <div style={{ fontSize: 11, color: '#606088', marginBottom: 10 }}>active families</div>
+              <div style={{ fontSize: 11, color: '#8080A8' }}>Across all locations</div>
+            </div>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---- Tier 2: Location Family Panel (lazy-loaded slide panel) ----
+function LocationFamilyPanel({
+  locationId,
+  locations,
+  canEdit,
+  onClose,
+  onAddFamily,
+  onOpenFamily,
+  navigate,
+}: {
+  locationId: string
+  locations: any[] | undefined
+  canEdit: boolean
+  onClose: () => void
+  onAddFamily: () => void
+  onOpenFamily: (id: string) => void
+  navigate: (path: string) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [rateFilter, setRateFilter] = useState(0)
+  const [sortBy, setSortBy] = useState<'az' | 'za' | 'newest' | 'oldest'>('az')
+  const [activeTab, setActiveTab] = useState<'active' | 'inactive'>('active')
+
+  const effectiveLocationId = locationId === 'all' ? null : locationId
+  const loc = locationId === 'all' ? null : locations?.find((l: any) => l.id === locationId)
+  const locColor = locationId === 'all' ? '#D4226A' : (LOCATION_COLORS[locationId] ?? '#D4226A')
+
+  const rosterInfinite = useFamiliesRosterInfinite({
+    familyTab: activeTab,
+    locationId: effectiveLocationId,
+    rateFilter,
+    search,
+    sortBy,
+    enabled: true,
+  })
+
+  const rosterRows = useMemo(
+    () => rosterInfinite.data?.pages.flatMap((p) => p.rows) ?? [],
+    [rosterInfinite.data],
+  )
+
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = loadMoreRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && rosterInfinite.hasNextPage && !rosterInfinite.isFetchingNextPage) {
+          rosterInfinite.fetchNextPage()
+        }
+      },
+      { rootMargin: '200px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [rosterInfinite.hasNextPage, rosterInfinite.isFetchingNextPage, rosterInfinite.fetchNextPage])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  const gridCols = 'minmax(140px,1.5fr) minmax(72px,0.55fr) minmax(160px,1.1fr) minmax(100px,0.75fr) minmax(200px,1.3fr) minmax(120px,0.85fr) minmax(100px,0.75fr) minmax(88px,0.65fr)'
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 300,
+          background: 'rgba(2,2,9,0.72)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+        }}
+      />
+
+      {/* Slide panel */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          width: 'min(900px, 100vw)',
+          height: '100vh',
+          zIndex: 301,
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'linear-gradient(160deg, #0C0C18 0%, #08080F 100%)',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '-24px 0 80px rgba(0,0,0,0.7)',
+          animation: 'slideInRight 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
+      >
+        {/* Panel header */}
+        <div style={{
+          padding: '18px 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          flexShrink: 0,
+          background: 'rgba(0,0,0,0.2)',
+        }}>
+          <div style={{ width: 4, height: 46, borderRadius: 2, background: locColor, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontWeight: 800, fontSize: 17, color: '#E0E0F4', letterSpacing: '-0.01em' }}>
+              {locationId === 'all' ? 'All Families' : (loc?.name ?? 'Families')}
+            </h2>
+            <p style={{ margin: '3px 0 0', fontSize: 11, color: '#8080A8' }}>
+              {locationId === 'all'
+                ? 'Across all locations'
+                : (loc?.city ? `${loc.city}, ${loc.state}` : '')}
+            </p>
+          </div>
+          <button
+            onClick={onAddFamily}
+            style={{
+              fontSize: 12,
+              padding: '7px 14px',
+              borderRadius: 8,
+              background: '#D4226A',
+              border: 'none',
+              color: '#fff',
+              fontWeight: 700,
+              cursor: 'pointer',
+              flexShrink: 0,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            + Add Family
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#8080A8',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Status tabs */}
+        <div style={{
+          padding: '0 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          flexShrink: 0,
+          display: 'flex',
+          gap: 0,
+        }}>
+          {(['active', 'inactive'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: '11px 18px',
+                fontWeight: 700,
+                fontSize: 12,
+                color: activeTab === tab ? locColor : '#606088',
+                background: 'none',
+                border: 'none',
+                borderBottom: `2px solid ${activeTab === tab ? locColor : 'transparent'}`,
+                cursor: 'pointer',
+                transition: 'color 150ms ease, border-color 150ms ease',
+                textTransform: 'capitalize',
+              }}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div style={{
+          padding: '10px 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          display: 'flex',
+          gap: 8,
+          flexShrink: 0,
+          flexWrap: 'wrap',
+          background: 'rgba(0,0,0,0.1)',
+        }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, phone..."
+            className="filter-select"
+            style={{ flex: '1 1 180px', minWidth: 0 }}
+          />
+          <select
+            value={rateFilter}
+            onChange={(e) => setRateFilter(Number(e.target.value))}
+            className="filter-select"
+            style={{ flex: '0 0 auto', minWidth: 110 }}
+          >
+            <option value={0}>All Rates</option>
+            {RATE_OPTIONS.filter(r => r.value).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'az' | 'za' | 'newest' | 'oldest')}
+            className="filter-select"
+            style={{ flex: '0 0 auto', minWidth: 120 }}
+          >
+            <option value="az">A → Z</option>
+            <option value="za">Z → A</option>
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+          </select>
+        </div>
+
+        {/* Row count */}
+        <div style={{ padding: '6px 24px 4px', fontSize: 11, color: '#606088', flexShrink: 0 }}>
+          {rosterInfinite.isLoading
+            ? 'Loading...'
+            : `${rosterRows.length}${rosterInfinite.hasNextPage ? '+' : ''} famil${rosterRows.length !== 1 ? 'ies' : 'y'}`}
+        </div>
+
+        {/* Column headers */}
+        {!rosterInfinite.isLoading && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: gridCols,
+            gap: '0 12px',
+            padding: '7px 24px',
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#8080A8',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            background: 'rgba(0,0,0,0.2)',
+            flexShrink: 0,
+          }}>
+            <span>Family</span>
+            <span>Monthly</span>
+            <span>Email</span>
+            <span>Phone</span>
+            <span>Students</span>
+            <span>Card</span>
+            <span>Billing</span>
+            <span>Agreement</span>
+          </div>
+        )}
+
+        {/* Roster rows */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {rosterInfinite.isLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+              <MusicLoader />
+            </div>
+          ) : rosterRows.length === 0 ? (
+            <div className="empty-state" style={{ border: 'none', padding: 28 }}>
+              No {activeTab} families found{search ? ' matching your search' : ''}.
+            </div>
+          ) : (
+            <>
+              {rosterRows.map((f) => (
+                <FamilyRosterRow
+                  key={f.id}
+                  family={f}
+                  onClick={() => onOpenFamily(f.id)}
+                />
+              ))}
+              <div ref={loadMoreRef} style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                {rosterInfinite.isFetchingNextPage && <span style={{ fontSize: 12, color: '#8080A8' }}>Loading more…</span>}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ═══════════════════════════════════════
 // FAMILIES PAGE
 // ═══════════════════════════════════════
@@ -221,172 +649,36 @@ export default function Families() {
   const { data: familyInsights } = useFamilyInsights()
   const { data: autoPayStats } = useAutoPayStats()
 
-  // URL-persisted filters
-  const { getParam, setParam, searchParams } = useUrlFilters()
-  const search = getParam('q')
-  const familyTab = (isStudioDirector ? 'active' : (getParam('tab') || 'active')) as 'active' | 'inactive' | 'all'
-  // For studio_director, resolve their location name and force it as the filter
-  const sdLocationName = useMemo(() => {
-    if (!isStudioDirector || !locationIds?.length) return null
-    const loc = (locations ?? []).find((l: any) => l.id === locationIds[0])
-    return loc ? (loc.name as string).replace(' Music Lessons', '') : null
-  }, [isStudioDirector, locationIds, locations])
-  const locationFilter = isStudioDirector ? (sdLocationName ?? '') : getParam('location')
-  const rateFilter = Number(getParam('rate') || '0')
-  const sortBy = (getParam('sort') || 'az') as 'az' | 'za' | 'newest' | 'oldest'
-  const showNeedsAttention = getParam('needs_attention') === '1'
-  const agreementFilter = (getParam('agreement') || 'all') as 'all' | 'has' | 'missing'
-  const setSearch = (v: string) => setParam('q', v)
-  const setFamilyTab = (v: 'active' | 'inactive' | 'all') => setParam('tab', v === 'active' ? '' : v)
-  const setLocationFilter = (v: string) => setParam('location', v)
-  const setRateFilter = (v: number) => setParam('rate', v === 0 ? '' : String(v))
-  const setSortBy = (v: 'az' | 'za' | 'newest' | 'oldest') => setParam('sort', v === 'az' ? '' : v)
-  const setShowNeedsAttention = (v: boolean) => setParam('needs_attention', v ? '1' : '')
-  const setAgreementFilter = (v: 'all' | 'has' | 'missing') => setParam('agreement', v === 'all' ? '' : v)
-  const initialFamily = searchParams.get('family')
-  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(initialFamily)
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null)
+  const [showAddFamily, setShowAddFamily] = useState(false)
+  const [showExport, setShowExport] = useState(false)
 
   const canEdit = role === 'owner' || role === 'admin'
   const canExport = role === 'owner' || role === 'admin' || role === 'company_director'
   const canCreate = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
   const canView = isAtLeast('studio_director')
-  const [showExport, setShowExport] = useState(false)
-  const [showAddFamily, setShowAddFamily] = useState(false)
 
-  const useClientHeavyFilters = showNeedsAttention || agreementFilter !== 'all'
+  const activeLocationIds = useMemo(() => {
+    if (isStudioDirector && locationIds?.length) return locationIds
+    return (locations ?? []).filter((l: any) => l.is_active).map((l: any) => l.id)
+  }, [locations, isStudioDirector, locationIds])
 
-  const primaryLocationId = useMemo(() => {
-    if (isStudioDirector && locationIds?.length) return locationIds[0]
-    if (!locationFilter) return null
-    const loc = (locations ?? []).find((l: any) => l.name.replace(' Music Lessons', '') === locationFilter)
-    return loc?.id ?? null
-  }, [isStudioDirector, locationIds, locations, locationFilter])
+  const { data: locationCounts } = useFamilyCountsByLocation(activeLocationIds)
+  const lockedLocationId = isStudioDirector && locationIds?.length ? locationIds[0] : null
 
-  const rosterQuery = useFamiliesRosterInfinite({
-    familyTab,
-    locationId: primaryLocationId,
-    rateFilter,
-    search,
-    sortBy,
-    enabled: !useClientHeavyFilters,
-  })
-
-  const { data: fullFamilies, isLoading: fullLoading, error: fullError } = useFamiliesPage({ enabled: useClientHeavyFilters })
   const { data: exportFamilies, isLoading: exportLoading } = useFamiliesPage({ enabled: showExport })
 
-  const loadMoreRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (useClientHeavyFilters) return
-    const el = loadMoreRef.current
-    if (!el) return
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0]
-        if (first?.isIntersecting && rosterQuery.hasNextPage && !rosterQuery.isFetchingNextPage) {
-          rosterQuery.fetchNextPage()
-        }
-      },
-      { rootMargin: '240px' },
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [useClientHeavyFilters, rosterQuery.hasNextPage, rosterQuery.isFetchingNextPage, rosterQuery.fetchNextPage])
+  const onSelectLocation = useCallback((id: string) => setSelectedLocationId(id), [])
 
-  const rosterRows = useMemo(() => rosterQuery.data?.pages.flatMap((p) => p.rows) ?? [], [rosterQuery.data])
-
-  const isLoading = useClientHeavyFilters ? fullLoading : rosterQuery.isLoading
-  const error = useClientHeavyFilters ? fullError : rosterQuery.error
-
-  if (!canView && !isLoading) {
+  if (!canView) {
     navigate('/login', { replace: true })
     return null
   }
 
-  const allActiveList = useMemo(() => fullFamilies?.filter((f) => (f.billing_status ?? 'active') !== 'cancelled') ?? [], [fullFamilies])
-  const allInactiveList = useMemo(() => fullFamilies?.filter((f) => (f.billing_status ?? 'active') === 'cancelled') ?? [], [fullFamilies])
-  const allFamiliesList = fullFamilies ?? []
-  const baseList = familyTab === 'all' ? allFamiliesList : familyTab === 'active' ? allActiveList : allInactiveList
-
-  const filteredHeavy = useMemo(() => {
-    let list = baseList.filter((f) => {
-      if (locationFilter && f.locationName !== locationFilter) return false
-      if (rateFilter && f.rate_tier !== rateFilter) return false
-      if (showNeedsAttention && !familyNeedsAttention(f)) return false
-      if (agreementFilter === 'has' && !f.has_enrollment_agreement) return false
-      if (agreementFilter === 'missing' && f.has_enrollment_agreement) return false
-      if (search) {
-        const q = search.toLowerCase()
-        const haystack = `${f.name} ${f.parent_name ?? ''} ${f.primary_contact_name ?? ''} ${f.primary_email ?? ''} ${f.primary_phone ?? ''}`.toLowerCase()
-        if (!haystack.includes(q)) return false
-      }
-      return true
-    })
-    list = [...list].sort((a, b) => {
-      switch (sortBy) {
-        case 'az': return stripFamily(a.name).localeCompare(stripFamily(b.name))
-        case 'za': return stripFamily(b.name).localeCompare(stripFamily(a.name))
-        case 'newest': return (b.created_at ?? '').localeCompare(a.created_at ?? '')
-        case 'oldest': return (a.created_at ?? '').localeCompare(b.created_at ?? '')
-        default: return 0
-      }
-    })
-    return list
-  }, [baseList, search, locationFilter, rateFilter, sortBy, showNeedsAttention, agreementFilter])
-
-  const filtered = useClientHeavyFilters ? filteredHeavy : rosterRows
-
-  const needsAttentionCount = useMemo(() => {
-    if (!useClientHeavyFilters) return 0
-    return baseList.filter(familyNeedsAttention).length
-  }, [useClientHeavyFilters, baseList])
-
   const countActive = tabCounts?.active ?? 0
   const countInactive = tabCounts?.inactive ?? 0
   const countTotal = tabCounts?.all ?? 0
-
-  const exportFiltered = useMemo(() => {
-    if (!exportFamilies) return []
-    const list = exportFamilies.filter((f) => {
-      const isInactive = (f.billing_status ?? 'active') === 'cancelled'
-      if (familyTab === 'active' && isInactive) return false
-      if (familyTab === 'inactive' && !isInactive) return false
-      if (locationFilter && f.locationName !== locationFilter) return false
-      if (rateFilter && f.rate_tier !== rateFilter) return false
-      if (search) {
-        const q = search.toLowerCase()
-        const haystack = `${f.name} ${f.parent_name ?? ''} ${f.primary_contact_name ?? ''} ${f.primary_email ?? ''} ${f.primary_phone ?? ''}`.toLowerCase()
-        if (!haystack.includes(q)) return false
-      }
-      return true
-    })
-    return [...list].sort((a, b) => {
-      switch (sortBy) {
-        case 'az': return stripFamily(a.name).localeCompare(stripFamily(b.name))
-        case 'za': return stripFamily(b.name).localeCompare(stripFamily(a.name))
-        case 'newest': return (b.created_at ?? '').localeCompare(a.created_at ?? '')
-        case 'oldest': return (a.created_at ?? '').localeCompare(b.created_at ?? '')
-        default: return 0
-      }
-    })
-  }, [exportFamilies, familyTab, locationFilter, rateFilter, search, sortBy])
-
-  if (isLoading) {
-    return (
-      <div className="page">
-        <div className="page-header"><h1>Families</h1></div>
-        <div className="loading-screen" style={{ height: 200 }}><MusicLoader /></div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="page">
-        <div className="page-header"><h1>Families</h1></div>
-        <div className="form-error">Failed to load: {(error as Error).message}</div>
-      </div>
-    )
-  }
 
   return (
     <IssueContextProvider page="Roster — Families">
@@ -417,70 +709,6 @@ export default function Families() {
 
       {canView && <DuplicateStudentReviewBanner />}
 
-      {/* FILTERS — matches Students page layout */}
-      <div className="schedule-filters" style={{ marginBottom: '16px' }}>
-        <div className="student-filter-row-1">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search families..."
-            className="filter-select"
-            style={{ minWidth: 160, flex: 1 }}
-          />
-        </div>
-        <div className="student-filter-row-2">
-          {!isStudioDirector && (
-            <select value={familyTab} onChange={e => setFamilyTab(e.target.value as any)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="all">All</option>
-            </select>
-          )}
-          {!isStudioDirector && (
-            <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-              <option value="">Locations</option>
-              {locations?.filter((l: any) => l.is_active).map((loc: any) => (
-                <option key={loc.id} value={loc.name.replace(' Music Lessons', '')}>{loc.name.replace(' Music Lessons', '')}</option>
-              ))}
-            </select>
-          )}
-          <select value={rateFilter} onChange={e => setRateFilter(Number(e.target.value))} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value={0}>All Rates</option>
-            {RATE_OPTIONS.filter(r => r.value).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
-          <select value={agreementFilter} onChange={e => setAgreementFilter(e.target.value as any)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value="all">All Agreements</option>
-            <option value="has">Has Agreement</option>
-            <option value="missing">Missing Agreement</option>
-          </select>
-        </div>
-        <div className="student-filter-row-2" style={{ marginTop: 6 }}>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as 'az' | 'za' | 'newest' | 'oldest')} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value="az">A → Z</option>
-            <option value="za">Z → A</option>
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-          </select>
-          <button
-            onClick={() => setShowNeedsAttention(!showNeedsAttention)}
-            className="filter-select"
-            style={{
-              flex: 'none',
-              cursor: 'pointer',
-              textAlign: 'center',
-              fontWeight: showNeedsAttention ? 700 : 500,
-              background: showNeedsAttention ? 'rgba(251,146,60,0.12)' : undefined,
-              borderColor: showNeedsAttention ? 'rgba(251,146,60,0.35)' : undefined,
-              color: showNeedsAttention ? '#FB923C' : '#A0A0C8',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Needs Attention{useClientHeavyFilters && needsAttentionCount > 0 ? ` (${needsAttentionCount})` : ''}
-          </button>
-        </div>
-        <span className="visibility-count">Showing {filtered.length} famil{filtered.length !== 1 ? 'ies' : 'y'}</span>
-      </div>
-
       {/* At-a-glance insight tiles */}
       <FamilyInsightBar
         billingIssues={familyInsights?.billingIssues}
@@ -492,88 +720,39 @@ export default function Families() {
         onViewAutopay={() => navigate('/admin/billing?section=autopay')}
       />
 
-      {/* Compact roster */}
-      <div data-guide-id="families-list" style={{ marginTop: 4 }}>
-        {useClientHeavyFilters && (
-          <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8, paddingLeft: 4 }}>
-            Agreement and Needs Attention filters load the full roster to search accurately. Clear those filters for faster paged loading.
-          </div>
-        )}
-        <div
-          className="roster-table-wrap"
-          style={{
-            overflowX: 'auto',
-            borderRadius: 12,
-            border: '1px solid rgba(255,255,255,0.06)',
-            background: 'rgba(0,0,0,0.15)',
-          }}
-        >
-          <div
-            className="roster-grid roster-grid-families"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(140px,1.5fr) minmax(72px,0.55fr) minmax(160px,1.1fr) minmax(100px,0.75fr) minmax(200px,1.3fr) minmax(120px,0.85fr) minmax(100px,0.75fr) minmax(88px,0.65fr)',
-              gap: '0 12px',
-              alignItems: 'center',
-              padding: '10px 14px',
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#8080A8',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-            }}
-          >
-            <span>Family</span>
-            <span>Monthly</span>
-            <span>Email</span>
-            <span>Phone</span>
-            <span>Students</span>
-            <span>Card</span>
-            <span>Billing</span>
-            <span>Agreement</span>
-          </div>
-          {filtered.length > 0 ? (() => {
-            const rows = sortBy !== 'az' || useClientHeavyFilters
-              ? filtered.map((f, i) => ({ f, i, letter: null as string | null }))
-              : (() => {
-                let lastLetter = ''
-                return filtered.map((f, i) => {
-                  const letter = stripFamily(f.name).charAt(0).toUpperCase() || '#'
-                  const showHeader = letter !== lastLetter
-                  lastLetter = letter
-                  return { f, i, letter: showHeader ? letter : null }
-                })
-              })()
-            return (
-              <>
-                {rows.map(({ f, i, letter }) => (
-                  <div key={f.id}>
-                    {letter && (
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#606088', padding: '10px 14px 4px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{letter}</div>
-                    )}
-                    <FamilyRosterRow family={f} onClick={() => setSelectedFamilyId(f.id)} guideId={i === 0 ? 'family-card-first' : undefined} />
-                  </div>
-                ))}
-                {!useClientHeavyFilters && (
-                  <div ref={loadMoreRef} style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-                    {rosterQuery.isFetchingNextPage && <span style={{ fontSize: 12, color: '#8080A8' }}>Loading more…</span>}
-                  </div>
-                )}
-              </>
-            )
-          })() : (
-            <div className="empty-state" style={{ border: 'none', padding: 28 }}>No {familyTab} families found.</div>
-          )}
-        </div>
-      </div>
+      {/* TIER 1: Location overview grid */}
+      <FamilyLocationGrid
+        locations={locations}
+        locationCounts={locationCounts}
+        totalActive={tabCounts?.active}
+        onSelectLocation={onSelectLocation}
+        isStudioDirector={isStudioDirector}
+        lockedLocationId={lockedLocationId}
+      />
 
+      {/* TIER 2: Slide panel — lazy-loads on location click */}
+      {selectedLocationId !== null && (
+        <LocationFamilyPanel
+          locationId={selectedLocationId}
+          locations={locations}
+          canEdit={canEdit}
+          onClose={() => setSelectedLocationId(null)}
+          onAddFamily={() => setShowAddFamily(true)}
+          onOpenFamily={setSelectedFamilyId}
+          navigate={navigate}
+        />
+      )}
+
+      {/* Family detail modal (portals to document.body) */}
       {selectedFamilyId && (
         <FamilyDetailModal
           familyId={selectedFamilyId}
           canEdit={canEdit}
           onClose={() => setSelectedFamilyId(null)}
-          onNavigateStudent={(id) => { setSelectedFamilyId(null); navigate(`/admin/students?id=${id}`) }}
+          onNavigateStudent={(id) => {
+            setSelectedFamilyId(null)
+            navigate(`/admin/students?id=${id}`)
+          }}
         />
       )}
 
@@ -598,36 +777,41 @@ export default function Families() {
             </div>
             <div style={{ padding: 22 }}>
               <p style={{ fontSize: 12.5, color: '#A0A0C8', marginBottom: 16 }}>
-                {exportLoading ? 'Loading full roster for export…' : `Export ${useClientHeavyFilters ? filtered.length : exportFiltered.length} families (filters applied).`}
+                {exportLoading ? 'Loading full roster for export…' : `Export ${exportFamilies?.length ?? 0} families.`}
               </p>
-              <button className="btn-primary" disabled={exportLoading} style={{ width: '100%', justifyContent: 'center', padding: 12 }} onClick={() => {
-                const csvRows = useClientHeavyFilters ? filtered : exportFiltered
-                const headers = ['Family Name', 'Parent Name', 'Email', 'Phone', 'Location', 'Rate', 'Billing Status', 'Students', 'Teachers', 'Instruments', 'Lifetime Paid', 'Balance', 'Military']
-                const rows = csvRows.map((f) => [
-                  f.name ?? '',
-                  f.parent_name ?? '',
-                  f.primary_email ?? '',
-                  f.primary_phone ?? '',
-                  f.locationName ?? '',
-                  `$${(f.rate_tier / 100).toFixed(2)}`,
-                  f.billing_status ?? 'active',
-                  String(f.activeStudentCount),
-                  f.teacherNames?.join('; ') ?? '',
-                  f.instrumentList?.join(', ') ?? '',
-                  `$${((f.lifetime_paid_cents ?? 0) / 100).toFixed(2)}`,
-                  `$${((f.balance ?? 0) / 100).toFixed(2)}`,
-                  f.is_military ? 'Yes' : 'No',
-                ])
-                const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
-                const blob = new Blob([csv], { type: 'text/csv' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url; a.download = `families_export_${new Date().toISOString().split('T')[0]}.csv`; a.click()
-                URL.revokeObjectURL(url)
-                setShowExport(false)
-                toast('Export downloaded', 'success')
-              }}>
-                Export {useClientHeavyFilters ? filtered.length : exportFiltered.length} Families
+              <button
+                className="btn-primary"
+                disabled={exportLoading || !exportFamilies}
+                style={{ width: '100%', justifyContent: 'center', padding: 12 }}
+                onClick={() => {
+                  if (!exportFamilies) return
+                  const headers = ['Family Name', 'Parent Name', 'Email', 'Phone', 'Location', 'Rate', 'Billing Status', 'Students', 'Teachers', 'Instruments', 'Lifetime Paid', 'Balance', 'Military']
+                  const rows = exportFamilies.map((f) => [
+                    f.name ?? '',
+                    f.parent_name ?? '',
+                    f.primary_email ?? '',
+                    f.primary_phone ?? '',
+                    f.locationName ?? '',
+                    `$${(f.rate_tier / 100).toFixed(2)}`,
+                    f.billing_status ?? 'active',
+                    String(f.activeStudentCount),
+                    f.teacherNames?.join('; ') ?? '',
+                    f.instrumentList?.join(', ') ?? '',
+                    `$${((f.lifetime_paid_cents ?? 0) / 100).toFixed(2)}`,
+                    `$${((f.balance ?? 0) / 100).toFixed(2)}`,
+                    f.is_military ? 'Yes' : 'No',
+                  ])
+                  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+                  const blob = new Blob([csv], { type: 'text/csv' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url; a.download = `families_export_${new Date().toISOString().split('T')[0]}.csv`; a.click()
+                  URL.revokeObjectURL(url)
+                  setShowExport(false)
+                  toast('Export downloaded', 'success')
+                }}
+              >
+                Export {exportFamilies?.length ?? 0} Families
               </button>
             </div>
           </div>

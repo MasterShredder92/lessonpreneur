@@ -113,6 +113,31 @@ export function useFamilyTabCounts() {
   })
 }
 
+/** Per-location active family counts — runs N parallel HEAD queries, one per location.
+ *  Fast: no row data fetched, just counts. Used for Tier 1 location overview cards. */
+export function useFamilyCountsByLocation(locationIds: string[]) {
+  const { tenantId } = useAuthContext()
+  const stableKey = [...locationIds].sort().join(',')
+  return useQuery({
+    queryKey: ['families-counts-by-location', tenantId, stableKey],
+    enabled: !!tenantId && locationIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const results = await Promise.all(
+        locationIds.map((id) =>
+          supabase
+            .from('families')
+            .select('*', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId!)
+            .eq('primary_location_id', id)
+            .neq('billing_status', 'cancelled'),
+        ),
+      )
+      return Object.fromEntries(locationIds.map((id, i) => [id, results[i].count ?? 0])) as Record<string, number>
+    },
+  })
+}
+
 // ═══════════════════════════════════════
 // HOOKS — LIST PAGE
 // ═══════════════════════════════════════
