@@ -439,4 +439,11 @@ export const qk = {
       ] as const,
     teamProfiles: (tenantId: string | null) => ['ai-observability', 'team-profiles', tenantId] as const,
   },
+
+  // ── Integrations ─────────────────────────────────
+  integrations: {
+    configs: ['integration_configs'] as const,
+    webhookEvents: (integrationId?: string | null) => ['webhook_events', integrationId] as const,
+    outboundLog: ['webhook_events', 'outbound'] as const,
+  },
 } as const

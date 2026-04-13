@@ -17,25 +17,7 @@
     { "source": "/:loc(omaha|bellevue|elkhorn|gretna)/vocal-lessons", "destination": "/:loc/vocals", "permanent": true },
     { "source": "/:loc(omaha|bellevue|elkhorn|gretna)/bass-guitar-lessons", "destination": "/:loc/more", "permanent": true },
 
-    { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "elkhornlessons.com" }], "destination": "https://www.lessonpreneur.io/elkhorn/:path", "permanent": true },
-    { "source": "/", "has": [{ "type": "host", "value": "elkhornlessons.com" }], "destination": "https://www.lessonpreneur.io/elkhorn", "permanent": true },
-    { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "www.elkhornlessons.com" }], "destination": "https://www.lessonpreneur.io/elkhorn/:path", "permanent": true },
-    { "source": "/", "has": [{ "type": "host", "value": "www.elkhornlessons.com" }], "destination": "https://www.lessonpreneur.io/elkhorn", "permanent": true },
-
-    { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "musiclessonsbellevue.com" }], "destination": "https://www.lessonpreneur.io/bellevue/:path", "permanent": true },
-    { "source": "/", "has": [{ "type": "host", "value": "musiclessonsbellevue.com" }], "destination": "https://www.lessonpreneur.io/bellevue", "permanent": true },
-    { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "www.musiclessonsbellevue.com" }], "destination": "https://www.lessonpreneur.io/bellevue/:path", "permanent": true },
-    { "source": "/", "has": [{ "type": "host", "value": "www.musiclessonsbellevue.com" }], "destination": "https://www.lessonpreneur.io/bellevue", "permanent": true },
-
-    { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "omahaguitarandmusiclessons.com" }], "destination": "https://www.lessonpreneur.io/omaha/:path", "permanent": true },
-    { "source": "/", "has": [{ "type": "host", "value": "omahaguitarandmusiclessons.com" }], "destination": "https://www.lessonpreneur.io/omaha", "permanent": true },
-    { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "www.omahaguitarandmusiclessons.com" }], "destination": "https://www.lessonpreneur.io/omaha/:path", "permanent": true },
-    { "source": "/", "has": [{ "type": "host", "value": "www.omahaguitarandmusiclessons.com" }], "destination": "https://www.lessonpreneur.io/omaha", "permanent": true },
-
-    { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "gretnamusiclessons.com" }], "destination": "https://www.lessonpreneur.io/gretna/:path", "permanent": true },
-    { "source": "/", "has": [{ "type": "host", "value": "gretnamusiclessons.com" }], "destination": "https://www.lessonpreneur.io/gretna", "permanent": true },
-    { "source": "/:path((?!api/).*)", "has": [{ "type": "host", "value": "www.gretnamusiclessons.com" }], "destination": "https://www.lessonpreneur.io/gretna/:path", "permanent": true },
-    { "source": "/", "has": [{ "type": "host", "value": "www.gretnamusiclessons.com" }], "destination": "https://www.lessonpreneur.io/gretna", "permanent": true }
+    { "source": "/:loc(omaha|bellevue|elkhorn|gretna)/signup", "destination": "/:loc", "permanent": false }
   ],
   "headers": [
     {

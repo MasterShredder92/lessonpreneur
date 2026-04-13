@@ -183,11 +183,12 @@ export default function IntegrationConfigureModal({ config, integrationName, onS
     })
     setSettings(s)
 
-    // Initialize credentials (mask existing values)
+    // Initialize credentials — values from DB are masked ('••••••••')
+    // Show them as placeholders; user only sends values they actually change
     const c: Record<string, string> = {}
     Object.keys(config.credentials).forEach(key => {
       if (key === 'source' || key === 'note') return
-      c[key] = config.credentials[key] ?? ''
+      c[key] = ''  // Start empty — placeholder shows masked value
     })
     setCredentials(c)
   }, [config])
@@ -198,12 +199,20 @@ export default function IntegrationConfigureModal({ config, integrationName, onS
     return n
   })
 
+  const [error, setError] = useState('')
+
   const handleSave = async () => {
     setSaving(true)
+    setError('')
     try {
-      // Only send credentials if user changed them
-      const creds = Object.keys(credentials).length > 0 ? credentials : undefined
+      // Only send credentials the user actually changed (non-empty values)
+      const changedCreds = Object.fromEntries(
+        Object.entries(credentials).filter(([, v]) => v.trim() !== '')
+      )
+      const creds = Object.keys(changedCreds).length > 0 ? changedCreds : undefined
       await onSave(settings, creds)
+    } catch (err: any) {
+      setError(err.message || 'Failed to save settings')
     } finally {
       setSaving(false)
     }
@@ -327,7 +336,7 @@ export default function IntegrationConfigureModal({ config, integrationName, onS
           {tab === 'credentials' && (
             <>
               <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)', fontSize: 12, color: '#FFB800', lineHeight: 1.5, marginBottom: 16 }}>
-                Credentials are stored securely. Leave a field unchanged to keep the current value.
+                Credentials are encrypted at rest. Leave a field blank to keep the current value.
               </div>
               {credentialKeys.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '24px 0', color: '#606088', fontSize: 13 }}>No credentials stored for this integration.</div>
@@ -344,6 +353,7 @@ export default function IntegrationConfigureModal({ config, integrationName, onS
                           type={isSecret && !showSecrets.has(key) ? 'password' : 'text'}
                           value={credentials[key]}
                           onChange={e => { setCredentials(prev => ({ ...prev, [key]: e.target.value })); setDirty(true) }}
+                          placeholder="••••••••  (leave blank to keep current)"
                           autoComplete="off"
                           style={{
                             width: '100%', padding: '10px 14px', paddingRight: isSecret ? 40 : 14,
@@ -368,6 +378,15 @@ export default function IntegrationConfigureModal({ config, integrationName, onS
             </>
           )}
         </div>
+
+        {/* Error */}
+        {error && (
+          <div style={{ padding: '0 24px 8px' }}>
+            <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', fontSize: 12 }}>
+              {error}
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div style={{ padding: '12px 24px 20px', display: 'flex', gap: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
