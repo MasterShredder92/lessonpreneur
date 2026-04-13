@@ -144,8 +144,10 @@ const PAYMENT_COUNTED_STATUSES = new Set(['COMPLETED', 'APPROVED'])
 export const EXPENSE_CATEGORIES = [
   { value: 'rent', label: 'Rent', icon: '\uD83C\uDFE0', color: '#D4226A' },
   { value: 'utilities', label: 'Utilities', icon: '\u26A1', color: '#FFB800' },
-  { value: 'insurance', label: 'Insurance', icon: '\uD83D\uDEE1\uFE0F', color: '#3b82f6' },
-  { value: 'software', label: 'Software', icon: '\uD83D\uDCBB', color: '#8B5CF6' },
+  { value: 'online_purchases', label: 'Online Purchases', icon: '\uD83D\uDED2', color: '#3b82f6' },
+  { value: 'credit_card', label: 'Credit Card', icon: '\uD83D\uDCB3', color: '#8B5CF6' },
+  { value: 'insurance', label: 'Insurance', icon: '\uD83D\uDEE1\uFE0F', color: '#06b6d4' },
+  { value: 'software', label: 'Software', icon: '\uD83D\uDCBB', color: '#7C3AED' },
   { value: 'marketing', label: 'Marketing', icon: '\uD83D\uDCE3', color: '#22C55E' },
   { value: 'supplies', label: 'Supplies', icon: '\uD83D\uDCE6', color: '#fb923c' },
   { value: 'repairs', label: 'Repairs', icon: '\uD83D\uDD27', color: '#EF4444' },
