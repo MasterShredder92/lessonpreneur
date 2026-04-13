@@ -267,6 +267,21 @@ export async function generateFamilyInvoice(params: GenerateInvoiceParams): Prom
     if (!uploadErr) {
       const { data: urlData } = supabase.storage.from('invoices').getPublicUrl(pdfPath)
       pdfUrl = urlData?.publicUrl ?? null
+
+      // Stamp pdf_url into invoice_snapshot so the UI knows a real PDF exists
+      if (pdfUrl) {
+        const { data: tok } = await supabase
+          .from('invoice_tokens')
+          .select('invoice_snapshot')
+          .eq('id', invoiceToken.id)
+          .single()
+        if (tok?.invoice_snapshot) {
+          await supabase
+            .from('invoice_tokens')
+            .update({ invoice_snapshot: { ...tok.invoice_snapshot, pdf_url: pdfUrl } })
+            .eq('id', invoiceToken.id)
+        }
+      }
     }
   } catch {
     // PDF is best-effort — invoice is still valid without it
@@ -303,17 +318,45 @@ export async function generateFamilyInvoice(params: GenerateInvoiceParams): Prom
 
 // ── PDF builder (premium branded) ─────────────────────────────
 
-/** Fetch an image URL and return a base64 data URL, or null on failure */
-async function fetchImageAsBase64(url: string): Promise<string | null> {
+/** Max logo dimension in pixels — anything larger gets downscaled */
+const LOGO_MAX_PX = 128
+/** JPEG quality for logo compression (0–1) */
+const LOGO_QUALITY = 0.7
+
+/**
+ * Fetch a logo URL, resize to ≤128×128, compress to JPEG, return as
+ * a compact base64 data URL suitable for jsPDF embedding.
+ * Returns null on any failure — PDF generation continues without logo.
+ */
+async function fetchAndCompressLogo(url: string): Promise<string | null> {
   try {
     const res = await fetch(url)
     if (!res.ok) return null
     const blob = await res.blob()
+
+    // Decode into an ImageBitmap (works in all modern browsers)
+    const bmp = await createImageBitmap(blob)
+    const { width: srcW, height: srcH } = bmp
+
+    // Calculate target size — fit within LOGO_MAX_PX square
+    const scale = Math.min(1, LOGO_MAX_PX / Math.max(srcW, srcH))
+    const w = Math.round(srcW * scale)
+    const h = Math.round(srcH * scale)
+
+    // Draw onto an OffscreenCanvas and export as JPEG
+    const canvas = new OffscreenCanvas(w, h)
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(bmp, 0, 0, w, h)
+    bmp.close()
+
+    const jpegBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: LOGO_QUALITY })
+
+    // Convert to base64 data URL
     return await new Promise<string | null>((resolve) => {
       const reader = new FileReader()
       reader.onloadend = () => resolve(reader.result as string)
       reader.onerror = () => resolve(null)
-      reader.readAsDataURL(blob)
+      reader.readAsDataURL(jpegBlob)
     })
   } catch {
     return null
@@ -362,15 +405,18 @@ async function buildInvoicePdf(params: {
   const brandColor = branding?.color ?? FALLBACK_BRAND
   const [br, bg, bb] = hexToRgb(brandColor)
 
+  // Reusable GState instances — avoids creating 26+ separate PDF objects
+  const OPAQUE = new GState({ opacity: 1 })
+  const DIM_06 = new GState({ opacity: 0.06 })
+  const DIM_08 = new GState({ opacity: 0.08 })
+  const DIM_10 = new GState({ opacity: 0.1 })
+  const DIM_03 = new GState({ opacity: 0.03 })
+  const DIM_30 = new GState({ opacity: 0.3 })
+  const DIM_50 = new GState({ opacity: 0.5 })
+
   // ── Full-page dark background ──
   doc.setFillColor(...BG_DARK)
   doc.rect(0, 0, pageW, pageH, 'F')
-
-  // ── Subtle brand glow (top-right radial approximation) ──
-  doc.setGState(new GState({ opacity: 0.06 }))
-  doc.setFillColor(br, bg, bb)
-  doc.circle(pageW - 30, 30, 80, 'F')
-  doc.setGState(new GState({ opacity: 1 }))
 
   // ── Card background with rounded corners ──
   const cardX = margin - 4
@@ -382,9 +428,9 @@ async function buildInvoicePdf(params: {
 
   // Subtle card border
   doc.setDrawColor(255, 255, 255)
-  doc.setGState(new GState({ opacity: 0.08 }))
+  doc.setGState(DIM_08)
   doc.roundedRect(cardX, cardY, cardW, cardH, 4, 4, 'S')
-  doc.setGState(new GState({ opacity: 1 }))
+  doc.setGState(OPAQUE)
 
   // ── Brand accent bar at top of card ──
   doc.setFillColor(br, bg, bb)
@@ -397,28 +443,26 @@ async function buildInvoicePdf(params: {
   // ── HEADER: Logo + Location name + Invoice label ──
   const headerLeft = margin + 2
 
-  // Fetch and embed logo if available
+  // Fetch, compress, and embed logo if available
   let logoEmbedded = false
   if (branding?.logo_url) {
     try {
-      const base64 = await fetchImageAsBase64(branding.logo_url)
-      if (base64) {
-        // Detect image format from data URL (PNG, JPEG, WEBP, etc.)
-        const imgFormat = base64.match(/^data:image\/(\w+)/)?.[1]?.toUpperCase() === 'PNG' ? 'PNG' : 'JPEG'
-
+      const logoData = await fetchAndCompressLogo(branding.logo_url)
+      if (logoData) {
         // Draw logo background
         doc.setFillColor(br, bg, bb)
-        doc.setGState(new GState({ opacity: 0.1 }))
+        doc.setGState(DIM_10)
         doc.roundedRect(headerLeft, y - 1, 14, 14, 3, 3, 'F')
-        doc.setGState(new GState({ opacity: 1 }))
+        doc.setGState(OPAQUE)
 
-        doc.addImage(base64, imgFormat, headerLeft + 0.5, y - 0.5, 13, 13)
+        // Always JPEG — fetchAndCompressLogo converts everything to JPEG
+        doc.addImage(logoData, 'JPEG', headerLeft + 0.5, y - 0.5, 13, 13)
 
         // Logo border
         doc.setDrawColor(br, bg, bb)
-        doc.setGState(new GState({ opacity: 0.3 }))
+        doc.setGState(DIM_30)
         doc.roundedRect(headerLeft, y - 1, 14, 14, 3, 3, 'S')
-        doc.setGState(new GState({ opacity: 1 }))
+        doc.setGState(OPAQUE)
         logoEmbedded = true
       }
     } catch {
@@ -431,9 +475,9 @@ async function buildInvoicePdf(params: {
   if (!logoEmbedded && branding) {
     // Render initial letter as fallback logo
     doc.setFillColor(br, bg, bb)
-    doc.setGState(new GState({ opacity: 0.1 }))
+    doc.setGState(DIM_10)
     doc.roundedRect(headerLeft, y - 1, 14, 14, 3, 3, 'F')
-    doc.setGState(new GState({ opacity: 1 }))
+    doc.setGState(OPAQUE)
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(br, bg, bb)
@@ -486,9 +530,9 @@ async function buildInvoicePdf(params: {
 
   // ── Divider ──
   doc.setDrawColor(255, 255, 255)
-  doc.setGState(new GState({ opacity: 0.06 }))
+  doc.setGState(DIM_06)
   doc.line(margin, y, pageW - margin, y)
-  doc.setGState(new GState({ opacity: 1 }))
+  doc.setGState(OPAQUE)
   y += 6
 
   // ── Family title ──
@@ -544,19 +588,19 @@ async function buildInvoicePdf(params: {
 
   // Vertical separators between columns
   doc.setDrawColor(255, 255, 255)
-  doc.setGState(new GState({ opacity: 0.06 }))
+  doc.setGState(DIM_06)
   doc.line(margin + colW, infoY - 4, margin + colW, infoY + 16)
   doc.line(margin + colW * 2, infoY - 4, margin + colW * 2, infoY + 16)
-  doc.setGState(new GState({ opacity: 1 }))
+  doc.setGState(OPAQUE)
 
   y = infoY + 20
 
   // ── Military discount badge ──
   if (isMilitary) {
     doc.setFillColor(255, 184, 0)
-    doc.setGState(new GState({ opacity: 0.08 }))
+    doc.setGState(DIM_08)
     doc.roundedRect(margin, y, 58, 7, 2, 2, 'F')
-    doc.setGState(new GState({ opacity: 1 }))
+    doc.setGState(OPAQUE)
 
     doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
@@ -567,9 +611,9 @@ async function buildInvoicePdf(params: {
 
   // ── Divider ──
   doc.setDrawColor(255, 255, 255)
-  doc.setGState(new GState({ opacity: 0.06 }))
+  doc.setGState(DIM_06)
   doc.line(margin, y, pageW - margin, y)
-  doc.setGState(new GState({ opacity: 1 }))
+  doc.setGState(OPAQUE)
   y += 2
 
   // ── Table header ──
@@ -589,9 +633,9 @@ async function buildInvoicePdf(params: {
 
   y += 2
   doc.setDrawColor(255, 255, 255)
-  doc.setGState(new GState({ opacity: 0.06 }))
+  doc.setGState(DIM_06)
   doc.line(margin, y, pageW - margin, y)
-  doc.setGState(new GState({ opacity: 1 }))
+  doc.setGState(OPAQUE)
   y += 5
 
   // ── Line items ──
@@ -625,17 +669,17 @@ async function buildInvoicePdf(params: {
 
     // Row separator
     doc.setDrawColor(255, 255, 255)
-    doc.setGState(new GState({ opacity: 0.03 }))
+    doc.setGState(DIM_03)
     doc.line(margin, y - 2, pageW - margin, y - 2)
-    doc.setGState(new GState({ opacity: 1 }))
+    doc.setGState(OPAQUE)
   }
 
   // ── Totals section ──
   y += 2
   doc.setDrawColor(255, 255, 255)
-  doc.setGState(new GState({ opacity: 0.06 }))
+  doc.setGState(DIM_06)
   doc.line(margin, y, pageW - margin, y)
-  doc.setGState(new GState({ opacity: 1 }))
+  doc.setGState(OPAQUE)
   y += 6
 
   // Subtotal
@@ -662,9 +706,9 @@ async function buildInvoicePdf(params: {
 
   // Divider above footer
   doc.setDrawColor(255, 255, 255)
-  doc.setGState(new GState({ opacity: 0.06 }))
+  doc.setGState(DIM_06)
   doc.line(margin, footerY - 6, pageW - margin, footerY - 6)
-  doc.setGState(new GState({ opacity: 1 }))
+  doc.setGState(OPAQUE)
 
   // Location name or Lessonpreneur
   doc.setFontSize(7.5)
@@ -675,9 +719,9 @@ async function buildInvoicePdf(params: {
 
   // "Powered by Lessonpreneur" on the right
   doc.setTextColor(...TEXT_DIM)
-  doc.setGState(new GState({ opacity: 0.5 }))
+  doc.setGState(DIM_50)
   doc.text('Powered by Lessonpreneur', pageW - margin - 2, footerY, { align: 'right' })
-  doc.setGState(new GState({ opacity: 1 }))
+  doc.setGState(OPAQUE)
 
   // Location contact line
   if (branding) {

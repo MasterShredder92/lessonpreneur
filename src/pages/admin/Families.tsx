@@ -844,14 +844,10 @@ function FamilyInvoiceSection({ familyId, family, invoices, open, onToggle }: {
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#E0E0F4', minWidth: 60, textAlign: 'right' }}>
                   {formatDollars(inv.amount_cents)}
                 </span>
-                {inv.invoice_snapshot?.billing_event_id && (
+                {inv.invoice_snapshot?.pdf_url && (
                   <button
                     title="View PDF"
-                    onClick={() => {
-                      const pdfPath = `${tenantId}/${familyId}/${inv.id}.pdf`
-                      const { data } = supabase.storage.from('invoices').getPublicUrl(pdfPath)
-                      if (data?.publicUrl) window.open(data.publicUrl, '_blank')
-                    }}
+                    onClick={() => window.open(inv.invoice_snapshot.pdf_url, '_blank')}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#606088' }}
                   >
                     <Download size={12} />
