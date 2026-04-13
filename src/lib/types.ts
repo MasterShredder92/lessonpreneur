@@ -77,7 +77,7 @@ export interface Student {
   first_name: string
   last_name: string
   instrument: string
-  status: 'active' | 'inactive' | 'former'
+  status: 'active' | 'paused' | 'inactive' | 'former'
   blocks_per_week: number
   rate_per_session: number
   /** Immutable website intake row (public-lead-submit). */

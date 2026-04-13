@@ -32,7 +32,7 @@ type StatusTab = 'active' | 'former' | 'all'
 type SortOption = 'az_first' | 'za_first' | 'az_last' | 'za_last' | 'newest' | 'oldest'
 
 function isIncomplete(s: StudentRow): boolean {
-  return !s.instrument || !s.teacher_id || !s.blocks_per_week || !s.rate_per_session || !s.location_id
+  return !s.instrument || !s.teacher_id || !s.blocks_per_week || !s.location_id
 }
 
 function StudentRosterRow({
@@ -107,7 +107,7 @@ function StudentRosterRow({
       <div style={{ color: '#E0E0F4', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.teacher_name !== '—' ? s.teacher_name : '—'}</div>
       {canViewBilling && (
         <div>
-          <div style={{ fontWeight: 700, color: '#E0E0F4' }}>${(s.rate_per_session * s.blocks_per_week * 4).toFixed(0)}</div>
+          <div style={{ fontWeight: 700, color: '#E0E0F4' }}>${((s.rate_per_session === 0 ? 0 : (s.family_rate_tier ? s.family_rate_tier / 100 : s.rate_per_session)) * (s.sessions_per_month ?? s.blocks_per_week * 4)).toFixed(0)}</div>
           {Number((s as any).overdue_amount ?? 0) > 0 && (
             <div style={{ fontSize: 10, color: '#F87171' }}>${Number((s as any).overdue_amount).toFixed(0)} due</div>
           )}
@@ -144,7 +144,7 @@ export default function Students() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: locations } = useLocations()
   const { data: teacherList } = useTeachers()
-  const { data: familyList } = useFamilies()
+  // useFamilies() moved into StudentFormModal — no longer loaded on page mount
   const canEdit = role === 'owner' || role === 'admin'
   const canCreate = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
   const canExport = role === 'owner' || role === 'admin' || role === 'company_director'
@@ -261,8 +261,16 @@ export default function Students() {
 
   const createStudent = useCreateStudent()
   const updateStudent = useUpdateStudent()
-  const { data: allLeads } = useLeads({})
-  const { data: riskScores } = useChurnRiskScores()
+  const [leadsNeeded, setLeadsNeeded] = useState(false)
+  const { data: allLeads } = useLeads({}, { enabled: leadsNeeded })
+  // Defer churn risk computation — it runs heavy cross-table queries.
+  // Load after the roster has rendered so initial paint isn't blocked.
+  const [riskEnabled, setRiskEnabled] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setRiskEnabled(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+  const { data: riskScores } = useChurnRiskScores({ enabled: riskEnabled })
   const riskMap = new Map((riskScores ?? []).map(r => [r.studentId, r]))
 
   const activeCt = tabCounts?.active ?? 0
@@ -355,7 +363,7 @@ export default function Students() {
           {canEdit && (
             <button className="btn-ghost student-header-desktop" onClick={() => setShowImport(true)} style={{ fontSize: 11 }}>Import CSV</button>
           )}
-          {canExport && <button className="btn-ghost student-header-desktop" onClick={() => setShowExport(true)} style={{ fontSize: 11 }}>Export CSV</button>}
+          {canExport && <button className="btn-ghost student-header-desktop" onClick={() => { setLeadsNeeded(true); setShowExport(true) }} style={{ fontSize: 11 }}>Export CSV</button>}
 
           {/* Mobile "More" dropdown — visible only on mobile */}
           <div className="student-more-wrap" style={{ position: 'relative' }}>
@@ -373,7 +381,7 @@ export default function Students() {
                     <button onClick={() => { setShowImport(true); setShowMoreMenu(false) }}>Import CSV</button>
                   )}
                   {canExport && (
-                    <button onClick={() => { setShowExport(true); setShowMoreMenu(false) }}>Export CSV</button>
+                    <button onClick={() => { setLeadsNeeded(true); setShowExport(true); setShowMoreMenu(false) }}>Export CSV</button>
                   )}
                   <button onClick={() => setShowMoreMenu(false)} style={{ color: '#8080A8', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 2 }}>Close</button>
                 </div>
@@ -535,7 +543,6 @@ export default function Students() {
       {(showCreateModal || editStudent) && (
         <StudentFormModal
           student={editStudent}
-          families={familyList ?? []}
           locations={locations ?? []}
           teachers={(teacherList ?? []).filter((t: any) => { const s = t.status ?? (t.is_active ? 'active' : 'inactive'); return s !== 'inactive' })}
           tenantId={tenantId!}
@@ -625,7 +632,7 @@ export default function Students() {
 
                   if (exportSelections.active) {
                     const active = allRows.filter((s) => s.status === 'active')
-                    active.forEach((s) => rows.push(['Student', `${s.first_name} ${s.last_name}`, s.family_name ?? '', s.family_email ?? '', s.family_phone ?? '', s.instrument ?? '', s.location_name ?? '', s.teacher_name ?? '', `$${(s.rate_per_session * s.blocks_per_week * 4).toFixed(0)}`, `$${Number((s as any).overdue_amount ?? 0).toFixed(0)}`, 'Active']))
+                    active.forEach((s) => rows.push(['Student', `${s.first_name} ${s.last_name}`, s.family_name ?? '', s.family_email ?? '', s.family_phone ?? '', s.instrument ?? '', s.location_name ?? '', s.teacher_name ?? '', `$${((s.rate_per_session === 0 ? 0 : (s.family_rate_tier ? s.family_rate_tier / 100 : s.rate_per_session)) * (s.sessions_per_month ?? s.blocks_per_week * 4)).toFixed(0)}`, `$${Number((s as any).overdue_amount ?? 0).toFixed(0)}`, 'Active']))
                   }
 
                   if (exportSelections.former) {
@@ -711,9 +718,8 @@ interface InstrumentFormRow {
   is_primary: boolean
 }
 
-function StudentFormModal({ student, families, locations, teachers, tenantId, onSave, onClose, isSaving }: {
+function StudentFormModal({ student, locations, teachers, tenantId, onSave, onClose, isSaving }: {
   student: StudentRow | null
-  families: any[]
   locations: any[]
   teachers: any[]
   tenantId: string
@@ -721,6 +727,7 @@ function StudentFormModal({ student, families, locations, teachers, tenantId, on
   onClose: () => void
   isSaving: boolean
 }) {
+  const { data: families } = useFamilies()
   const { data: existingInstruments } = useStudentInstruments(student?.id)
   const saveInstruments = useSaveStudentInstruments()
 
@@ -832,7 +839,7 @@ function StudentFormModal({ student, families, locations, teachers, tenantId, on
               <label>Family *</label>
               <select value={form.family_id} onChange={(e) => setForm({ ...form, family_id: e.target.value })} className="filter-select" style={{ width: '100%' }}>
                 <option value="">Select...</option>
-                {families.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {(families ?? []).map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
             <div className="form-field" style={{ flex: 1 }}>

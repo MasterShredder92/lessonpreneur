@@ -31,6 +31,7 @@ import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
 import LinkFamilyModal from '../../components/students/LinkFamilyModal'
 import { qk } from '../../lib/queryKeys'
 import { OriginalIntakePanel } from '../../components/leads/OriginalIntakePanel'
+import { useDirectorNotes, useAddDirectorNote } from '../../hooks/useDirectorNotes'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -87,9 +88,20 @@ export default function StudentDetail() {
   const addCreditMutation = useAddSessionCredit()
   const churnRisk = useStudentChurnRisk(id)
   const { data: studentInstruments } = useStudentInstruments(id)
+  const { data: directorNotes, isLoading: directorNotesLoading } = useDirectorNotes(id)
+  const addDirectorNote = useAddDirectorNote()
+  const isDirectorPlus = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [showLinkFamily, setShowLinkFamily] = useState(false)
+  const [showReactivationModal, setShowReactivationModal] = useState(false)
+  const [reactivationDate, setReactivationDate] = useState('')
+  const [reactivationSaving, setReactivationSaving] = useState(false)
   const [deferSecondarySections, setDeferSecondarySections] = useState(false)
+  const [bioEditing, setBioEditing] = useState(false)
+  const [bioValue, setBioValue] = useState('')
+  const [bioSaving, setBioSaving] = useState(false)
+  const [directorNoteInput, setDirectorNoteInput] = useState('')
+  const [directorNoteSaving, setDirectorNoteSaving] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -307,7 +319,11 @@ export default function StudentDetail() {
     blocksByDate.set(b.block_date, list)
   })
 
-  const monthlyTotal = student ? student.rate_per_session * student.blocks_per_week * 4 : 0
+  // Derive effective rate from family tier (canonical source of truth)
+  const effectiveRate = student
+    ? (student.rate_per_session === 0 ? 0 : (student.family_rate_tier ?? DEFAULT_RATE_TIER_CENTS) / 100)
+    : 0
+  const monthlyTotal = student ? effectiveRate * (student.sessions_per_month ?? student.blocks_per_week * 4) : 0
   const overdue = Number(student?.overdue_amount ?? 0)
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, folder: 'materials' | 'sensitive' = 'materials') => {
@@ -644,11 +660,11 @@ export default function StudentDetail() {
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8', marginBottom: 3 }}>
                     <span>Rate/session</span>
-                    <span style={{ fontWeight: 700, color: '#C0C0E0' }}>${(student.rate_per_session ?? DEFAULT_RATE_PER_SESSION).toFixed(2)}</span>
+                    <span style={{ fontWeight: 700, color: '#C0C0E0' }}>${effectiveRate.toFixed(2)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8' }}>
                     <span>Monthly est.</span>
-                    <span style={{ fontWeight: 700, color: '#FFB800' }}>${((student.sessions_per_month ?? student.blocks_per_week * 4) * (student.rate_per_session ?? DEFAULT_RATE_PER_SESSION)).toFixed(2)}</span>
+                    <span style={{ fontWeight: 700, color: '#FFB800' }}>${((student.sessions_per_month ?? student.blocks_per_week * 4) * effectiveRate).toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -793,7 +809,7 @@ export default function StudentDetail() {
               </div>
               <div>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Rate</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8' }}>${student.rate_per_session}/lesson</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#A0A0C8' }}>${effectiveRate.toFixed(2)}/lesson</div>
               </div>
             </div>
           </div>
@@ -823,7 +839,7 @@ export default function StudentDetail() {
             <span style={{ fontSize: 11, color: '#E8488A' }}>View Full Bio →</span>
           </div>
           <p style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>
-            {student.bio ?? 'No bio yet. Use Edit Student to add personality, learning style, and goals.'}
+            {student.bio ?? 'No bio yet. Click to add personality, learning style, and goals.'}
           </p>
         </div>
       </div>
@@ -931,18 +947,15 @@ export default function StudentDetail() {
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Director Notes</span>
-              {student.notes && <span style={{ fontSize: 10, color: '#FF7730' }}>View All ({student.notes.split('\n').filter(Boolean).length}) →</span>}
+              {(directorNotes?.length ?? 0) > 0 && <span style={{ fontSize: 10, color: '#FF7730' }}>View All ({directorNotes!.length}) →</span>}
             </div>
-            {student.notes ? (
-              student.notes.split('\n').filter(Boolean).slice(0, 2).map((note: string, i: number) => {
-                const match = note.match(/^\[(.+?)\]\s*(\w+):\s*(.+)$/)
-                return (
-                  <div key={i} style={{ fontSize: 11.5, marginBottom: 4 }}>
-                    <span style={{ color: '#E8488A', fontWeight: 600 }}>{match?.[2] ?? ''}</span>
-                    <span style={{ color: '#8080A8' }}> {match?.[3]?.substring(0, 60) ?? note.substring(0, 60)}...</span>
-                  </div>
-                )
-              })
+            {(directorNotes?.length ?? 0) > 0 ? (
+              directorNotes!.slice(0, 2).map(note => (
+                <div key={note.id} style={{ fontSize: 11.5, marginBottom: 4 }}>
+                  <span style={{ color: '#E8488A', fontWeight: 600 }}>{note.author_name}</span>
+                  <span style={{ color: '#8080A8' }}> {note.note_text.substring(0, 60)}{note.note_text.length > 60 ? '...' : ''}</span>
+                </div>
+              ))
             ) : (
               <p style={{ fontSize: 12, color: '#606088', fontStyle: 'italic' }}>No director notes.</p>
             )}
@@ -984,7 +997,7 @@ export default function StudentDetail() {
             <div><span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.06em', display: 'block', marginBottom: 3 }}>May Return</span><span className={student.may_return === 'yes' ? 'badge-green' : student.may_return === 'maybe' ? 'badge-gold' : 'badge-gray'} style={{ fontSize: 11 }}>{student.may_return ?? '—'}</span></div>
           </div>
           {student.exit_notes && <p style={{ fontSize: 12.5, color: '#A0A0C8', marginTop: 10, lineHeight: 1.6 }}>{student.exit_notes}</p>}
-          {canEdit && <button className="btn-outline" style={{ marginTop: 12, fontSize: 11, padding: '6px 14px' }} onClick={() => { const d = prompt('Follow-up date (YYYY-MM-DD):'); if (d) updateStudent.mutate({ id: student.id, reactivation_date: d }) }}>Set Reactivation Date</button>}
+          {canEdit && <button className="btn-outline" style={{ marginTop: 12, fontSize: 11, padding: '6px 14px' }} onClick={() => { setReactivationDate(student.reactivation_date ?? ''); setShowReactivationModal(true) }}>Set Reactivation Date</button>}
         </div>
       )}
 
@@ -1150,17 +1163,60 @@ export default function StudentDetail() {
 
       {/* Bio Modal */}
       {showBioModal && (
-        <div className="modal-overlay" onClick={() => setShowBioModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowBioModal(false); setBioEditing(false) }}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
             <div className="modal-header">
               <span className="modal-title">Student Bio — {student.first_name} {student.last_name}</span>
-              <button className="btn-ghost" onClick={() => setShowBioModal(false)} style={{ padding: '4px 8px' }}>X</button>
+              <button className="btn-ghost" onClick={() => { setShowBioModal(false); setBioEditing(false) }} style={{ padding: '4px 8px' }}>X</button>
             </div>
             <div style={{ padding: 22 }}>
-              {student.bio ? (
-                <p style={{ fontSize: 14, color: '#C0C0E0', lineHeight: 1.75 }}>{student.bio}</p>
+              {bioEditing ? (
+                <div>
+                  <textarea
+                    value={bioValue}
+                    onChange={(e) => setBioValue(e.target.value)}
+                    rows={6}
+                    placeholder="Personality, learning style, goals, anything that helps teachers connect with this student..."
+                    style={{ width: '100%', fontSize: 13, color: '#C0C0E0', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '12px 14px', lineHeight: 1.6, resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                    <button className="btn-ghost" onClick={() => setBioEditing(false)} style={{ fontSize: 11, padding: '6px 14px' }}>Cancel</button>
+                    <button
+                      className="btn-primary"
+                      disabled={bioSaving}
+                      onClick={async () => {
+                        setBioSaving(true)
+                        try {
+                          await updateStudent.mutateAsync({ id: student.id, bio: bioValue.trim() || null })
+                          toast('Bio saved', 'success')
+                          setBioEditing(false)
+                        } catch (err: any) {
+                          toast('Failed to save bio: ' + (err.message ?? 'Unknown error'), 'error')
+                        } finally { setBioSaving(false) }
+                      }}
+                      style={{ fontSize: 11, padding: '6px 18px' }}
+                    >
+                      {bioSaving ? 'Saving...' : 'Save Bio'}
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <p style={{ fontSize: 13, color: '#606088', fontStyle: 'italic' }}>No bio yet.</p>
+                <>
+                  {student.bio ? (
+                    <p style={{ fontSize: 14, color: '#C0C0E0', lineHeight: 1.75 }}>{student.bio}</p>
+                  ) : (
+                    <p style={{ fontSize: 13, color: '#606088', fontStyle: 'italic' }}>No bio yet. Click Edit to add one.</p>
+                  )}
+                  {isDirectorPlus && (
+                    <button
+                      className="btn-outline"
+                      onClick={() => { setBioValue(student.bio ?? ''); setBioEditing(true) }}
+                      style={{ marginTop: 14, fontSize: 11, padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 5 }}
+                    >
+                      <Pencil size={11} /> {student.bio ? 'Edit Bio' : 'Add Bio'}
+                    </button>
+                  )}
+                </>
               )}
               <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1200,32 +1256,86 @@ export default function StudentDetail() {
               <span className="modal-title">Director Notes — {student.first_name}</span>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn-ghost" onClick={() => {
-                  const allNotes = [...(student.notes?.split('\n').filter(Boolean) ?? []), ...(student.teacher_notes?.split('\n').filter(Boolean) ?? [])]
-                  const csv = 'Date,Author,Note\n' + allNotes.map((n: string) => { const m = n.match(/^\[(.+?)\]\s*(.+?):\s*(.+)$/); return m ? `"${m[1]}","${m[2]}","${m[3]}"` : `"","","${n}"` }).join('\n')
+                  const rows = (directorNotes ?? []).map(n => `"${new Date(n.created_at).toLocaleDateString()}","${n.author_name}","${n.note_text.replace(/"/g, '""')}"`)
+                  const csv = 'Date,Author,Note\n' + rows.join('\n')
                   const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a'); a.href = url; a.download = `notes-${student.first_name}-${student.last_name}.csv`; a.click()
-                }} style={{ fontSize: 10, padding: '4px 10px' }}>Export Timeline</button>
+                  const a = document.createElement('a'); a.href = url; a.download = `director-notes-${student.first_name}-${student.last_name}.csv`; a.click()
+                }} style={{ fontSize: 10, padding: '4px 10px' }}>Export</button>
                 <button className="btn-ghost" onClick={() => setShowDirectorNotes(false)} style={{ padding: '4px 8px' }}>X</button>
               </div>
             </div>
             <div style={{ padding: 22, overflowY: 'auto', flex: 1 }}>
-              {student.notes ? (
+              {/* Add Note Form */}
+              {isDirectorPlus && (
+                <div style={{ marginBottom: 18, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <textarea
+                    value={directorNoteInput}
+                    onChange={(e) => setDirectorNoteInput(e.target.value)}
+                    placeholder="Add a director note..."
+                    rows={2}
+                    style={{ width: '100%', fontSize: 13, color: '#C0C0E0', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                    <button
+                      className="btn-primary"
+                      disabled={directorNoteSaving || !directorNoteInput.trim()}
+                      onClick={async () => {
+                        if (!directorNoteInput.trim() || !id) return
+                        setDirectorNoteSaving(true)
+                        try {
+                          await addDirectorNote.mutateAsync({ studentId: id, noteText: directorNoteInput.trim() })
+                          setDirectorNoteInput('')
+                          toast('Note added', 'success')
+                        } catch (err: any) {
+                          toast('Failed to add note: ' + (err.message ?? 'Unknown error'), 'error')
+                        } finally { setDirectorNoteSaving(false) }
+                      }}
+                      style={{ fontSize: 11, padding: '6px 18px' }}
+                    >
+                      {directorNoteSaving ? 'Saving...' : 'Add Note'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes List */}
+              {directorNotesLoading ? (
+                <p style={{ fontSize: 13, color: '#606088' }}>Loading notes...</p>
+              ) : (directorNotes ?? []).length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {student.notes.split('\n').filter(Boolean).map((note: string, i: number) => {
-                    const match = note.match(/^\[(.+?)\]\s*(\w+):\s*(.+)$/)
-                    return (
-                      <div key={i} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#E8488A' }}>{match?.[2] ?? 'Note'}</span>
-                          <span style={{ fontSize: 10, color: '#606088' }}>{match?.[1] ?? ''}</span>
-                        </div>
-                        <p style={{ fontSize: 13, color: '#C0C0E0', lineHeight: 1.5 }}>{match?.[3] ?? note}</p>
+                  {(directorNotes ?? []).map(note => (
+                    <div key={note.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#E8488A' }}>{note.author_name}</span>
+                        <span style={{ fontSize: 10, color: '#606088' }}>{new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
                       </div>
-                    )
-                  })}
+                      <p style={{ fontSize: 13, color: '#C0C0E0', lineHeight: 1.5 }}>{note.note_text}</p>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: '#606088' }}>No director notes.</p>
+                <p style={{ fontSize: 13, color: '#606088', fontStyle: 'italic' }}>No director notes yet. Add one above.</p>
+              )}
+
+              {/* Legacy notes from students.notes field */}
+              {student.notes && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 8, display: 'block' }}>Legacy Notes</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {student.notes.split('\n').filter(Boolean).map((note: string, i: number) => {
+                      const match = note.match(/^\[(.+?)\]\s*(\w+):\s*(.+)$/)
+                      return (
+                        <div key={`legacy-${i}`} style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#8080A8' }}>{match?.[2] ?? 'Note'}</span>
+                            <span style={{ fontSize: 10, color: '#505070' }}>{match?.[1] ?? ''}</span>
+                          </div>
+                          <p style={{ fontSize: 12, color: '#9090B0', lineHeight: 1.4 }}>{match?.[3] ?? note}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -1503,6 +1613,94 @@ export default function StudentDetail() {
           ]}
           onClose={() => setShowReviewModal(false)}
         />
+      )}
+
+      {/* Reactivation Date Modal */}
+      {showReactivationModal && (
+        <div className="modal-overlay" onClick={() => setShowReactivationModal(false)} style={{ zIndex: 9999 }}>
+          <div
+            className="location-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 400, width: '92vw', margin: 'auto', padding: 0, cursor: 'default', position: 'relative' }}
+          >
+            <div className="loc-card-edge" style={{
+              background: 'linear-gradient(180deg, #FFB800, #FF5500)',
+              boxShadow: '0 0 14px rgba(255,184,0,0.5)',
+            }} />
+            <div className="loc-card-glow" style={{
+              background: 'radial-gradient(circle, rgba(255,184,0,0.08) 0%, transparent 70%)',
+            }} />
+            <div style={{ position: 'relative', zIndex: 1, padding: '24px 28px 28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#E0E0F4' }}>Reactivation Date</h2>
+                <button type="button" className="btn-ghost" onClick={() => setShowReactivationModal(false)} style={{ padding: '4px 10px', fontSize: 14 }}>&times;</button>
+              </div>
+
+              <div style={{ fontSize: 12, color: '#A0A0C8', marginBottom: 16 }}>
+                Set a follow-up date to check in about re-enrolling this student.
+              </div>
+
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#8080A8', marginBottom: 8 }}>
+                Follow-up Date
+              </div>
+              <input
+                type="date"
+                value={reactivationDate}
+                onChange={(e) => setReactivationDate(e.target.value)}
+                className="filter-select"
+                style={{ width: '100%', marginBottom: 20 }}
+              />
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                {reactivationDate && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setReactivationSaving(true)
+                      try {
+                        await updateStudent.mutateAsync({ id: student.id, reactivation_date: null as any })
+                        toast('Reactivation date cleared', 'success')
+                        setShowReactivationModal(false)
+                      } finally { setReactivationSaving(false) }
+                    }}
+                    disabled={reactivationSaving}
+                    style={{
+                      flex: 1, padding: '12px 16px', borderRadius: 12,
+                      background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                      color: '#EF4444', fontSize: 12, fontWeight: 700, cursor: reactivationSaving ? 'not-allowed' : 'pointer',
+                      transition: 'all 140ms ease',
+                    }}
+                  >
+                    Clear Date
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!reactivationDate) return
+                    setReactivationSaving(true)
+                    try {
+                      await updateStudent.mutateAsync({ id: student.id, reactivation_date: reactivationDate })
+                      toast('Reactivation date saved', 'success')
+                      setShowReactivationModal(false)
+                    } finally { setReactivationSaving(false) }
+                  }}
+                  disabled={reactivationSaving || !reactivationDate}
+                  style={{
+                    flex: 2, padding: '12px 24px', borderRadius: 12, border: 'none',
+                    background: !reactivationDate ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg, #FFB800, #FF5500)',
+                    color: !reactivationDate ? '#585878' : '#fff',
+                    fontSize: 13, fontWeight: 800, cursor: (reactivationSaving || !reactivationDate) ? 'not-allowed' : 'pointer',
+                    opacity: reactivationSaving ? 0.7 : 1, transition: 'all 140ms ease',
+                    boxShadow: reactivationDate ? '0 4px 16px rgba(255,184,0,0.3)' : 'none', letterSpacing: '-0.01em',
+                  }}
+                >
+                  {reactivationSaving ? 'Saving...' : 'Save Date'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {showLinkFamily && student && (

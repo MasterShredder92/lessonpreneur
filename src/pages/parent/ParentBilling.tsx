@@ -11,7 +11,7 @@ const fmtUSD = (n: number) => n.toLocaleString('en-US', { style: 'currency', cur
 export default function ParentBilling() {
   const { familyId, isLoading } = useParentFamily()
 
-  const { data: family } = useQuery({
+  const { data: family, isError: familyError } = useQuery({
     queryKey: [...qk.parent.familyBilling, familyId],
     enabled: !!familyId,
     queryFn: async () => {
@@ -30,10 +30,9 @@ export default function ParentBilling() {
     enabled: !!familyId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('students')
-        .select('id, first_name, rate_per_session, sessions_per_month, instrument')
+        .from('student_effective_rate')
+        .select('student_id, first_name, rate_per_session, sessions_per_month, instrument')
         .eq('family_id', familyId!)
-        .eq('status', 'active')
         .order('first_name')
       if (error) throw error
       return data ?? []
@@ -56,13 +55,26 @@ export default function ParentBilling() {
 
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center' }}><MusicLoader /></div>
 
+  if (familyError) {
+    return (
+      <div style={{ maxWidth: 540, margin: '0 auto', padding: 16 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#E0E0F4', margin: '0 0 20px' }}>Billing</h1>
+        <div style={{ padding: '24px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', textAlign: 'center' }}>
+          <CreditCard size={24} style={{ color: '#EF4444', marginBottom: 8 }} />
+          <p style={{ fontSize: 13, color: '#EF4444', fontWeight: 600, margin: '0 0 4px' }}>Could not load billing information.</p>
+          <p style={{ fontSize: 11, color: '#8080A8', margin: 0 }}>Please try again or contact the studio if this persists.</p>
+        </div>
+      </div>
+    )
+  }
+
   // All dollar amounts in USD dollars (float)
   const lifetimePaid = (family?.lifetime_paid_cents ?? 0) / 100
   const overdueBalance = (family?.overdue_balance_cents ?? 0) / 100
 
-  // rate_per_session is already in dollars. Sum across active students.
+  // rate_per_session from student_effective_rate view (family-driven source of truth).
   const perStudentMonthly = (studentRates ?? []).map(s => ({
-    id: s.id as string,
+    id: s.student_id as string,
     firstName: s.first_name as string,
     instrument: s.instrument as string | null,
     rate: Number(s.rate_per_session ?? 0),
@@ -153,9 +165,10 @@ export default function ParentBilling() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {invoices.map((inv: any) => {
-            const requested = Number(inv.requested_amount ?? 0)
-            const paid = Number(inv.amount_paid ?? 0)
-            const isPaid = inv.status === 'paid' || paid >= requested
+            const requested = Number(inv.requested_amount ?? 0) / 100
+            const paid = Number(inv.amount_paid ?? 0) / 100
+            const status = (inv.status ?? '').toUpperCase()
+            const isPaid = status === 'PAID' || (requested > 0 && paid >= requested)
             return (
               <div key={inv.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',

@@ -23,9 +23,17 @@ function download(csv: string, filename: string) {
 export async function exportStudents(tenantId: string) {
   const { data: students } = await supabase
     .from('students')
-    .select('first_name, last_name, instrument, status, location_id, teacher_id, created_at, sessions_per_month, rate_per_session')
+    .select('id, first_name, last_name, instrument, status, location_id, teacher_id, created_at, sessions_per_month, rate_per_session, family_id')
     .eq('tenant_id', tenantId)
     .order('first_name')
+
+  // Get canonical effective rates from the billing source of truth
+  const { data: effectiveRates } = await supabase
+    .from('student_effective_rate')
+    .select('student_id, rate_per_session')
+    .eq('tenant_id', tenantId)
+  const effectiveRateMap = new Map<string, number>()
+  effectiveRates?.forEach((r: any) => effectiveRateMap.set(r.student_id, Number(r.rate_per_session ?? 0)))
 
   // Enrich
   const locIds = [...new Set((students ?? []).map(s => s.location_id).filter(Boolean))]
@@ -56,7 +64,7 @@ export async function exportStudents(tenantId: string) {
       stu.status ?? '',
       stu.created_at ? new Date(stu.created_at).toLocaleDateString() : '',
       String(stu.sessions_per_month ?? ''),
-      stu.rate_per_session ? `$${stu.rate_per_session}` : '',
+      effectiveRateMap.has(s.id) ? `$${effectiveRateMap.get(s.id)}` : (stu.rate_per_session ? `$${stu.rate_per_session}` : ''),
       String(sessionMap.get(s.id) ?? 0),
       lastSessionMap.get(s.id) ?? '',
     ]

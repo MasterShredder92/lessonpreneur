@@ -38,8 +38,10 @@ export interface StudentRow {
   location_name?: string
   next_lesson_date?: string | null
   next_lesson_time?: string | null
+  sessions_per_month?: number
   scheduled_teachers?: { teacherId: string; teacherName: string; locationName: string; instrument?: string }[]
   has_enrollment_agreement?: boolean
+  family_rate_tier?: number
 }
 
 export interface FamilyRow {
@@ -55,7 +57,7 @@ export interface FamilyRow {
   students?: StudentRow[]
 }
 
-/** Lightweight id + status only — for roster tab counts without a second full useStudents fetch. */
+/** Tab counts via parallel count queries — no row data fetched. */
 export function useStudentTabCounts() {
   const { tenantId } = useAuthContext()
   return useQuery({
@@ -63,16 +65,15 @@ export function useStudentTabCounts() {
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, status')
-        .eq('tenant_id', tenantId!)
-      if (error) throw error
-      const rows = data ?? []
+      const [activeResult, formerResult, allResult] = await Promise.all([
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!).eq('status', 'active'),
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!).in('status', ['former', 'inactive']),
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!),
+      ])
       return {
-        active: rows.filter(s => s.status === 'active').length,
-        former: rows.filter(s => s.status === 'former' || s.status === 'inactive').length,
-        all: rows.length,
+        active: activeResult.count ?? 0,
+        former: formerResult.count ?? 0,
+        all: allResult.count ?? 0,
       }
     },
   })
@@ -106,60 +107,46 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
       const { data: students, error } = await query
       if (error) throw error
 
-      // Get family names
+      // Pre-compute ID sets
       const familyIds = [...new Set(students.map((s: any) => s.family_id).filter(Boolean))]
-      const { data: families } = familyIds.length > 0
-        ? await supabase
-            .from('families')
-            .select('id, name, primary_email, primary_phone, primary_contact_name, parent_name, parent_first_name, parent_last_name')
-            .eq('tenant_id', tenantId!)
-            .in('id', familyIds)
-        : { data: [] }
-      const famMap = new Map(families?.map((f: any) => {
-        const parentDisplay = f.parent_first_name ? `${f.parent_first_name} ${f.parent_last_name ?? ''}`.trim() : f.parent_name ?? null
-        return [f.id, { name: f.name, email: f.primary_email, phone: f.primary_phone, contact: parentDisplay }]
-      }) ?? [])
-
-      // Get teacher names + instruments
       const teacherIds = [...new Set(students.filter((s: any) => s.teacher_id).map((s: any) => s.teacher_id))]
-      const teacherMap = new Map<string, string>()
-      const teacherInstrumentsMap = new Map<string, string[]>()
-      if (teacherIds.length > 0) {
-        const { data: teachers } = await supabase
-          .from('teachers')
-          .select('id, first_name, last_name, instruments, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
-          .eq('tenant_id', tenantId!)
-          .in('id', teacherIds)
-        teachers?.forEach((t: any) => {
-          teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
-          teacherInstrumentsMap.set(t.id, t.instruments ?? [])
-        })
-      }
-
-      // Get location names
       const locIds = [...new Set(students.map((s: any) => s.location_id).filter(Boolean))]
-      const { data: locations } = locIds.length > 0
-        ? await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
-        : { data: [] }
-      const locMap = new Map(locations?.map((l: any) => [l.id, l.name]) ?? [])
-
-      // Get upcoming lessons per student (next N days, grouped by teacher)
+      const studentIds = students.map((s: any) => s.id)
       const today = new Date().toISOString().split('T')[0]
       const lookAhead = new Date(); lookAhead.setDate(lookAhead.getDate() + LESSON_LOOKBACK_DAYS)
       const lookAheadStr = lookAhead.toISOString().split('T')[0]
-      const studentIds = students.map((s: any) => s.id)
-      const { data: nextBlocks } = studentIds.length > 0
-        ? await supabase
-            .from('schedule_blocks')
-            .select('student_id, teacher_id, block_date, start_time, location_id')
-            .eq('tenant_id', tenantId!)
-            .in('student_id', studentIds)
-            .gte('block_date', today)
-            .lte('block_date', lookAheadStr)
-            .eq('status', 'booked')
-            .order('block_date')
-            .order('start_time')
-        : { data: [] }
+
+      // Run all enrichment queries in parallel
+      const [familiesResult, teachersResult, locationsResult, nextBlocksResult] = await Promise.all([
+        familyIds.length > 0
+          ? supabase.from('families').select('id, name, primary_email, primary_phone, primary_contact_name, parent_name, parent_first_name, parent_last_name').eq('tenant_id', tenantId!).in('id', familyIds)
+          : Promise.resolve({ data: [] as any[] }),
+        teacherIds.length > 0
+          ? supabase.from('teachers').select('id, first_name, last_name, instruments, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!).in('id', teacherIds)
+          : Promise.resolve({ data: [] as any[] }),
+        locIds.length > 0
+          ? supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
+          : Promise.resolve({ data: [] as any[] }),
+        studentIds.length > 0
+          ? supabase.from('schedule_blocks').select('student_id, teacher_id, block_date, start_time, location_id').eq('tenant_id', tenantId!).in('student_id', studentIds).gte('block_date', today).lte('block_date', lookAheadStr).eq('status', 'booked').order('block_date').order('start_time')
+          : Promise.resolve({ data: [] as any[] }),
+      ])
+
+      const famMap = new Map((familiesResult.data ?? []).map((f: any) => {
+        const parentDisplay = f.parent_first_name ? `${f.parent_first_name} ${f.parent_last_name ?? ''}`.trim() : f.parent_name ?? null
+        return [f.id, { name: f.name, email: f.primary_email, phone: f.primary_phone, contact: parentDisplay }]
+      }))
+
+      const teacherMap = new Map<string, string>()
+      const teacherInstrumentsMap = new Map<string, string[]>()
+      ;(teachersResult.data ?? []).forEach((t: any) => {
+        teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
+        teacherInstrumentsMap.set(t.id, t.instruments ?? [])
+      })
+
+      const locMap = new Map((locationsResult.data ?? []).map((l: any) => [l.id, l.name]))
+
+      const nextBlocks = nextBlocksResult.data ?? []
 
       // Build per-student: next lesson + all unique teacher/location combos
       const nextLessonMap = new Map<string, { date: string; time: string }>()
@@ -229,7 +216,8 @@ export function useStudentsRosterInfinite(params: {
       const qtrim = search.trim()
       let familyIdsFromSearch: string[] = []
       if (qtrim) {
-        const esc = qtrim.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        // Escape PostgREST filter special characters
+        const esc = qtrim.replace(/[%_\\(),."']/g, (c) => `\\${c}`)
         const t = `%${esc}%`
         const { data: famHits } = await supabase
           .from('families')
@@ -245,8 +233,8 @@ export function useStudentsRosterInfinite(params: {
         .select(
           `
           id, tenant_id, family_id, location_id, teacher_id, first_name, last_name, instrument, status,
-          blocks_per_week, rate_per_session, start_date, overdue_amount,
-          families ( id, name, primary_email, primary_phone, parent_name, parent_first_name, parent_last_name, card_brand, card_last_four )
+          blocks_per_week, rate_per_session, start_date, overdue_amount, sessions_per_month,
+          families ( id, name, primary_email, primary_phone, parent_name, parent_first_name, parent_last_name, card_brand, card_last_four, rate_tier )
         `,
         )
         .eq('tenant_id', tenantId!)
@@ -260,7 +248,7 @@ export function useStudentsRosterInfinite(params: {
       if (instrumentFilter) q = q.eq('instrument', instrumentFilter)
 
       if (qtrim) {
-        const esc = qtrim.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        const esc = qtrim.replace(/[%_\\(),."']/g, (c) => `\\${c}`)
         const t = `%${esc}%`
         const ors = [`first_name.ilike.${t}`, `last_name.ilike.${t}`]
         if (familyIdsFromSearch.length > 0) {
@@ -281,59 +269,47 @@ export function useStudentsRosterInfinite(params: {
       if (error) throw error
       const students = rows ?? []
 
+      // Pre-compute ID sets for parallel queries
       const teacherIds = [...new Set(students.filter((s: any) => s.teacher_id).map((s: any) => s.teacher_id))]
-      const teacherMap = new Map<string, string>()
-      if (teacherIds.length > 0) {
-        const { data: teachers } = await supabase
-          .from('teachers')
-          .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
-          .eq('tenant_id', tenantId!)
-          .in('id', teacherIds)
-        teachers?.forEach((t: any) => {
-          teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
-        })
-      }
-
       const locIds = [...new Set(students.map((s: any) => s.location_id).filter(Boolean))]
-      const locMap = new Map<string, string>()
-      if (locIds.length > 0) {
-        const { data: locs } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
-        locs?.forEach((l: any) => locMap.set(l.id, l.name))
-      }
-
       const famIds = [...new Set(students.map((s: any) => s.family_id).filter(Boolean))]
-      const agreementSet = new Set<string>()
-      if (famIds.length > 0) {
-        const { data: agr } = await supabase
-          .from('family_files')
-          .select('family_id')
-          .eq('tenant_id', tenantId!)
-          .eq('file_type', 'enrollment_agreement')
-          .in('family_id', famIds)
-        agr?.forEach((a: any) => agreementSet.add(a.family_id))
-      }
-
       const studentIds = students.map((s: any) => s.id)
+      const today = new Date().toISOString().split('T')[0]
+      const lookAhead = new Date()
+      lookAhead.setDate(lookAhead.getDate() + LESSON_LOOKBACK_DAYS)
+      const lookAheadStr = lookAhead.toISOString().split('T')[0]
+
+      // Run all enrichment queries in parallel
+      const [teachersResult, locsResult, agrResult, nextBlocksResult] = await Promise.all([
+        teacherIds.length > 0
+          ? supabase.from('teachers').select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)').eq('tenant_id', tenantId!).in('id', teacherIds)
+          : Promise.resolve({ data: [] as any[] }),
+        locIds.length > 0
+          ? supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
+          : Promise.resolve({ data: [] as any[] }),
+        famIds.length > 0
+          ? supabase.from('family_files').select('family_id').eq('tenant_id', tenantId!).eq('file_type', 'enrollment_agreement').in('family_id', famIds)
+          : Promise.resolve({ data: [] as any[] }),
+        studentIds.length > 0
+          ? supabase.from('schedule_blocks').select('student_id, block_date, start_time').eq('tenant_id', tenantId!).in('student_id', studentIds).gte('block_date', today).lte('block_date', lookAheadStr).eq('status', 'booked').order('block_date').order('start_time')
+          : Promise.resolve({ data: [] as any[] }),
+      ])
+
+      const teacherMap = new Map<string, string>()
+      ;(teachersResult.data ?? []).forEach((t: any) => {
+        teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
+      })
+
+      const locMap = new Map<string, string>()
+      ;(locsResult.data ?? []).forEach((l: any) => locMap.set(l.id, l.name))
+
+      const agreementSet = new Set<string>()
+      ;(agrResult.data ?? []).forEach((a: any) => agreementSet.add(a.family_id))
+
       const nextLessonMap = new Map<string, { date: string; time: string }>()
-      if (studentIds.length > 0) {
-        const today = new Date().toISOString().split('T')[0]
-        const lookAhead = new Date()
-        lookAhead.setDate(lookAhead.getDate() + LESSON_LOOKBACK_DAYS)
-        const lookAheadStr = lookAhead.toISOString().split('T')[0]
-        const { data: nextBlocks } = await supabase
-          .from('schedule_blocks')
-          .select('student_id, block_date, start_time')
-          .eq('tenant_id', tenantId!)
-          .in('student_id', studentIds)
-          .gte('block_date', today)
-          .lte('block_date', lookAheadStr)
-          .eq('status', 'booked')
-          .order('block_date')
-          .order('start_time')
-        nextBlocks?.forEach((b: any) => {
-          if (!nextLessonMap.has(b.student_id)) nextLessonMap.set(b.student_id, { date: b.block_date, time: b.start_time })
-        })
-      }
+      ;(nextBlocksResult.data ?? []).forEach((b: any) => {
+        if (!nextLessonMap.has(b.student_id)) nextLessonMap.set(b.student_id, { date: b.block_date, time: b.start_time })
+      })
 
       const mapped: StudentRow[] = students.map((s: any) => {
         const fam = s.families ?? {}
@@ -348,6 +324,7 @@ export function useStudentsRosterInfinite(params: {
           family_email: fam.primary_email,
           family_phone: fam.primary_phone,
           family_contact: parentDisplay,
+          family_rate_tier: fam.rate_tier ?? null,
           teacher_name: s.teacher_id ? teacherMap.get(s.teacher_id) ?? '—' : '—',
           location_name: locMap.get(s.location_id)?.replace(' Music Lessons', '') ?? '—',
           next_lesson_date: next?.date ?? null,

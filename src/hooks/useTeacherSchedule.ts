@@ -155,11 +155,11 @@ export function useSubmitSessionLog() {
         .single()
       if (!teacher) throw new Error('Teacher profile not found')
 
-      // Get student rate
+      // Get student rate from canonical billing source of truth
       const { data: student } = await supabase
-        .from('students')
+        .from('student_effective_rate')
         .select('rate_per_session')
-        .eq('id', params.block.student_id!)
+        .eq('student_id', params.block.student_id!)
         .single()
 
       // Insert session log

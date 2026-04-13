@@ -36,8 +36,8 @@ export function useAnalytics(months = 12, locationId?: string) {
       const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
       const startStr = startDate.toISOString().split('T')[0]
 
-      // Get all students with created_at and status
-      let stuQuery = supabase.from('students').select('id, status, instrument, created_at, deactivated_at, location_id').eq('tenant_id', tenantId!).limit(5000)
+      // Get all students with created_at, status, and enrollment classification
+      let stuQuery = supabase.from('students').select('id, status, instrument, created_at, deactivated_at, location_id, enrollment_type').eq('tenant_id', tenantId!).limit(5000)
       if (locationId) stuQuery = stuQuery.eq('location_id', locationId)
       const { data: students } = await stuQuery
 
@@ -55,7 +55,8 @@ export function useAnalytics(months = 12, locationId?: string) {
 
       for (const s of students ?? []) {
         const enrollMonth = s.created_at?.substring(0, 7)
-        if (enrollMonth && enrollMonth >= startStr.substring(0, 7)) {
+        // Only count actual new enrollments, not family moves
+        if (enrollMonth && enrollMonth >= startStr.substring(0, 7) && s.enrollment_type !== 'existing_moved') {
           enrollmentByMonth.set(enrollMonth, (enrollmentByMonth.get(enrollMonth) ?? 0) + 1)
         }
         if (s.deactivated_at) {
