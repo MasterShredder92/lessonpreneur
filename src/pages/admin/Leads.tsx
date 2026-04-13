@@ -180,6 +180,7 @@ export default function Leads() {
   const [lostCategoryLead, setLostCategoryLead] = useState<LeadRow | null>(null)
   const [lostCategory, setLostCategory] = useState('')
   const [lostReason, setLostReason] = useState('')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
 
 
   const { data: leads, isLoading } = useLeads({
@@ -220,6 +221,11 @@ export default function Leads() {
   filteredLeads = [...filteredLeads].sort((a, b) => {
     if (!['enrolled', 'lost'].includes(a.stage) && ['enrolled', 'lost'].includes(b.stage)) return -1
     if (['enrolled', 'lost'].includes(a.stage) && !['enrolled', 'lost'].includes(b.stage)) return 1
+    if (leadView === 'active') {
+      return sortOrder === 'newest'
+        ? a.days_since_created - b.days_since_created
+        : b.days_since_created - a.days_since_created
+    }
     return b.days_since_created - a.days_since_created
   })
 
@@ -227,6 +233,29 @@ export default function Leads() {
   const leadsForPipeline =
     leadView === 'enrolled' ? dedupeEnrolledByStudent(filteredLeads) : filteredLeads
   const pipelineItems = groupLeadsIntoFamilies(leadsForPipeline as LeadRow[])
+
+  // Location grouping for owner/company_director on active tab (only when no location filter already selected)
+  const isGroupedByLocation = (role === 'owner' || role === 'company_director') && leadView === 'active' && !locationFilter
+  type LocationHeader = { type: 'location-header'; name: string; count: number }
+  const renderItems: (PipelineItem | LocationHeader)[] = (() => {
+    if (!isGroupedByLocation) return pipelineItems
+    const locGroupMap = new Map<string, PipelineItem[]>()
+    for (const item of pipelineItems) {
+      const locName = item.type === 'family' ? (item.locationName ?? 'No Location') : (item.lead.location_name ?? 'No Location')
+      const arr = locGroupMap.get(locName) ?? []
+      arr.push(item)
+      locGroupMap.set(locName, arr)
+    }
+    const groups: [string, PipelineItem[]][] = []
+    locGroupMap.forEach((items, name) => { if (items.length > 0) groups.push([name, items]) })
+    groups.sort((a, b) => a[0].localeCompare(b[0]))
+    return groups.flatMap(([name, items]): (PipelineItem | LocationHeader)[] => [
+      { type: 'location-header', name, count: items.length },
+      ...items,
+    ])
+  })()
+  const firstCardRenderIdx = renderItems.findIndex(i => i.type !== 'location-header')
+
   // Family-aware counts for tabs
   const allItems = groupLeadsIntoFamilies(leads ?? [])
   const activeCount = allItems.filter(i => i.type === 'family' ? !['enrolled', 'lost'].includes(i.stage) : !['enrolled', 'lost'].includes(i.lead.stage)).length
@@ -443,6 +472,28 @@ export default function Leads() {
               <option key={i} value={i}>{instrumentWithEmojiTitle(i)} ({instrumentCounts[i] ?? 0})</option>
             ))}
           </select>
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <button
+              onClick={() => setSortOrder('newest')}
+              style={{
+                padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none',
+                background: sortOrder === 'newest' ? 'rgba(212,34,106,0.18)' : 'transparent',
+                color: sortOrder === 'newest' ? '#D4226A' : '#585878',
+                letterSpacing: '0.03em',
+              }}
+            >Newest</button>
+            <button
+              onClick={() => setSortOrder('oldest')}
+              style={{
+                padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                background: sortOrder === 'oldest' ? 'rgba(212,34,106,0.18)' : 'transparent',
+                color: sortOrder === 'oldest' ? '#D4226A' : '#585878',
+                borderTop: 'none', borderRight: 'none', borderBottom: 'none',
+                borderLeft: '1px solid rgba(255,255,255,0.08)',
+                letterSpacing: '0.03em',
+              }}
+            >Oldest</button>
+          </div>
         </div>
         <span className="visibility-count">Showing {pipelineItems.length} lead{pipelineItems.length !== 1 ? 's' : ''}</span>
       </div>}
@@ -456,7 +507,23 @@ export default function Leads() {
 
       {/* LIST VIEW (default) — premium lead cards with family grouping */}
       <div className="lead-cards" data-guide-id="leads-list">
-          {pipelineItems.map((item, itemIdx) => {
+          {renderItems.map((item, itemIdx) => {
+            // Location group header (owner/company_director grouped view)
+            if (item.type === 'location-header') {
+              return (
+                <div key={`loc-hdr-${item.name}`} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '4px 0 8px',
+                  marginTop: itemIdx === 0 ? 0 : 16,
+                }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    {item.name}
+                  </span>
+                  <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: '#585878' }}>{item.count} lead{item.count !== 1 ? 's' : ''}</span>
+                </div>
+              )
+            }
             if (item.type === 'family') {
               const fg = item
               const stageColor = STAGE_COLORS[fg.stage] ?? 'var(--text-muted)'
@@ -466,7 +533,7 @@ export default function Leads() {
                 <div
                   key={`fam-${fg.familyId}`}
                   data-lead-id={primaryLead.id}
-                  data-guide-id={itemIdx === 0 ? 'leads-first-card' : undefined}
+                  data-guide-id={itemIdx === firstCardRenderIdx ? 'leads-first-card' : undefined}
                   className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
                   onClick={() => { setDetailLead(primaryLead); aiMatch.clearMatch() }}
                 >
@@ -539,7 +606,7 @@ export default function Leads() {
               <div
                 key={lead.id}
                 data-lead-id={lead.id}
-                data-guide-id={itemIdx === 0 ? 'leads-first-card' : undefined}
+                data-guide-id={itemIdx === firstCardRenderIdx ? 'leads-first-card' : undefined}
                 className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
                 onClick={() => { setDetailLead(lead); aiMatch.clearMatch() }}
               >
@@ -626,6 +693,7 @@ export default function Leads() {
           {pipelineItems.length === 0 && (
             <div className="empty-state">No leads found.</div>
           )}
+
       </div>
 
       {/* Lead Detail Modal — tabbed popup */}
