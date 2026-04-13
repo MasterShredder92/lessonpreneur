@@ -264,6 +264,7 @@ export const qk = {
     pendingCount: ['invoice_pending_count'] as const,
     tokensList: ['invoice_tokens_list'] as const,
     paymentHistory: ['payment_history'] as const,
+    familyInvoices: (familyId: string) => ['invoice_tokens_family', familyId] as const,
   },
 
   // ── Parent portal ──────────────────────────────

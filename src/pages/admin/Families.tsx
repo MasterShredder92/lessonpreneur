@@ -16,7 +16,7 @@ import { useReactivateStudent } from '../../hooks/useRetention'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { DEFAULT_SESSIONS_PER_MONTH } from '../../lib/constants'
-import { supabase, getCurrentBillingCycleId } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { calculatePreviewRate } from '../../hooks/useFamilyRate'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import { logAudit } from '../../lib/auditLog'
@@ -29,7 +29,9 @@ import { useLastReviewRequest } from '../../hooks/useReviewRequest'
 import FamilyDocumentsSection from '../../components/admin/FamilyDocumentsSection'
 import DuplicateStudentReviewBanner from '../../components/admin/DuplicateStudentReviewBanner'
 import { useRemoveStudentFromFamily, useDeleteFamily } from '../../lib/enrollmentEngine'
-import { Trash2, UserMinus } from 'lucide-react'
+import { useFamilyInvoices, useGenerateInvoice } from '../../hooks/useFamilyInvoices'
+import FamilyActivityLogModal from '../../components/admin/FamilyActivityLogModal'
+import { Trash2, UserMinus, FileText, Download } from 'lucide-react'
 
 // ═══════════════════════════════════════
 // DISPLAY HELPERS
@@ -753,6 +755,137 @@ function familyOperatorBlockFromDetail(family: Family): string {
     .join('\n')
 }
 
+// ═══════════════════════════════════════
+// COLLAPSED SECTION
+// ═══════════════════════════════════════
+
+function CollapsedSection({ title, count, open, onToggle, children }: {
+  title: string; count?: number; open: boolean; onToggle: () => void; children: React.ReactNode
+}) {
+  return (
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 20, paddingTop: 16 }}>
+      <button onClick={onToggle} style={{
+        display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none',
+        cursor: 'pointer', padding: 0, marginBottom: open ? 12 : 0,
+      }}>
+        <ChevronDown size={14} style={{ color: '#8080A8', transition: 'transform 150ms', transform: open ? 'rotate(180deg)' : 'rotate(0)' }} />
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{title}</span>
+        {count != null && count > 0 && <span className="badge-secondary" style={{ fontSize: 9 }}>{count}</span>}
+      </button>
+      {open && children}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+// FAMILY INVOICE SECTION (collapsed)
+// ═══════════════════════════════════════
+
+const INVOICE_STATUS_STYLE: Record<string, { bg: string; border: string; color: string }> = {
+  pending:  { bg: 'rgba(255,184,0,0.1)',  border: 'rgba(255,184,0,0.25)',  color: '#FFB800' },
+  viewed:   { bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)', color: '#6366F1' },
+  paid:     { bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.25)',  color: '#22C55E' },
+  expired:  { bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)', color: '#8080A8' },
+  cancelled: { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.25)', color: '#EF4444' },
+}
+
+function FamilyInvoiceSection({ familyId, family, invoices, open, onToggle }: {
+  familyId: string; family: any; invoices: any[] | undefined; open: boolean; onToggle: () => void
+}) {
+  const { tenantId, role } = useAuthContext()
+  const [showCreateInvoice, setShowCreateInvoice] = useState(false)
+
+  const nextScheduled = invoices?.find((inv: any) => inv.status === 'pending' || inv.status === 'viewed')
+
+  return (
+    <CollapsedSection title="Invoices" count={invoices?.length ?? 0} open={open} onToggle={onToggle}>
+      {/* Next scheduled / pending */}
+      {nextScheduled && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 10, marginBottom: 10,
+          background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#FFB800', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {nextScheduled.status === 'viewed' ? 'Viewed by Family' : 'Pending'}
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#E0E0F4' }}>
+              {formatDollars(nextScheduled.amount_cents)}
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: '#A0A0C8' }}>
+            {nextScheduled.billing_period_label}
+            {nextScheduled.due_date && <span> &middot; Due {new Date(nextScheduled.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Invoice history */}
+      {invoices && invoices.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+          {invoices.map((inv: any) => {
+            const st = INVOICE_STATUS_STYLE[inv.status] ?? INVOICE_STATUS_STYLE.pending
+            return (
+              <div key={inv.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8,
+                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
+              }}>
+                <FileText size={13} style={{ color: '#606088', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#D0D0E8' }}>{inv.billing_period_label}</span>
+                  <span style={{ fontSize: 10, color: '#606088', marginLeft: 8 }}>
+                    {new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                  padding: '2px 8px', borderRadius: 6, background: st.bg, border: `1px solid ${st.border}`, color: st.color,
+                }}>{inv.status}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#E0E0F4', minWidth: 60, textAlign: 'right' }}>
+                  {formatDollars(inv.amount_cents)}
+                </span>
+                {inv.invoice_snapshot?.billing_event_id && (
+                  <button
+                    title="View PDF"
+                    onClick={() => {
+                      const pdfPath = `${tenantId}/${familyId}/${inv.id}.pdf`
+                      const { data } = supabase.storage.from('invoices').getPublicUrl(pdfPath)
+                      if (data?.publicUrl) window.open(data.publicUrl, '_blank')
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#606088' }}
+                  >
+                    <Download size={12} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: '#606088', padding: '8px 0' }}>No invoices yet.</div>
+      )}
+
+      {/* Generate Invoice button */}
+      {(role === 'owner' || role === 'admin' || role === 'studio_director') && (
+        <button
+          onClick={() => setShowCreateInvoice(true)}
+          style={{
+            width: '100%', padding: '10px 0', borderRadius: 10, fontSize: 12, fontWeight: 700,
+            background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+            color: '#22C55E', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}
+        >
+          <Receipt size={13} /> Generate Invoice
+        </button>
+      )}
+
+      {showCreateInvoice && family && (
+        <CreateInvoiceFromFamily family={family} onClose={() => setShowCreateInvoice(false)} />
+      )}
+    </CollapsedSection>
+  )
+}
+
 function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   familyId: string; canEdit: boolean; onClose: () => void; onNavigateStudent: (studentId: string) => void
 }) {
@@ -786,8 +919,11 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
       })
     }
   }, [family, setPageContext])
-  const [activityLimit, setActivityLimit] = useState(20)
-  const { data: activityLog } = useFamilyActivityLog(familyId, activityLimit)
+  const { data: activityLog } = useFamilyActivityLog(familyId, 5)
+  const [showFullActivityLog, setShowFullActivityLog] = useState(false)
+  const [activityOpen, setActivityOpen] = useState(false)
+  const [invoicesOpen, setInvoicesOpen] = useState(false)
+  const { data: familyInvoices } = useFamilyInvoices(familyId)
 
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<ModalTab>('account')
@@ -805,7 +941,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<FamilyFile | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [showCreateInvoice, setShowCreateInvoice] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const { data: lastReviewReq } = useLastReviewRequest(familyId)
   const reviewRecentlySent = lastReviewReq?.sent_at
@@ -1064,17 +1199,26 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 ) : <div style={{ fontSize: 13, color: '#606088', padding: '12px 0' }}>No students linked.</div>}
                 </div>
 
-                {/* Activity log */}
-                {canEdit && activityLog && activityLog.length > 0 && (
-                  <div style={{ marginTop: 16 }}>
-                    <div style={sectionLabelStyle}>Activity</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {activityLog.slice(0, activityLimit).map((ev) => <ActivityRow key={ev.id} event={ev} />)}
-                      {activityLog.length >= activityLimit && (
-                        <button onClick={() => setActivityLimit((l) => l + 20)} style={{ background: 'none', border: 'none', color: '#8080A8', fontSize: 11, cursor: 'pointer', padding: '8px 0', textAlign: 'center' }}>Show more</button>
-                      )}
-                    </div>
-                  </div>
+                {/* Activity — collapsed */}
+                {canEdit && (
+                  <CollapsedSection title="Recent Activity" count={activityLog?.length ?? 0} open={activityOpen} onToggle={() => setActivityOpen(!activityOpen)}>
+                    {activityLog && activityLog.length > 0 ? (
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          {activityLog.slice(0, 5).map((ev) => <ActivityRow key={ev.id} event={ev} />)}
+                        </div>
+                        <button onClick={() => setShowFullActivityLog(true)} style={{
+                          background: 'none', border: 'none', color: '#6366F1', fontSize: 11, fontWeight: 600,
+                          cursor: 'pointer', padding: '8px 0', textAlign: 'center', width: '100%',
+                        }}>View Full Audit Log</button>
+                      </>
+                    ) : <div style={{ fontSize: 12, color: '#606088', padding: '8px 0' }}>No activity yet.</div>}
+                  </CollapsedSection>
+                )}
+
+                {/* Invoices — collapsed */}
+                {canEdit && (
+                  <FamilyInvoiceSection familyId={familyId} family={family} invoices={familyInvoices} open={invoicesOpen} onToggle={() => setInvoicesOpen(!invoicesOpen)} />
                 )}
               </>)}
 
@@ -1145,15 +1289,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                   {txt('billing_notes', 'Billing Notes', 'Billing-related notes...')}
                 </div>
 
-                {canEdit && (
-                  <button onClick={() => setShowCreateInvoice(true)} style={{
-                    marginTop: 8, width: '100%', padding: '12px 0', borderRadius: 10, fontSize: 13, fontWeight: 700,
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44,
-                    background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)',
-                  }}>
-                    <Receipt size={14} /> Create Invoice
-                  </button>
-                )}
               </>)}
 
               {/* ── MOBILE: DOCUMENTS ── */}
@@ -1176,7 +1311,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
         </div>
 
         {/* Modals (shared) */}
-        {showCreateInvoice && family && <CreateInvoiceFromFamily family={family} onClose={() => setShowCreateInvoice(false)} />}
         {confirmAction && <ConfirmModal title={`${confirmAction.status === 'suspended' ? 'Suspend' : 'Cancel'} Family Billing?`} message={confirmAction.status === 'suspended' ? 'This will suspend billing.' : 'This will cancel billing.'} variant={confirmAction.status === 'cancelled' ? 'danger' : 'warning'} confirmLabel={confirmAction.status === 'suspended' ? 'Suspend' : 'Cancel Billing'} onConfirm={() => doStatusChange(confirmAction.status)} onCancel={() => setConfirmAction(null)} />}
         {deleteConfirm && <ConfirmModal title="Delete File?" message={`Delete "${deleteConfirm.file_name}"?`} variant="danger" confirmLabel="Delete" onConfirm={() => handleDeleteFile(deleteConfirm)} onCancel={() => setDeleteConfirm(null)} />}
         {showUploadModal && family && (
@@ -1349,16 +1483,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                       {formatDollars(family.balance)}
                     </div>
                   </div>
-                  {canEdit && (
-                    <button onClick={() => setShowCreateInvoice(true)} style={{
-                      marginTop: 8, width: '100%', padding: '10px 0', borderRadius: 10, fontSize: 12, fontWeight: 700,
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      background: 'rgba(34,197,94,0.1)', color: '#22C55E',
-                      border: '1px solid rgba(34,197,94,0.25)',
-                    }}>
-                      <Receipt size={13} /> Create Invoice
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -1459,29 +1583,26 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                 })()}
               </div>
 
-              {/* ACTIVITY LOG */}
+              {/* ACTIVITY — collapsed */}
               {canEdit && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 20, paddingTop: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Activity</span>
-                    {activityLog && activityLog.length > 0 && <span className="badge-secondary" style={{ fontSize: 9 }}>{activityLog.length}</span>}
-                  </div>
+                <CollapsedSection title="Recent Activity" count={activityLog?.length ?? 0} open={activityOpen} onToggle={() => setActivityOpen(!activityOpen)}>
                   {activityLog && activityLog.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {activityLog.map((ev) => (
-                        <ActivityRow key={ev.id} event={ev} />
-                      ))}
-                      {activityLog.length >= activityLimit && (
-                        <button onClick={() => setActivityLimit((l) => l + 20)} style={{
-                          background: 'none', border: 'none', color: '#8080A8', fontSize: 11, cursor: 'pointer',
-                          padding: '8px 0', textAlign: 'center',
-                        }}>Show more</button>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: '#363656', padding: '8px 0' }}>No activity yet.</div>
-                  )}
-                </div>
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {activityLog.slice(0, 5).map((ev) => <ActivityRow key={ev.id} event={ev} />)}
+                      </div>
+                      <button onClick={() => setShowFullActivityLog(true)} style={{
+                        background: 'none', border: 'none', color: '#6366F1', fontSize: 11, fontWeight: 600,
+                        cursor: 'pointer', padding: '8px 0', textAlign: 'center', width: '100%',
+                      }}>View Full Audit Log</button>
+                    </>
+                  ) : <div style={{ fontSize: 12, color: '#606088', padding: '8px 0' }}>No activity yet.</div>}
+                </CollapsedSection>
+              )}
+
+              {/* INVOICES — collapsed */}
+              {canEdit && (
+                <FamilyInvoiceSection familyId={familyId} family={family} invoices={familyInvoices} open={invoicesOpen} onToggle={() => setInvoicesOpen(!invoicesOpen)} />
               )}
 
               {/* NOTIFICATIONS */}
@@ -1671,11 +1792,6 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
         />
       )}
 
-      {/* Create Invoice from Family */}
-      {showCreateInvoice && family && (
-        <CreateInvoiceFromFamily family={family} onClose={() => setShowCreateInvoice(false)} />
-      )}
-
       {showReviewModal && family && (
         <ReviewRequestModal
           familyId={family.id}
@@ -1688,6 +1804,14 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
             createdAt: s.created_at ?? new Date().toISOString(),
           }))}
           onClose={() => setShowReviewModal(false)}
+        />
+      )}
+
+      {showFullActivityLog && family && (
+        <FamilyActivityLogModal
+          familyId={family.id}
+          familyName={family.name}
+          onClose={() => setShowFullActivityLog(false)}
         />
       )}
     </div>,
@@ -1815,57 +1939,32 @@ function CreateInvoiceFromFamily({ family, onClose }: { family: any; onClose: ()
 
   const totalCents = students.reduce((s: number, st: any) => s + st.computed_monthly, 0)
 
+  const generateInvoice = useGenerateInvoice()
+
   async function handleCreate() {
     if (students.length === 0) return
     setCreating(true)
     try {
-      const cycleId = await getCurrentBillingCycleId(TENANT_ID)
-      const locationId = students[0]?.location_id ?? family.primary_location_id ?? null
-      const { error } = await supabase.from('invoice_tokens').insert({
-        tenant_id: TENANT_ID,
-        family_id: family.id,
-        location_id: locationId,
-        billing_period_label: periodLabel,
-        billing_cycle_id: cycleId,
-        amount_cents: totalCents,
-        base_amount_cents: totalCents,
-        due_date: dueDate,
-        billing_day: family.billing_day ?? 1,
-        status: 'pending',
-        expires_at: new Date(new Date(dueDate).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        invoice_snapshot: {
-          family_name: family.name,
-          parent_name: family.parent_name ?? family.parent_first_name,
-          email: family.primary_email,
-          phone: family.primary_phone,
-          card_on_file: !!family.card_last_four,
-          is_military: isMilitary,
-          students: students.map((s: any) => ({
-            name: `${s.first_name} ${s.last_name}`,
-            instrument: s.instrument,
-            sessions: s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH,
-            rate: s.computed_rate,
-            monthly: s.computed_monthly,
-          })),
-        },
+      const result = await generateInvoice.mutateAsync({
+        tenantId: TENANT_ID,
+        familyId: family.id,
+        familyName: family.name,
+        parentName: family.parent_name ?? family.parent_first_name ?? '',
+        primaryEmail: family.primary_email ?? null,
+        primaryPhone: family.primary_phone ?? null,
+        cardLastFour: family.card_last_four ?? null,
+        isMilitary,
+        billingDay: family.billing_day ?? 1,
+        primaryLocationId: family.primary_location_id ?? null,
+        periodLabel,
+        dueDate,
+        performedBy: user?.id ?? null,
+        performerName: profile ? `${profile.first_name} ${profile.last_name}`.trim() : null,
       })
-      if (error) throw error
-
-      await supabase.from('audit_log').insert({
-        action: 'INVOICE_CREATED',
-        table_name: 'invoice_tokens',
-        record_id: family.id,
-        new_value: JSON.stringify({ amount_cents: totalCents, period: periodLabel, family: family.name }),
-        performed_by: user?.id ?? null,
-        metadata: { created_by_name: profile ? `${profile.first_name} ${profile.last_name}`.trim() : 'Unknown', type: 'family', source: 'family_detail' },
-      })
-
-      toast(`Invoice created for ${formatDollars(totalCents)}`, 'success')
-      qc.invalidateQueries({ queryKey: qk.invoices.tokensList })
-      qc.invalidateQueries({ queryKey: qk.invoices.pendingCount })
+      toast(`Invoice created for ${formatDollars(result.totalCents)}${result.pdfUrl ? ' — PDF saved' : ''}`, 'success')
       onClose()
-    } catch (err) {
-      toast('Failed to create invoice', 'error')
+    } catch (err: any) {
+      toast(err.message ?? 'Failed to create invoice', 'error')
     } finally {
       setCreating(false)
     }
