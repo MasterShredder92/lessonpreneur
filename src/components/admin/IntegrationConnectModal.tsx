@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Eye, EyeOff, ExternalLink, Loader2, CheckCircle, XCircle, Copy, Check, LogIn } from 'lucide-react'
 import { useTestConnection, getWebhookUrl } from '../../hooks/useIntegrations'
+import { safeFetch } from '../../lib/safeFetch'
 import { supabase } from '../../lib/supabase'
 
 // ─── Per-integration field definitions ─────────────────
@@ -352,36 +353,25 @@ export default function IntegrationConnectModal({ integrationId, integrationName
     setError('')
 
     try {
-      // Get the current session for auth
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) {
-        setOauthStatus('error')
-        setOauthMessage('Not authenticated. Please log in and try again.')
-        return
-      }
-
       // Call the oauth-start edge function
-      const res = await fetch(`${FUNCTIONS_URL}/integration-oauth-start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          integration_id: integrationId,
-          client_id: values.client_id.trim(),
-          client_secret: values.client_secret.trim(),
-        }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Failed to start OAuth' }))
+      let auth_url: string
+      try {
+        const result = await safeFetch<{ auth_url: string }>(
+          `${FUNCTIONS_URL}/integration-oauth-start`,
+          {
+            body: {
+              integration_id: integrationId,
+              client_id: values.client_id.trim(),
+              client_secret: values.client_secret.trim(),
+            } as Record<string, unknown>,
+          },
+        )
+        auth_url = result.auth_url
+      } catch (err: any) {
         setOauthStatus('error')
-        setOauthMessage(err.error || `Server returned ${res.status}`)
+        setOauthMessage(err?.message || 'Failed to start OAuth')
         return
       }
-
-      const { auth_url } = await res.json()
 
       if (!auth_url) {
         setOauthStatus('error')

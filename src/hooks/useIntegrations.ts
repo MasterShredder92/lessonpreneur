@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { safeFetch } from '../lib/safeFetch'
 import { useAuth } from './useAuth'
 import { qk } from '../lib/queryKeys'
 
@@ -170,24 +171,14 @@ export function useTestConnection() {
       integrationId: string
       credentials: Record<string, string>
     }): Promise<{ ok: boolean; message: string }> => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Not authenticated')
-
-      const res = await fetch(`${FUNCTIONS_URL}/integration-test`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ integration_id: integrationId, credentials }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Connection test failed' }))
-        return { ok: false, message: err.message || err.error || 'Connection test failed' }
+      try {
+        return await safeFetch<{ ok: boolean; message: string }>(
+          `${FUNCTIONS_URL}/integration-test`,
+          { body: { integration_id: integrationId, credentials } as Record<string, unknown> },
+        )
+      } catch (err: any) {
+        return { ok: false, message: err?.message || 'Connection test failed' }
       }
-
-      return res.json()
     },
   })
 }
@@ -257,29 +248,17 @@ export function useCreateApiToken() {
       scopes: string[]
       expiresInDays?: number
     }): Promise<ApiToken & { token: string; warning: string }> => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Not authenticated')
-
-      const res = await fetch(`${FUNCTIONS_URL}/api-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+      return safeFetch<ApiToken & { token: string; warning: string }>(
+        `${FUNCTIONS_URL}/api-token`,
+        {
+          body: {
+            action: 'create',
+            name,
+            scopes,
+            expires_in_days: expiresInDays,
+          } as Record<string, unknown>,
         },
-        body: JSON.stringify({
-          action: 'create',
-          name,
-          scopes,
-          expires_in_days: expiresInDays,
-        }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Failed to create token' }))
-        throw new Error(err.error || 'Failed to create token')
-      }
-
-      return res.json()
+      )
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['api_tokens'] }),
   })
@@ -290,19 +269,9 @@ export function useRevokeApiToken() {
 
   return useMutation({
     mutationFn: async (tokenId: string) => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Not authenticated')
-
-      const res = await fetch(`${FUNCTIONS_URL}/api-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ action: 'revoke', token_id: tokenId }),
+      await safeFetch(`${FUNCTIONS_URL}/api-token`, {
+        body: { action: 'revoke', token_id: tokenId } as Record<string, unknown>,
       })
-
-      if (!res.ok) throw new Error('Failed to revoke token')
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['api_tokens'] }),
   })
