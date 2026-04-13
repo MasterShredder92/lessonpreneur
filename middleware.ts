@@ -1,5 +1,3 @@
-import { NextResponse, type NextRequest } from 'next/server'
-
 // Vercel Edge Middleware — injects location-specific SEO meta tags into HTML
 // before the response reaches crawlers. This solves the SPA rendering problem
 // where Facebook, Twitter, LinkedIn, Bing, and AI crawlers cannot execute JS.
@@ -77,8 +75,8 @@ const SUPPORTING_PAGES: Record<string, { title: string; desc: string; faqs: Arra
     desc: 'Beginner-friendly private music lessons in Omaha, Bellevue, Elkhorn, and Gretna. Piano, guitar, vocals, drums. No experience needed. Start playing real music from day one.',
     faqs: [
       { q: 'Do I need any musical experience to start?', a: 'None at all. Most of our students begin with zero experience.' },
-      { q: 'How long does it take to learn an instrument?', a: 'You\\'ll play your first songs within weeks. Solid intermediate skills typically take six months to a year.' },
-      { q: 'What if I\\'m not naturally talented?', a: 'Talent is overrated. The students who progress fastest show up consistently and practice regularly.' },
+      { q: 'How long does it take to learn an instrument?', a: "You'll play your first songs within weeks. Solid intermediate skills typically take six months to a year." },
+      { q: "What if I'm not naturally talented?", a: 'Talent is overrated. The students who progress fastest show up consistently and practice regularly.' },
     ],
   },
   'private-music-lessons': {
@@ -203,7 +201,7 @@ const ADKINS_HOSTS = new Set([
   'www.adkinsmusiclessons.com',
 ])
 
-export default async function middleware(request: NextRequest): Promise<Response> {
+export default async function middleware(request: Request): Promise<Response> {
   const url = new URL(request.url)
   const hostname = url.hostname
 
@@ -222,7 +220,7 @@ export default async function middleware(request: NextRequest): Promise<Response
 
   // For non-SEO paths on the primary domain, pass through immediately
   if (!SEO_PATHS.has(url.pathname)) {
-    return NextResponse.next()
+    return fetch(request)
   }
 
   const segments = url.pathname.split('/').filter(Boolean)
@@ -326,7 +324,7 @@ export default async function middleware(request: NextRequest): Promise<Response
   // Location pages
   const locKey = segments[0]
   const loc = LOCATIONS[locKey]
-  if (!loc) return NextResponse.next()
+  if (!loc) return fetch(request)
 
   const instrumentKey = segments[1]
   const instrument = instrumentKey ? INSTRUMENTS[instrumentKey] : undefined
