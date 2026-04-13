@@ -66,7 +66,7 @@ export default function ReviewRequestModal({
 
   // Generate AI message when location data is ready
   useEffect(() => {
-    if (!locationName || !googleReviewUrl || students.length === 0) return
+    if (!locationName || students.length === 0) return
     let cancelled = false
 
     setGenerating(true)
@@ -202,6 +202,25 @@ export default function ReviewRequestModal({
               />
             )}
           </div>
+
+          {/* ── MISSING URL WARNING ── */}
+          {!googleReviewUrl && locationName && (
+            <div style={{
+              padding: '10px 14px', borderRadius: 10,
+              background: 'rgba(255,85,0,0.06)', border: '1px solid rgba(255,85,0,0.2)',
+              display: 'flex', alignItems: 'flex-start', gap: 8,
+            }}>
+              <AlertTriangle size={14} style={{ color: '#FF5500', flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <div style={{ fontSize: 12, color: '#FF5500', fontWeight: 600 }}>
+                  No Google Review URL set for {locationName}
+                </div>
+                <div style={{ fontSize: 11, color: '#A0A0C8', marginTop: 4 }}>
+                  Go to Settings → Locations and add the Google Review URL for this location. The message was generated without a link.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── SECTION 2: REVIEW LINK ── */}
           <div>

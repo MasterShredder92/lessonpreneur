@@ -135,7 +135,7 @@ export function useFamiliesPage(opts?: { enabled?: boolean }) {
       // Get all students with teacher info
       const { data: students } = await supabase
         .from('students')
-        .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id, counts_toward_family_tier')
+        .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id, counts_toward_family_tier, location_id')
         .eq('tenant_id', tenantId!)
         .order('last_name')
         .limit(5000)
@@ -493,7 +493,7 @@ export function useFamilyDetail(familyId: string | undefined) {
 
       const { data: students } = await supabase
         .from('students')
-        .select('id, first_name, last_name, instrument, status, teacher_id, sessions_per_month, pause_reason, deactivated_at, created_at, counts_toward_family_tier')
+        .select('id, first_name, last_name, instrument, status, teacher_id, sessions_per_month, pause_reason, deactivated_at, created_at, counts_toward_family_tier, location_id')
         .eq('tenant_id', tenantId!)
         .eq('family_id', familyId!)
         .order('status')
