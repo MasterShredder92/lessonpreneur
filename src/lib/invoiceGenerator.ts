@@ -3,10 +3,12 @@
  *
  * Handles the complete "Generate Invoice" workflow:
  * 1. Calculate line items from student_effective_rate
- * 2. Create billing_event + billing_line_items
- * 3. Create invoice_token (family payment link)
- * 4. Generate PDF and store in Supabase Storage
- * 5. Return the invoice record
+ * 2. Resolve or create billing_periods row (FK parent for billing_events)
+ * 3. Get billing cycle (for invoice_tokens)
+ * 4. Create billing_event + billing_line_items
+ * 5. Create invoice_token (family payment link)
+ * 6. Generate PDF and store in Supabase Storage
+ * 7. Return the invoice record
  *
  * All steps are atomic — if any persistence fails, the whole
  * operation fails and no success toast is shown.
@@ -53,6 +55,46 @@ export interface GenerateInvoiceParams {
   dueDate: string
   performedBy: string | null
   performerName: string | null
+}
+
+// ── Billing period resolution ─────────────────────────────────
+
+/**
+ * Resolve or create a billing_periods row for this invoice run.
+ * billing_events.billing_period_id FK points to billing_periods — NOT billing_cycles.
+ * This function ensures a real parent row exists before we insert events.
+ */
+async function resolveOrCreateBillingPeriod(
+  tenantId: string,
+  periodLabel: string,
+  billingDate: string,
+): Promise<string> {
+  // Try to find existing period for this tenant + label
+  const { data: existing, error: findErr } = await supabase
+    .from('billing_periods')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('period_label', periodLabel)
+    .limit(1)
+    .maybeSingle()
+  if (findErr) throw new Error(`Failed to query billing periods: ${findErr.message}`)
+
+  if (existing) return existing.id
+
+  // Create new period
+  const { data: created, error: createErr } = await supabase
+    .from('billing_periods')
+    .insert({
+      tenant_id: tenantId,
+      period_label: periodLabel,
+      billing_date: billingDate,
+      status: 'pending',
+    })
+    .select('id')
+    .single()
+  if (createErr) throw new Error(`Failed to create billing period: ${createErr.message}`)
+
+  return created.id
 }
 
 // ── Main generator ────────────────────────────────────────────
@@ -108,17 +150,20 @@ export async function generateFamilyInvoice(params: GenerateInvoiceParams): Prom
   const totalCents = lineItems.reduce((sum, li) => sum + li.monthlyCents, 0)
   const locationId = students[0]?.location_id ?? primaryLocationId
 
-  // 2. Get billing cycle
+  // 2. Resolve billing period (parent row for billing_events FK)
+  const billingPeriodId = await resolveOrCreateBillingPeriod(tenantId, periodLabel, dueDate)
+
+  // 3. Get billing cycle (used for invoice_tokens, separate from billing_periods)
   const cycleId = await getCurrentBillingCycleId(tenantId)
 
-  // 3. Create billing_event
+  // 4. Create billing_event (billing_period_id FK → billing_periods.id)
   const idempotencyKey = `manual_${familyId}_${periodLabel.replace(/\s/g, '_')}_${Date.now()}`
   const { data: billingEvent, error: beErr } = await supabase
     .from('billing_events')
     .insert({
       tenant_id: tenantId,
       family_id: familyId,
-      billing_period_id: cycleId,
+      billing_period_id: billingPeriodId,
       amount_cents: totalCents,
       idempotency_key: idempotencyKey,
       status: 'pending',
@@ -127,7 +172,7 @@ export async function generateFamilyInvoice(params: GenerateInvoiceParams): Prom
     .single()
   if (beErr) throw new Error(`Failed to create billing event: ${beErr.message}`)
 
-  // 4. Create billing_line_items
+  // 5. Create billing_line_items
   const lineItemRows = lineItems.map((li) => ({
     billing_event_id: billingEvent.id,
     student_id: li.studentId,
@@ -138,7 +183,7 @@ export async function generateFamilyInvoice(params: GenerateInvoiceParams): Prom
   const { error: liErr } = await supabase.from('billing_line_items').insert(lineItemRows)
   if (liErr) throw new Error(`Failed to create line items: ${liErr.message}`)
 
-  // 5. Create invoice_token
+  // 6. Create invoice_token
   const { data: invoiceToken, error: itErr } = await supabase
     .from('invoice_tokens')
     .insert({
@@ -174,7 +219,7 @@ export async function generateFamilyInvoice(params: GenerateInvoiceParams): Prom
     .single()
   if (itErr) throw new Error(`Failed to create invoice token: ${itErr.message}`)
 
-  // 6. Generate PDF
+  // 7. Generate PDF
   let pdfUrl: string | null = null
   try {
     const pdfBlob = buildInvoicePdf({
@@ -200,7 +245,7 @@ export async function generateFamilyInvoice(params: GenerateInvoiceParams): Prom
     // PDF is best-effort — invoice is still valid without it
   }
 
-  // 7. Audit log
+  // 8. Audit log
   await supabase.from('audit_log').insert({
     tenant_id: tenantId,
     action: 'INVOICE_CREATED',
