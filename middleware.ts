@@ -1,8 +1,8 @@
+import { NextResponse, type NextRequest } from 'next/server'
+
 // Vercel Edge Middleware — injects location-specific SEO meta tags into HTML
 // before the response reaches crawlers. This solves the SPA rendering problem
 // where Facebook, Twitter, LinkedIn, Bing, and AI crawlers cannot execute JS.
-
-import { next } from '@vercel/edge'
 
 export const config = {
   // Match all non-asset paths so legacy domain redirects fire in middleware
@@ -77,8 +77,8 @@ const SUPPORTING_PAGES: Record<string, { title: string; desc: string; faqs: Arra
     desc: 'Beginner-friendly private music lessons in Omaha, Bellevue, Elkhorn, and Gretna. Piano, guitar, vocals, drums. No experience needed. Start playing real music from day one.',
     faqs: [
       { q: 'Do I need any musical experience to start?', a: 'None at all. Most of our students begin with zero experience.' },
-      { q: 'How long does it take to learn an instrument?', a: 'You\'ll play your first songs within weeks. Solid intermediate skills typically take six months to a year.' },
-      { q: 'What if I\'m not naturally talented?', a: 'Talent is overrated. The students who progress fastest show up consistently and practice regularly.' },
+      { q: 'How long does it take to learn an instrument?', a: 'You\\'ll play your first songs within weeks. Solid intermediate skills typically take six months to a year.' },
+      { q: 'What if I\\'m not naturally talented?', a: 'Talent is overrated. The students who progress fastest show up consistently and practice regularly.' },
     ],
   },
   'private-music-lessons': {
@@ -119,8 +119,8 @@ function buildJsonLd(loc: typeof LOCATIONS[string], canonical: string, instrumen
     address: { '@type': 'PostalAddress', streetAddress: parts[0], addressLocality: loc.name, addressRegion: 'NE', postalCode: zip, addressCountry: 'US' },
     geo: { '@type': 'GeoCoordinates', latitude: loc.lat, longitude: loc.lng },
     openingHoursSpecification: [
-      { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday','Tuesday','Wednesday','Thursday'], opens: '15:00', closes: '21:00' },
-      { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Saturday','Sunday'], opens: '10:00', closes: '15:00' },
+      { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday'], opens: '15:00', closes: '21:00' },
+      { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Saturday', 'Sunday'], opens: '10:00', closes: '15:00' },
     ],
     founder: { '@type': 'Person', name: 'Zachary Adkins' },
     sameAs: [`https://${loc.domain}`],
@@ -157,7 +157,14 @@ function buildSupportingJsonLd(slug: string, title: string, desc: string) {
   })
 }
 
-async function rewriteHtml(request: Request, title: string, desc: string, canonical: string, jsonLd: string, locationSlug?: string): Promise<Response> {
+async function rewriteHtml(
+  request: NextRequest,
+  title: string,
+  desc: string,
+  canonical: string,
+  jsonLd: string,
+  locationSlug?: string
+): Promise<Response> {
   const url = new URL(request.url)
   const originUrl = new URL('/', url.origin)
   const response = await fetch(originUrl.toString(), { headers: request.headers })
@@ -173,7 +180,6 @@ async function rewriteHtml(request: Request, title: string, desc: string, canoni
   html = html.replace(/<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${desc}">`)
   html = html.replace('</head>', `<script type="application/ld+json">${jsonLd}</script>\n  </head>`)
 
-  // Swap favicon/icon to location-specific version
   if (locationSlug) {
     const fav = `/favicon-${locationSlug}.png`
     html = html.replace(/<link rel="icon"[^>]*href="\/favicon\.png[^"]*"[^>]*>/, `<link rel="icon" type="image/png" sizes="192x192" href="${fav}">`)
@@ -197,29 +203,26 @@ const ADKINS_HOSTS = new Set([
   'www.adkinsmusiclessons.com',
 ])
 
-export default async function middleware(request: Request): Promise<Response> {
+export default async function middleware(request: NextRequest): Promise<Response> {
   const url = new URL(request.url)
   const hostname = url.hostname
 
   // ── Legacy domain redirects — must fire before anything else ──
   const legacyBase = LEGACY_HOST_MAP[hostname]
   if (legacyBase) {
-    // Preserve the path: gretnamusiclessons.com/guitar → adkinsmusiclessons.com/gretna/guitar
     const subpath = url.pathname === '/' ? '' : url.pathname
     const target = `https://www.adkinsmusiclessons.com${legacyBase}${subpath}`
     return Response.redirect(target, 308)
   }
 
   // ── Adkins domain root → /omaha (primary location) ──
-  // adkinsmusiclessons.com is the customer-facing music school site.
-  // The Lessonpreneur SaaS landing page should only appear on lessonpreneur.io.
   if (ADKINS_HOSTS.has(hostname) && url.pathname === '/') {
     return Response.redirect('https://www.adkinsmusiclessons.com/omaha', 302)
   }
 
   // For non-SEO paths on the primary domain, pass through immediately
   if (!SEO_PATHS.has(url.pathname)) {
-    return next()
+    return NextResponse.next()
   }
 
   const segments = url.pathname.split('/').filter(Boolean)
@@ -257,7 +260,13 @@ export default async function middleware(request: Request): Promise<Response> {
       { name: 'About', url: canonical },
     ])
     const combined = aboutJsonLd + `</script>\n  <script type="application/ld+json">${breadcrumb}`
-    return rewriteHtml(request, 'About Adkins Music Lessons | Founded by Zachary Adkins — Omaha Metro', 'Adkins Music Lessons was founded by Zachary Adkins, 2017 National Guitar Competition winner. Four locations, 30+ instructors, 400+ students across the Omaha metro.', canonical, combined)
+    return rewriteHtml(
+      request,
+      'About Adkins Music Lessons | Founded by Zachary Adkins — Omaha Metro',
+      'Adkins Music Lessons was founded by Zachary Adkins, 2017 National Guitar Competition winner. Four locations, 30+ instructors, 400+ students across the Omaha metro.',
+      canonical,
+      combined
+    )
   }
 
   // Locations page
@@ -276,7 +285,13 @@ export default async function middleware(request: Request): Promise<Response> {
       { name: 'Locations', url: canonical },
     ])
     const combined = locsJsonLd + `</script>\n  <script type="application/ld+json">${breadcrumb}`
-    return rewriteHtml(request, 'Locations | Music Lessons in Omaha, Bellevue, Elkhorn & Gretna — Adkins Music', 'Adkins Music Lessons has four studio locations across the Omaha metro. Private music lessons for all ages.', canonical, combined)
+    return rewriteHtml(
+      request,
+      'Locations | Music Lessons in Omaha, Bellevue, Elkhorn & Gretna — Adkins Music',
+      'Adkins Music Lessons has four studio locations across the Omaha metro. Private music lessons for all ages.',
+      canonical,
+      combined
+    )
   }
 
   // Supporting pages (e.g. /kids-music-lessons)
@@ -284,7 +299,7 @@ export default async function middleware(request: Request): Promise<Response> {
     const slug = segments[0]
     const page = SUPPORTING_PAGES[slug]
     const canonical = `https://www.adkinsmusiclessons.com/${slug}`
-    // Combine EducationalOrganization + FAQPage schemas
+
     let combinedJsonLd = buildSupportingJsonLd(slug, page.title, page.desc)
     if (page.faqs.length > 0) {
       const faqSchema = JSON.stringify({
@@ -298,18 +313,20 @@ export default async function middleware(request: Request): Promise<Response> {
       })
       combinedJsonLd += `</script>\n  <script type="application/ld+json">${faqSchema}`
     }
+
     const breadcrumb = buildBreadcrumbJsonLd([
       { name: 'Home', url: 'https://www.adkinsmusiclessons.com' },
       { name: page.title.split('|')[0].trim(), url: canonical },
     ])
     combinedJsonLd += `</script>\n  <script type="application/ld+json">${breadcrumb}`
+
     return rewriteHtml(request, page.title, page.desc, canonical, combinedJsonLd)
   }
 
   // Location pages
   const locKey = segments[0]
   const loc = LOCATIONS[locKey]
-  if (!loc) return next()
+  if (!loc) return NextResponse.next()
 
   const instrumentKey = segments[1]
   const instrument = instrumentKey ? INSTRUMENTS[instrumentKey] : undefined
@@ -334,6 +351,7 @@ export default async function middleware(request: Request): Promise<Response> {
   if (instrument) {
     breadcrumbItems.push({ name: `${instrument.label} Lessons`, url: canonical })
   }
+
   const fullJsonLd = jsonLd + `</script>\n  <script type="application/ld+json">${buildBreadcrumbJsonLd(breadcrumbItems)}`
   return rewriteHtml(request, title, desc, canonical, fullJsonLd, locKey)
 }
