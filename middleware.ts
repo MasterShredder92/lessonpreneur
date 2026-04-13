@@ -156,7 +156,7 @@ function buildSupportingJsonLd(slug: string, title: string, desc: string) {
 }
 
 async function rewriteHtml(
-  request: NextRequest,
+  
   title: string,
   desc: string,
   canonical: string,
