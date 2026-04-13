@@ -488,7 +488,7 @@ export default function SignupLanding() {
 
   const renderStep0 = () => {
     // Gift sub-screen: collect recipient name before continuing
-    if (enrollmentType === 'gift' && !giftRecipient.trim()) {
+    if (enrollmentType === 'gift') {
       return (
         <div className="signup-step-wrap">
           <div className={`signup-step ${slideClass}`}>
