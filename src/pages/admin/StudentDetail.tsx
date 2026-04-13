@@ -14,7 +14,7 @@ import { supabase } from '../../lib/supabase'
 import { safeFetch } from '../../lib/safeFetch'
 import { EDGE_FUNCTIONS } from '../../lib/config'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Star, Music, MapPin, Phone, Mail, DollarSign, Upload, FileText, Trash2, Pencil, Download, Send, Lock, AlertTriangle } from 'lucide-react'
+import { Star, Music, MapPin, Phone, Mail, DollarSign, Upload, FileText, Trash2, Pencil, Download, Send, Lock, AlertTriangle, UserMinus } from 'lucide-react'
 import { useFamilyRate, useOverrideFamilyRate, useRemoveFamilyRateOverride, useAddSessionCredit, getRateTierLabel, getRateTierColor, formatRate } from '../../hooks/useFamilyRate'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import { toast } from '../../components/shared/Toast'
@@ -32,6 +32,7 @@ import LinkFamilyModal from '../../components/students/LinkFamilyModal'
 import { qk } from '../../lib/queryKeys'
 import { OriginalIntakePanel } from '../../components/leads/OriginalIntakePanel'
 import { useDirectorNotes, useAddDirectorNote } from '../../hooks/useDirectorNotes'
+import { useRemoveStudentFromFamily } from '../../lib/enrollmentEngine'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -78,6 +79,8 @@ export default function StudentDetail() {
   const [showSessionCreditModal, setShowSessionCreditModal] = useState(false)
   const [editingFamilyName, setEditingFamilyName] = useState(false)
   const [familyNameValue, setFamilyNameValue] = useState('')
+  const removeFromFamily = useRemoveStudentFromFamily()
+  const [unlinkFamilyConfirm, setUnlinkFamilyConfirm] = useState(false)
   const [editingPhone, setEditingPhone] = useState(false)
   const [phoneValue, setPhoneValue] = useState('')
   const [editingEmail, setEditingEmail] = useState(false)
@@ -759,6 +762,15 @@ export default function StudentDetail() {
                     {(canDo('teachers.edit_pay_rate') || role === 'owner') && (
                       <button className="btn-ghost" onClick={() => setShowRateOverrideModal(true)} style={{ fontSize: 10, color: '#6366F1', padding: '3px 8px' }}>
                         Override Rate
+                      </button>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => setUnlinkFamilyConfirm(true)}
+                        title="Remove from family"
+                        style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                      >
+                        <UserMinus size={10} /> Unlink
                       </button>
                     )}
                     <button
@@ -1568,6 +1580,25 @@ export default function StudentDetail() {
           confirmLabel="Yes, Continue"
           onConfirm={pendingConfirm.onConfirm}
           onCancel={() => setPendingConfirm(null)}
+        />
+      )}
+
+      {unlinkFamilyConfirm && student.family_id && (
+        <ConfirmModal
+          title="Remove from Family?"
+          message={`Remove "${student.first_name} ${student.last_name}" from their family? Family rates will be recalculated.`}
+          variant="warning"
+          confirmLabel="Remove"
+          onConfirm={() => {
+            removeFromFamily.mutate(
+              { studentId: student.id, familyId: student.family_id!, studentName: `${student.first_name} ${student.last_name}` },
+              {
+                onSuccess: () => { toast.success('Student removed from family'); setUnlinkFamilyConfirm(false) },
+                onError: (err: any) => { toast.error(err.message ?? 'Failed to remove'); setUnlinkFamilyConfirm(false) },
+              },
+            )
+          }}
+          onCancel={() => setUnlinkFamilyConfirm(false)}
         />
       )}
 

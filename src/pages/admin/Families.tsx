@@ -28,6 +28,8 @@ import ReviewRequestModal from '../../components/admin/ReviewRequestModal'
 import { useLastReviewRequest } from '../../hooks/useReviewRequest'
 import FamilyDocumentsSection from '../../components/admin/FamilyDocumentsSection'
 import DuplicateStudentReviewBanner from '../../components/admin/DuplicateStudentReviewBanner'
+import { useRemoveStudentFromFamily, useDeleteFamily } from '../../lib/enrollmentEngine'
+import { Trash2, UserMinus } from 'lucide-react'
 
 // ═══════════════════════════════════════
 // DISPLAY HELPERS
@@ -794,6 +796,10 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
   const [editing, setEditing] = useState(false)
   const [showPausedStudents, setShowPausedStudents] = useState(false)
   const reactivateStudent = useReactivateStudent()
+  const removeFromFamily = useRemoveStudentFromFamily()
+  const deleteFamilyMut = useDeleteFamily()
+  const [removeStudentConfirm, setRemoveStudentConfirm] = useState<{ id: string; name: string } | null>(null)
+  const [deleteFamilyConfirm, setDeleteFamilyConfirm] = useState(false)
   const [uploadType, setUploadType] = useState<string>('other')
   const [uploadNotes, setUploadNotes] = useState('')
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -1381,6 +1387,17 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
                           <span style={{ fontSize: 11, color: '#A0A0C8', padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }}>{instrumentWithEmojiTitle(s.instrument)}</span>
                           <span style={{ fontSize: 11, color: '#A0A0C8' }}>{s.teacher_name}</span>
                           <span style={{ fontSize: 10, color: '#A0A0C8' }}>{s.sessions_per_month ?? DEFAULT_SESSIONS_PER_MONTH} sessions</span>
+                          {canEdit && isActive && (
+                            <button
+                              title="Remove from family"
+                              onClick={(e) => { e.stopPropagation(); setRemoveStudentConfirm({ id: s.id, name: `${s.first_name} ${s.last_name}` }) }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#606088', display: 'flex', alignItems: 'center' }}
+                              onMouseEnter={(e) => (e.currentTarget.style.color = '#EF4444')}
+                              onMouseLeave={(e) => (e.currentTarget.style.color = '#606088')}
+                            >
+                              <UserMinus size={14} />
+                            </button>
+                          )}
                           <ChevronRight size={12} style={{ color: '#363656' }} />
                         </div>
                       )
@@ -1469,6 +1486,28 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
 
               {/* NOTIFICATIONS */}
               <NotificationPrefs family={family} />
+
+              {/* DELETE FAMILY — owner only */}
+              {role === 'owner' && (
+                <div style={{ borderTop: '1px solid rgba(239,68,68,0.15)', marginTop: 28, paddingTop: 20 }}>
+                  <button
+                    onClick={() => setDeleteFamilyConfirm(true)}
+                    disabled={deleteFamilyMut.isPending}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                      borderRadius: 10, padding: '10px 18px', cursor: 'pointer',
+                      color: '#EF4444', fontSize: 13, fontWeight: 700, width: '100%', justifyContent: 'center',
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    {deleteFamilyMut.isPending ? 'Deleting…' : 'Delete Family'}
+                  </button>
+                  <p style={{ fontSize: 11, color: '#606088', marginTop: 8, textAlign: 'center' }}>
+                    Students will be unlinked, not deleted. Billing history will be removed.
+                  </p>
+                </div>
+              )}
 
             </div>
           )}
@@ -1592,6 +1631,44 @@ function FamilyDetailModal({ familyId, canEdit, onClose, onNavigateStudent }: {
       {deleteConfirm && (
         <ConfirmModal title="Delete File?" message={`Delete "${deleteConfirm.file_name}"? This cannot be undone.`} variant="danger" confirmLabel="Delete"
           onConfirm={() => handleDeleteFile(deleteConfirm)} onCancel={() => setDeleteConfirm(null)} />
+      )}
+
+      {removeStudentConfirm && (
+        <ConfirmModal
+          title="Remove Student from Family?"
+          message={`Remove "${removeStudentConfirm.name}" from this family? The student will become unlinked and family rates will be recalculated.`}
+          variant="warning"
+          confirmLabel="Remove"
+          onConfirm={() => {
+            removeFromFamily.mutate(
+              { studentId: removeStudentConfirm.id, familyId, studentName: removeStudentConfirm.name },
+              {
+                onSuccess: () => { toast.success(`${removeStudentConfirm.name} removed from family`); setRemoveStudentConfirm(null) },
+                onError: (err: any) => { toast.error(err.message ?? 'Failed to remove student'); setRemoveStudentConfirm(null) },
+              },
+            )
+          }}
+          onCancel={() => setRemoveStudentConfirm(null)}
+        />
+      )}
+
+      {deleteFamilyConfirm && family && (
+        <ConfirmModal
+          title="Delete Family?"
+          message={`Permanently delete the "${family.name}" family? All ${family.activeStudentCount ?? 0} student(s) will be unlinked (not deleted). Billing history will be removed.`}
+          variant="danger"
+          confirmLabel="Delete Family"
+          onConfirm={() => {
+            deleteFamilyMut.mutate(
+              { familyId: family.id, familyName: family.name },
+              {
+                onSuccess: () => { toast.success(`${family.name} deleted`); setDeleteFamilyConfirm(false); onClose() },
+                onError: (err: any) => { toast.error(err.message ?? 'Failed to delete family'); setDeleteFamilyConfirm(false) },
+              },
+            )
+          }}
+          onCancel={() => setDeleteFamilyConfirm(false)}
+        />
       )}
 
       {/* Create Invoice from Family */}

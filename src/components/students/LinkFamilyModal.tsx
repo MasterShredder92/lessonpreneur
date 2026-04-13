@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase'
 import { toast } from '../shared/Toast'
 import { X, Search, Users, Plus, Check } from 'lucide-react'
 import { qk } from '../../lib/queryKeys'
+import { invalidateEnrollmentCaches } from '../../lib/enrollmentEngine'
 
 interface Props {
   studentId: string
@@ -99,17 +100,7 @@ export default function LinkFamilyModal({ studentId, studentName, onClose, onLin
     try {
       const { error: upErr } = await supabase.from('students').update({ family_id: selectedFamily.id }).eq('id', studentId)
       if (upErr) throw upErr
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: qk.students.all }),
-        qc.invalidateQueries({ queryKey: qk.students.roster }),
-        qc.invalidateQueries({ queryKey: qk.students.instruments }),
-        qc.invalidateQueries({ queryKey: qk.students.tabCounts }),
-        qc.invalidateQueries({ queryKey: qk.students.detail }),
-        qc.invalidateQueries({ queryKey: qk.families.all }),
-        qc.invalidateQueries({ queryKey: qk.families.page }),
-        qc.invalidateQueries({ queryKey: qk.families.roster }),
-        qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
-      ])
+      await invalidateEnrollmentCaches(qc, selectedFamily.id)
       toast(`${studentName} linked to ${selectedFamily.name}`, 'success')
       onLinked?.(selectedFamily.id)
       onClose()
@@ -157,19 +148,7 @@ export default function LinkFamilyModal({ studentId, studentName, onClose, onLin
       const { error: upErr } = await supabase.from('students').update({ family_id: newFamily.id }).eq('id', studentId)
       if (upErr) throw upErr
 
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: qk.students.all }),
-        qc.invalidateQueries({ queryKey: qk.students.roster }),
-        qc.invalidateQueries({ queryKey: qk.students.instruments }),
-        qc.invalidateQueries({ queryKey: qk.students.tabCounts }),
-        qc.invalidateQueries({ queryKey: qk.students.detail }),
-        qc.invalidateQueries({ queryKey: qk.families.all }),
-        qc.invalidateQueries({ queryKey: qk.families.page }),
-        qc.invalidateQueries({ queryKey: qk.families.roster }),
-        qc.invalidateQueries({ queryKey: qk.families.tabCounts }),
-        qc.invalidateQueries({ queryKey: qk.families.fileDetail }),
-        qc.invalidateQueries({ queryKey: qk.tasks.all }),
-      ])
+      await invalidateEnrollmentCaches(qc, newFamily.id)
       toast(`Family created and linked to ${studentName}`, 'success')
       onLinked?.(newFamily.id)
       onClose()
