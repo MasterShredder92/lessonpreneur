@@ -38,12 +38,12 @@ import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
 const INSTRUMENTS = ['piano','guitar','vocals','drums','banjo','bass','brass','cello','clarinet','flute','mandolin','oboe','percussion','saxophone','strings','trombone','trumpet','ukulele','viola','violin','voice','woodwinds']
 const EXIT_REASONS = ['Schedule Conflict', 'Moving Away', 'Financial', 'Lost Interest', 'Switching Schools', 'Taking a Break', 'Other']
 
-// Location brand colors — keyed by Supabase UUID (matches CEO_MUSIC_SCHOOL.md + task spec)
+// Location brand colors — keyed by Supabase UUID (CLAUDE.md authoritative source)
 const LOCATION_COLORS: Record<string, string> = {
-  'f7b52dd5-12ee-437f-9c60-f8adf454ac31': '#8B5CF6', // Bellevue
-  'cebd97d4-c241-4de2-8ade-49e5cc0070d5': '#38BDF8', // Elkhorn
-  '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#22C55E', // Gretna
-  'd48229c1-b70a-4d29-893e-5079887dab76': '#DC0000', // Omaha
+  'f7b52dd5-12ee-437f-9c60-f8adf454ac31': '#A333FF', // Bellevue
+  'cebd97d4-c241-4de2-8ade-49e5cc0070d5': '#00A5E8', // Elkhorn
+  '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#00A651', // Gretna
+  'd48229c1-b70a-4d29-893e-5079887dab76': '#D41113', // Omaha
 }
 
 type SortOption = 'az_first' | 'za_first' | 'az_last' | 'za_last' | 'newest' | 'oldest'
