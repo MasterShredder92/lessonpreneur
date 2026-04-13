@@ -1,15 +1,25 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
-import { useStudents, useStudentsRosterInfinite, useStudentInstrumentOptions, useCreateStudent, useUpdateStudent, useFamilies, useStudentTabCounts, type StudentRow } from '../../hooks/useStudents'
+import {
+  useStudents,
+  useStudentsRosterInfinite,
+  useStudentInstrumentOptions,
+  useCreateStudent,
+  useUpdateStudent,
+  useFamilies,
+  useStudentTabCounts,
+  useStudentCountsByLocation,
+  type StudentRow,
+} from '../../hooks/useStudents'
 import { useLeads } from '../../hooks/useLeads'
 import { useZiroShell } from '../../contexts/ZiroContext'
 import { useLocations } from '../../hooks/useLocations'
 import { useTeachers } from '../../hooks/useTeachers'
-import { Check, XCircle } from 'lucide-react'
+import { Check, XCircle, X } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
 import RetentionCaptureModal from '../../components/students/RetentionCaptureModal'
 import CsvImportFlow from '../../components/shared/CsvImportFlow'
@@ -28,13 +38,17 @@ import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
 const INSTRUMENTS = ['piano','guitar','vocals','drums','banjo','bass','brass','cello','clarinet','flute','mandolin','oboe','percussion','saxophone','strings','trombone','trumpet','ukulele','viola','violin','voice','woodwinds']
 const EXIT_REASONS = ['Schedule Conflict', 'Moving Away', 'Financial', 'Lost Interest', 'Switching Schools', 'Taking a Break', 'Other']
 
-type StatusTab = 'active' | 'former' | 'all'
-type SortOption = 'az_first' | 'za_first' | 'az_last' | 'za_last' | 'newest' | 'oldest'
-
-function isIncomplete(s: StudentRow): boolean {
-  return !s.instrument || !s.teacher_id || !s.blocks_per_week || !s.location_id
+// Location brand colors — keyed by Supabase UUID (matches CEO_MUSIC_SCHOOL.md + task spec)
+const LOCATION_COLORS: Record<string, string> = {
+  'f7b52dd5-12ee-437f-9c60-f8adf454ac31': '#8B5CF6', // Bellevue
+  'cebd97d4-c241-4de2-8ade-49e5cc0070d5': '#38BDF8', // Elkhorn
+  '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#22C55E', // Gretna
+  'd48229c1-b70a-4d29-893e-5079887dab76': '#DC0000', // Omaha
 }
 
+type SortOption = 'az_first' | 'za_first' | 'az_last' | 'za_last' | 'newest' | 'oldest'
+
+// ---- Student Roster Row (full page roster, unchanged) ----
 function StudentRosterRow({
   s,
   locations,
@@ -52,7 +66,7 @@ function StudentRosterRow({
 }) {
   const isFormer = s.status === 'former' || s.status === 'inactive'
   const loc = locations?.find((l: any) => l.id === s.location_id)
-  const locColor = (loc as any)?.color ?? '#D4226A'
+  const locColor = LOCATION_COLORS[s.location_id] ?? (loc as any)?.color ?? '#D4226A'
   const risk = riskMap.get(s.id)
   const nextTime = s.next_lesson_time
     ? (() => {
@@ -138,185 +152,624 @@ function StudentRosterRow({
   )
 }
 
+// ---- Tier 1: Location Overview Grid ----
+function LocationOverviewGrid({
+  locations,
+  locationCounts,
+  totalActive,
+  onSelectLocation,
+  isStudioDirector,
+  lockedLocationId,
+}: {
+  locations: any[] | undefined
+  locationCounts: Record<string, number> | undefined
+  totalActive: number | undefined
+  onSelectLocation: (id: string) => void
+  isStudioDirector: boolean
+  lockedLocationId: string | null
+}) {
+  const visible = useMemo(() => {
+    if (!locations) return []
+    if (isStudioDirector && lockedLocationId) return locations.filter((l) => l.id === lockedLocationId)
+    return locations.filter((l) => l.is_active)
+  }, [locations, isStudioDirector, lockedLocationId])
+
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: '#8080A8', marginBottom: 20, marginTop: 4 }}>
+        Click a location to view its student roster. Data loads on demand — no delay.
+      </p>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+        gap: 14,
+      }}>
+        {visible.map((loc) => {
+          const color = LOCATION_COLORS[loc.id] ?? '#D4226A'
+          const count = locationCounts?.[loc.id]
+          return (
+            <button
+              key={loc.id}
+              onClick={() => onSelectLocation(loc.id)}
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: `1px solid rgba(255,255,255,0.06)`,
+                borderRadius: 16,
+                padding: 0,
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                overflow: 'hidden',
+                transition: 'border-color 150ms ease, background 150ms ease, transform 150ms ease',
+              }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLElement).style.borderColor = color + '60'
+                ;(e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)'
+                ;(e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'
+              }}
+            >
+              <div style={{ width: 5, background: color, flexShrink: 0, borderRadius: '16px 0 0 16px' }} />
+              <div style={{ padding: '22px 20px', flex: 1 }}>
+                <div style={{ fontWeight: 800, color: '#E0E0F4', fontSize: 15, marginBottom: 10 }}>
+                  {loc.name.replace(' Music Lessons', '')}
+                </div>
+                <div style={{
+                  fontWeight: 900,
+                  color,
+                  fontSize: 38,
+                  lineHeight: 1,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  marginBottom: 2,
+                }}>
+                  {count !== undefined ? count.toLocaleString() : '…'}
+                </div>
+                <div style={{ fontSize: 11, color: '#606088', marginBottom: 10 }}>active students</div>
+                {loc.city && (
+                  <div style={{ fontSize: 11, color: '#8080A8' }}>
+                    {loc.city}, {loc.state}
+                  </div>
+                )}
+              </div>
+            </button>
+          )
+        })}
+
+        {/* All Students aggregate card */}
+        {!isStudioDirector && (
+          <button
+            onClick={() => onSelectLocation('all')}
+            style={{
+              background: 'rgba(212,34,106,0.04)',
+              border: '1px solid rgba(212,34,106,0.12)',
+              borderRadius: 16,
+              padding: 0,
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              overflow: 'hidden',
+              transition: 'border-color 150ms ease, background 150ms ease',
+            }}
+            onMouseEnter={(e) => {
+              ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(212,34,106,0.3)'
+              ;(e.currentTarget as HTMLElement).style.background = 'rgba(212,34,106,0.07)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(212,34,106,0.12)'
+              ;(e.currentTarget as HTMLElement).style.background = 'rgba(212,34,106,0.04)'
+            }}
+          >
+            <div style={{ width: 5, background: '#D4226A', flexShrink: 0, borderRadius: '16px 0 0 16px' }} />
+            <div style={{ padding: '22px 20px', flex: 1 }}>
+              <div style={{ fontWeight: 800, color: '#E0E0F4', fontSize: 15, marginBottom: 10 }}>All Students</div>
+              <div style={{
+                fontWeight: 900,
+                color: '#D4226A',
+                fontSize: 38,
+                lineHeight: 1,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                marginBottom: 2,
+              }}>
+                {totalActive !== undefined ? totalActive.toLocaleString() : '…'}
+              </div>
+              <div style={{ fontSize: 11, color: '#606088', marginBottom: 10 }}>active students</div>
+              <div style={{ fontSize: 11, color: '#8080A8' }}>Across all locations</div>
+            </div>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---- Tier 2: Location Student Panel (lazy-loaded slide panel) ----
+function LocationStudentPanel({
+  locationId,
+  locations,
+  teachers,
+  riskMap,
+  canViewBilling,
+  onClose,
+  onNavigate,
+  onAddStudent,
+}: {
+  locationId: string // 'all' or a location UUID
+  locations: any[] | undefined
+  teachers: any[] | undefined
+  riskMap: Map<string, ChurnRiskScore>
+  canViewBilling: boolean
+  onClose: () => void
+  onNavigate: (studentId: string) => void
+  onAddStudent: () => void
+}) {
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>('az_last')
+  const [instrumentFilter, setInstrumentFilter] = useState('')
+  const [teacherFilter, setTeacherFilter] = useState('')
+  const [activeTab, setActiveTab] = useState<'active' | 'former'>('active')
+
+  const effectiveLocationId = locationId === 'all' ? undefined : locationId
+  const loc = locationId === 'all' ? null : locations?.find((l) => l.id === locationId)
+  const locColor = locationId === 'all' ? '#D4226A' : (LOCATION_COLORS[locationId] ?? '#D4226A')
+
+  const statusFilter = activeTab === 'former' ? 'former' : 'active'
+
+  const rosterInfinite = useStudentsRosterInfinite({
+    status: statusFilter,
+    locationId: effectiveLocationId,
+    teacherId: teacherFilter || undefined,
+    instrumentFilter,
+    search,
+    sortBy,
+    enabled: true,
+  })
+
+  const { data: instrumentOptions } = useStudentInstrumentOptions({ locationId: effectiveLocationId })
+
+  const rosterRows = useMemo(
+    () => rosterInfinite.data?.pages.flatMap((p) => p.rows) ?? [],
+    [rosterInfinite.data],
+  )
+
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = loadMoreRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && rosterInfinite.hasNextPage && !rosterInfinite.isFetchingNextPage) {
+          rosterInfinite.fetchNextPage()
+        }
+      },
+      { rootMargin: '200px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [rosterInfinite.hasNextPage, rosterInfinite.isFetchingNextPage, rosterInfinite.fetchNextPage])
+
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  const gridCols = canViewBilling
+    ? 'minmax(140px,1.5fr) minmax(90px,0.7fr) minmax(110px,0.85fr) minmax(65px,0.5fr) minmax(130px,1fr) minmax(62px,0.5fr)'
+    : 'minmax(140px,1.5fr) minmax(90px,0.7fr) minmax(110px,0.85fr) minmax(130px,1fr) minmax(62px,0.5fr)'
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 300,
+          background: 'rgba(2,2,9,0.72)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+        }}
+      />
+
+      {/* Slide panel */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          width: 'min(740px, 100vw)',
+          height: '100vh',
+          zIndex: 301,
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'linear-gradient(160deg, #0C0C18 0%, #08080F 100%)',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '-24px 0 80px rgba(0,0,0,0.7)',
+          animation: 'slideInRight 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
+      >
+        {/* Panel header */}
+        <div style={{
+          padding: '18px 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          flexShrink: 0,
+          background: 'rgba(0,0,0,0.2)',
+        }}>
+          <div style={{ width: 4, height: 46, borderRadius: 2, background: locColor, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontWeight: 800, fontSize: 17, color: '#E0E0F4', letterSpacing: '-0.01em' }}>
+              {locationId === 'all' ? 'All Students' : (loc?.name ?? 'Students')}
+            </h2>
+            <p style={{ margin: '3px 0 0', fontSize: 11, color: '#8080A8' }}>
+              {locationId === 'all'
+                ? 'Across all locations'
+                : (loc?.city ? `${loc.city}, ${loc.state}` : '')}
+            </p>
+          </div>
+          <button
+            onClick={onAddStudent}
+            style={{
+              fontSize: 12,
+              padding: '7px 14px',
+              borderRadius: 8,
+              background: '#D4226A',
+              border: 'none',
+              color: '#fff',
+              fontWeight: 700,
+              cursor: 'pointer',
+              flexShrink: 0,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            + Add Student
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#8080A8',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Status tabs */}
+        <div style={{
+          padding: '0 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          flexShrink: 0,
+          display: 'flex',
+          gap: 0,
+        }}>
+          {(['active', 'former'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: '11px 18px',
+                fontWeight: 700,
+                fontSize: 12,
+                color: activeTab === tab ? locColor : '#606088',
+                background: 'none',
+                border: 'none',
+                borderBottom: `2px solid ${activeTab === tab ? locColor : 'transparent'}`,
+                cursor: 'pointer',
+                transition: 'color 150ms ease, border-color 150ms ease',
+                textTransform: 'capitalize',
+              }}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div style={{
+          padding: '10px 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          display: 'flex',
+          gap: 8,
+          flexShrink: 0,
+          flexWrap: 'wrap',
+          background: 'rgba(0,0,0,0.1)',
+        }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or family..."
+            className="filter-select"
+            style={{ flex: '1 1 160px', minWidth: 0 }}
+          />
+          <select
+            value={instrumentFilter}
+            onChange={(e) => setInstrumentFilter(e.target.value)}
+            className="filter-select"
+            style={{ flex: '0 0 auto', minWidth: 120 }}
+          >
+            <option value="">All Instruments</option>
+            {(instrumentOptions ?? []).map((i) => (
+              <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>
+            ))}
+          </select>
+          <select
+            value={teacherFilter}
+            onChange={(e) => setTeacherFilter(e.target.value)}
+            className="filter-select"
+            style={{ flex: '0 0 auto', minWidth: 130 }}
+          >
+            <option value="">All Teachers</option>
+            {(teachers ?? [])
+              .filter((t: any) => {
+                const s = t.status ?? (t.is_active ? 'active' : 'inactive')
+                return s !== 'inactive'
+              })
+              .map((t: any) => (
+                <option key={t.id} value={t.id}>
+                  {t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}
+                </option>
+              ))}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="filter-select"
+            style={{ flex: '0 0 auto', minWidth: 130 }}
+          >
+            <option value="az_first">A→Z First Name</option>
+            <option value="za_first">Z→A First Name</option>
+            <option value="az_last">A→Z Last Name</option>
+            <option value="za_last">Z→A Last Name</option>
+            <option value="newest">Newest Enrolled</option>
+            <option value="oldest">Oldest Enrolled</option>
+          </select>
+        </div>
+
+        {/* Row count */}
+        <div style={{ padding: '6px 24px 4px', fontSize: 11, color: '#606088', flexShrink: 0 }}>
+          {rosterInfinite.isLoading
+            ? 'Loading...'
+            : `${rosterRows.length}${rosterInfinite.hasNextPage ? '+' : ''} student${rosterRows.length !== 1 ? 's' : ''}`}
+        </div>
+
+        {/* Column headers */}
+        {!rosterInfinite.isLoading && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: gridCols,
+            gap: '0 12px',
+            padding: '7px 24px',
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#8080A8',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            background: 'rgba(0,0,0,0.2)',
+            flexShrink: 0,
+          }}>
+            <span>Student</span>
+            <span>Instrument</span>
+            <span>Teacher</span>
+            {canViewBilling && <span>Monthly</span>}
+            <span>Next Lesson</span>
+            <span>Agreement</span>
+          </div>
+        )}
+
+        {/* Roster rows */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {rosterInfinite.isLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+              <MusicLoader />
+            </div>
+          ) : (
+            <>
+              {rosterRows.map((s) => {
+                const rowLocColor = locationId === 'all'
+                  ? (LOCATION_COLORS[s.location_id] ?? '#D4226A')
+                  : locColor
+                const isFormer = s.status === 'former' || s.status === 'inactive'
+                const risk = riskMap.get(s.id)
+                const nextTime = s.next_lesson_time
+                  ? (() => {
+                    const [h, m] = s.next_lesson_time!.split(':')
+                    const hr = parseInt(h, 10)
+                    return `${hr > 12 ? hr - 12 : hr}:${m}${hr >= 12 ? 'pm' : 'am'}`
+                  })()
+                  : ''
+
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => onNavigate(s.id)}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: gridCols,
+                      gap: '0 12px',
+                      alignItems: 'center',
+                      padding: '10px 24px',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      opacity: isFormer ? 0.75 : 1,
+                      transition: 'background 120ms ease',
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.025)' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    {/* Student name + family */}
+                    <div style={{ borderLeft: `3px solid ${isFormer ? '#606088' : rowLocColor}`, paddingLeft: 10, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: '#E0E0F4' }}>{s.first_name} {s.last_name}</span>
+                        {risk && risk.tier !== 'low' && (() => {
+                          const t = RISK_TIERS[risk.tier]
+                          return <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: t.bg, color: t.color }}>{t.label}</span>
+                        })()}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#606088', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.family_name ?? '—'}</div>
+                    </div>
+                    {/* Instrument */}
+                    <div style={{ fontWeight: 600, color: '#E0E0F4', fontSize: 12 }}>
+                      {instrumentWithEmojiTitle(s.instrument ?? '')}
+                    </div>
+                    {/* Teacher */}
+                    <div style={{ color: '#C0C0E0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>
+                      {s.teacher_name !== '—' ? s.teacher_name : '—'}
+                    </div>
+                    {/* Monthly billing */}
+                    {canViewBilling && (
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#E0E0F4' }}>
+                          ${((s.rate_per_session === 0 ? 0 : (s.family_rate_tier ? s.family_rate_tier / 100 : s.rate_per_session)) * (s.sessions_per_month ?? s.blocks_per_week * 4)).toFixed(0)}
+                        </div>
+                        {Number((s as any).overdue_amount ?? 0) > 0 && (
+                          <div style={{ fontSize: 9, color: '#F87171' }}>${Number((s as any).overdue_amount).toFixed(0)} due</div>
+                        )}
+                      </div>
+                    )}
+                    {/* Next lesson */}
+                    <div style={{ lineHeight: 1.3, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: s.next_lesson_date ? '#E0E0F4' : '#606088', fontSize: 11 }}>
+                        {s.next_lesson_date
+                          ? new Date(s.next_lesson_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                          : '—'}
+                      </div>
+                      {nextTime && <div style={{ fontSize: 10, color: '#8080A8' }}>{nextTime}</div>}
+                    </div>
+                    {/* Enrollment agreement */}
+                    <div>
+                      {s.has_enrollment_agreement ? (
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 100, background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <Check size={8} /> Yes
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 100, background: 'rgba(239,68,68,0.12)', color: '#F87171', border: '1px solid rgba(239,68,68,0.3)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <XCircle size={8} /> No
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Infinite scroll sentinel */}
+              <div ref={loadMoreRef} style={{ height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+                {rosterInfinite.isFetchingNextPage && (
+                  <span style={{ fontSize: 11, color: '#8080A8' }}>Loading more…</span>
+                )}
+              </div>
+
+              {rosterRows.length === 0 && !rosterInfinite.isLoading && (
+                <div style={{ padding: '40px 24px', textAlign: 'center', color: '#606088', fontSize: 13 }}>
+                  No students found.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ---- Main Students Page ----
 export default function Students() {
   const { role, tenantId } = useAuthContext()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const { data: locations } = useLocations()
   const { data: teacherList } = useTeachers()
-  // useFamilies() moved into StudentFormModal — no longer loaded on page mount
   const canEdit = role === 'owner' || role === 'admin'
   const canCreate = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
   const canExport = role === 'owner' || role === 'admin' || role === 'company_director'
-  const { canDo, isStudioDirector, locationIds: scopedLocationIds, role: effectiveRole } = usePermissions()
+  const { canDo, isStudioDirector, locationIds: scopedLocationIds } = usePermissions()
   const lockedLocationId = isStudioDirector ? scopedLocationIds[0] ?? '' : null
-  const canViewContact = canDo('students.view_contact')
   const canViewBilling = canDo('students.view_billing')
   const { saveScroll } = useScrollRestore('students')
 
-  // ── Filter state — persisted in URL so browser back restores exact view ──
-  const activeTab = (searchParams.get('tab') as StatusTab) || 'active'
-  const locationFilter = searchParams.get('location') ?? ''
-  const teacherFilter = searchParams.get('teacher') ?? ''
-  const instrumentFilter = searchParams.get('instrument') ?? ''
-  const search = searchParams.get('q') ?? ''
-  const sortBy = (searchParams.get('sort') as SortOption) || 'az_first'
-  const showIncomplete = searchParams.get('incomplete') === '1'
+  // ── Two-tier navigation state ──
+  // null = Tier 1 (location overview), 'all' or UUID = Tier 2 (location panel)
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
 
-  const updateParam = (key: string, value: string) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      if (value === '' || value === undefined || value === null) next.delete(key)
-      else next.set(key, value)
-      return next
-    }, { replace: true })
-  }
-  const setActiveTab = (v: StatusTab) => updateParam('tab', v === 'active' ? '' : v)
-  const setLocationFilter = (v: string) => updateParam('location', v)
-  const setTeacherFilter = (v: string) => updateParam('teacher', v)
-  const setInstrumentFilter = (v: string) => updateParam('instrument', v)
-  const setSearch = (v: string) => updateParam('q', v)
-  const setSortBy = (v: SortOption) => updateParam('sort', v === 'az_first' ? '' : v)
-  const setShowIncomplete = (v: boolean) => updateParam('incomplete', v ? '1' : '')
-  const [showCreateModal, setShowCreateModal] = useState(false)
+  // ── Modal state ──
+  const [showAddStudent, setShowAddStudent] = useState(false)
   const [editStudent, setEditStudent] = useState<StudentRow | null>(null)
   const [exitStudent, setExitStudent] = useState<StudentRow | null>(null)
   const [retentionTarget, setRetentionTarget] = useState<{ student: StudentRow; newStatus: 'paused' | 'inactive'; pendingData: any } | null>(null)
   const [showExport, setShowExport] = useState(false)
   const [exportSelections, setExportSelections] = useState<Record<string, boolean>>({ active: true, former: false, leads: false })
   const [showImport, setShowImport] = useState(false)
-  const studentImport = useImportStudents()
-  const qc = useQueryClient()
-  const { setPageContext: setZiroPageContext } = useZiroShell()
   const [showMasterSheet, setShowMasterSheet] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
-  const [showAddStudent, setShowAddStudent] = useState(false)
 
-  const statusFilter = isStudioDirector ? 'active' : (activeTab === 'former' ? 'former' : 'active')
-  const locId = lockedLocationId || locationFilter || undefined
-  const teachId = teacherFilter || undefined
-  const locationScopeKey = useMemo(() => {
-    if (!scopedLocationIds?.length) return 'none'
-    return [...scopedLocationIds].sort().join(',')
-  }, [scopedLocationIds])
-  const ziroStudentsPatch = useMemo(
-    () => ({
-      page: 'students',
-      activeTab: isStudioDirector ? 'active' : activeTab,
-      locationId: locId ?? null,
-      teacherId: teachId ?? null,
-      instrument: instrumentFilter || null,
-      search: search || null,
-      showIncomplete,
-    }),
-    [isStudioDirector, activeTab, locId, teachId, instrumentFilter, search, showIncomplete],
+  const studentImport = useImportStudents()
+  const createStudent = useCreateStudent()
+  const updateStudent = useUpdateStudent()
+
+  // ── Tier 1: location counts (fast — just counts, no row data) ──
+  const activeLocationIds = useMemo(
+    () => (locations ?? []).filter((l) => l.is_active).map((l) => l.id),
+    [locations],
   )
-  useEffect(() => {
-    setZiroPageContext(ziroStudentsPatch)
-  }, [setZiroPageContext, ziroStudentsPatch])
-  const filters = useMemo(() => ({ status: statusFilter, locationId: locId, teacherId: teachId }), [statusFilter, locId, teachId])
-  const useFullList = showIncomplete
+  const { data: locationCounts } = useStudentCountsByLocation(activeLocationIds)
+  const { data: tabCounts } = useStudentTabCounts()
+  const totalActive = tabCounts?.active
 
-  const { data: allStudents, isLoading: fullLoading } = useStudents(filters, { enabled: useFullList })
-
-  const rosterInfinite = useStudentsRosterInfinite({
-    status: statusFilter === 'former' ? 'former' : 'active',
-    locationId: locId,
-    teacherId: teachId,
-    instrumentFilter,
-    search,
-    sortBy,
-    enabled: !useFullList,
-  })
-
+  // ── Export dependencies (only fetched when user opens export modal) ──
+  const [leadsNeeded, setLeadsNeeded] = useState(false)
+  const { data: allLeads } = useLeads({}, { enabled: leadsNeeded })
   const { refetch: refetchAllStudentsForExport } = useStudents(
-    { status: 'all', locationId: locId, teacherId: teachId },
+    { status: 'all' },
     { enabled: false },
   )
 
-  const loadMoreRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (useFullList) return
-    const el = loadMoreRef.current
-    if (!el) return
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0]
-        if (first?.isIntersecting && rosterInfinite.hasNextPage && !rosterInfinite.isFetchingNextPage) {
-          rosterInfinite.fetchNextPage()
-        }
-      },
-      { rootMargin: '240px' },
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [useFullList, rosterInfinite.hasNextPage, rosterInfinite.isFetchingNextPage, rosterInfinite.fetchNextPage])
-
-  const rosterRows = useMemo(() => rosterInfinite.data?.pages.flatMap((p) => p.rows) ?? [], [rosterInfinite.data])
-
-  const isLoading = useFullList ? fullLoading : rosterInfinite.isLoading
-
-  const { data: tabCounts } = useStudentTabCounts()
-  const { data: instrumentOptions } = useStudentInstrumentOptions({ locationId: locId, teacherId: teachId })
-
-  const createStudent = useCreateStudent()
-  const updateStudent = useUpdateStudent()
-  const [leadsNeeded, setLeadsNeeded] = useState(false)
-  const { data: allLeads } = useLeads({}, { enabled: leadsNeeded })
-  // Defer churn risk computation — it runs heavy cross-table queries.
-  // Load after the roster has rendered so initial paint isn't blocked.
+  // ── Churn risk (deferred — loads after first paint) ──
   const [riskEnabled, setRiskEnabled] = useState(false)
   useEffect(() => {
     const id = requestAnimationFrame(() => setRiskEnabled(true))
     return () => cancelAnimationFrame(id)
   }, [])
   const { data: riskScores } = useChurnRiskScores({ enabled: riskEnabled })
-  const riskMap = new Map((riskScores ?? []).map(r => [r.studentId, r]))
-
-  const activeCt = tabCounts?.active ?? 0
-  const formerCt = tabCounts?.former ?? 0
-  const allCt = tabCounts?.all ?? 0
-
-  const filtered = useMemo(() => {
-    if (!useFullList) return rosterRows
-    let list = (allStudents ?? []).filter((s) => {
-      if (instrumentFilter && s.instrument !== instrumentFilter) return false
-      if (showIncomplete && !isIncomplete(s)) return false
-      if (!search) return true
-      const name = `${s.first_name} ${s.last_name}`.toLowerCase()
-      const fam = (s.family_name ?? '').toLowerCase()
-      return name.includes(search.toLowerCase()) || fam.includes(search.toLowerCase())
-    })
-    list = [...list].sort((a, b) => {
-      switch (sortBy) {
-        case 'az_first': return a.first_name.localeCompare(b.first_name)
-        case 'za_first': return b.first_name.localeCompare(a.first_name)
-        case 'az_last': return a.last_name.localeCompare(b.last_name)
-        case 'za_last': return b.last_name.localeCompare(a.last_name)
-        case 'newest': return (b.start_date ?? '').localeCompare(a.start_date ?? '')
-        case 'oldest': return (a.start_date ?? '').localeCompare(b.start_date ?? '')
-        default: return 0
-      }
-    })
-    return list
-  }, [useFullList, rosterRows, allStudents, instrumentFilter, showIncomplete, search, sortBy])
-
-  const incompleteCount = useMemo(
-    () => (useFullList ? (allStudents ?? []).filter(isIncomplete).length : 0),
-    [useFullList, allStudents],
+  const riskMap = useMemo(
+    () => new Map((riskScores ?? []).map((r) => [r.studentId, r])),
+    [riskScores],
   )
 
-  const instruments = instrumentOptions ?? []
+  // ── Ziro context ──
+  const { setPageContext: setZiroPageContext } = useZiroShell()
+  useEffect(() => {
+    setZiroPageContext({ page: 'students', locationId: selectedLocationId ?? null })
+  }, [setZiroPageContext, selectedLocationId])
+
+  const handleNavigateToStudent = useCallback((studentId: string) => {
+    setSelectedLocationId(null)
+    saveScroll()
+    navigate(`/admin/students/${studentId}`)
+  }, [navigate, saveScroll])
 
   const handleEditSave = async (data: any) => {
     if (editStudent) {
-      // Check if status is changing to former — trigger exit interview
       if (data.status === 'former' && editStudent.status !== 'former') {
         setExitStudent({ ...editStudent, ...data } as any)
         setEditStudent(null)
         return
       }
-      // Check if status is changing to paused/inactive — trigger retention capture
       if ((data.status === 'paused' || data.status === 'inactive') && editStudent.status === 'active') {
         setRetentionTarget({ student: editStudent, newStatus: data.status, pendingData: data })
         setEditStudent(null)
@@ -326,7 +779,6 @@ export default function Students() {
     } else {
       await createStudent.mutateAsync({ ...data, tenant_id: tenantId! })
     }
-    setShowCreateModal(false)
     setEditStudent(null)
   }
 
@@ -347,10 +799,10 @@ export default function Students() {
   return (
     <IssueContextProvider page="Roster — Students">
     <div className="page">
+      {/* Page header */}
       <div className="page-header">
         <h1>Students</h1>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Desktop buttons — hidden on mobile */}
           {role === 'owner' && (
             <button
               className="btn-ghost student-header-desktop"
@@ -361,11 +813,21 @@ export default function Students() {
             </button>
           )}
           {canEdit && (
-            <button className="btn-ghost student-header-desktop" onClick={() => setShowImport(true)} style={{ fontSize: 11 }}>Import CSV</button>
+            <button className="btn-ghost student-header-desktop" onClick={() => setShowImport(true)} style={{ fontSize: 11 }}>
+              Import CSV
+            </button>
           )}
-          {canExport && <button className="btn-ghost student-header-desktop" onClick={() => { setLeadsNeeded(true); setShowExport(true) }} style={{ fontSize: 11 }}>Export CSV</button>}
+          {canExport && (
+            <button
+              className="btn-ghost student-header-desktop"
+              onClick={() => { setLeadsNeeded(true); setShowExport(true) }}
+              style={{ fontSize: 11 }}
+            >
+              Export CSV
+            </button>
+          )}
 
-          {/* Mobile "More" dropdown — visible only on mobile */}
+          {/* Mobile "More" dropdown */}
           <div className="student-more-wrap" style={{ position: 'relative' }}>
             <button className="btn-ghost student-header-more" onClick={() => setShowMoreMenu(!showMoreMenu)} style={{ fontSize: 11 }}>
               More ▾
@@ -399,160 +861,49 @@ export default function Students() {
         <StudentsPageGuide mode="list" />
       </div>
 
-      {/* Tabs */}
-      {!isStudioDirector && (
-        <div className="lead-view-tabs">
-          <button className={`lead-view-tab${activeTab === 'active' ? ' active' : ''}`} onClick={() => setActiveTab('active')}>
-            Active <span className="tab-count">{activeCt}</span>
-          </button>
-          <button className={`lead-view-tab${activeTab === 'former' ? ' active' : ''}`} onClick={() => setActiveTab('former')}>
-            Former <span className="tab-count">{formerCt}</span>
-          </button>
-        </div>
+      {/* Tier 1 — Location overview grid */}
+      <LocationOverviewGrid
+        locations={locations}
+        locationCounts={locationCounts}
+        totalActive={totalActive}
+        onSelectLocation={setSelectedLocationId}
+        isStudioDirector={isStudioDirector}
+        lockedLocationId={lockedLocationId}
+      />
+
+      {/* Tier 2 — Location student panel (lazy loaded, slides in on card click) */}
+      {selectedLocationId !== null && (
+        <LocationStudentPanel
+          locationId={selectedLocationId}
+          locations={locations}
+          teachers={teacherList}
+          riskMap={riskMap}
+          canViewBilling={canViewBilling}
+          onClose={() => setSelectedLocationId(null)}
+          onNavigate={handleNavigateToStudent}
+          onAddStudent={() => setShowAddStudent(true)}
+        />
       )}
 
-      {/* Filters */}
-      <div data-tour-id="students-search" className="schedule-filters" style={{ marginBottom: '16px' }}>
-        <div className="student-filter-row-1">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search students..."
-            className="filter-select"
-            style={{ minWidth: 160, flex: 1 }}
-          />
-        </div>
-        <div className="student-filter-row-2">
-          <select value={instrumentFilter} onChange={(e) => setInstrumentFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value="">Instruments</option>
-            {instruments.map((i) => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
-          </select>
-          <select value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value="">Teachers</option>
-            {teacherList?.filter((t: any) => { const s = t.status ?? (t.is_active ? 'active' : 'inactive'); return s !== 'inactive' }).map((t: any) => (
-              <option key={t.id} value={t.id}>{t.first_name ?? t.profile?.first_name} {t.last_name ?? t.profile?.last_name}</option>
-            ))}
-          </select>
-          {!isStudioDirector && (
-            <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-              <option value="">Locations</option>
-              {locations?.map((l) => (
-                <option key={l.id} value={l.id}>{l.name.replace(' Music Lessons', '')}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        <div className="student-filter-row-2" style={{ marginTop: 6 }}>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
-            <option value="az_first">A → Z First Name</option>
-            <option value="za_first">Z → A First Name</option>
-            <option value="az_last">A → Z Last Name</option>
-            <option value="za_last">Z → A Last Name</option>
-            <option value="newest">Newest Enrolled</option>
-            <option value="oldest">Oldest Enrolled</option>
-          </select>
-          <button
-            onClick={() => setShowIncomplete(!showIncomplete)}
-            className="filter-select"
-            style={{
-              flex: 'none',
-              cursor: 'pointer',
-              textAlign: 'center',
-              fontWeight: showIncomplete ? 700 : 500,
-              background: showIncomplete ? 'rgba(251,146,60,0.12)' : undefined,
-              borderColor: showIncomplete ? 'rgba(251,146,60,0.35)' : undefined,
-              color: showIncomplete ? '#FB923C' : '#A0A0C8',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Needs Attention{useFullList && incompleteCount > 0 ? ` (${incompleteCount})` : ''}
-          </button>
-        </div>
-        <span className="visibility-count">Showing {filtered.length} student{filtered.length !== 1 ? 's' : ''}</span>
-      </div>
-
-      {useFullList && (
-        <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 10 }}>
-          Needs Attention (incomplete records) loads the full list for this tab. Clear it for faster paged loading.
-        </div>
+      {/* Add Student modal */}
+      {showAddStudent && (
+        <AddStudentModal onClose={() => setShowAddStudent(false)} />
       )}
 
-      {(useFullList ? fullLoading && !allStudents : rosterInfinite.isLoading) ? (
-        <div className="loading-screen" style={{ height: 200 }}><MusicLoader /></div>
-      ) : (
-        <div data-tour-id="students-list" style={{ marginTop: 4 }}>
-          <div
-            className="roster-table-wrap"
-            style={{
-              overflowX: 'auto',
-              borderRadius: 12,
-              border: '1px solid rgba(255,255,255,0.06)',
-              background: 'rgba(0,0,0,0.15)',
-            }}
-          >
-            <div
-              className="roster-grid roster-grid-students"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: canViewBilling
-                  ? 'minmax(140px,1.4fr) minmax(170px,1.15fr) minmax(100px,0.75fr) minmax(120px,0.9fr) minmax(72px,0.55fr) minmax(140px,1fr) minmax(72px,0.55fr)'
-                  : 'minmax(140px,1.4fr) minmax(170px,1.15fr) minmax(100px,0.75fr) minmax(120px,0.9fr) minmax(140px,1fr) minmax(72px,0.55fr)',
-                gap: '0 12px',
-                alignItems: 'center',
-                padding: '10px 14px',
-                fontSize: 10,
-                fontWeight: 700,
-                color: '#8080A8',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-              }}
-            >
-              <span>Student</span>
-              <span>Contact</span>
-              <span>Instrument</span>
-              <span>Teacher</span>
-              {canViewBilling && <span>Monthly</span>}
-              <span>Next lesson</span>
-              <span>Agreement</span>
-            </div>
-            {filtered.map((s, studentIdx) => (
-              <StudentRosterRow
-                key={s.id}
-                s={s}
-                locations={locations}
-                riskMap={riskMap}
-                canViewBilling={canViewBilling}
-                guideId={studentIdx === 0 ? 'first-student-row' : undefined}
-                onNavigate={() => { saveScroll(); navigate(`/admin/students/${s.id}`) }}
-              />
-            ))}
-            {!useFullList && (
-              <div ref={loadMoreRef} style={{ height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-                {rosterInfinite.isFetchingNextPage && <span style={{ fontSize: 12, color: '#8080A8' }}>Loading more…</span>}
-              </div>
-            )}
-            {filtered.length === 0 && (
-              <div className="empty-state" style={{ border: 'none', padding: 28 }}>No students found.</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Create / Edit Modal */}
-      {(showCreateModal || editStudent) && (
+      {/* Edit Student modal */}
+      {editStudent && (
         <StudentFormModal
           student={editStudent}
           locations={locations ?? []}
           teachers={(teacherList ?? []).filter((t: any) => { const s = t.status ?? (t.is_active ? 'active' : 'inactive'); return s !== 'inactive' })}
           tenantId={tenantId!}
           onSave={handleEditSave}
-          onClose={() => { setShowCreateModal(false); setEditStudent(null); }}
-          isSaving={createStudent.isPending || updateStudent.isPending}
+          onClose={() => setEditStudent(null)}
+          isSaving={updateStudent.isPending}
         />
       )}
 
-      {/* Exit Interview Modal */}
+      {/* Exit Interview modal */}
       {exitStudent && (
         <ExitInterviewModal
           student={exitStudent}
@@ -565,7 +916,7 @@ export default function Students() {
         />
       )}
 
-      {/* Retention Capture Modal */}
+      {/* Retention Capture modal */}
       {retentionTarget && (
         <RetentionCaptureModal
           studentId={retentionTarget.student.id}
@@ -580,7 +931,7 @@ export default function Students() {
         />
       )}
 
-      {/* Export Modal */}
+      {/* Export CSV modal */}
       {showExport && (
         <div className="modal-overlay" onClick={() => setShowExport(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
@@ -592,8 +943,8 @@ export default function Students() {
               <p style={{ fontSize: 12.5, color: '#A0A0C8', marginBottom: 16 }}>Select what to include in your export:</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
-                  { key: 'active', label: 'Active Students', count: activeCt, color: '#22C55E' },
-                  { key: 'former', label: 'Former Students', count: formerCt, color: '#8080A8' },
+                  { key: 'active', label: 'Active Students', count: tabCounts?.active ?? 0, color: '#22C55E' },
+                  { key: 'former', label: 'Former Students', count: tabCounts?.former ?? 0, color: '#8080A8' },
                   { key: 'leads', label: 'Leads', count: allLeads?.length ?? 0, color: '#E8488A' },
                 ].map((opt) => (
                   <label key={opt.key} style={{
@@ -629,21 +980,21 @@ export default function Students() {
                 onClick={async () => {
                   const { data: allRows = [] } = await refetchAllStudentsForExport()
                   const rows: string[][] = [['Type', 'Name', 'Parent', 'Email', 'Phone', 'Instrument', 'Location', 'Teacher', 'Monthly', 'Overdue', 'Status']]
-
                   if (exportSelections.active) {
-                    const active = allRows.filter((s) => s.status === 'active')
-                    active.forEach((s) => rows.push(['Student', `${s.first_name} ${s.last_name}`, s.family_name ?? '', s.family_email ?? '', s.family_phone ?? '', s.instrument ?? '', s.location_name ?? '', s.teacher_name ?? '', `$${((s.rate_per_session === 0 ? 0 : (s.family_rate_tier ? s.family_rate_tier / 100 : s.rate_per_session)) * (s.sessions_per_month ?? s.blocks_per_week * 4)).toFixed(0)}`, `$${Number((s as any).overdue_amount ?? 0).toFixed(0)}`, 'Active']))
+                    allRows.filter((s) => s.status === 'active').forEach((s) =>
+                      rows.push(['Student', `${s.first_name} ${s.last_name}`, s.family_name ?? '', s.family_email ?? '', s.family_phone ?? '', s.instrument ?? '', s.location_name ?? '', s.teacher_name ?? '', `$${((s.rate_per_session === 0 ? 0 : (s.family_rate_tier ? s.family_rate_tier / 100 : s.rate_per_session)) * (s.sessions_per_month ?? s.blocks_per_week * 4)).toFixed(0)}`, `$${Number((s as any).overdue_amount ?? 0).toFixed(0)}`, 'Active'])
+                    )
                   }
-
                   if (exportSelections.former) {
-                    const former = allRows.filter((s) => s.status === 'former' || s.status === 'inactive')
-                    former.forEach((s) => rows.push(['Student', `${s.first_name} ${s.last_name}`, s.family_name ?? '', s.family_email ?? '', s.family_phone ?? '', s.instrument ?? '', s.location_name ?? '', s.teacher_name ?? '', '', '', 'Former']))
+                    allRows.filter((s) => s.status === 'former' || s.status === 'inactive').forEach((s) =>
+                      rows.push(['Student', `${s.first_name} ${s.last_name}`, s.family_name ?? '', s.family_email ?? '', s.family_phone ?? '', s.instrument ?? '', s.location_name ?? '', s.teacher_name ?? '', '', '', 'Former'])
+                    )
                   }
-
                   if (exportSelections.leads) {
-                    (allLeads ?? []).forEach((l) => rows.push(['Lead', `${l.first_name} ${l.last_name ?? ''}`, l.parent_name ?? '', l.email ?? '', l.phone ?? '', l.instrument ?? '', l.location_name ?? '', '', '', '', l.stage]))
+                    (allLeads ?? []).forEach((l) =>
+                      rows.push(['Lead', `${l.first_name} ${l.last_name ?? ''}`, l.parent_name ?? '', l.email ?? '', l.phone ?? '', l.instrument ?? '', l.location_name ?? '', '', '', '', l.stage])
+                    )
                   }
-
                   const csv = rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n')
                   const blob = new Blob([csv], { type: 'text/csv' })
                   const url = URL.createObjectURL(blob)
@@ -661,7 +1012,8 @@ export default function Students() {
           </div>
         </div>
       )}
-      {/* Import Modal */}
+
+      {/* Import CSV modal */}
       {showImport && (
         <CsvImportFlow
           title="Import Students"
@@ -678,9 +1030,7 @@ export default function Students() {
           onClose={() => { setShowImport(false); studentImport.reset() }}
         />
       )}
-      {showAddStudent && (
-        <AddStudentModal onClose={() => setShowAddStudent(false)} />
-      )}
+
       {/* Master Sheet */}
       {showMasterSheet && (
         <DataGrid
@@ -708,7 +1058,7 @@ export default function Students() {
   )
 }
 
-// ---- Student Form Modal ----
+// ---- Student Form Modal (edit only — create goes through AddStudentModal) ----
 const CORE_FOUR_SET = new Set(['piano', 'guitar', 'vocals', 'drums'])
 
 interface InstrumentFormRow {
@@ -749,23 +1099,21 @@ function StudentFormModal({ student, locations, teachers, tenantId, onSave, onCl
   const [removedIds, setRemovedIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  // Sync from DB when editing existing student
   useEffect(() => {
     if (student && existingInstruments && existingInstruments.length > 0) {
-      setInstrumentRows(existingInstruments.map(si => ({
+      setInstrumentRows(existingInstruments.map((si) => ({
         id: si.id, instrument: si.instrument, teacher_id: si.teacher_id ?? '', is_primary: si.is_primary,
       })))
     }
   }, [existingInstruments]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const updateRow = (idx: number, patch: Partial<InstrumentFormRow>) => {
-    setInstrumentRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
-  }
-  const addRow = () => setInstrumentRows(prev => [...prev, { instrument: '', teacher_id: '', is_primary: false }])
+  const updateRow = (idx: number, patch: Partial<InstrumentFormRow>) =>
+    setInstrumentRows((prev) => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  const addRow = () => setInstrumentRows((prev) => [...prev, { instrument: '', teacher_id: '', is_primary: false }])
   const removeRow = (idx: number) => {
     const row = instrumentRows[idx]
     if (instrumentRows.length <= 1) return
-    if (row.id) setRemovedIds(prev => [...prev, row.id!])
+    if (row.id) setRemovedIds((prev) => [...prev, row.id!])
     const remaining = instrumentRows.filter((_, i) => i !== idx)
     if (row.is_primary && remaining.length > 0) remaining[0].is_primary = true
     setInstrumentRows(remaining)
@@ -776,14 +1124,18 @@ function StudentFormModal({ student, locations, teachers, tenantId, onSave, onCl
     setError(null)
     if (!form.first_name || !form.last_name) { setError('First and last name are required.'); return }
     if (!instrumentRows[0]?.instrument) { setError('At least one instrument is required.'); return }
-    const primary = instrumentRows.find(r => r.is_primary) ?? instrumentRows[0]
+    const primary = instrumentRows.find((r) => r.is_primary) ?? instrumentRows[0]
     try {
       await onSave({ ...form, instrument: primary.instrument, teacher_id: primary.teacher_id || null })
-      // If editing, save instrument rows
       if (student) {
         await saveInstruments.mutateAsync({
-          studentId: student.id, tenantId,
-          instruments: instrumentRows.map(r => ({ id: r.id, instrument: r.instrument, teacher_id: r.teacher_id || null, is_primary: r.is_primary, rate_per_session: form.rate_per_session, sessions_per_month: form.blocks_per_week * 4 })),
+          studentId: student.id,
+          tenantId,
+          instruments: instrumentRows.map((r) => ({
+            id: r.id, instrument: r.instrument, teacher_id: r.teacher_id || null,
+            is_primary: r.is_primary, rate_per_session: form.rate_per_session,
+            sessions_per_month: form.blocks_per_week * 4,
+          })),
           removedIds,
         })
       }
@@ -803,7 +1155,6 @@ function StudentFormModal({ student, locations, teachers, tenantId, onSave, onCl
             <div className="form-field" style={{ flex: 1 }}><label>Last Name *</label><input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
           </div>
 
-          {/* Instruments & Teachers */}
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8, display: 'block' }}>Instruments & Teachers</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -813,10 +1164,10 @@ function StudentFormModal({ student, locations, teachers, tenantId, onSave, onCl
                   <select value={row.instrument} onChange={(e) => updateRow(idx, { instrument: e.target.value })} className="filter-select" style={{ flex: 1, minWidth: 0 }}>
                     <option value="">Select...</option>
                     <optgroup label="Core">
-                      {INSTRUMENTS.filter(i => CORE_FOUR_SET.has(i)).map(i => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
+                      {INSTRUMENTS.filter((i) => CORE_FOUR_SET.has(i)).map((i) => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
                     </optgroup>
                     <optgroup label="Other">
-                      {INSTRUMENTS.filter(i => !CORE_FOUR_SET.has(i)).map(i => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
+                      {INSTRUMENTS.filter((i) => !CORE_FOUR_SET.has(i)).map((i) => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
                     </optgroup>
                   </select>
                   <span style={{ fontSize: 11, color: '#606088', flexShrink: 0 }}>with</span>

@@ -346,6 +346,31 @@ export function useStudentsRosterInfinite(params: {
 }
 
 /** Distinct instrument values for filter dropdowns (scoped by location/teacher when provided). */
+/** Per-location active student counts — runs N parallel HEAD queries, one per location.
+ *  Fast: no row data fetched, just counts. Used for Tier 1 location overview cards. */
+export function useStudentCountsByLocation(locationIds: string[]) {
+  const { tenantId } = useAuthContext()
+  const stableKey = [...locationIds].sort().join(',')
+  return useQuery({
+    queryKey: ['students-counts-by-location', tenantId, stableKey],
+    enabled: !!tenantId && locationIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const results = await Promise.all(
+        locationIds.map((id) =>
+          supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId!)
+            .eq('location_id', id)
+            .eq('status', 'active'),
+        ),
+      )
+      return Object.fromEntries(locationIds.map((id, i) => [id, results[i].count ?? 0])) as Record<string, number>
+    },
+  })
+}
+
 export function useStudentInstrumentOptions(params: { locationId?: string; teacherId?: string }) {
   const { tenantId } = useAuthContext()
   const { locationId, teacherId } = params
