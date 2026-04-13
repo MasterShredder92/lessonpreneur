@@ -787,11 +787,11 @@ export default function SignupLanding() {
     <div className="signup-step-wrap">
       <div className={`signup-step ${slideClass}`}>
         <BackButton />
-        <h1 className="signup-title">How do we reach you?</h1>
+        <h1 className="signup-title">{enrollmentType === 'gift' ? 'Who should we contact about this gift?' : 'How do we reach you?'}</h1>
 
         {!forSelf && (
           <div className="signup-field">
-            <div className="signup-label">Parent / Guardian full name</div>
+            <div className="signup-label">{enrollmentType === 'gift' ? 'Your full name (gift giver)' : 'Parent / Guardian full name'}</div>
             <input
               className="signup-input"
               placeholder="Full name"
