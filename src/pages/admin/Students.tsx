@@ -35,6 +35,7 @@ import { useScrollRestore } from '../../hooks/useScrollRestore'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
+import { useStudentInsights } from '../../hooks/useInsights'
 
 const INSTRUMENTS = ['piano','guitar','vocals','drums','banjo','bass','brass','cello','clarinet','flute','mandolin','oboe','percussion','saxophone','strings','trombone','trumpet','ukulele','viola','violin','voice','woodwinds']
 const EXIT_REASONS = ['Schedule Conflict', 'Moving Away', 'Financial', 'Lost Interest', 'Switching Schools', 'Taking a Break', 'Other']
@@ -690,6 +691,116 @@ function LocationStudentPanel({
   )
 }
 
+// ---- At-a-glance insight bar for the Students page ----
+function StudentInsightBar({
+  atRiskCount,
+  newThisMonth,
+  totalActive,
+  totalMonthlyRevenueCents,
+  onViewAtRisk,
+}: {
+  atRiskCount: number
+  newThisMonth: number | undefined
+  totalActive: number | undefined
+  totalMonthlyRevenueCents: number | undefined
+  onViewAtRisk: () => void
+}) {
+  const revenueLabel =
+    totalMonthlyRevenueCents !== undefined
+      ? '$' + (totalMonthlyRevenueCents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })
+      : undefined
+
+  const tiles: {
+    label: string
+    value: string | number | undefined
+    color: string
+    bg: string
+    border: string
+    sub: string
+    action?: { label: string; onClick: () => void }
+  }[] = [
+    {
+      label: 'At-Risk Students',
+      value: atRiskCount,
+      color: atRiskCount > 0 ? '#EF4444' : '#22C55E',
+      bg: atRiskCount > 0 ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)',
+      border: atRiskCount > 0 ? 'rgba(239,68,68,0.18)' : 'rgba(34,197,94,0.18)',
+      sub: atRiskCount > 0 ? 'high or critical risk tier' : 'all students healthy',
+      action: atRiskCount > 0 ? { label: 'View At-Risk →', onClick: onViewAtRisk } : undefined,
+    },
+    {
+      label: 'New This Month',
+      value: newThisMonth,
+      color: '#22C55E',
+      bg: 'rgba(34,197,94,0.06)',
+      border: 'rgba(34,197,94,0.18)',
+      sub: 'active enrollments',
+    },
+    {
+      label: 'Active Students',
+      value: totalActive,
+      color: '#A0A0C8',
+      bg: 'rgba(255,255,255,0.03)',
+      border: 'rgba(255,255,255,0.08)',
+      sub: 'across all locations',
+    },
+    {
+      label: 'Monthly Revenue',
+      value: revenueLabel,
+      color: '#FFB800',
+      bg: 'rgba(255,184,0,0.06)',
+      border: 'rgba(255,184,0,0.18)',
+      sub: 'based on active rates',
+    },
+  ]
+
+  return (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
+      {tiles.map((tile) => (
+        <div
+          key={tile.label}
+          style={{
+            flex: '1 0 150px',
+            background: tile.bg,
+            border: `1px solid ${tile.border}`,
+            borderLeft: `3px solid ${tile.color}`,
+            borderRadius: 10,
+            padding: '14px 16px',
+          }}
+        >
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            {tile.label}
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: tile.color, fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1 }}>
+            {tile.value !== undefined ? tile.value : '…'}
+          </div>
+          <div style={{ fontSize: 10, color: '#606088', marginTop: 4 }}>
+            {tile.sub}
+          </div>
+          {tile.action && (
+            <button
+              onClick={tile.action.onClick}
+              style={{
+                marginTop: 8,
+                fontSize: 10,
+                fontWeight: 700,
+                color: tile.color,
+                background: 'transparent',
+                border: `1px solid ${tile.border}`,
+                borderRadius: 6,
+                padding: '3px 8px',
+                cursor: 'pointer',
+              }}
+            >
+              {tile.action.label}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ---- Main Students Page ----
 export default function Students() {
   const { role, tenantId } = useAuthContext()
@@ -753,6 +864,13 @@ export default function Students() {
     () => new Map((riskScores ?? []).map((r) => [r.studentId, r])),
     [riskScores],
   )
+  const atRiskCount = useMemo(
+    () => (riskScores ?? []).filter((r) => r.tier === 'high' || r.tier === 'critical').length,
+    [riskScores],
+  )
+
+  // ── At-a-glance insights (lightweight COUNT queries) ──
+  const { data: studentInsights } = useStudentInsights()
 
   // ── Ziro context ──
   const { setPageContext: setZiroPageContext } = useZiroShell()
@@ -872,6 +990,15 @@ export default function Students() {
         <ReportIssueButton />
         <StudentsPageGuide mode="list" />
       </div>
+
+      {/* At-a-glance insight tiles */}
+      <StudentInsightBar
+        atRiskCount={atRiskCount}
+        newThisMonth={studentInsights?.newThisMonth}
+        totalActive={totalActive}
+        totalMonthlyRevenueCents={studentInsights?.totalMonthlyRevenueCents}
+        onViewAtRisk={() => navigate('/admin/retention')}
+      />
 
       {/* Tier 1 — Location overview grid */}
       <LocationOverviewGrid

@@ -1,11 +1,11 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLocations } from '../../hooks/useLocations'
-import { useFamiliesPage, useFamiliesRosterInfinite, useFamilyTabCounts, useFamilyDetail, useUpdateFamilyInfo, useChangeFamilyBillingStatus, useUploadFamilyFile, useDeleteFamilyFile, useFamilyActivityLog, type Family, type FamilyFile, type ActivityEvent } from '../../hooks/useFamilies'
+import { useFamiliesPage, useFamiliesRosterInfinite, useFamilyTabCounts, useFamilyCountsByLocation, useFamilyDetail, useUpdateFamilyInfo, useChangeFamilyBillingStatus, useUploadFamilyFile, useDeleteFamilyFile, useFamilyActivityLog, type Family, type FamilyFile, type ActivityEvent } from '../../hooks/useFamilies'
 import { formatRate, getRateTierColor } from '../../hooks/useFamilyRate'
 import { useZiroShell } from '../../contexts/ZiroContext'
 import { toast } from '../../components/shared/Toast'
@@ -32,6 +32,8 @@ import { useRemoveStudentFromFamily, useDeleteFamily } from '../../lib/enrollmen
 import { useFamilyInvoices, useGenerateInvoice } from '../../hooks/useFamilyInvoices'
 import FamilyActivityLogModal from '../../components/admin/FamilyActivityLogModal'
 import { Trash2, UserMinus, FileText, Download } from 'lucide-react'
+import { useFamilyInsights } from '../../hooks/useInsights'
+import { useAutoPayStats } from '../../hooks/useAutoPayNudge'
 
 // ═══════════════════════════════════════
 // DISPLAY HELPERS
@@ -69,6 +71,124 @@ function getRateEdge(rateTier: number) {
   return RATE_EDGE_COLORS[rateTier] ?? RATE_EDGE_COLORS[4500]
 }
 
+// ---- At-a-glance insight bar for the Families page ----
+function FamilyInsightBar({
+  billingIssues,
+  noAutopay,
+  newThisMonth,
+  autoPayPercent,
+  totalActive,
+  onFixBilling,
+  onViewAutopay,
+}: {
+  billingIssues: number | undefined
+  noAutopay: number | undefined
+  newThisMonth: number | undefined
+  autoPayPercent: number | undefined
+  totalActive: number
+  onFixBilling: () => void
+  onViewAutopay: () => void
+}) {
+  const pct = autoPayPercent ?? 0
+  const autopayColor = pct >= 80 ? '#22C55E' : pct >= 60 ? '#FFB800' : '#EF4444'
+  const autopayBg = pct >= 80 ? 'rgba(34,197,94,0.06)' : pct >= 60 ? 'rgba(255,184,0,0.06)' : 'rgba(239,68,68,0.06)'
+  const autopayBorder = pct >= 80 ? 'rgba(34,197,94,0.18)' : pct >= 60 ? 'rgba(255,184,0,0.18)' : 'rgba(239,68,68,0.18)'
+
+  const hasIssues = (billingIssues ?? 0) > 0
+  const hasNoAutopay = (noAutopay ?? 0) > 0
+
+  const tiles: {
+    label: string
+    value: string | number | undefined
+    color: string
+    bg: string
+    border: string
+    sub: string
+    action?: { label: string; onClick: () => void }
+  }[] = [
+    {
+      label: 'Billing Issues',
+      value: billingIssues,
+      color: hasIssues ? '#EF4444' : '#22C55E',
+      bg: hasIssues ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)',
+      border: hasIssues ? 'rgba(239,68,68,0.18)' : 'rgba(34,197,94,0.18)',
+      sub: hasIssues ? 'no card or overdue balance' : 'all billing current',
+      action: hasIssues ? { label: 'Fix Billing Issues →', onClick: onFixBilling } : undefined,
+    },
+    {
+      label: 'No Autopay',
+      value: noAutopay,
+      color: hasNoAutopay ? '#fb923c' : '#22C55E',
+      bg: hasNoAutopay ? 'rgba(251,146,60,0.06)' : 'rgba(34,197,94,0.06)',
+      border: hasNoAutopay ? 'rgba(251,146,60,0.18)' : 'rgba(34,197,94,0.18)',
+      sub: 'families without card on file',
+      action: hasNoAutopay ? { label: 'Send Nudge →', onClick: onViewAutopay } : undefined,
+    },
+    {
+      label: 'New This Month',
+      value: newThisMonth,
+      color: '#22C55E',
+      bg: 'rgba(34,197,94,0.06)',
+      border: 'rgba(34,197,94,0.18)',
+      sub: 'new active families',
+    },
+    {
+      label: 'Autopay Rate',
+      value: autoPayPercent !== undefined ? `${autoPayPercent}%` : undefined,
+      color: autopayColor,
+      bg: autopayBg,
+      border: autopayBorder,
+      sub: `${totalActive} active families`,
+    },
+  ]
+
+  return (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+      {tiles.map((tile) => (
+        <div
+          key={tile.label}
+          style={{
+            flex: '1 0 150px',
+            background: tile.bg,
+            border: `1px solid ${tile.border}`,
+            borderLeft: `3px solid ${tile.color}`,
+            borderRadius: 10,
+            padding: '14px 16px',
+          }}
+        >
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#A0A0C8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            {tile.label}
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: tile.color, fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1 }}>
+            {tile.value !== undefined ? tile.value : '…'}
+          </div>
+          <div style={{ fontSize: 10, color: '#606088', marginTop: 4 }}>
+            {tile.sub}
+          </div>
+          {tile.action && (
+            <button
+              onClick={tile.action.onClick}
+              style={{
+                marginTop: 8,
+                fontSize: 10,
+                fontWeight: 700,
+                color: tile.color,
+                background: 'transparent',
+                border: `1px solid ${tile.border}`,
+                borderRadius: 6,
+                padding: '3px 8px',
+                cursor: 'pointer',
+              }}
+            >
+              {tile.action.label}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const RATE_OPTIONS = [
   { label: 'All Rates', value: 0 },
   { label: '$45.00', value: 4500 },
@@ -98,6 +218,8 @@ export default function Families() {
   const navigate = useNavigate()
   const { data: locations } = useLocations()
   const { data: tabCounts } = useFamilyTabCounts()
+  const { data: familyInsights } = useFamilyInsights()
+  const { data: autoPayStats } = useAutoPayStats()
 
   // URL-persisted filters
   const { getParam, setParam, searchParams } = useUrlFilters()
@@ -358,6 +480,17 @@ export default function Families() {
         </div>
         <span className="visibility-count">Showing {filtered.length} famil{filtered.length !== 1 ? 'ies' : 'y'}</span>
       </div>
+
+      {/* At-a-glance insight tiles */}
+      <FamilyInsightBar
+        billingIssues={familyInsights?.billingIssues}
+        noAutopay={autoPayStats?.manualPayFamilies}
+        newThisMonth={familyInsights?.newThisMonth}
+        autoPayPercent={autoPayStats?.autoPayPercent}
+        totalActive={countActive}
+        onFixBilling={() => navigate('/admin/billing')}
+        onViewAutopay={() => navigate('/admin/billing?section=autopay')}
+      />
 
       {/* Compact roster */}
       <div data-guide-id="families-list" style={{ marginTop: 4 }}>
