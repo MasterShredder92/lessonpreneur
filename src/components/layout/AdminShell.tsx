@@ -7,7 +7,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
 import { ADMIN_NAV_ITEMS } from '../../lib/constants'
 import { useTheme } from '../../hooks/useTheme'
-import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Sparkles, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound, LineChart } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Sparkles, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound, LineChart, Zap } from 'lucide-react'
 import ChangePasswordModal from '../shared/ChangePasswordModal'
 import TopViewTabs from '../shared/TopViewTabs'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
@@ -260,6 +260,18 @@ function AdminShellInner() {
             >
               <LineChart size={15} />
               <span className="nav-label">Ziro insights</span>
+            </NavLink>
+          )}
+
+          {(isOwner || effectiveRole === 'admin') && (
+            <NavLink
+              to="/admin/skills"
+              title={!sidebarOpen ? 'Skills Manager' : undefined}
+              onClick={(e) => e.stopPropagation()}
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Zap size={15} />
+              <span className="nav-label">Skills</span>
             </NavLink>
           )}
 

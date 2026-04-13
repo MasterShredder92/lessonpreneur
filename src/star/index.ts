@@ -9,6 +9,7 @@
  */
 export type { StarPageAttach, StarPageId } from './types'
 export type { StarUserScope, StarUserScopeInput } from './resolveScope'
+export type { StarGlobalContext } from './loadGlobalContext'
 export {
   buildStarUserScope,
   resolveStarBillingLocationId,

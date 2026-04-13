@@ -73,8 +73,10 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
         if (!raw) {
           return FALLBACK_SNAPSHOT
         }
+        const base = formatStarPrompt(raw, scope.effectiveRole)
+        const summary = raw.skillsBlock ? `${base}\n\n${raw.skillsBlock}` : base
         return {
-          summary: formatStarPrompt(raw, scope.effectiveRole),
+          summary,
           raw,
           billingSnapshot: raw.billing_snapshot,
         }
@@ -114,8 +116,10 @@ export function ziroSnapshotQueryOptions(
           ),
         ])
         if (!raw) return FALLBACK_SNAPSHOT
+        const base = formatStarPrompt(raw, scope.effectiveRole)
+        const summary = raw.skillsBlock ? `${base}\n\n${raw.skillsBlock}` : base
         return {
-          summary: formatStarPrompt(raw, scope.effectiveRole),
+          summary,
           raw,
           billingSnapshot: raw.billing_snapshot,
         }

@@ -384,6 +384,15 @@ export const qk = {
     workflows: ['ai-workflows'] as const,
   },
 
+  // ── Ziro Skills ──────────────────────────────────
+  skills: {
+    all: ['ziro-skills'] as const,
+    list: (tenantId: string | null) => ['ziro-skills', tenantId] as const,
+    detail: (id: string) => ['ziro-skills', 'detail', id] as const,
+    proposals: (tenantId: string | null) => ['ziro-skill-proposals', tenantId] as const,
+    assignments: (skillId: string) => ['ziro-skill-assignments', skillId] as const,
+  },
+
   // ── Moderation ─────────────────────────────────
   moderation: {
     queue: ['moderation-queue'] as const,

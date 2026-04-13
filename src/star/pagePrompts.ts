@@ -4,6 +4,12 @@ import { loadStarGlobalContext } from './loadGlobalContext'
 import type { StarUserScope } from './resolveScope'
 import type { StarPageId } from './types'
 
+/** Combines formatted global prompt with skills block. */
+function withSkills(globalPrompt: string, skillsBlock: string): string {
+  if (!skillsBlock) return globalPrompt
+  return `${globalPrompt}\n\n${skillsBlock}`
+}
+
 /** One-shot: full system prompt for Students page AI (e.g. export insight). Uses same global loader as the modal. */
 export async function buildStudentsPageStarSystemPrompt(
   scope: StarUserScope,
@@ -11,7 +17,7 @@ export async function buildStudentsPageStarSystemPrompt(
 ): Promise<string> {
   const raw = await loadStarGlobalContext(scope)
   const global = raw
-    ? formatStarPrompt(raw, scope.effectiveRole)
+    ? withSkills(formatStarPrompt(raw, scope.effectiveRole), raw.skillsBlock)
     : 'Business context unavailable — answer from the students export block only.'
   return appendPageContextToStarPrompt(global, {
     pageId: 'students',
@@ -28,7 +34,7 @@ export async function buildStarSystemPromptWithPageBody(
 ): Promise<string> {
   const raw = await loadStarGlobalContext(scope)
   const global = raw
-    ? formatStarPrompt(raw, scope.effectiveRole)
+    ? withSkills(formatStarPrompt(raw, scope.effectiveRole), raw.skillsBlock)
     : 'Business context unavailable — answer only from the page block below.'
   return appendPageContextToStarPrompt(global, {
     pageId,
