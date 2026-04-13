@@ -16,12 +16,12 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   ]},
   { label: 'Backstage', path: '', icon: 'shield', children: [
     { label: 'Retention', path: '/admin/retention' },
-    { label: 'Recruitment', path: '/admin/recruitment' },
   ]},
   // divider
   { label: 'The Band', path: '', icon: 'guitar', children: [
     { label: 'Teachers', path: '/admin/teachers' },
     { label: 'Payroll', path: '/admin/payroll' },
+    { label: 'Recruitment', path: '/admin/recruitment' },
   ]},
   { label: 'Your Books', path: '', icon: 'book', children: [
     { label: 'Billing', path: '/admin/billing' },
