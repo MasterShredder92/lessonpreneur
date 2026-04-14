@@ -968,9 +968,12 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
           </div>
         )}
 
-        {/* Ziro's recommendation — STATIC between tabs, always visible */}
-        {canEdit && lead.stage !== 'enrolled' && (
-          <div style={{ padding: '12px 18px 0', flexShrink: 0, maxHeight: '40vh', overflowY: 'auto' }} className="star-recommendation-scroll">
+        {/* Scrollable content — star recommendation now scrolls with the rest */}
+        <div className="lead-detail-scroll">
+
+          {/* Ziro's recommendation — inside scroll container so it doesn't steal fixed space */}
+          {canEdit && lead.stage !== 'enrolled' && (
+            <div style={{ marginBottom: 16 }}>
                 <div className="lead-star-section" style={lead.stage === 'lost' ? { background: 'rgba(239,68,68,0.03)', borderColor: 'rgba(239,68,68,0.12)' } : undefined}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1039,11 +1042,8 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     </p>
                   )}
                 </div>
-          </div>
-        )}
-
-        {/* Scrollable content */}
-        <div className="lead-detail-scroll">
+            </div>
+          )}
 
           {/* OVERVIEW TAB */}
           {tab === 'overview' && (
