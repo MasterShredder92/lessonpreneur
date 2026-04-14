@@ -1,13 +1,12 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import TeacherDetail from './TeacherDetail'
-import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useTeacherOverview } from '../../hooks/useTeacherOverview'
 import type { TeacherOverview } from '../../hooks/useTeacherOverview'
 import { useLocations } from '../../hooks/useLocations'
-import { Guitar, Piano, Mic, Drum, Music, Music2, Users, Calendar, LayoutGrid } from 'lucide-react'
+import { Users, Calendar, LayoutGrid, ChevronRight, AlertTriangle, MapPin, List } from 'lucide-react'
 import TeacherFormModal from '../../components/teachers/TeacherFormModal'
 import CsvImportFlow from '../../components/shared/CsvImportFlow'
 import { useImportTeachers, TEACHER_TEMPLATE } from '../../hooks/useImport'
@@ -20,20 +19,7 @@ import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import TeachersPageGuide from '../../components/admin/TeachersPageGuide'
 import { CORE_INSTRUMENTS, OTHER_INSTRUMENTS } from '../../lib/constants'
 
-const INSTRUMENT_ICON: Record<string, any> = {
-  guitar: Guitar, bass: Guitar, ukulele: Guitar, banjo: Guitar, mandolin: Guitar,
-  piano: Piano, keyboard: Piano,
-  drums: Drum, percussion: Drum,
-  voice: Mic, vocals: Mic,
-  violin: Music2, viola: Music2, cello: Music2, strings: Music2,
-  flute: Music, clarinet: Music, saxophone: Music, trumpet: Music,
-  trombone: Music, oboe: Music, brass: Music, woodwinds: Music,
-}
-
-function InstrumentIcon({ instrument, size = 20 }: { instrument: string; size?: number }) {
-  const Icon = INSTRUMENT_ICON[instrument.toLowerCase()] ?? Music
-  return <Icon size={size} />
-}
+/* ── tiny helpers ────────────────────────────────────────── */
 
 function StatusDot({ status }: { status: string }) {
   const color = status === 'active' ? '#22C55E'
@@ -48,198 +34,101 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
-function TeacherCard({
-  t,
-  onClick,
+/* ── Progressive list — renders PAGE_SIZE at a time ──────── */
+
+const PAGE_SIZE = 50
+
+function useProgressiveList<T>(items: T[]) {
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  // Reset when the underlying list changes (filter, tab switch)
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [items])
+
+  const observerCallback = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0]?.isIntersecting) {
+        setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, items.length))
+      }
+    },
+    [items.length],
+  )
+
+  useEffect(() => {
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(observerCallback, { rootMargin: '200px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [observerCallback])
+
+  return {
+    visible: items.slice(0, visibleCount),
+    hasMore: visibleCount < items.length,
+    sentinelRef,
+    total: items.length,
+    showing: Math.min(visibleCount, items.length),
+  }
+}
+
+/* ── Dashboard stat tile ─────────────────────────────────── */
+
+function StatTile({
+  label, value, sub, color, onClick,
 }: {
-  t: TeacherOverview
-  onClick: () => void
+  label: string; value: number; sub?: string; color?: string; onClick?: () => void
 }) {
-  const isInactive = !t.is_active
-  const status = t.status
-  const primaryInstrument = t.instruments[0] ?? ''
-
-  // Build multi-color edge gradient from location brand colors
-  const edgeColors = t.location_colors.length > 0 ? t.location_colors : ['#D4226A']
-  const edgeBg = edgeColors.length === 1
-    ? edgeColors[0]
-    : `linear-gradient(180deg, ${edgeColors.map((c, i) =>
-        `${c} ${(i / edgeColors.length) * 100}%, ${c} ${((i + 1) / edgeColors.length) * 100}%`
-      ).join(', ')})`
-  const edgeShadow = edgeColors.length === 1
-    ? `0 0 14px ${edgeColors[0]}70`
-    : `0 0 10px ${edgeColors[0]}60`
-
   return (
     <div
-      className={`lead-card${isInactive ? ' lead-card-stale' : ''}`}
       onClick={onClick}
-      style={{ cursor: 'pointer', padding: 0, overflow: 'hidden', position: 'relative', display: 'flex' }}
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: 10, padding: '16px 18px',
+        display: 'flex', flexDirection: 'column', gap: 4,
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'border-color 0.15s',
+      }}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)')}
+      onMouseLeave={(e) => onClick && (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)')}
     >
-      {/* Colored left edge */}
-      <div
-        className="lead-card-edge"
-        style={{
-          background: isInactive ? '#3A3A5A' : edgeBg,
-          boxShadow: isInactive ? 'none' : edgeShadow,
-          flexShrink: 0,
-        }}
-      />
-
-      {/* Card body */}
-      <div style={{ flex: 1, padding: '14px 14px 12px 12px', display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
-
-        {/* Status dot — top right */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
-          {/* Photo or instrument icon */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-            {t.photo_url ? (
-              <img
-                src={t.photo_url}
-                alt=""
-                style={{
-                  width: 40, height: 40, borderRadius: 10,
-                  objectFit: 'cover', flexShrink: 0,
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  opacity: isInactive ? 0.45 : 1,
-                }}
-              />
-            ) : (
-              <div style={{
-                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: isInactive ? '#4A4A6A' : '#C0C0E0',
-              }}>
-                {primaryInstrument
-                  ? <InstrumentIcon instrument={primaryInstrument} size={20} />
-                  : <Music size={20} />}
-              </div>
-            )}
-
-            {/* Name + role */}
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                fontSize: 13, fontWeight: 800, lineHeight: 1.2,
-                color: isInactive ? '#6060A8' : '#E8E8F4',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>
-                {t.first_name} {t.last_name}
-                {t.is_sub_available && (
-                  <span style={{
-                    marginLeft: 6, fontSize: 9, padding: '1px 5px', borderRadius: 4,
-                    background: 'rgba(123,44,191,0.15)', color: '#A78BFA',
-                    border: '1px solid rgba(123,44,191,0.25)', verticalAlign: 'middle',
-                  }}>SUB</span>
-                )}
-              </div>
-              <div style={{ fontSize: 11, color: isInactive ? '#4A4A6A' : '#8080A8', marginTop: 1 }}>
-                {t.teacher_role
-                  ? t.teacher_role.charAt(0).toUpperCase() + t.teacher_role.slice(1)
-                  : 'Teacher'}
-              </div>
-            </div>
-          </div>
-
-          {/* Status dot */}
-          <div style={{ paddingTop: 4, flexShrink: 0 }}>
-            <StatusDot status={isInactive ? 'inactive' : status} />
-          </div>
-        </div>
-
-        {/* Instrument tags */}
-        {t.instruments.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 7 }}>
-            {t.instruments.slice(0, 4).map((inst, i) => (
-              <span
-                key={i}
-                style={{
-                  fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700,
-                  background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(212,34,106,0.1)',
-                  color: isInactive ? '#4A4A6A' : '#E8488A',
-                  border: `1px solid ${isInactive ? 'rgba(255,255,255,0.05)' : 'rgba(212,34,106,0.2)'}`,
-                }}
-              >
-                {inst.charAt(0).toUpperCase() + inst.slice(1)}
-              </span>
-            ))}
-            {t.instruments.length > 4 && (
-              <span style={{ fontSize: 10, color: '#52526A', padding: '2px 4px' }}>
-                +{t.instruments.length - 4}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Location badges */}
-        {t.location_names.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
-            {t.location_names.map((name, i) => (
-              <span
-                key={i}
-                style={{
-                  fontSize: 10, padding: '2px 8px', borderRadius: 4, fontWeight: 700,
-                  background: isInactive ? '#2A2A42' : (t.location_colors[i] ?? '#D4226A'),
-                  color: isInactive ? '#4A4A6A' : '#fff',
-                }}
-              >
-                {name}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Stats row */}
-        <div style={{
-          display: 'flex', gap: 14, marginTop: 'auto',
-          borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 9,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Users size={11} color={isInactive ? '#3A3A5A' : '#8080A8'} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: isInactive ? '#4A4A6A' : '#D0D0EC' }}>
-              {t.student_count}
-            </span>
-            <span style={{ fontSize: 10, color: '#52526A' }}>students</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Calendar size={11} color={isInactive ? '#3A3A5A' : '#8080A8'} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: isInactive ? '#4A4A6A' : '#D0D0EC' }}>
-              {t.blocks_this_week}
-            </span>
-            <span style={{ fontSize: 10, color: '#52526A' }}>this wk</span>
-          </div>
-        </div>
-      </div>
+      <span style={{ fontSize: 28, fontWeight: 900, color: color ?? '#E8E8F4', lineHeight: 1 }}>
+        {value}
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: '#8080A8' }}>{label}</span>
+      {sub && <span style={{ fontSize: 11, color: '#52526A' }}>{sub}</span>}
     </div>
   )
 }
 
-// Skeleton card shown during initial load
-function TeacherCardSkeleton() {
+/* ── Location breakdown tile ─────────────────────────────── */
+
+function LocationTile({
+  name, color, count, onClick,
+}: {
+  name: string; color: string; count: number; onClick: () => void
+}) {
   return (
-    <div className="lead-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', pointerEvents: 'none' }}>
-      <div style={{ width: 4, background: 'rgba(255,255,255,0.05)', flexShrink: 0 }} />
-      <div style={{ flex: 1, padding: '14px 14px 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 9 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.05)' }} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ height: 13, width: '60%', borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
-            <div style={{ height: 11, width: '35%', borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <div style={{ height: 20, width: 54, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
-          <div style={{ height: 20, width: 44, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
-        </div>
-        <div style={{ height: 20, width: 70, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
-        <div style={{ display: 'flex', gap: 14, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 9 }}>
-          <div style={{ height: 12, width: 60, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
-          <div style={{ height: 12, width: 60, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
-        </div>
-      </div>
+    <div
+      onClick={onClick}
+      style={{
+        background: `${color}08`,
+        border: `1px solid ${color}25`,
+        borderRadius: 10, padding: '14px 16px',
+        display: 'flex', alignItems: 'center', gap: 10,
+        cursor: 'pointer', transition: 'border-color 0.15s',
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = `${color}50`)}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = `${color}25`)}
+    >
+      <MapPin size={14} color={color} />
+      <span style={{ fontSize: 13, fontWeight: 700, color }}>{name}</span>
+      <span style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 900, color }}>{count}</span>
     </div>
   )
 }
+
+/* ── MAIN COMPONENT ──────────────────────────────────────── */
 
 export default function Teachers() {
   const { role } = useAuthContext()
@@ -248,6 +137,7 @@ export default function Teachers() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const detailTeacherId = searchParams.get('id')
+  const view = searchParams.get('view') // null = dashboard, 'list' = full roster
   const { isStudioDirector, isAtLeast } = usePermissions()
   const canEdit = isAtLeast('studio_director')
   const { saveScroll } = useScrollRestore('teachers')
@@ -258,7 +148,7 @@ export default function Teachers() {
   const teacherImport = useImportTeachers()
   const [showW9Export, setShowW9Export] = useState(false)
 
-  // URL-persisted filters
+  // URL-persisted filters (used in list view)
   const { getParam, setParam } = useUrlFilters()
   const filterNeedsReview = getParam('needs_review') === '1'
   const teacherTab = (isStudioDirector ? 'active' : (getParam('status') || 'active')) as 'active' | 'inactive'
@@ -272,33 +162,30 @@ export default function Teachers() {
   const setInstrumentFilter = (v: string) => setParam('instrument', v)
   const setSearch = (v: string) => setParam('q', v)
 
-  // Render detail view inline when ?id= is present
+  /* ── detail view ───────────────────────────────────────── */
   if (detailTeacherId) {
     return (
       <TeacherDetail
         propId={detailTeacherId}
-        onBack={() => navigate('/admin/teachers')}
+        onBack={() => navigate('/admin/teachers?view=list')}
       />
     )
   }
 
-  // Split active / inactive
+  /* ── derived data ──────────────────────────────────────── */
   const allActive = teachers?.filter((t) => t.is_active) ?? []
   const inactiveTeachers = teachers?.filter((t) => !t.is_active) ?? []
   const needsReviewCount = allActive.filter((t) => t.instruments_need_review).length
-  const baseActive = filterNeedsReview
-    ? allActive.filter((t) => t.instruments_need_review)
-    : allActive
+  const atCapacityCount = allActive.filter((t) => t.status === 'at_capacity' || t.status === 'at capacity').length
+  const subsAvailable = allActive.filter((t) => t.is_sub_available).length
+  const totalStudents = allActive.reduce((s, t) => s + t.student_count, 0)
+  const totalBlocks = allActive.reduce((s, t) => s + t.blocks_this_week, 0)
+  const baseActive = filterNeedsReview ? allActive.filter((t) => t.instruments_need_review) : allActive
 
-  // Apply filters
   const applyFilters = (list: TeacherOverview[]): TeacherOverview[] =>
     list.filter((t) => {
-      if (locationFilter) {
-        if (!t.location_names.some((n) => n.toLowerCase().includes(locationFilter.toLowerCase()))) return false
-      }
-      if (instrumentFilter) {
-        if (!t.instruments.some((i) => i.toLowerCase() === instrumentFilter.toLowerCase())) return false
-      }
+      if (locationFilter && !t.location_names.some((n) => n.toLowerCase().includes(locationFilter.toLowerCase()))) return false
+      if (instrumentFilter && !t.instruments.some((i) => i.toLowerCase() === instrumentFilter.toLowerCase())) return false
       if (search) {
         const name = `${t.first_name} ${t.last_name}`.toLowerCase()
         if (!name.includes(search.toLowerCase())) return false
@@ -306,7 +193,6 @@ export default function Teachers() {
       return true
     })
 
-  // Sort alphabetical by last name (per global rule)
   const sortAlpha = (list: TeacherOverview[]): TeacherOverview[] =>
     [...list].sort((a, b) => {
       const an = `${a.last_name} ${a.first_name}`.trim().toLowerCase()
@@ -317,12 +203,234 @@ export default function Teachers() {
   const displayList = sortAlpha(applyFilters(teacherTab === 'active' ? baseActive : inactiveTeachers))
   const currentBase = teacherTab === 'active' ? baseActive : inactiveTeachers
 
+  // Location breakdown for dashboard
+  const activeLocations = locations?.filter((l: any) => l.is_active) ?? []
+  const locationBreakdown = activeLocations.map((loc: any) => {
+    const locName = loc.name.replace(' Music Lessons', '')
+    return {
+      id: loc.id,
+      name: locName,
+      color: loc.color ?? '#D4226A',
+      count: allActive.filter((t) => t.location_names.some((n) => n.toLowerCase() === locName.toLowerCase())).length,
+    }
+  })
+
+  /* ── Navigate to list with optional pre-filter ─────────── */
+  const goToList = (preFilter?: { location?: string }) => {
+    const params = new URLSearchParams({ view: 'list' })
+    if (preFilter?.location) params.set('location', preFilter.location)
+    navigate(`/admin/teachers?${params.toString()}`)
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     DASHBOARD VIEW — lightweight front page
+     ═══════════════════════════════════════════════════════════ */
+  if (view !== 'list') {
+    return (
+      <IssueContextProvider page="The Band — Teachers">
+        <div className="page">
+          <div className="page-header">
+            <h1>Teachers</h1>
+            <span className="badge-secondary">{isLoading ? '—' : allActive.length} active</span>
+            {canEdit && (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <button className="btn-primary" onClick={() => setShowForm(true)}>
+                  + Add Teacher
+                </button>
+              </div>
+            )}
+            <TeachersPageGuide />
+            <ReportIssueButton />
+          </div>
+
+          {isLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+              <div style={{ color: '#52526A', fontSize: 13 }}>Loading teacher data...</div>
+            </div>
+          ) : error ? (
+            <div className="form-error">Failed to load: {(error as Error).message}</div>
+          ) : (
+            <>
+              {/* Needs-review banner */}
+              {needsReviewCount > 0 && (
+                <div
+                  onClick={() => { setFilterNeedsReview(true); goToList() }}
+                  style={{
+                    background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.2)',
+                    borderRadius: 10, padding: '12px 16px', marginBottom: 16,
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                  }}
+                >
+                  <AlertTriangle size={15} color="#FFB800" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#FFB800' }}>
+                    {needsReviewCount} teacher{needsReviewCount !== 1 ? 's' : ''} need instrument assignment
+                  </span>
+                  <ChevronRight size={14} color="#FFB800" style={{ marginLeft: 'auto' }} />
+                </div>
+              )}
+
+              {/* Stat tiles */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                gap: 10, marginBottom: 20,
+              }}>
+                <StatTile label="Active Teachers" value={allActive.length} color="#22C55E" onClick={() => goToList()} />
+                <StatTile label="Inactive" value={inactiveTeachers.length} color="#52526A" onClick={() => { setTeacherTab('inactive'); goToList() }} />
+                <StatTile label="At Capacity" value={atCapacityCount} color="#FFB800" />
+                <StatTile label="Subs Available" value={subsAvailable} color="#A78BFA" />
+                <StatTile label="Total Students" value={totalStudents} sub="across active teachers" />
+                <StatTile label="Sessions This Week" value={totalBlocks} sub="booked blocks" />
+              </div>
+
+              {/* Location breakdown */}
+              {locationBreakdown.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 13, fontWeight: 800, color: '#8080A8', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    By Location
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: 8, marginBottom: 24,
+                  }}>
+                    {locationBreakdown.map((loc) => (
+                      <LocationTile
+                        key={loc.id}
+                        name={loc.name}
+                        color={loc.color}
+                        count={loc.count}
+                        onClick={() => goToList({ location: loc.name })}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* View full roster CTA */}
+              <button
+                className="btn-outline"
+                onClick={() => goToList()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: '100%', justifyContent: 'center', padding: '14px 20px',
+                  fontSize: 13, fontWeight: 700,
+                }}
+              >
+                <List size={15} />
+                View Full Teacher Roster
+                <ChevronRight size={14} />
+              </button>
+            </>
+          )}
+
+          {/* Modals (add teacher available from dashboard too) */}
+          {showForm && <TeacherFormModal onClose={() => setShowForm(false)} />}
+        </div>
+      </IssueContextProvider>
+    )
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     LIST VIEW — scannable alphabetical table
+     ═══════════════════════════════════════════════════════════ */
+  return <TeacherListView
+    displayList={displayList}
+    currentBase={currentBase}
+    allActive={allActive}
+    inactiveTeachers={inactiveTeachers}
+    needsReviewCount={needsReviewCount}
+    isLoading={isLoading}
+    error={error}
+    teacherTab={teacherTab}
+    setTeacherTab={setTeacherTab}
+    locationFilter={locationFilter}
+    setLocationFilter={setLocationFilter}
+    instrumentFilter={instrumentFilter}
+    setInstrumentFilter={setInstrumentFilter}
+    search={search}
+    setSearch={setSearch}
+    filterNeedsReview={filterNeedsReview}
+    setFilterNeedsReview={setFilterNeedsReview}
+    locations={locations}
+    canEdit={canEdit}
+    role={role}
+    isStudioDirector={isStudioDirector}
+    showForm={showForm}
+    setShowForm={setShowForm}
+    showSpreadsheet={showSpreadsheet}
+    setShowSpreadsheet={setShowSpreadsheet}
+    showCsvImport={showCsvImport}
+    setShowCsvImport={setShowCsvImport}
+    showW9Export={showW9Export}
+    setShowW9Export={setShowW9Export}
+    teacherImport={teacherImport}
+    saveScroll={saveScroll}
+    navigate={navigate}
+  />
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LIST VIEW COMPONENT — table-style, alphabetical, progressive
+   ═══════════════════════════════════════════════════════════ */
+
+function TeacherListView({
+  displayList, currentBase, allActive, inactiveTeachers, needsReviewCount,
+  isLoading, error, teacherTab, setTeacherTab, locationFilter, setLocationFilter,
+  instrumentFilter, setInstrumentFilter, search, setSearch,
+  filterNeedsReview, setFilterNeedsReview, locations, canEdit, role,
+  isStudioDirector, showForm, setShowForm, showSpreadsheet, setShowSpreadsheet,
+  showCsvImport, setShowCsvImport, showW9Export, setShowW9Export,
+  teacherImport, saveScroll, navigate,
+}: {
+  displayList: TeacherOverview[]
+  currentBase: TeacherOverview[]
+  allActive: TeacherOverview[]
+  inactiveTeachers: TeacherOverview[]
+  needsReviewCount: number
+  isLoading: boolean
+  error: unknown
+  teacherTab: 'active' | 'inactive'
+  setTeacherTab: (v: 'active' | 'inactive') => void
+  locationFilter: string
+  setLocationFilter: (v: string) => void
+  instrumentFilter: string
+  setInstrumentFilter: (v: string) => void
+  search: string
+  setSearch: (v: string) => void
+  filterNeedsReview: boolean
+  setFilterNeedsReview: (v: boolean) => void
+  locations: any
+  canEdit: boolean
+  role: string | null
+  isStudioDirector: boolean
+  showForm: boolean
+  setShowForm: (v: boolean) => void
+  showSpreadsheet: boolean
+  setShowSpreadsheet: (v: boolean) => void
+  showCsvImport: boolean
+  setShowCsvImport: (v: boolean) => void
+  showW9Export: boolean
+  setShowW9Export: (v: boolean) => void
+  teacherImport: any
+  saveScroll: () => void
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  const { visible, hasMore, sentinelRef, total, showing } = useProgressiveList(displayList)
+
   return (
     <IssueContextProvider page="The Band — Teachers">
       <div className="page">
         {/* Page header */}
         <div className="page-header">
-          <h1>Teachers</h1>
+          <button
+            className="btn-ghost"
+            onClick={() => navigate('/admin/teachers')}
+            style={{ padding: '4px 8px', marginRight: 4, fontSize: 12, color: '#8080A8' }}
+          >
+            &larr; Dashboard
+          </button>
+          <h1>Teacher Roster</h1>
           <span className="badge-secondary">{allActive.length} active</span>
           {canEdit && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
@@ -355,9 +463,7 @@ export default function Teachers() {
           <div className="review-banner">
             <div className="review-banner-text">
               <span className="badge-gold">{needsReviewCount}</span>
-              <span>
-                teacher{needsReviewCount !== 1 ? 's' : ''} need instrument assignment
-              </span>
+              <span>teacher{needsReviewCount !== 1 ? 's' : ''} need instrument assignment</span>
             </div>
             <button
               className={filterNeedsReview ? 'btn-primary' : 'btn-outline'}
@@ -388,7 +494,6 @@ export default function Teachers() {
             )}
           </div>
 
-          {/* Location filter pills */}
           <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 3 }}>
             <button
               onClick={() => setLocationFilter('')}
@@ -432,7 +537,7 @@ export default function Teachers() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search teachers..."
+              placeholder="Search by name..."
               className="filter-select"
               style={{ minWidth: 160 }}
             />
@@ -443,35 +548,27 @@ export default function Teachers() {
             >
               <option value="">All Instruments</option>
               {CORE_INSTRUMENTS.map((i) => (
-                <option key={i} value={i}>
-                  {i.charAt(0).toUpperCase() + i.slice(1)}
-                </option>
+                <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>
               ))}
               <option disabled>────────────</option>
               {OTHER_INSTRUMENTS.map((i) => (
-                <option key={i} value={i}>
-                  {i.charAt(0).toUpperCase() + i.slice(1)}
-                </option>
+                <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>
               ))}
             </select>
           </div>
           <span className="visibility-count">
-            Showing {isLoading ? '—' : displayList.length} teacher{displayList.length !== 1 ? 's' : ''}
+            Showing {isLoading ? '—' : `${showing} of ${total}`} teacher{total !== 1 ? 's' : ''}
           </span>
         </div>
 
-        {/* Teacher grid */}
+        {/* Teacher table */}
         {isLoading ? (
-          /* Skeleton grid while loading */
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(255px, 1fr))',
-              gap: 12,
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             {Array.from({ length: 12 }).map((_, i) => (
-              <TeacherCardSkeleton key={i} />
+              <div key={i} style={{
+                height: 44, background: 'rgba(255,255,255,0.02)',
+                borderRadius: 6, marginBottom: 1,
+              }} />
             ))}
           </div>
         ) : error ? (
@@ -479,25 +576,51 @@ export default function Teachers() {
         ) : displayList.length === 0 ? (
           <div className="empty-state">No {teacherTab} teachers found.</div>
         ) : (
-          <div
-            data-tour-id="teachers-list"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(255px, 1fr))',
-              gap: 12,
-            }}
-          >
-            {displayList.map((t, idx) => (
-              <TeacherCard
-                key={t.id}
-                t={t}
-                onClick={() => {
-                  saveScroll()
-                  navigate(`/admin/teachers?id=${t.id}`)
-                }}
-              />
-            ))}
-          </div>
+          <>
+            {/* Table header */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 120px 140px 70px 70px 30px',
+                gap: 8, padding: '8px 14px',
+                fontSize: 10, fontWeight: 700, color: '#52526A',
+                textTransform: 'uppercase', letterSpacing: 0.5,
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                marginBottom: 2,
+              }}
+            >
+              <span>Name</span>
+              <span>Instruments</span>
+              <span>Location</span>
+              <span style={{ textAlign: 'right' }}>Students</span>
+              <span style={{ textAlign: 'right' }}>This Wk</span>
+              <span />
+            </div>
+
+            {/* Table rows — progressive */}
+            <div data-tour-id="teachers-list">
+              {visible.map((t) => (
+                <TeacherRow
+                  key={t.id}
+                  t={t}
+                  onClick={() => {
+                    saveScroll()
+                    navigate(`/admin/teachers?id=${t.id}`)
+                  }}
+                />
+              ))}
+
+              {/* Sentinel for infinite scroll */}
+              {hasMore && (
+                <div ref={sentinelRef} style={{
+                  padding: '14px 0', textAlign: 'center',
+                  fontSize: 11, color: '#52526A',
+                }}>
+                  Loading more...
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Modals */}
@@ -525,5 +648,120 @@ export default function Teachers() {
         )}
       </div>
     </IssueContextProvider>
+  )
+}
+
+/* ── Single table row ────────────────────────────────────── */
+
+function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void }) {
+  const isInactive = !t.is_active
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 120px 140px 70px 70px 30px',
+        gap: 8, padding: '10px 14px',
+        alignItems: 'center', cursor: 'pointer',
+        borderBottom: '1px solid rgba(255,255,255,0.03)',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      {/* Name + role */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        {t.photo_url ? (
+          <img
+            src={t.photo_url}
+            alt=""
+            style={{
+              width: 30, height: 30, borderRadius: 8,
+              objectFit: 'cover', flexShrink: 0,
+              border: '1px solid rgba(255,255,255,0.08)',
+              opacity: isInactive ? 0.45 : 1,
+            }}
+          />
+        ) : (
+          <div style={{
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+            background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 800,
+            color: isInactive ? '#4A4A6A' : '#8080A8',
+          }}>
+            {(t.first_name[0] ?? '').toUpperCase()}{(t.last_name[0] ?? '').toUpperCase()}
+          </div>
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 800, lineHeight: 1.2,
+            color: isInactive ? '#6060A8' : '#E8E8F4',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {t.last_name}, {t.first_name}
+            {t.is_sub_available && (
+              <span style={{
+                marginLeft: 6, fontSize: 9, padding: '1px 5px', borderRadius: 4,
+                background: 'rgba(123,44,191,0.15)', color: '#A78BFA',
+                border: '1px solid rgba(123,44,191,0.25)', verticalAlign: 'middle',
+              }}>SUB</span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: isInactive ? '#4A4A6A' : '#52526A' }}>
+            {t.teacher_role ? t.teacher_role.charAt(0).toUpperCase() + t.teacher_role.slice(1) : 'Teacher'}
+          </div>
+        </div>
+      </div>
+
+      {/* Instruments — compact inline */}
+      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', minWidth: 0 }}>
+        {t.instruments.slice(0, 3).map((inst, i) => (
+          <span key={i} style={{
+            fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700,
+            background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(212,34,106,0.08)',
+            color: isInactive ? '#4A4A6A' : '#E8488A',
+          }}>
+            {inst.charAt(0).toUpperCase() + inst.slice(1)}
+          </span>
+        ))}
+        {t.instruments.length > 3 && (
+          <span style={{ fontSize: 10, color: '#52526A' }}>+{t.instruments.length - 3}</span>
+        )}
+      </div>
+
+      {/* Locations — colored dots + short name */}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>
+        {t.location_names.map((name, i) => (
+          <span key={i} style={{
+            fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700,
+            background: isInactive ? '#2A2A42' : `${t.location_colors[i] ?? '#D4226A'}20`,
+            color: isInactive ? '#4A4A6A' : (t.location_colors[i] ?? '#D4226A'),
+          }}>
+            {name}
+          </span>
+        ))}
+      </div>
+
+      {/* Student count */}
+      <div style={{ textAlign: 'right' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: isInactive ? '#4A4A6A' : '#D0D0EC' }}>
+          {t.student_count}
+        </span>
+      </div>
+
+      {/* Blocks this week */}
+      <div style={{ textAlign: 'right' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: isInactive ? '#4A4A6A' : '#D0D0EC' }}>
+          {t.blocks_this_week}
+        </span>
+      </div>
+
+      {/* Status + arrow */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+        <StatusDot status={isInactive ? 'inactive' : t.status} />
+      </div>
+    </div>
   )
 }
