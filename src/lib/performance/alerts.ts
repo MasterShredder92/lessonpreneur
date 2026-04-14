@@ -3,6 +3,10 @@
  *
  * Threshold definitions, alert generation, and Supabase read/write helpers
  * for the performance_alerts table.
+ *
+ * **Never** call `supabase.from('performance_alerts').insert(...)`.
+ * New rows must go through `applyPerformanceAlerts()` → RPC `speed_upsert_performance_alerts`
+ * (dedupe_key, rollups, cooldown). Direct REST inserts omit NOT NULL columns and fail with 23502.
  */
 
 import { supabase } from '../supabase'
@@ -29,6 +33,16 @@ export interface PerformanceAlert {
   resolved: boolean
   resolved_at: string | null
   created_at: string
+  /** Stable key for dedupe — one active row per tenant + dedupe_key */
+  dedupe_key?: string
+  first_seen_at?: string
+  last_seen_at?: string
+  occurrence_count?: number
+  worst_metric?: number | null
+  latest_metric?: number | null
+  resolution_reason?: string | null
+  regressed_at?: string | null
+  muted_until?: string | null
 }
 
 // ─── Thresholds (based on Core Web Vitals + Google guidelines) ───────────────
@@ -44,24 +58,28 @@ export const THRESHOLDS = {
 
 // ─── Alert generation ────────────────────────────────────────────────────────
 
-interface CandidateAlert {
+export interface PerformanceAlertCandidate {
   alert_type: AlertType
   severity: AlertSeverity
   message: string
   details: Record<string, unknown>
+  /** Unique per tenant; excludes severity so one row escalates warning → critical */
+  dedupe_key: string
+  /** Scalar for rollup / worst tracking (ms, CLS score, rate %, etc.) */
+  metric_value: number | null
 }
 
 /**
  * Evaluate route summaries and slow-query data against thresholds.
- * Returns a list of new alerts to create (does not write to DB — call
- * createAlerts() to persist them).
+ * Returns candidates with stable dedupe_key — call applyPerformanceAlerts() to upsert.
  */
 export function evaluateThresholds(
   routeSummaries: RouteSummary[],
   slowQueries: SlowQuerySummary[],
-  totalQuerySamples: number,
-): CandidateAlert[] {
-  const alerts: CandidateAlert[] = []
+  /** Total query_performance samples in window (denominator for slow rate). */
+  totalAllQuerySamples: number,
+): PerformanceAlertCandidate[] {
+  const alerts: PerformanceAlertCandidate[] = []
 
   // ── Page metric alerts (per route) ──
   for (const summary of routeSummaries) {
@@ -74,6 +92,8 @@ export function evaluateThresholds(
           severity: 'critical',
           message: `Critical LCP on ${summary.page_route}: avg ${summary.avg_lcp_ms}ms (threshold ${THRESHOLDS.lcp.critical}ms)`,
           details: { route: summary.page_route, avg_lcp_ms: summary.avg_lcp_ms, sample_count: summary.sample_count },
+          dedupe_key: `slow_lcp|route:${summary.page_route}`,
+          metric_value: summary.avg_lcp_ms,
         })
       } else if (summary.avg_lcp_ms >= THRESHOLDS.lcp.warning) {
         alerts.push({
@@ -81,6 +101,8 @@ export function evaluateThresholds(
           severity: 'warning',
           message: `Slow LCP on ${summary.page_route}: avg ${summary.avg_lcp_ms}ms (threshold ${THRESHOLDS.lcp.warning}ms)`,
           details: { route: summary.page_route, avg_lcp_ms: summary.avg_lcp_ms, sample_count: summary.sample_count },
+          dedupe_key: `slow_lcp|route:${summary.page_route}`,
+          metric_value: summary.avg_lcp_ms,
         })
       }
     }
@@ -92,6 +114,8 @@ export function evaluateThresholds(
           severity: 'critical',
           message: `Critical FCP on ${summary.page_route}: avg ${summary.avg_fcp_ms}ms (threshold ${THRESHOLDS.fcp.critical}ms)`,
           details: { route: summary.page_route, avg_fcp_ms: summary.avg_fcp_ms, sample_count: summary.sample_count },
+          dedupe_key: `slow_fcp|route:${summary.page_route}`,
+          metric_value: summary.avg_fcp_ms,
         })
       } else if (summary.avg_fcp_ms >= THRESHOLDS.fcp.warning) {
         alerts.push({
@@ -99,6 +123,8 @@ export function evaluateThresholds(
           severity: 'warning',
           message: `Slow FCP on ${summary.page_route}: avg ${summary.avg_fcp_ms}ms (threshold ${THRESHOLDS.fcp.warning}ms)`,
           details: { route: summary.page_route, avg_fcp_ms: summary.avg_fcp_ms, sample_count: summary.sample_count },
+          dedupe_key: `slow_fcp|route:${summary.page_route}`,
+          metric_value: summary.avg_fcp_ms,
         })
       }
     }
@@ -110,6 +136,8 @@ export function evaluateThresholds(
           severity: 'critical',
           message: `Critical INP on ${summary.page_route}: avg ${summary.avg_inp_ms}ms (threshold ${THRESHOLDS.inp.critical}ms)`,
           details: { route: summary.page_route, avg_inp_ms: summary.avg_inp_ms, sample_count: summary.sample_count },
+          dedupe_key: `slow_inp|route:${summary.page_route}`,
+          metric_value: summary.avg_inp_ms,
         })
       } else if (summary.avg_inp_ms >= THRESHOLDS.inp.warning) {
         alerts.push({
@@ -117,6 +145,8 @@ export function evaluateThresholds(
           severity: 'warning',
           message: `Slow INP on ${summary.page_route}: avg ${summary.avg_inp_ms}ms (threshold ${THRESHOLDS.inp.warning}ms)`,
           details: { route: summary.page_route, avg_inp_ms: summary.avg_inp_ms, sample_count: summary.sample_count },
+          dedupe_key: `slow_inp|route:${summary.page_route}`,
+          metric_value: summary.avg_inp_ms,
         })
       }
     }
@@ -128,6 +158,8 @@ export function evaluateThresholds(
           severity: 'critical',
           message: `Critical CLS on ${summary.page_route}: avg score ${summary.avg_cls.toFixed(4)} (threshold ${THRESHOLDS.cls.critical})`,
           details: { route: summary.page_route, avg_cls: summary.avg_cls, sample_count: summary.sample_count },
+          dedupe_key: `high_cls|route:${summary.page_route}`,
+          metric_value: summary.avg_cls,
         })
       } else if (summary.avg_cls >= THRESHOLDS.cls.warning) {
         alerts.push({
@@ -135,6 +167,8 @@ export function evaluateThresholds(
           severity: 'warning',
           message: `High CLS on ${summary.page_route}: avg score ${summary.avg_cls.toFixed(4)} (threshold ${THRESHOLDS.cls.warning})`,
           details: { route: summary.page_route, avg_cls: summary.avg_cls, sample_count: summary.sample_count },
+          dedupe_key: `high_cls|route:${summary.page_route}`,
+          metric_value: summary.avg_cls,
         })
       }
     }
@@ -142,12 +176,15 @@ export function evaluateThresholds(
 
   // ── Slow-query alerts ──
   for (const sq of slowQueries) {
+    const dk = `slow_query|label:${sq.query_label}`
     if (sq.avg_ms >= THRESHOLDS.queryMs.critical) {
       alerts.push({
         alert_type: 'slow_query',
         severity: 'critical',
         message: `Critical slow query "${sq.query_label}": avg ${sq.avg_ms}ms over ${sq.occurrence_count} calls`,
         details: { query_label: sq.query_label, table_name: sq.table_name, avg_ms: sq.avg_ms, max_ms: sq.max_ms, occurrence_count: sq.occurrence_count },
+        dedupe_key: dk,
+        metric_value: sq.avg_ms,
       })
     } else if (sq.avg_ms >= THRESHOLDS.queryMs.warning) {
       alerts.push({
@@ -155,32 +192,44 @@ export function evaluateThresholds(
         severity: 'warning',
         message: `Slow query "${sq.query_label}": avg ${sq.avg_ms}ms over ${sq.occurrence_count} calls`,
         details: { query_label: sq.query_label, table_name: sq.table_name, avg_ms: sq.avg_ms, max_ms: sq.max_ms, occurrence_count: sq.occurrence_count },
+        dedupe_key: dk,
+        metric_value: sq.avg_ms,
       })
     }
   }
 
   // ── Slow query rate alert ──
-  if (totalQuerySamples > 20) {
+  if (totalAllQuerySamples > 20) {
     const totalSlowCount = slowQueries.reduce((acc, q) => acc + q.occurrence_count, 0)
-    const ratePct = Math.round((totalSlowCount / totalQuerySamples) * 100)
+    const ratePct = Math.round((totalSlowCount / totalAllQuerySamples) * 100)
     if (ratePct >= THRESHOLDS.slowQueryRatePct.critical) {
       alerts.push({
         alert_type: 'high_slow_query_rate',
         severity: 'critical',
-        message: `${ratePct}% of queries are slow (>${THRESHOLDS.queryMs.warning}ms) in the last 7 days`,
-        details: { rate_pct: ratePct, slow_count: totalSlowCount, total_count: totalQuerySamples },
+        message: `${ratePct}% of queries are slow (>${THRESHOLDS.queryMs.warning}ms) in the selected window`,
+        details: { rate_pct: ratePct, slow_count: totalSlowCount, total_count: totalAllQuerySamples },
+        dedupe_key: 'high_slow_query_rate|global',
+        metric_value: ratePct,
       })
     } else if (ratePct >= THRESHOLDS.slowQueryRatePct.warning) {
       alerts.push({
         alert_type: 'high_slow_query_rate',
         severity: 'warning',
-        message: `${ratePct}% of queries are slow (>${THRESHOLDS.queryMs.warning}ms) in the last 7 days`,
-        details: { rate_pct: ratePct, slow_count: totalSlowCount, total_count: totalQuerySamples },
+        message: `${ratePct}% of queries are slow (>${THRESHOLDS.queryMs.warning}ms) in the selected window`,
+        details: { rate_pct: ratePct, slow_count: totalSlowCount, total_count: totalAllQuerySamples },
+        dedupe_key: 'high_slow_query_rate|global',
+        metric_value: ratePct,
       })
     }
   }
 
   return alerts
+}
+
+export function computeSlowQueryRatePct(slowQueries: SlowQuerySummary[], totalAllQuerySamples: number): number {
+  if (totalAllQuerySamples <= 0) return 0
+  const totalSlowCount = slowQueries.reduce((acc, q) => acc + q.occurrence_count, 0)
+  return Math.round((totalSlowCount / totalAllQuerySamples) * 100)
 }
 
 // ─── Supabase I/O ─────────────────────────────────────────────────────────────
@@ -192,6 +241,7 @@ export async function fetchActiveAlerts(tenantId: string): Promise<PerformanceAl
     .select('*')
     .eq('tenant_id', tenantId)
     .eq('resolved', false)
+    .order('last_seen_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -199,49 +249,142 @@ export async function fetchActiveAlerts(tenantId: string): Promise<PerformanceAl
   return (data ?? []) as PerformanceAlert[]
 }
 
-/** Fetch resolved alerts for the last 30 days. */
+/** Fetch resolved alerts for the last 90 days (by resolve time). */
 export async function fetchResolvedAlerts(tenantId: string): Promise<PerformanceAlert[]> {
   const since = new Date()
-  since.setDate(since.getDate() - 30)
+  since.setDate(since.getDate() - 90)
 
   const { data, error } = await supabase
     .from('performance_alerts')
     .select('*')
     .eq('tenant_id', tenantId)
     .eq('resolved', true)
-    .gte('created_at', since.toISOString())
-    .order('created_at', { ascending: false })
-    .limit(50)
+    .gte('resolved_at', since.toISOString())
+    .order('resolved_at', { ascending: false, nullsFirst: false })
+    .limit(200)
 
   if (error) throw error
   return (data ?? []) as PerformanceAlert[]
 }
 
-/** Persist evaluated alerts to the DB. Fire-and-forget. */
-export async function createAlerts(
+/**
+ * Upsert alerts by (tenant_id, dedupe_key) via DB RPC — no duplicate rows.
+ * Cooldown on occurrence_count is enforced server-side (≥2 min between increments).
+ */
+export async function applyPerformanceAlerts(
   tenantId: string,
-  candidates: CandidateAlert[],
+  candidates: PerformanceAlertCandidate[],
 ): Promise<void> {
   if (!candidates.length) return
 
-  const rows = candidates.map(c => ({
+  const payload = candidates.map((c) => ({
     tenant_id: tenantId,
+    dedupe_key: c.dedupe_key,
     alert_type: c.alert_type,
     severity: c.severity,
     message: c.message,
     details: c.details,
-    resolved: false,
+    metric_value: c.metric_value,
   }))
 
-  const { error } = await supabase.from('performance_alerts').insert(rows)
-  if (error) console.warn('[SPEED] alert insert failed', error.message)
+  const { error } = await supabase.rpc('speed_upsert_performance_alerts', { p_rows: payload })
+  if (error) {
+    console.error('[SPEED] alert upsert RPC failed', error.message, error)
+    throw new Error(error.message || 'speed_upsert_performance_alerts failed')
+  }
+}
+
+/** @deprecated Use applyPerformanceAlerts — kept for older call sites */
+export const createAlerts = applyPerformanceAlerts
+
+/**
+ * Auto-resolve active alerts when current metrics are healthy (same rules as thresholds).
+ * Call before applyPerformanceAlerts on each analysis run.
+ */
+export async function reconcilePerformanceAlerts(
+  tenantId: string,
+  routeSummaries: RouteSummary[],
+  slowQueries: SlowQuerySummary[],
+  totalAllQuerySamples: number,
+): Promise<number> {
+  const { data: active, error } = await supabase
+    .from('performance_alerts')
+    .select('id, alert_type, details, dedupe_key')
+    .eq('tenant_id', tenantId)
+    .eq('resolved', false)
+
+  if (error) throw error
+  if (!active?.length) return 0
+
+  const routeMap = new Map(routeSummaries.map((r) => [r.page_route, r]))
+  const slowMap = new Map(slowQueries.map((q) => [q.query_label, q]))
+  const ratePct = computeSlowQueryRatePct(slowQueries, totalAllQuerySamples)
+
+  const now = new Date().toISOString()
+  const toResolve: string[] = []
+
+  for (const row of active as { id: string; alert_type: string; details: Record<string, unknown>; dedupe_key?: string }[]) {
+    const d = row.details ?? {}
+    const route = typeof d.route === 'string' ? d.route : undefined
+    const queryLabel = typeof d.query_label === 'string' ? d.query_label : undefined
+
+    let healthy = false
+    switch (row.alert_type as AlertType) {
+      case 'high_cls': {
+        const sum = route ? routeMap.get(route) : undefined
+        if (sum && sum.sample_count >= 3 && sum.avg_cls != null && sum.avg_cls < THRESHOLDS.cls.warning) healthy = true
+        break
+      }
+      case 'slow_inp': {
+        const sum = route ? routeMap.get(route) : undefined
+        if (sum && sum.sample_count >= 3 && sum.avg_inp_ms != null && sum.avg_inp_ms < THRESHOLDS.inp.warning) healthy = true
+        break
+      }
+      case 'slow_lcp': {
+        const sum = route ? routeMap.get(route) : undefined
+        if (sum && sum.sample_count >= 3 && sum.avg_lcp_ms != null && sum.avg_lcp_ms < THRESHOLDS.lcp.warning) healthy = true
+        break
+      }
+      case 'slow_fcp': {
+        const sum = route ? routeMap.get(route) : undefined
+        if (sum && sum.sample_count >= 3 && sum.avg_fcp_ms != null && sum.avg_fcp_ms < THRESHOLDS.fcp.warning) healthy = true
+        break
+      }
+      case 'slow_query': {
+        const sq = queryLabel ? slowMap.get(queryLabel) : undefined
+        if (!sq || sq.avg_ms < THRESHOLDS.queryMs.warning) healthy = true
+        break
+      }
+      case 'high_slow_query_rate': {
+        if (totalAllQuerySamples > 20 && ratePct < THRESHOLDS.slowQueryRatePct.warning) healthy = true
+        break
+      }
+      default:
+        break
+    }
+
+    if (healthy) toResolve.push(row.id)
+  }
+
+  if (!toResolve.length) return 0
+
+  const { error: upErr } = await supabase
+    .from('performance_alerts')
+    .update({ resolved: true, resolved_at: now, resolution_reason: 'metric_recovered' })
+    .in('id', toResolve)
+
+  if (upErr) throw upErr
+  return toResolve.length
 }
 
 /** Mark an alert as resolved. */
-export async function resolveAlert(alertId: string): Promise<void> {
+export async function resolveAlert(
+  alertId: string,
+  reason: 'manual' | 'metric_recovered' | 'stale' = 'manual',
+): Promise<void> {
   const { error } = await supabase
     .from('performance_alerts')
-    .update({ resolved: true, resolved_at: new Date().toISOString() })
+    .update({ resolved: true, resolved_at: new Date().toISOString(), resolution_reason: reason })
     .eq('id', alertId)
 
   if (error) throw error
@@ -660,6 +803,152 @@ Do NOT silence the alert — fix the actual performance issue.
 Report: exact files changed, what was wrong, what you fixed.
 
 npm run build && vercel --prod`
+}
+
+// ─── Full-site audit + bulk prompts ─────────────────────────────────────────
+
+export type RemediationOwner = 'frontend' | 'backend' | 'sql'
+export type RemediationDifficulty = 'low' | 'medium' | 'high'
+
+export interface AuditIssuePlan {
+  dedupe_key: string
+  alert_type: AlertType
+  severity: AlertSeverity
+  route?: string
+  query_label?: string
+  impact: string
+  likelyCause: string
+  recommendedFix: string
+  owner: RemediationOwner
+  difficulty: RemediationDifficulty
+  expectedGain: string
+}
+
+export interface SiteAuditSummary {
+  uniqueActiveIssues: number
+  bySeverity: { critical: number; warning: number }
+  byType: Record<string, number>
+  worstRoutes: { route: string; score: number; label: string }[]
+  worstQueries: { label: string; avg_ms: number }[]
+  topFixes: AuditIssuePlan[]
+}
+
+function ownerForAlertType(t: AlertType): RemediationOwner {
+  if (t === 'slow_query') return 'sql'
+  if (t === 'high_slow_query_rate') return 'backend'
+  return 'frontend'
+}
+
+function difficultyFor(t: AlertType, sev: AlertSeverity): RemediationDifficulty {
+  if (sev === 'critical') return t === 'slow_query' ? 'medium' : 'high'
+  return 'low'
+}
+
+/** One prioritized audit from current metrics + active alerts (unique keys). */
+export function buildSiteAuditSummary(
+  activeAlerts: PerformanceAlert[],
+  routeSummaries: RouteSummary[],
+  slowQueries: SlowQuerySummary[],
+): SiteAuditSummary {
+  const byKey = new Map<string, PerformanceAlert>()
+  for (const a of activeAlerts) {
+    const k = a.dedupe_key ?? a.id
+    if (!byKey.has(k)) byKey.set(k, a)
+  }
+  const unique = [...byKey.values()]
+
+  const bySeverity = { critical: 0, warning: 0 }
+  const byType: Record<string, number> = {}
+  for (const a of unique) {
+    if (a.severity === 'critical') bySeverity.critical++
+    else bySeverity.warning++
+    byType[a.alert_type] = (byType[a.alert_type] ?? 0) + 1
+  }
+
+  const worstRoutes = routeSummaries
+    .filter((r) => r.sample_count >= 3)
+    .map((r) => {
+      const inp = r.avg_inp_ms ?? 0
+      const cls = (r.avg_cls ?? 0) * 4000
+      const lcp = r.avg_lcp_ms ?? 0
+      const score = Math.max(inp, cls, lcp * 0.2)
+      return { route: r.page_route, score, label: `${r.page_route} (composite)` }
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+
+  const worstQueries = [...slowQueries].sort((a, b) => b.avg_ms - a.avg_ms).slice(0, 8).map((q) => ({ label: q.query_label, avg_ms: q.avg_ms }))
+
+  const topFixes: AuditIssuePlan[] = unique
+    .map((a) => {
+      const g = getRemediation(a)
+      const d = a.details as any
+      return {
+        dedupe_key: a.dedupe_key ?? a.alert_type,
+        alert_type: a.alert_type as AlertType,
+        severity: a.severity,
+        route: d?.route as string | undefined,
+        query_label: d?.query_label as string | undefined,
+        impact: a.severity === 'critical' ? 'High — user-facing or data path blocked' : 'Medium — quality / scalability',
+        likelyCause: g.likelyCause,
+        recommendedFix: g.recommendedFix,
+        owner: ownerForAlertType(a.alert_type as AlertType),
+        difficulty: difficultyFor(a.alert_type as AlertType, a.severity),
+        expectedGain:
+          a.alert_type === 'slow_query'
+            ? 'Lower API latency; fewer timeouts'
+            : a.alert_type === 'high_slow_query_rate'
+              ? 'Fewer slow paths system-wide; better DB headroom'
+              : 'Better Core Web Vitals; smoother UX',
+      }
+    })
+    .sort((a, b) => {
+      const sev = (s: AlertSeverity) => (s === 'critical' ? 2 : 1)
+      if (sev(b.severity) !== sev(a.severity)) return sev(b.severity) - sev(a.severity)
+      return a.dedupe_key.localeCompare(b.dedupe_key)
+    })
+    .slice(0, 10)
+
+  return {
+    uniqueActiveIssues: unique.length,
+    bySeverity,
+    byType,
+    worstRoutes,
+    worstQueries,
+    topFixes,
+  }
+}
+
+/** Single combined Claude prompt for many alerts (batched by owner). */
+export function generateBulkFixPrompts(
+  alerts: PerformanceAlert[],
+  filter: 'all' | 'frontend' | 'backend' | 'sql',
+): string {
+  const uniq = new Map<string, PerformanceAlert>()
+  for (const a of alerts) {
+    const k = a.dedupe_key ?? a.id
+    if (!uniq.has(k)) uniq.set(k, a)
+  }
+  let list = [...uniq.values()]
+  if (filter === 'frontend') list = list.filter((a) => ownerForAlertType(a.alert_type as AlertType) === 'frontend')
+  if (filter === 'backend') list = list.filter((a) => ownerForAlertType(a.alert_type as AlertType) === 'backend')
+  if (filter === 'sql') list = list.filter((a) => ownerForAlertType(a.alert_type as AlertType) === 'sql')
+
+  const lines = list.map((a, i) => {
+    const g = getRemediation(a)
+    return `### ${i + 1}. [${a.severity}] ${alertTypeLabel(a.alert_type as AlertType)} — ${a.message}\nAffected: ${g.affectedArea}\nLikely cause: ${g.likelyCause}\nFix: ${g.recommendedFix}\nDetails: ${JSON.stringify(a.details)}`
+  })
+
+  return `SPEED — Batched performance fix (${filter})
+Tenant product: lessonpreneur.io admin app (Vite + React + Supabase).
+
+You are given ${list.length} unique issues (deduped). Fix them in priority order (critical first). For each issue, report exact files changed and verify with npm run build.
+
+${lines.join('\n\n')}
+
+After all fixes: npm run build
+
+Do not silence instrumentation — improve real performance.`
 }
 
 // ─── Remediation guidance ────────────────────────────────────────────────────

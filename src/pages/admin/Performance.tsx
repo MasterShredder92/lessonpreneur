@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, useMemo, type CSSProperties } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -13,6 +13,7 @@ import { qk } from '../../lib/queryKeys'
 import {
   fetchRecentMetrics,
   fetchSlowQuerySummaries,
+  fetchQuerySampleCount,
   buildRouteSummaries,
   buildDailyTrend,
   buildHealthSummary,
@@ -25,7 +26,12 @@ import {
   fetchResolvedAlerts,
   resolveAlert,
   evaluateThresholds,
-  createAlerts,
+  reconcilePerformanceAlerts,
+  applyPerformanceAlerts,
+  buildSiteAuditSummary,
+  generateBulkFixPrompts,
+  computeSlowQueryRatePct,
+  THRESHOLDS,
   severityColor,
   alertTypeLabel,
   scoreLcp,
@@ -35,6 +41,7 @@ import {
   generateFixPrompts,
   type PerformanceAlert,
   type FixPrompt,
+  type SiteAuditSummary,
 } from '../../lib/performance/alerts'
 import { toast } from '../../components/shared/Toast'
 
@@ -136,7 +143,9 @@ export default function Performance() {
   const { isOwner, isCompanyDirector } = usePermissions()
   const qc = useQueryClient()
   const [daysBack, setDaysBack] = useState(7)
-  const [alertTab, setAlertTab] = useState<'active' | 'resolved'>('active')
+  type AlertView = 'active' | 'highest' | 'regressed' | 'resolved' | 'auto_resolved' | 'audit'
+  const [alertView, setAlertView] = useState<AlertView>('active')
+  const [groupMode, setGroupMode] = useState<'none' | 'route' | 'type' | 'query'>('none')
 
   // Owner only — embedded in Settings, also guarded by route
   if (!isOwner) {
@@ -166,19 +175,77 @@ export default function Performance() {
     staleTime: 60 * 1000,
   })
 
-  const { data: resolvedAlerts = [] } = useQuery({
+  const { data: resolvedAlerts = [], isLoading: loadingResolved } = useQuery({
     queryKey: qk.performance.resolvedAlerts(tenantId),
     queryFn: () => fetchResolvedAlerts(tenantId!),
-    enabled: !!tenantId && alertTab === 'resolved',
+    enabled: !!tenantId && (alertView === 'resolved' || alertView === 'auto_resolved'),
     staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: querySampleTotal = 0 } = useQuery({
+    queryKey: qk.performance.querySampleCount(tenantId, daysBack),
+    queryFn: () => fetchQuerySampleCount(tenantId!, daysBack),
+    enabled: !!tenantId,
+    staleTime: 3 * 60 * 1000,
   })
 
   // ── Derived data ─────────────────────────────────────────────────────────
 
   const routeSummaries: RouteSummary[] = buildRouteSummaries(rawMetrics)
   const dailyTrend: DailySummary[] = buildDailyTrend(rawMetrics)
-  const totalQuerySamples = slowQueries.reduce((acc, q) => acc + q.occurrence_count, 0)
-  const health = buildHealthSummary(rawMetrics, slowQueries.reduce((acc, q) => acc + q.occurrence_count, 0))
+  const totalSlowOccurrences = slowQueries.reduce((acc, q) => acc + q.occurrence_count, 0)
+  const health = buildHealthSummary(rawMetrics, totalSlowOccurrences)
+  const slowRatePct = querySampleTotal > 0 ? computeSlowQueryRatePct(slowQueries, querySampleTotal) : 0
+
+  /** After DB dedupe, matches row count; pre-migration fallback counts distinct signatures. */
+  const uniqueActiveIssueCount = useMemo(
+    () => new Set(activeAlerts.map(a => a.dedupe_key ?? a.id)).size,
+    [activeAlerts],
+  )
+
+  const siteAudit = useMemo(
+    () => buildSiteAuditSummary(activeAlerts, routeSummaries, slowQueries),
+    [activeAlerts, routeSummaries, slowQueries],
+  )
+
+  const activeSortedByImpact = useMemo(() => {
+    const sev = (s: PerformanceAlert['severity']) => (s === 'critical' ? 2 : 1)
+    return [...activeAlerts].sort((a, b) => {
+      if (sev(b.severity) !== sev(a.severity)) return sev(b.severity) - sev(a.severity)
+      const wo = (b.worst_metric ?? 0) - (a.worst_metric ?? 0)
+      if (wo !== 0) return wo
+      return (b.occurrence_count ?? 0) - (a.occurrence_count ?? 0)
+    })
+  }, [activeAlerts])
+
+  const regressedAlerts = useMemo(
+    () => activeAlerts.filter(a => a.regressed_at).sort((a, b) => (b.regressed_at ?? '').localeCompare(a.regressed_at ?? '')),
+    [activeAlerts],
+  )
+
+  const autoResolvedAlerts = useMemo(
+    () => resolvedAlerts.filter(
+      a => a.resolution_reason === 'metric_recovered' || a.resolution_reason === 'stale',
+    ),
+    [resolvedAlerts],
+  )
+
+  function groupAlertsForView(list: PerformanceAlert[]) {
+    if (groupMode === 'none' || alertView === 'audit') return [{ key: '', alerts: list }]
+    const m = new Map<string, PerformanceAlert[]>()
+    for (const a of list) {
+      const d = a.details as Record<string, unknown>
+      let k: string
+      if (groupMode === 'route') k = typeof d?.route === 'string' ? d.route : '(no route)'
+      else if (groupMode === 'query') k = typeof d?.query_label === 'string' ? d.query_label : '(no query label)'
+      else k = a.alert_type
+      if (!m.has(k)) m.set(k, [])
+      m.get(k)!.push(a)
+    }
+    return [...m.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, alerts]) => ({ key, alerts: [...alerts].sort((x, y) => (y.severity === 'critical' ? 1 : 0) - (x.severity === 'critical' ? 1 : 0)) }))
+  }
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
@@ -192,14 +259,37 @@ export default function Performance() {
 
   const runAnalysisMut = useMutation({
     mutationFn: async () => {
-      const candidates = evaluateThresholds(routeSummaries, slowQueries, totalQuerySamples)
-      if (candidates.length && tenantId) {
-        await createAlerts(tenantId, candidates)
-      }
-      return candidates.length
+      if (!tenantId) return { reconciled: 0, candidates: 0 }
+      const [raw, slow, totalAll] = await Promise.all([
+        fetchRecentMetrics(tenantId, daysBack),
+        fetchSlowQuerySummaries(tenantId, daysBack),
+        fetchQuerySampleCount(tenantId, daysBack),
+      ])
+      const routes = buildRouteSummaries(raw)
+      const reconciled = await reconcilePerformanceAlerts(tenantId, routes, slow, totalAll)
+      const candidates = evaluateThresholds(routes, slow, totalAll)
+      if (candidates.length) await applyPerformanceAlerts(tenantId, candidates)
+      return { reconciled, candidates: candidates.length }
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: qk.performance.metrics(tenantId, daysBack) })
+      qc.invalidateQueries({ queryKey: qk.performance.slowQueries(tenantId, daysBack) })
+      qc.invalidateQueries({ queryKey: qk.performance.querySampleCount(tenantId, daysBack) })
       qc.invalidateQueries({ queryKey: qk.performance.activeAlerts(tenantId) })
+      qc.invalidateQueries({ queryKey: qk.performance.resolvedAlerts(tenantId) })
+      if (r.candidates > 0 || r.reconciled > 0) {
+        toast(
+          r.reconciled > 0
+            ? `Analysis: ${r.reconciled} issue(s) auto-cleared, ${r.candidates} open or updated.`
+            : `Analysis: ${r.candidates} issue(s) evaluated.`,
+          'success',
+        )
+      } else {
+        toast('Analysis complete — no threshold breaches in this window.', 'success')
+      }
+    },
+    onError: (e: Error) => {
+      toast(e.message || 'Analysis failed', 'error')
     },
   })
 
@@ -295,15 +385,15 @@ export default function Performance() {
               icon={<Database size={16} color="#FFB800" />}
               title="Slow Queries"
               value={String(health.slowQueryCount)}
-              sub={`>${500}ms threshold`}
+              sub={querySampleTotal > 0 ? `${slowRatePct}% of ${querySampleTotal} query samples (>${500}ms)` : `>${500}ms threshold`}
               subColor="#7070a0"
             />
             <HeroCard
-              icon={<AlertTriangle size={16} color={activeAlerts.length > 0 ? '#D4226A' : '#10b981'} />}
-              title="Active Alerts"
-              value={String(activeAlerts.length)}
-              sub={activeAlerts.length === 0 ? 'All clear' : `${activeAlerts.filter(a => a.severity === 'critical').length} critical`}
-              subColor={activeAlerts.length === 0 ? '#10b981' : '#D4226A'}
+              icon={<AlertTriangle size={16} color={uniqueActiveIssueCount > 0 ? '#D4226A' : '#10b981'} />}
+              title="Active Issues"
+              value={String(uniqueActiveIssueCount)}
+              sub={uniqueActiveIssueCount === 0 ? 'All clear (deduped)' : `${activeAlerts.filter(a => a.severity === 'critical').length} critical · ${regressedAlerts.length} regressed`}
+              subColor={uniqueActiveIssueCount === 0 ? '#10b981' : '#D4226A'}
             />
           </div>
 
@@ -434,43 +524,117 @@ export default function Performance() {
             )}
           </div>
 
-          {/* ── Alerts panel ── */}
+          {/* ── Alerts + audit (deduped lifecycle) ── */}
           <div style={card}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={sectionTitle}>Performance Alerts</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {(['active', 'resolved'] as const).map(tab => (
-                  <button key={tab} onClick={() => setAlertTab(tab)} style={{
-                    padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)',
-                    background: alertTab === tab ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.04)',
-                    color: alertTab === tab ? '#D4226A' : '#6060a0',
-                    fontSize: 11, fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize',
-                  }}>
-                    {tab} {tab === 'active' ? `(${activeAlerts.length})` : ''}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+              <div style={sectionTitle}>SPEED Issues &amp; Audit</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+                {([
+                  ['active', 'Active', activeAlerts.length] as const,
+                  ['highest', 'Highest impact', activeSortedByImpact.length] as const,
+                  ['regressed', 'Regressed', regressedAlerts.length] as const,
+                  ['resolved', 'Resolved', resolvedAlerts.length] as const,
+                  ['auto_resolved', 'Auto-resolved', autoResolvedAlerts.length] as const,
+                  ['audit', 'Full audit', null] as const,
+                ] as const).map(([id, label, count]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setAlertView(id)}
+                    style={{
+                      padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)',
+                      background: alertView === id ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.04)',
+                      color: alertView === id ? '#D4226A' : '#6060a0',
+                      fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    {label}{count != null ? ` (${count})` : ''}
                   </button>
                 ))}
               </div>
             </div>
 
-            {(() => {
-              const alerts = alertTab === 'active' ? activeAlerts : resolvedAlerts
-              if (alerts.length === 0) {
+            {(alertView === 'active' || alertView === 'highest' || alertView === 'regressed') && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#5050a0', textTransform: 'uppercase' }}>Group by</span>
+                {(['none', 'route', 'type', 'query'] as const).map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setGroupMode(m)}
+                    style={{
+                      padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      background: groupMode === m ? 'rgba(56,189,248,0.12)' : 'transparent',
+                      color: groupMode === m ? '#38bdf8' : '#7070a0',
+                      cursor: 'pointer', textTransform: 'capitalize',
+                    }}
+                  >
+                    {m === 'none' ? 'Flat' : m}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {alertView === 'audit' && (
+              <SiteAuditSection
+                audit={siteAudit}
+                activeAlerts={activeAlerts}
+                routeSummaries={routeSummaries}
+                slowQueries={slowQueries}
+              />
+            )}
+
+            {alertView !== 'audit' && (alertView === 'resolved' || alertView === 'auto_resolved') && loadingResolved && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><MusicLoader /></div>
+            )}
+
+            {alertView !== 'audit' && !((alertView === 'resolved' || alertView === 'auto_resolved') && loadingResolved) && (() => {
+              const list =
+                alertView === 'active' ? activeAlerts
+                  : alertView === 'highest' ? activeSortedByImpact
+                    : alertView === 'regressed' ? regressedAlerts
+                      : alertView === 'resolved' ? resolvedAlerts
+                        : autoResolvedAlerts
+              const showResolve = alertView === 'active' || alertView === 'highest'
+              if (!list.length) {
+                const emptyMsg =
+                  alertView === 'active' ? 'No active issues. Run Analysis reconciles metrics, upserts one row per signature, and auto-clears recovered routes.'
+                    : alertView === 'highest' ? 'No active issues to rank.'
+                      : alertView === 'regressed' ? 'Nothing reopened after a fix yet.'
+                        : alertView === 'resolved' ? 'No resolved issues in the last 90 days.'
+                          : 'No auto-resolved issues (metric recovery or stale cleanup) in the last 90 days.'
                 return (
                   <EmptyState
                     icon={<CheckCircle2 size={20} color="#10b981" />}
-                    message={alertTab === 'active' ? 'No active alerts. Click "Run Analysis" to evaluate current metrics.' : 'No resolved alerts in the last 30 days.'}
+                    message={emptyMsg}
                   />
                 )
               }
+              const groups = groupAlertsForView(list)
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {alerts.map(alert => (
-                    <AlertRow
-                      key={alert.id}
-                      alert={alert}
-                      onResolve={alertTab === 'active' ? () => resolveAlertMut.mutate(alert.id) : undefined}
-                      resolving={resolveAlertMut.isPending}
-                    />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {showResolve && list.length > 0 && (
+                    <BulkPromptToolbar alerts={activeAlerts} />
+                  )}
+                  {groups.map(g => (
+                    <div key={g.key || '_flat'}>
+                      {g.key ? (
+                        <div style={{ fontSize: 11, fontWeight: 800, color: '#9090c0', marginBottom: 6, letterSpacing: '0.04em' }}>
+                          {groupMode === 'route' ? 'Route' : groupMode === 'query' ? 'Query' : 'Type'}: {g.key}
+                        </div>
+                      ) : null}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {g.alerts.map(alert => (
+                          <AlertRow
+                            key={alert.id}
+                            alert={alert}
+                            onResolve={showResolve ? () => resolveAlertMut.mutate(alert.id) : undefined}
+                            resolving={resolveAlertMut.isPending}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )
@@ -512,6 +676,218 @@ function HeroCard({ icon, title, value, sub, subColor }: {
       </div>
       <div style={bigNum}>{value}</div>
       <div style={{ fontSize: 11, color: subColor, marginTop: 4, fontWeight: 600 }}>{sub}</div>
+    </div>
+  )
+}
+
+function PlainCopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text)
+          setCopied(true)
+          toast('Copied to clipboard', 'success')
+          setTimeout(() => setCopied(false), 2000)
+        } catch {
+          const ta = document.createElement('textarea')
+          ta.value = text
+          ta.style.position = 'fixed'
+          ta.style.opacity = '0'
+          document.body.appendChild(ta)
+          ta.select()
+          document.execCommand('copy')
+          document.body.removeChild(ta)
+          setCopied(true)
+          toast('Copied to clipboard', 'success')
+          setTimeout(() => setCopied(false), 2000)
+        }
+      }}
+      style={{
+        padding: '5px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+        background: copied ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
+        border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)'}`,
+        color: copied ? '#10b981' : '#C0C0E0', cursor: 'pointer',
+      }}
+    >
+      {copied ? 'Copied' : label}
+    </button>
+  )
+}
+
+function BulkPromptToolbar({ alerts }: { alerts: PerformanceAlert[] }) {
+  if (!alerts.length) return null
+  return (
+    <div style={{
+      padding: '10px 12px', borderRadius: 8,
+      background: 'rgba(2,2,9,0.45)', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 8,
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Batched Claude prompts (deduped keys)
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <PlainCopyButton text={generateBulkFixPrompts(alerts, 'all')} label="All" />
+        <PlainCopyButton text={generateBulkFixPrompts(alerts, 'frontend')} label="Frontend" />
+        <PlainCopyButton text={generateBulkFixPrompts(alerts, 'backend')} label="Backend" />
+        <PlainCopyButton text={generateBulkFixPrompts(alerts, 'sql')} label="SQL" />
+      </div>
+    </div>
+  )
+}
+
+function pickScheduleRouteSummary(routeSummaries: RouteSummary[]): RouteSummary | undefined {
+  const exact = routeSummaries.find(r => r.page_route === '/admin/schedule')
+  if (exact) return exact
+  const subs = routeSummaries.filter(r => r.page_route.startsWith('/admin/schedule'))
+  if (!subs.length) return undefined
+  return subs.reduce((best, r) => {
+    const s = (r.avg_inp_ms ?? 0) + (r.avg_cls ?? 0) * 4000
+    const bs = (best.avg_inp_ms ?? 0) + (best.avg_cls ?? 0) * 4000
+    return s >= bs ? r : best
+  })
+}
+
+function SiteAuditSection({
+  audit,
+  activeAlerts,
+  routeSummaries,
+  slowQueries,
+}: {
+  audit: SiteAuditSummary
+  activeAlerts: PerformanceAlert[]
+  routeSummaries: RouteSummary[]
+  slowQueries: SlowQuerySummary[]
+}) {
+  const keys = useMemo(() => new Set(activeAlerts.map(a => a.dedupe_key).filter(Boolean) as string[]), [activeAlerts])
+  const leads = routeSummaries.find(r => r.page_route === '/admin/leads')
+  const schedule = pickScheduleRouteSummary(routeSummaries)
+
+  const spotRows = useMemo(() => {
+    const hasScheduleInp = [...keys].some(k => k.startsWith('slow_inp|route:/admin/schedule'))
+    const hasScheduleCls = [...keys].some(k => k.startsWith('high_cls|route:/admin/schedule'))
+    const q = (label: string) => slowQueries.find(s => s.query_label === label)
+    const interpret = (hasAlert: boolean, metricBad: boolean | undefined) => {
+      if (metricBad == null) return 'Not enough data in window'
+      if (metricBad && hasAlert) return 'Still failing — matches active issue'
+      if (metricBad && !hasAlert) return 'Bad in window, no active row — run Analysis'
+      if (!metricBad && hasAlert) return 'Metric recovered; Run Analysis to auto-clear'
+      return 'Healthy in window'
+    }
+
+    const leadsInpBad = !!(leads && leads.sample_count >= 3 && leads.avg_inp_ms != null && leads.avg_inp_ms >= THRESHOLDS.inp.warning)
+    const leadsClsBad = !!(leads && leads.sample_count >= 3 && leads.avg_cls != null && leads.avg_cls >= THRESHOLDS.cls.warning)
+    const schInpBad = !!(schedule && schedule.sample_count >= 3 && schedule.avg_inp_ms != null && schedule.avg_inp_ms >= THRESHOLDS.inp.warning)
+    const schClsBad = !!(schedule && schedule.sample_count >= 3 && schedule.avg_cls != null && schedule.avg_cls >= THRESHOLDS.cls.warning)
+
+    return [
+      { name: 'INP /admin/leads', has: keys.has('slow_inp|route:/admin/leads'), metric: leads ? `${leads.avg_inp_ms ?? '—'}ms (n=${leads.sample_count})` : '—', note: interpret(keys.has('slow_inp|route:/admin/leads'), leadsInpBad) },
+      { name: 'CLS /admin/leads', has: keys.has('high_cls|route:/admin/leads'), metric: leads?.avg_cls != null ? leads.avg_cls.toFixed(4) : '—', note: interpret(keys.has('high_cls|route:/admin/leads'), leadsClsBad) },
+      { name: `INP schedule (${schedule?.page_route ?? '/admin/schedule'})`, has: hasScheduleInp, metric: schedule ? `${schedule.avg_inp_ms ?? '—'}ms (n=${schedule.sample_count})` : '—', note: interpret(hasScheduleInp, schInpBad) },
+      { name: `CLS schedule (${schedule?.page_route ?? '—'})`, has: hasScheduleCls, metric: schedule?.avg_cls != null ? schedule.avg_cls.toFixed(4) : '—', note: interpret(hasScheduleCls, schClsBad) },
+      { name: 'Slow query dashboard.data', has: keys.has('slow_query|label:dashboard.data'), metric: q('dashboard.data') ? `${q('dashboard.data')!.avg_ms}ms avg` : 'not in slow list', note: interpret(keys.has('slow_query|label:dashboard.data'), (q('dashboard.data')?.avg_ms ?? 0) >= THRESHOLDS.queryMs.warning) },
+      { name: 'Slow query teachers.list', has: keys.has('slow_query|label:teachers.list'), metric: q('teachers.list') ? `${q('teachers.list')!.avg_ms}ms avg` : 'not in slow list', note: interpret(keys.has('slow_query|label:teachers.list'), (q('teachers.list')?.avg_ms ?? 0) >= THRESHOLDS.queryMs.warning) },
+      { name: 'Slow query schedule.grid', has: keys.has('slow_query|label:schedule.grid'), metric: q('schedule.grid') ? `${q('schedule.grid')!.avg_ms}ms avg` : 'not in slow list', note: interpret(keys.has('slow_query|label:schedule.grid'), (q('schedule.grid')?.avg_ms ?? 0) >= THRESHOLDS.queryMs.warning) },
+    ]
+  }, [keys, leads, schedule, slowQueries])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', marginBottom: 4 }}>Unique active issues</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#E0E0F4' }}>{audit.uniqueActiveIssues}</div>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', marginBottom: 4 }}>By severity</div>
+          <div style={{ fontSize: 12, color: '#C0C0E0' }}>Critical {audit.bySeverity.critical} · Warning {audit.bySeverity.warning}</div>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', marginBottom: 4 }}>Worst pages (composite)</div>
+          <div style={{ fontSize: 11, color: '#9090c0', lineHeight: 1.5 }}>
+            {audit.worstRoutes.slice(0, 5).map(w => <div key={w.route}>{w.route}</div>)}
+            {!audit.worstRoutes.length && '—'}
+          </div>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', marginBottom: 4 }}>Worst queries</div>
+          <div style={{ fontSize: 11, color: '#9090c0', lineHeight: 1.5 }}>
+            {audit.worstQueries.slice(0, 5).map(w => <div key={w.label}>{w.label} ({w.avg_ms}ms)</div>)}
+            {!audit.worstQueries.length && '—'}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: '#C0C0E0', marginBottom: 8 }}>Issues by type</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {Object.entries(audit.byType).map(([t, n]) => (
+            <span key={t} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: '#9090c0' }}>
+              {t}: <strong style={{ color: '#E0E0F4' }}>{n}</strong>
+            </span>
+          ))}
+          {!Object.keys(audit.byType).length && <span style={{ fontSize: 11, color: '#5050a0' }}>No active types</span>}
+        </div>
+      </div>
+
+      <BulkPromptToolbar alerts={activeAlerts} />
+
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: '#C0C0E0', marginBottom: 8 }}>Top 10 prioritized fixes</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr>
+                {['Type', 'Location', 'Severity', 'Owner', 'Difficulty', 'Impact', 'Likely cause', 'Fix', 'Gain'].map(h => (
+                  <th key={h} style={thStyle}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {audit.topFixes.map(fix => (
+                <tr key={fix.dedupe_key}>
+                  <td style={tdStyle}>{alertTypeLabel(fix.alert_type)}</td>
+                  <td style={{ ...tdStyle, fontFamily: 'monospace', maxWidth: 200 }}>{fix.route ?? fix.query_label ?? '—'}</td>
+                  <td style={tdStyle}>{fix.severity}</td>
+                  <td style={tdStyle}>{fix.owner}</td>
+                  <td style={tdStyle}>{fix.difficulty}</td>
+                  <td style={tdStyle}>{fix.impact}</td>
+                  <td style={{ ...tdStyle, maxWidth: 220, whiteSpace: 'pre-wrap' }}>{fix.likelyCause}</td>
+                  <td style={{ ...tdStyle, maxWidth: 220, whiteSpace: 'pre-wrap' }}>{fix.recommendedFix}</td>
+                  <td style={tdStyle}>{fix.expectedGain}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!audit.topFixes.length && <EmptyState message="No active issues in this audit snapshot." />}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: '#FFB800', marginBottom: 8 }}>Repeated-issue spot check (live window vs alerts)</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr>
+                {['Check', 'Active alert?', 'Live metric', 'Interpretation'].map(h => (
+                  <th key={h} style={thStyle}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {spotRows.map(row => (
+                <tr key={row.name}>
+                  <td style={{ ...tdStyle, color: '#E0E0F4', fontWeight: 600 }}>{row.name}</td>
+                  <td style={tdStyle}>{row.has ? 'Yes' : 'No'}</td>
+                  <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{row.metric}</td>
+                  <td style={{ ...tdStyle, color: '#9090c0' }}>{row.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
@@ -599,9 +975,42 @@ function AlertRow({ alert, onResolve, resolving }: {
             </span>
           </div>
           <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.5 }}>{alert.message}</div>
-          <div style={{ fontSize: 10, color: '#5050a0', marginTop: 2 }}>
-            {new Date(alert.created_at).toLocaleString()}
-            {alert.resolved && alert.resolved_at && ` · Resolved ${new Date(alert.resolved_at).toLocaleString()}`}
+          {(alert.occurrence_count != null && alert.occurrence_count > 0) || alert.first_seen_at || alert.last_seen_at ? (
+            <div style={{ fontSize: 10, color: '#7070a0', marginTop: 4, lineHeight: 1.5 }}>
+              {alert.occurrence_count != null && alert.occurrence_count > 0 && (
+                <span>Detections ×{alert.occurrence_count}</span>
+              )}
+              {alert.first_seen_at && (
+                <span>{alert.occurrence_count != null && alert.occurrence_count > 0 ? ' · ' : ''}First {new Date(alert.first_seen_at).toLocaleString()}</span>
+              )}
+              {alert.last_seen_at && (
+                <span> · Last {new Date(alert.last_seen_at).toLocaleString()}</span>
+              )}
+              {(alert.worst_metric != null || alert.latest_metric != null) && (
+                <span>
+                  {' · '}
+                  Worst {alert.worst_metric ?? '—'}
+                  {alert.alert_type === 'high_cls' ? '' : alert.alert_type === 'high_slow_query_rate' ? '%' : 'ms'}
+                  {' → Latest '}{alert.latest_metric ?? '—'}
+                  {alert.alert_type === 'high_cls' ? '' : alert.alert_type === 'high_slow_query_rate' ? '%' : 'ms'}
+                </span>
+              )}
+            </div>
+          ) : null}
+          <div style={{ fontSize: 10, color: '#5050a0', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            <span>Created {new Date(alert.created_at).toLocaleString()}</span>
+            {alert.resolved && alert.resolved_at && <span>· Resolved {new Date(alert.resolved_at).toLocaleString()}</span>}
+            {alert.resolution_reason && alert.resolved && (
+              <span style={{ color: '#6060a0' }}>· {alert.resolution_reason.replace(/_/g, ' ')}</span>
+            )}
+            {alert.regressed_at && !alert.resolved && (
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,184,0,0.15)', color: '#FFB800' }}>
+                Regressed {new Date(alert.regressed_at).toLocaleDateString()}
+              </span>
+            )}
+            {alert.dedupe_key && (
+              <span style={{ fontFamily: 'monospace', color: '#404060', fontSize: 9 }} title="Dedupe key">{alert.dedupe_key}</span>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 10, flexShrink: 0 }}>

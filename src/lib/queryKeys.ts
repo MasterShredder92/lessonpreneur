@@ -506,6 +506,8 @@ export const qk = {
       ['performance', 'metrics', tenantId, daysBack] as const,
     slowQueries: (tenantId: string | null, daysBack: number) =>
       ['performance', 'slow-queries', tenantId, daysBack] as const,
+    querySampleCount: (tenantId: string | null, daysBack: number) =>
+      ['performance', 'query-samples', tenantId, daysBack] as const,
     activeAlerts: (tenantId: string | null) =>
       ['performance', 'alerts', 'active', tenantId] as const,
     resolvedAlerts: (tenantId: string | null) =>

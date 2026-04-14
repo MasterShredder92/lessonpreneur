@@ -281,6 +281,21 @@ export async function fetchSlowQuerySummaries(
     .slice(0, 50)
 }
 
+/** Count all query_performance rows in window (denominator for slow-query rate). */
+export async function fetchQuerySampleCount(tenantId: string, daysBack = 7): Promise<number> {
+  const since = new Date()
+  since.setDate(since.getDate() - daysBack)
+
+  const { count, error } = await supabase
+    .from('query_performance')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .gte('created_at', since.toISOString())
+
+  if (error) throw error
+  return count ?? 0
+}
+
 /** Overall health summary stats for the hero cards. */
 export interface HealthSummary {
   totalSamples: number

@@ -17,8 +17,36 @@ function requestUrlString(input: RequestInfo | URL): string {
   return input.href
 }
 
+/**
+ * SPEED: `performance_alerts` rows must be created via `speed_upsert_performance_alerts` (dedupe + lifecycle).
+ * Direct PostgREST POST to `/rest/v1/performance_alerts` omits NOT NULL columns and caused 23502 in production.
+ */
+function blocksDirectPerformanceAlertsInsert(input: RequestInfo | URL, init?: RequestInit): boolean {
+  const method = (
+    init?.method
+    ?? (typeof Request !== 'undefined' && input instanceof Request ? input.method : undefined)
+    ?? 'GET'
+  ).toUpperCase()
+  if (method !== 'POST') return false
+  const url = requestUrlString(input)
+  if (url.includes('/rpc/')) return false
+  try {
+    const pathname = new URL(url, supabaseUrl).pathname
+    return /\/rest\/v1\/performance_alerts\/?(\?|$)/.test(pathname)
+  } catch {
+    return /\/rest\/v1\/performance_alerts\/?(\?|$)/.test(url)
+  }
+}
+
 // Global fetch wrapper with timeout — prevents hung mutations; Edge Functions get a longer budget.
 const fetchWithTimeout: typeof fetch = (input, init) => {
+  if (blocksDirectPerformanceAlertsInsert(input, init)) {
+    return Promise.reject(
+      new Error(
+        'Direct insert to performance_alerts is disabled. Use applyPerformanceAlerts() → speed_upsert_performance_alerts (SPEED → Run Analysis).',
+      ),
+    )
+  }
   const controller = new AbortController()
   const existingSignal = init?.signal
   if (existingSignal) {
