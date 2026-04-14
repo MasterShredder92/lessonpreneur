@@ -950,7 +950,8 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
       {firstDayResult && <div style={{ padding: '8px 14px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#3B82F6' }}>{firstDayResult}</div>}
       {showMineOnly && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6, paddingLeft: 4 }}>Showing your sessions only</div>}
 
-      {/* Schedule Intelligence — utilization bar (desktop only) */}
+      {/* Schedule Intelligence — utilization bar (desktop only); reserve height to avoid CLS */}
+      <div style={{ minHeight: !isMobile ? 30 : 0 }}>
       {!isMobile && scheduleIntel && scheduleIntel.utilization.length > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {scheduleIntel.utilization.map(loc => (
@@ -973,6 +974,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
           ))}
         </div>
       )}
+      </div>
 
       {/* Schedule Grid — Premium Column Layout */}
       {isMobile ? (
@@ -1035,7 +1037,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
           isStudioDirector={isStudioDirector}
         />
       ) : isLoading ? (
-        <div className="loading-screen" style={{ height: 400 }}><MusicLoader /></div>
+        <div className="loading-screen" style={{ minHeight: 'calc(100vh - 220px)' }}><MusicLoader /></div>
       ) : isClosed && timeSlots.length === 0 ? (
         <div style={{ padding: '48px 24px', textAlign: 'center' }}>
           <Calendar size={32} style={{ color: '#606088', marginBottom: 10 }} />

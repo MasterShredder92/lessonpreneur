@@ -368,15 +368,6 @@ export default function Leads() {
     return <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Access restricted.</div>
   }
 
-  if (isLoading) {
-    return (
-      <div className="page" style={{ maxWidth: 'none' }}>
-        <div className="page-header"><h1>Leads</h1></div>
-        <div className="loading-screen" style={{ height: 300 }}><MusicLoader /></div>
-      </div>
-    )
-  }
-
   return (
     <IssueContextProvider page="New Members">
     <div className="page" style={{ maxWidth: 'none' }}>
@@ -506,6 +497,9 @@ export default function Leads() {
       )}
 
       {/* LIST VIEW (default) — premium lead cards with family grouping */}
+      {isLoading ? (
+        <div className="loading-screen" style={{ minHeight: 'calc(100vh - 280px)' }}><MusicLoader /></div>
+      ) : (
       <div className="lead-cards" data-guide-id="leads-list">
           {renderItems.map((item, itemIdx) => {
             // Location group header (owner/company_director grouped view)
@@ -695,6 +689,7 @@ export default function Leads() {
           )}
 
       </div>
+      )}
 
       {/* Lead Detail Modal — tabbed popup */}
       {detailLead && (

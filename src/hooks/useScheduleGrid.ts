@@ -59,152 +59,61 @@ export function useScheduleGrid(date: string, locationId: string | null) {
     enabled: !!date && !!tenantId,
     queryFn: async () => {
       const _t0 = performance.now()
-      let query = supabase
-        .from('schedule_blocks')
-        .select(`
-          id, tenant_id, location_id, teacher_id, student_id,
-          block_date, start_time, end_time, status, block_type,
-          is_recurring, checked_in, teacher_tally, fifth_week, room, room_id, notes,
-          original_teacher_id, original_teacher_name,
-          is_virtual, meet_link, meet_event_id,
-          callout_reason, is_family_callout, callout_id, is_makeup_session, makeup_session_id
-        `)
-        .eq('tenant_id', tenantId!)
-        .eq('block_date', date)
-        .order('start_time')
 
-      if (locationId) {
-        query = query.eq('location_id', locationId)
-      }
-
-      const { data: blocks, error } = await query
+      const { data, error } = await supabase.rpc('get_schedule_grid', {
+        p_tenant_id: tenantId!,
+        p_block_date: date,
+        p_location_id: locationId ?? null,
+      })
       if (error) throw error
 
-      const teacherIds = [...new Set(blocks.map((b: any) => b.teacher_id as string))]
-      if (teacherIds.length === 0) return { blocks: [], teachers: [], timeSlots: [] }
+      const d = data as any
+      const blocks: GridBlock[] = (d.blocks ?? []).map((b: any) => ({
+        block_id: b.block_id,
+        tenant_id: b.tenant_id,
+        location_id: b.location_id,
+        location_name: b.location_name ?? '',
+        teacher_id: b.teacher_id,
+        teacher_name: b.teacher_name ?? 'Unknown',
+        student_id: b.student_id ?? null,
+        student_name: b.student_name ?? null,
+        instrument: b.instrument ?? null,
+        block_date: b.block_date,
+        start_time: b.start_time,
+        end_time: b.end_time,
+        status: b.status,
+        block_type: b.block_type ?? 'open_time',
+        is_recurring: b.is_recurring ?? false,
+        checked_in: b.checked_in ?? false,
+        teacher_tally: b.teacher_tally ?? false,
+        fifth_week: b.fifth_week ?? false,
+        room: b.room ?? null,
+        room_id: b.room_id ?? null,
+        notes: b.notes ?? null,
+        original_teacher_id: b.original_teacher_id ?? null,
+        original_teacher_name: b.original_teacher_name ?? null,
+        has_session_log: b.has_session_log ?? false,
+        session_log: b.session_log ?? null,
+        is_virtual: b.is_virtual ?? false,
+        meet_link: b.meet_link ?? null,
+        meet_event_id: b.meet_event_id ?? null,
+        callout_reason: b.callout_reason ?? null,
+        is_family_callout: b.is_family_callout ?? false,
+        callout_id: b.callout_id ?? null,
+        is_makeup_session: b.is_makeup_session ?? false,
+        makeup_session_id: b.makeup_session_id ?? null,
+      }))
 
-      // Pre-compute IDs before firing parallel sub-queries
-      const studentIds = [...new Set(blocks.filter((b: any) => b.student_id).map((b: any) => b.student_id as string))]
-      const roomIds = [...new Set(blocks.filter((b: any) => b.room_id).map((b: any) => b.room_id as string))]
-      const blockIds = blocks.map((b: any) => b.id as string)
-      const locId = locationId || blocks[0]?.location_id
+      const teachers = (d.teachers ?? []).map((t: any) => ({
+        id: t.id,
+        name: t.name ?? 'Unknown',
+        photo_url: t.photo_url ?? null,
+      }))
 
-      // All 5 sub-queries in parallel — eliminates 5 sequential round trips
-      const [teachersRes, studentsRes, roomsRes, locationRes, logsRes] = await Promise.all([
-        supabase
-          .from('teachers')
-          .select('id, first_name, last_name, photo_url, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
-          .eq('tenant_id', tenantId!)
-          .in('id', teacherIds),
+      const timeSlots: string[] = d.timeSlots ?? []
 
-        studentIds.length > 0
-          ? supabase
-              .from('students')
-              .select('id, first_name, last_name, instrument')
-              .eq('tenant_id', tenantId!)
-              .in('id', studentIds)
-          : Promise.resolve({ data: [] as any[] }),
-
-        roomIds.length > 0
-          ? supabase.from('rooms').select('id, name').eq('tenant_id', tenantId!).in('id', roomIds)
-          : Promise.resolve({ data: [] as any[] }),
-
-        locId
-          ? supabase.from('locations').select('name').eq('tenant_id', tenantId!).eq('id', locId).single()
-          : Promise.resolve({ data: null }),
-
-        supabase
-          .from('session_log')
-          .select('id, schedule_block_id, worked_on, engagement_level, progress_indicator, teacher_note, parent_update_status')
-          .eq('tenant_id', tenantId!)
-          .in('schedule_block_id', blockIds),
-      ])
-
-      const teacherMap = new Map<string, string>()
-      const teacherPhotoMap = new Map<string, string | null>()
-      teachersRes.data?.forEach((t: any) => {
-        const name = t.first_name ? `${t.first_name} ${t.last_name ?? ''}`.trim() : `${t.profile?.first_name ?? ''} ${t.profile?.last_name ?? ''}`.trim()
-        teacherMap.set(t.id, name || 'Unknown')
-        teacherPhotoMap.set(t.id, t.photo_url ?? null)
-      })
-
-      const studentMap = new Map<string, { name: string; instrument: string }>()
-      studentsRes.data?.forEach((s: any) => {
-        studentMap.set(s.id, { name: `${s.first_name} ${s.last_name}`, instrument: s.instrument })
-      })
-
-      const roomMap = new Map<string, string>()
-      roomsRes.data?.forEach((r: any) => roomMap.set(r.id, r.name))
-
-      const locationName = (locationRes.data as any)?.name ?? ''
-
-      const sessionLogMap = new Map<string, SessionLogSummary>()
-      logsRes.data?.forEach((l: any) => {
-        sessionLogMap.set(l.schedule_block_id, {
-          id: l.id,
-          worked_on: l.worked_on ?? [],
-          engagement_level: l.engagement_level,
-          progress_indicator: l.progress_indicator,
-          teacher_note: l.teacher_note,
-          parent_update_status: l.parent_update_status,
-        })
-      })
-
-      // Build enriched blocks
-      const enrichedBlocks: GridBlock[] = blocks.map((b: any) => {
-        const student = b.student_id ? studentMap.get(b.student_id) : null
-        const log = sessionLogMap.get(b.id) ?? null
-        return {
-          block_id: b.id,
-          tenant_id: b.tenant_id,
-          location_id: b.location_id,
-          location_name: locationName,
-          teacher_id: b.teacher_id,
-          teacher_name: teacherMap.get(b.teacher_id) ?? 'Unknown',
-          student_id: b.student_id,
-          student_name: student?.name ?? null,
-          instrument: student?.instrument ?? null,
-          block_date: b.block_date,
-          start_time: b.start_time,
-          end_time: b.end_time,
-          status: b.status,
-          block_type: b.block_type ?? 'open_time',
-          is_recurring: b.is_recurring,
-          checked_in: b.checked_in ?? false,
-          teacher_tally: b.teacher_tally ?? false,
-          fifth_week: b.fifth_week ?? false,
-          room: b.room_id ? roomMap.get(b.room_id) ?? b.room : b.room ?? null,
-          room_id: b.room_id ?? null,
-          notes: b.notes,
-          original_teacher_id: b.original_teacher_id ?? null,
-          original_teacher_name: b.original_teacher_name ?? null,
-          has_session_log: !!log,
-          session_log: log,
-          is_virtual: b.is_virtual ?? false,
-          meet_link: b.meet_link ?? null,
-          meet_event_id: b.meet_event_id ?? null,
-          callout_reason: b.callout_reason ?? null,
-          is_family_callout: b.is_family_callout ?? false,
-          callout_id: b.callout_id ?? null,
-          is_makeup_session: b.is_makeup_session ?? false,
-          makeup_session_id: b.makeup_session_id ?? null,
-        }
-      })
-
-      // Derive unique teachers (columns) — alphabetical by first name
-      const teacherOrder = [...new Set(enrichedBlocks.map((b) => b.teacher_id))]
-      const teacherList = teacherOrder.map((tid) => ({
-        id: tid,
-        name: teacherMap.get(tid) ?? 'Unknown',
-        photo_url: teacherPhotoMap.get(tid) ?? null,
-      })).sort((a, b) => a.name.localeCompare(b.name))
-
-      // Derive unique time slots (rows)
-      const timeSlotSet = new Set(enrichedBlocks.map((b) => b.start_time))
-      const timeSlots = [...timeSlotSet].sort()
-
-      logQueryPerf(tenantId!, 'schedule.grid', performance.now() - _t0, { tableName: 'schedule_blocks', rowCount: enrichedBlocks.length })
-      return { blocks: enrichedBlocks, teachers: teacherList, timeSlots }
+      logQueryPerf(tenantId!, 'schedule.grid', performance.now() - _t0, { tableName: 'schedule_blocks', rowCount: blocks.length })
+      return { blocks, teachers, timeSlots }
     },
   })
 }
