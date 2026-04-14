@@ -75,6 +75,7 @@ export const qk = {
   teachers: {
     all: ['teachers'] as const,
     list: (tenantId: string | null, compensation?: boolean) => ['teachers', tenantId, compensation] as const,
+    overview: (tenantId: string | null) => ['teachers-overview', tenantId] as const,
     detail: (id: string) => ['teachers', 'detail', id] as const,
     record: (id: string) => ['teacher_record', id] as const,
     atLocation: (locationId: string) => ['teachers-at-location', locationId] as const,
@@ -391,6 +392,14 @@ export const qk = {
     detail: (id: string) => ['ziro-skills', 'detail', id] as const,
     proposals: (tenantId: string | null) => ['ziro-skill-proposals', tenantId] as const,
     assignments: (skillId: string) => ['ziro-skill-assignments', skillId] as const,
+  },
+
+  // ── Ziro Task Runs ──────────────────────────────
+  taskRuns: {
+    all: ['ziro-task-runs'] as const,
+    list: (tenantId: string | null) => ['ziro-task-runs', tenantId] as const,
+    detail: (id: string) => ['ziro-task-runs', 'detail', id] as const,
+    agents: (taskRunId: string) => ['ziro-task-agents', taskRunId] as const,
   },
 
   // ── Moderation ─────────────────────────────────
