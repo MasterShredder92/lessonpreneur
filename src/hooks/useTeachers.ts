@@ -17,6 +17,59 @@ function stripCompensation(teacher: any): any {
   return stripped
 }
 
+/** Narrow select for list consumers — same shape as prior `*`, without unknown future wide columns. */
+const TEACHERS_LIST_SELECT = `
+  id,
+  tenant_id,
+  profile_id,
+  first_name,
+  last_name,
+  email,
+  phone,
+  photo_url,
+  is_active,
+  status,
+  instruments,
+  bio,
+  rate_per_block,
+  pay_rate_per_half_hour,
+  hire_date,
+  termination_date,
+  teacher_role,
+  is_sub_available,
+  sub_available,
+  needs_1099,
+  ai_context,
+  personality,
+  lesson_style,
+  best_age_range,
+  square_team_member_id,
+  primary_instruments,
+  secondary_instruments,
+  style_genre_strengths,
+  preferred_age_range,
+  acceptable_age_range,
+  skill_levels_by_instrument,
+  teaching_strengths,
+  musical_strengths_background,
+  best_first_lesson_fit,
+  best_match_students,
+  use_caution_internal_placement_notes,
+  meet_and_greet_fit,
+  substitute_coverage,
+  customer_facing_match_summary,
+  internal_matching_tags,
+  director_notes,
+  w9_status,
+  w9_completed_at,
+  contract_status,
+  contract_signed_at,
+  contract_pdf_url,
+  created_at,
+  updated_at,
+  profile:profiles!teachers_profile_id_fkey(id, first_name, last_name, email, phone, is_active)
+`
+
 export function useTeachers() {
   const { canViewTeacherCompensation, canViewTeacherDocuments } = usePermissions()
   const { tenantId } = useAuthContext()
@@ -40,13 +93,11 @@ export function useTeachers() {
       const [teachersRes, locationsRes, studentsRes, blocksRes, teacherLocsRes] = await Promise.all([
         supabase
           .from('teachers')
-          .select(`
-            *,
-            profile:profiles!teachers_profile_id_fkey(id, first_name, last_name, email, phone, is_active)
-          `)
+          .select(TEACHERS_LIST_SELECT)
           .eq('tenant_id', tenantId!)
           .order('first_name')
-          .order('last_name'),
+          .order('last_name')
+          .limit(500),
 
         supabase
           .from('locations')

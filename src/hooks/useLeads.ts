@@ -53,32 +53,80 @@ export interface LeadRow {
   needs_follow_up?: boolean
 }
 
-export function useLeads(filters?: { locationId?: string; instrument?: string }) {
+/** Explicit columns — avoids wide rows + TOAST payload bloat from `select('*')`. */
+const LEADS_LIST_COLUMNS = [
+  'id',
+  'tenant_id',
+  'location_id',
+  'first_name',
+  'last_name',
+  'parent_name',
+  'email',
+  'phone',
+  'instrument',
+  'age',
+  'goals',
+  'preferred_days',
+  'preferred_times',
+  'stage',
+  'source',
+  'how_heard',
+  'is_military',
+  'assigned_teacher_id',
+  'matched_block_id',
+  'converted_student_id',
+  'follow_up_count',
+  'last_contact_at',
+  'next_follow_up_at',
+  'notes',
+  'lost_category',
+  'lost_reason',
+  'tags',
+  'next_action',
+  'age_range',
+  'experience',
+  'has_instrument',
+  'preferred_locations',
+  'personality_notes',
+  'student_name',
+  'family_id',
+  'compatibility_score',
+  'matched_teacher_id',
+  'referral_source',
+  'secondary_location_ids',
+  'intake_submission_id',
+  'created_at',
+  'updated_at',
+].join(',')
+
+export function useLeads(
+  filters?: { locationId?: string; instrument?: string },
+  options?: { enabled?: boolean },
+) {
   const { tenantId } = useAuthContext()
   return useQuery({
     queryKey: qk.leads.list(tenantId, filters),
-    enabled: !!tenantId,
+    enabled: !!tenantId && (options?.enabled !== false),
     queryFn: async () => {
       const _t0 = performance.now()
-      let query = supabase
+      let leadsQuery = supabase
         .from('leads')
-        .select('*')
+        .select(LEADS_LIST_COLUMNS)
         .eq('tenant_id', tenantId!)
         .order('created_at', { ascending: false })
         .limit(500)
 
-      if (filters?.locationId) query = query.eq('location_id', filters.locationId)
-      if (filters?.instrument) query = query.eq('instrument', filters.instrument)
+      if (filters?.locationId) leadsQuery = leadsQuery.eq('location_id', filters.locationId)
+      if (filters?.instrument) leadsQuery = leadsQuery.eq('instrument', filters.instrument)
 
-      const { data, error } = await query
+      const [{ data, error }, { data: allLocs }] = await Promise.all([
+        leadsQuery,
+        supabase.from('locations').select('id, name').eq('tenant_id', tenantId!),
+      ])
       if (error) throw error
 
-      const locIds = [...new Set(data.filter((l: any) => l.location_id).map((l: any) => l.location_id))]
       const locMap = new Map<string, string>()
-      if (locIds.length > 0) {
-        const { data: locs } = await supabase.from('locations').select('id, name').eq('tenant_id', tenantId!).in('id', locIds)
-        locs?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
-      }
+      allLocs?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
 
       const now = Date.now()
       const result = data.map((l: any) => {

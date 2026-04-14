@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthContext } from '../app/AuthContext'
 import { ROLE_DEFAULT_ROUTES } from '../lib/constants'
@@ -6,8 +6,8 @@ import { ZW } from '../config/zwBrand'
 
 export default function Login() {
   const { user, role, signIn, isLoading } = useAuthContext()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const emailRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -17,6 +17,8 @@ export default function Login() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    const email = emailRef.current?.value?.trim() ?? ''
+    const password = passwordRef.current?.value ?? ''
     setError(null)
     setSubmitting(true)
     try {
@@ -43,26 +45,28 @@ export default function Login() {
           <div className="form-field">
             <label htmlFor="email">Email</label>
             <input
+              ref={emailRef}
               id="email"
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              name="email"
               required
               autoComplete="email"
               placeholder="you@example.com"
+              defaultValue=""
             />
           </div>
 
           <div className="form-field">
             <label htmlFor="password">Password</label>
             <input
+              ref={passwordRef}
               id="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              name="password"
               required
               autoComplete="current-password"
               placeholder="Enter your password"
+              defaultValue=""
             />
           </div>
 

@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Legend,
 } from 'recharts'
-import { Activity, AlertTriangle, CheckCircle2, Zap, Database, Clock, TrendingUp, RefreshCw, ClipboardCopy } from 'lucide-react'
+import { Activity, AlertTriangle, CheckCircle2, Zap, Database, Clock, TrendingUp, RefreshCw, ClipboardCopy, Sparkles, ExternalLink } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import MusicLoader from '../../components/shared/MusicLoader'
@@ -43,6 +43,12 @@ import {
   type FixPrompt,
   type SiteAuditSummary,
 } from '../../lib/performance/alerts'
+import {
+  copyTextToClipboard,
+  runPhase1CursorHandoff,
+  selectPrimaryHandoffPrompt,
+  CURSOR_HANDOFF_HELP_URL,
+} from '../../lib/performance/cursorHandoff'
 import { toast } from '../../components/shared/Toast'
 
 // ─── Style helpers ───────────────────────────────────────────────────────────
@@ -892,6 +898,115 @@ function SiteAuditSection({
   )
 }
 
+function CursorHandoffBanner({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div style={{
+      margin: '0 14px 10px',
+      padding: '12px 14px',
+      borderRadius: 8,
+      background: 'rgba(56,189,248,0.08)',
+      border: '1px solid rgba(56,189,248,0.22)',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: '#38bdf8', marginBottom: 6, letterSpacing: '0.03em' }}>
+        Prompt copied — hand off to Cursor
+      </div>
+      <p style={{ margin: 0, fontSize: 11, color: '#B0B0D0', lineHeight: 1.55 }}>
+        The fix prompt is on your clipboard. Open Cursor, focus <strong style={{ color: '#E0E0F4' }}>Chat</strong> or{' '}
+        <strong style={{ color: '#E0E0F4' }}>Composer</strong>, then paste (Cmd+V / Ctrl+V). Nothing was auto-opened locally.
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, alignItems: 'center' }}>
+        <a
+          href={CURSOR_HANDOFF_HELP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontSize: 11, fontWeight: 600, color: '#38bdf8', textDecoration: 'none',
+            padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(56,189,248,0.35)', background: 'rgba(56,189,248,0.06)',
+          }}
+        >
+          <ExternalLink size={12} /> Cursor documentation
+        </a>
+        <button
+          type="button"
+          onClick={onDismiss}
+          style={{
+            padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+            border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#9090c0', cursor: 'pointer',
+          }}
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function FixInCursorButton({ alert, onHandoffShown }: { alert: PerformanceAlert; onHandoffShown: () => void }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async (e) => {
+        e.stopPropagation()
+        setBusy(true)
+        try {
+          await runPhase1CursorHandoff(alert)
+          toast('SPEED fix prompt copied. Switch to Cursor and paste.', 'success')
+          onHandoffShown()
+        } catch (err) {
+          toast((err as Error).message || 'Could not copy prompt', 'error')
+        } finally {
+          setBusy(false)
+        }
+      }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '5px 12px', borderRadius: 6,
+        background: busy ? 'rgba(212,34,106,0.08)' : 'rgba(212,34,106,0.2)',
+        border: '1px solid rgba(212,34,106,0.45)',
+        color: '#FFB8D8', fontSize: 11, fontWeight: 800, cursor: busy ? 'wait' : 'pointer',
+        opacity: busy ? 0.7 : 1,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <Sparkles size={12} />
+      {busy ? 'Copying…' : 'Fix in Cursor'}
+    </button>
+  )
+}
+
+function CopyPromptFallbackButton({ alert }: { alert: PerformanceAlert }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation()
+        try {
+          const p = selectPrimaryHandoffPrompt(alert)
+          await copyTextToClipboard(p.prompt)
+          toast('Primary SPEED prompt copied — paste into Cursor when ready.', 'success')
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        } catch (err) {
+          toast((err as Error).message || 'Copy failed', 'error')
+        }
+      }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '5px 12px', borderRadius: 6,
+        background: copied ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
+        border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)'}`,
+        color: copied ? '#10b981' : '#C0C0E0', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+      }}
+    >
+      {copied ? <><CheckCircle2 size={12} /> Copied</> : <><ClipboardCopy size={12} /> Copy Prompt</>}
+    </button>
+  )
+}
+
 function CopyButton({ prompt }: { prompt: FixPrompt }) {
   const [copied, setCopied] = useState(false)
   const categoryColors: Record<string, { bg: string; border: string; text: string }> = {
@@ -903,26 +1018,13 @@ function CopyButton({ prompt }: { prompt: FixPrompt }) {
 
   return (
     <button
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(prompt.prompt)
-          setCopied(true)
-          toast('Prompt copied to clipboard', 'success')
-          setTimeout(() => setCopied(false), 2000)
-        } catch {
-          // Fallback for non-HTTPS
-          const ta = document.createElement('textarea')
-          ta.value = prompt.prompt
-          ta.style.position = 'fixed'
-          ta.style.opacity = '0'
-          document.body.appendChild(ta)
-          ta.select()
-          document.execCommand('copy')
-          document.body.removeChild(ta)
-          setCopied(true)
-          toast('Prompt copied to clipboard', 'success')
-          setTimeout(() => setCopied(false), 2000)
-        }
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation()
+        await copyTextToClipboard(prompt.prompt)
+        setCopied(true)
+        toast('Prompt copied to clipboard', 'success')
+        setTimeout(() => setCopied(false), 2000)
       }}
       style={{
         display: 'flex', alignItems: 'center', gap: 5,
@@ -951,6 +1053,7 @@ function AlertRow({ alert, onResolve, resolving }: {
 }) {
   const [expanded, setExpanded] = useState(false)
   const [showPrompt, setShowPrompt] = useState<number | null>(null)
+  const [cursorHandoffOpen, setCursorHandoffOpen] = useState(false)
   const remediation = getRemediation(alert)
   const fixPrompts = generateFixPrompts(alert)
 
@@ -1013,11 +1116,13 @@ function AlertRow({ alert, onResolve, resolving }: {
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 10, flexShrink: 0 }}>
-          {fixPrompts.map((p, i) => <CopyButton key={i} prompt={p} />)}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 10, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <FixInCursorButton alert={alert} onHandoffShown={() => setCursorHandoffOpen(true)} />
+          <CopyPromptFallbackButton alert={alert} />
           {onResolve && (
             <button
-              onClick={onResolve}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onResolve() }}
               disabled={resolving}
               style={{
                 padding: '5px 10px', borderRadius: 6,
@@ -1031,6 +1136,10 @@ function AlertRow({ alert, onResolve, resolving }: {
           )}
         </div>
       </div>
+
+      {cursorHandoffOpen && (
+        <CursorHandoffBanner onDismiss={() => setCursorHandoffOpen(false)} />
+      )}
 
       {/* Expanded details */}
       {expanded && (
@@ -1066,6 +1175,14 @@ function AlertRow({ alert, onResolve, resolving }: {
             <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{remediation.recommendedFix}</div>
           </div>
 
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <FixInCursorButton alert={alert} onHandoffShown={() => setCursorHandoffOpen(true)} />
+            <CopyPromptFallbackButton alert={alert} />
+            <span style={{ fontSize: 10, color: '#6060a0' }}>
+              Uses the same primary prompt as the header. Below: variant-specific prompts if you need SQL vs frontend text.
+            </span>
+          </div>
+
           {/* Claude Code Fix Prompts */}
           <div style={{
             marginTop: 14,
@@ -1082,7 +1199,8 @@ function AlertRow({ alert, onResolve, resolving }: {
                 {fixPrompts.map((p, i) => (
                   <button
                     key={i}
-                    onClick={() => setShowPrompt(showPrompt === i ? null : i)}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShowPrompt(showPrompt === i ? null : i) }}
                     style={{
                       padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
                       background: showPrompt === i ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.05)',
@@ -1124,7 +1242,7 @@ function AlertRow({ alert, onResolve, resolving }: {
 
             {showPrompt == null && (
               <div style={{ fontSize: 11, color: '#7070a0' }}>
-                Click a tab above to preview the prompt, or use the copy buttons in the header to copy directly.
+                Use <strong style={{ color: '#C0C0E0' }}>Fix in Cursor</strong> above for auto-copy + handoff tips, <strong style={{ color: '#C0C0E0' }}>Copy Prompt</strong> as fallback, or pick a tab to preview a variant-specific prompt.
               </div>
             )}
           </div>

@@ -283,7 +283,39 @@ function OverviewTab({ monthKey, setMonthKey }: { monthKey: string; setMonthKey:
 
   if (!hasAccounts) return <ConnectBankPrompt />
 
-  if (loadingAccounts || loadingSummary) return <MusicLoader />
+  if (loadingAccounts || loadingSummary) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: 520 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                height: 92,
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)',
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ borderRadius: 14, padding: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', minHeight: 140 }}>
+          <div style={{ height: 10, width: 120, borderRadius: 4, background: 'rgba(255,255,255,0.06)', marginBottom: 16 }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ height: 72, borderRadius: 10, background: 'rgba(255,255,255,0.03)' }} />
+            ))}
+          </div>
+        </div>
+        <div style={{ borderRadius: 14, padding: 20, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', minHeight: 160 }}>
+          <div style={{ height: 10, width: 140, borderRadius: 4, background: 'rgba(255,255,255,0.06)', marginBottom: 14 }} />
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.03)', marginBottom: 8 }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

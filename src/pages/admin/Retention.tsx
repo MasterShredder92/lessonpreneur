@@ -373,8 +373,8 @@ export default function Retention() {
 //  TAB 1: ACTIVE RETENTION
 // ══════════════════════════════
 function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) {
-  const { data: metrics } = useRetentionMetrics(locationIds)
-  const { data: valueQueue } = useValueCardQueue(locationIds)
+  const { data: metrics, isPending: metricsPending } = useRetentionMetrics(locationIds)
+  const { data: valueQueue, isPending: queuePending } = useValueCardQueue(locationIds)
   const generateCard = useGenerateValueCard()
   const sendCard = useSendValueCard()
   const { data: reviewQueue } = useReviewQueue(locationIds)
@@ -423,9 +423,9 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
   }
 
   return (
-    <div>
-      {/* Metrics */}
-      {metrics && (
+    <div style={{ minHeight: 420 }}>
+      {/* Metrics — reserve row height while loading to avoid CLS when cards appear */}
+      {metrics ? (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28 }}>
           <MetricCard label="Active Students" value={metrics.activeStudents} color="#22C55E" />
           <MetricCard label="Avg Months" value={metrics.avgMonthsEnrolled} color="#FFB800" sub="enrolled" />
@@ -433,7 +433,23 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
           <MetricCard label="Review Requests" value={metrics.reviewRequestsSentThisMonth} color="#D4226A" sub="this month" />
           <MetricCard label="Reviews Received" value={metrics.reviewsReceivedThisMonth} color="#A333FF" sub="this month" />
         </div>
-      )}
+      ) : metricsPending ? (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28, minHeight: 78 }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                minWidth: 130,
+                height: 78,
+                borderRadius: 14,
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.04)',
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {/* A) Value Card Queue */}
       <div style={{ marginBottom: 36 }}>
@@ -480,7 +496,18 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: queuePending ? 280 : undefined }}>
+          {queuePending && visibleQueue.length === 0 && [0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={`sk-${i}`}
+              style={{
+                height: 62,
+                borderRadius: 14,
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.04)',
+              }}
+            />
+          ))}
           {visibleQueue.map((s, idx) => {
             const isSelected = selectedIds.has(s.id)
             return (

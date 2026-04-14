@@ -435,6 +435,7 @@ export function scoreCls(score: number | null): 'good' | 'needs-improvement' | '
 // ─── Route → file mapping ────────────────────────────────────────────────────
 
 const ROUTE_FILE_MAP: Record<string, string> = {
+  '/login': 'src/pages/Login.tsx',
   '/admin/dashboard': 'src/pages/admin/Dashboard.tsx + src/hooks/useDashboard.ts',
   '/admin/students': 'src/pages/admin/Students.tsx + src/hooks/useStudents.ts',
   '/admin/teachers': 'src/pages/admin/Teachers.tsx + src/hooks/useTeachers.ts',

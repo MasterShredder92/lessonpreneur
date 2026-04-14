@@ -1069,11 +1069,31 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
             border: `1px solid ${locColor}20`,
             background: 'rgba(12,11,22,0.95)',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            flexDirection: 'column',
+            padding: 12,
+            gap: 8,
+            boxSizing: 'border-box',
           }}
         >
-          <MusicLoader />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+            <div style={{ width: 72, height: 12, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
+            <div style={{ flex: 1, height: 10, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+          </div>
+          <div style={{ display: 'flex', flex: 1, gap: 6, minHeight: 0 }}>
+            <div style={{ width: 56, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 28 }}>
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                <div key={i} style={{ height: 22, borderRadius: 4, background: 'rgba(255,255,255,0.05)' }} />
+              ))}
+            </div>
+            <div style={{ flex: 1, display: 'flex', gap: 8, overflow: 'hidden' }}>
+              {[0, 1, 2, 3, 4].map((c) => (
+                <div key={c} style={{ flex: 1, minWidth: 72, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }} />
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 4px' }}>
+            <MusicLoader />
+          </div>
         </div>
       ) : isClosed && timeSlots.length === 0 ? (
         <div style={{ padding: '48px 24px', textAlign: 'center' }}>

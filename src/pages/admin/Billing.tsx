@@ -359,7 +359,27 @@ function BillingInner() {
 
       {/* BILLING SNAPSHOT CARDS — role-scoped */}
       {snapshotLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={28} /></div>
+        <div
+          data-tour-id="billing-hero-cards"
+          style={{
+            marginBottom: 16,
+            minHeight: 200,
+            borderRadius: 16,
+            padding: 20,
+            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
+          <div style={{ height: 14, width: 160, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ height: 64, borderRadius: 12, background: 'rgba(255,255,255,0.04)' }} />
+            ))}
+          </div>
+        </div>
       ) : isStudioDirector ? (
         /* Studio Director: only their location */
         snapshotDirectorLoc && (
