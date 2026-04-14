@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { X, Send, Sparkles, MessageSquare, AlertTriangle } from 'lucide-react'
+import { X, Send, Sparkles, MessageSquare, AlertTriangle, Zap } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
 import { useAuthContext } from '../../app/AuthContext'
 import { useZiroGlobalContext, type ZiroGlobalSnapshot } from '../../hooks/useZiroGlobalContext'
@@ -533,6 +533,20 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
                   }}>
                     {msg.content}
                   </div>
+                  {/* Routing label — one short reason line, not a wall of text */}
+                  {msg.role === 'assistant' && msg.routeLabel && msg.routeType && msg.routeType !== 'direct' && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      fontSize: 10, color: '#606088', marginTop: 3, paddingLeft: 2,
+                    }}>
+                      <Zap size={8} style={{ color: msg.routeType === 'skill' ? '#22C55E' : msg.routeType === 'agent' ? '#3b82f6' : '#FF5500' }} />
+                      <span style={{ fontWeight: 600, color: msg.routeType === 'skill' ? '#22C55E' : msg.routeType === 'agent' ? '#3b82f6' : '#FF5500' }}>
+                        {msg.routeType === 'skill' ? 'Used Skill' : msg.routeType === 'agent' ? 'Used Agent' : 'Created Temporary Agent'}
+                      </span>
+                      <span style={{ opacity: 0.7 }}>&mdash;</span>
+                      <span>{msg.routeLabel}</span>
+                    </div>
+                  )}
                   {msg.role === 'assistant' && tenantId && profile && (
                     <ZiroAssistantFeedback
                       tenantId={tenantId}

@@ -265,13 +265,13 @@ function AdminShellInner() {
 
           {(isOwner || effectiveRole === 'admin') && (
             <NavLink
-              to="/admin/skills"
-              title={!sidebarOpen ? 'Skills Manager' : undefined}
+              to="/admin/zirowork"
+              title={!sidebarOpen ? 'ZiroWork' : undefined}
               onClick={(e) => e.stopPropagation()}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <Zap size={15} />
-              <span className="nav-label">Skills</span>
+              <span className="nav-label">ZiroWork</span>
             </NavLink>
           )}
 

@@ -607,9 +607,15 @@ Deno.serve(async (req) => {
             );
           } catch (persistErr) {
             console.error("[ai-assistant] persist failed (timeout path):", persistErr);
+            // Return the timeout message anyway — don't lose the response over a DB write failure
             return new Response(
-              JSON.stringify({ error: "Ziro responded but failed to save the conversation. Please try again." }),
-              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              JSON.stringify({
+                answer: timeoutAns,
+                ai_session_id: timeoutSessionId,
+                assistant_message_id: null,
+                _persist_failed: true,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
             );
           }
         }
@@ -658,9 +664,16 @@ Deno.serve(async (req) => {
         );
       } catch (persistErr) {
         console.error("[ai-assistant] persist failed (business path):", persistErr);
+        // Return Claude's answer anyway — persistence is non-blocking for the user
         return new Response(
-          JSON.stringify({ error: "Ziro responded but failed to save the conversation. Please try again." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          JSON.stringify({
+            answer,
+            usage: claudeData.usage,
+            ai_session_id: sessionId,
+            assistant_message_id: null,
+            _persist_failed: true,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
     }
@@ -1209,10 +1222,16 @@ CANCELLATION RULES:
       return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     } catch (persistErr) {
       console.error("[ai-assistant] persist failed (schedule path):", persistErr);
-      return new Response(
-        JSON.stringify({ error: "Ziro responded but failed to save the conversation. Please try again." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      // Return Claude's answer anyway — persistence is non-blocking for the user
+      const degradedPayload: any = {
+        answer,
+        usage: claudeData.usage,
+        ai_session_id: schedSessionId,
+        assistant_message_id: null,
+        _persist_failed: true,
+      };
+      if (proposed_action) degradedPayload.proposed_action = proposed_action;
+      return new Response(JSON.stringify(degradedPayload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });

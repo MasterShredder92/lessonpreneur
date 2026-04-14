@@ -70,7 +70,7 @@ const emptyForm: SkillFormData = {
   cost_tier: 'free',
 }
 
-export default function SkillsManager() {
+export default function SkillsManager({ embedded }: { embedded?: boolean } = {}) {
   const { role } = useAuthContext()
   const { isOwner } = usePermissions()
   const isAdmin = role === 'owner' || role === 'admin'
@@ -84,7 +84,7 @@ export default function SkillsManager() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  if (!isAdmin) {
+  if (!isAdmin && !embedded) {
     return (
       <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>
         Access restricted to owners and admins.
@@ -99,29 +99,40 @@ export default function SkillsManager() {
   const displayList =
     tab === 'active' ? activeSkills : tab === 'inactive' ? inactiveSkills : []
 
-  return (
-    <IssueContextProvider page="Settings" section="Skills Manager">
-      <div className="page">
-        <div className="page-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={18} style={{ color: '#D4226A' }} />
-            <h1>Skills Manager</h1>
+  const content = (
+    <>
+      {!embedded && (
+        <>
+          <div className="page-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Sparkles size={18} style={{ color: '#D4226A' }} />
+              <h1>Skills Manager</h1>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {isOwner && (
+                <button onClick={() => setShowCreateModal(true)} style={btnPrimary}>
+                  <Plus size={14} /> New Skill
+                </button>
+              )}
+              <ReportIssueButton />
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {isOwner && (
-              <button onClick={() => setShowCreateModal(true)} style={btnPrimary}>
-                <Plus size={14} /> New Skill
-              </button>
-            )}
-            <ReportIssueButton />
+          <div style={{ fontSize: 13, color: '#8080A8', marginBottom: 20, maxWidth: 640 }}>
+            Modular AI capabilities that Ziro can use. Each skill defines what Ziro can do,
+            what tools it can access, and how much risk it carries. New skills require owner
+            approval before activation.
           </div>
-        </div>
+        </>
+      )}
 
-        <div style={{ fontSize: 13, color: '#8080A8', marginBottom: 20, maxWidth: 640 }}>
-          Modular AI capabilities that Ziro can use. Each skill defines what Ziro can do,
-          what tools it can access, and how much risk it carries. New skills require owner
-          approval before activation.
+      {/* Embedded: create button */}
+      {embedded && isOwner && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <button onClick={() => setShowCreateModal(true)} style={btnPrimary}>
+            <Plus size={14} /> New Skill
+          </button>
         </div>
+      )}
 
         {/* Metrics */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
@@ -220,6 +231,16 @@ export default function SkillsManager() {
             mode="edit"
           />
         )}
+
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <IssueContextProvider page="Settings" section="Skills Manager">
+      <div className="page">
+        {content}
       </div>
     </IssueContextProvider>
   )

@@ -402,6 +402,15 @@ export const qk = {
     agents: (taskRunId: string) => ['ziro-task-agents', taskRunId] as const,
   },
 
+  // ── Ziro Agents ────────────────────────────────
+  agents: {
+    all: ['ziro-agents'] as const,
+    list: (tenantId: string | null) => ['ziro-agents', tenantId] as const,
+    detail: (id: string) => ['ziro-agents', 'detail', id] as const,
+    skills: (agentId: string) => ['ziro-agent-skills', agentId] as const,
+    starAttached: (tenantId: string | null) => ['ziro-star-agents', tenantId] as const,
+  },
+
   // ── Moderation ─────────────────────────────────
   moderation: {
     queue: ['moderation-queue'] as const,

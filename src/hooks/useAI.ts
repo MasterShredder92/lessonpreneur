@@ -13,8 +13,8 @@ import {
 } from '../services/aiAssistantClient'
 import { cleanZiroResponseText } from '../ziro/cleanZiroResponseText'
 import { classifyQuery, enforceZiroResponsePolicy } from '../ziro/enforceZiroResponsePolicy'
-// Orchestration disabled — direct chat only until builder-agent source is identified.
-// import { orchestrateFromChat, completeAgent, failAgent } from '../star/orchestrator'
+import { orchestrateFromChat } from '../star/orchestrator'
+import type { RouteType } from '../star/orchestrator'
 
 export type { ScheduleContext, ProposedAction, AiAssistantJson } from '../services/aiAssistantClient'
 /** @deprecated Use `postAiAssistantBusinessOverride` from `services/aiAssistantClient`. */
@@ -25,6 +25,10 @@ export interface ZiroChatMessage {
   content: string
   /** Populated for assistant rows when edge persisted the turn. */
   assistantMessageId?: string | null
+  /** Routing label — how Star handled this message (e.g. "Using SOP Writer skill"). */
+  routeLabel?: string | null
+  /** Route type for UI styling: 'direct' | 'skill' | 'agent' | 'temp_agent'. */
+  routeType?: RouteType | null
 }
 
 export interface UseAiOptions {
@@ -32,7 +36,7 @@ export interface UseAiOptions {
   transformBusinessAssistantText?: (text: string, aiSessionId: string | null) => string
   /** Merged into ai-assistant `client_page_context` for observability (Ziro shell pageContext). */
   getClientPageContext?: () => Record<string, unknown>
-  /** Profile ID for orchestration — enables task run + agent spawning. Without this, orchestration is skipped. */
+  /** Profile ID for orchestration — enables task run routing + tracking. */
   profileId?: string | null
 }
 
@@ -132,22 +136,48 @@ export function useAI(
         if (biz?.trim() && options?.transformBusinessAssistantText) {
           text = options.transformBusinessAssistantText(text, aiSessionIdRef.current)
         }
+
+        // ── Orchestration: route the task and capture routing label ──
+        let routeLabel: string | null = null
+        let routeType: RouteType | null = null
+
+        if (options?.profileId && tenantId) {
+          try {
+            const orchResult = await orchestrateFromChat({
+              tenantId,
+              profileId: options.profileId,
+              conversationId: aiSessionIdRef.current,
+              originMessageId: data.assistant_message_id ?? null,
+              userQuestion: question.trim(),
+              assistantAnswer: text,
+              proposedAction: data.proposed_action as any ?? null,
+            })
+
+            if (orchResult.routing) {
+              routeLabel = orchResult.routing.explanation
+              routeType = orchResult.routing.route
+            }
+          } catch (orchErr) {
+            // Orchestration failure should never block chat
+            if (import.meta.env.DEV) {
+              console.warn('[useAI] Orchestration error (non-blocking):', orchErr)
+            }
+          }
+        }
+
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
             content: text || 'Ziro had no response — please try rephrasing your question.',
             assistantMessageId: data.assistant_message_id ?? null,
+            routeLabel,
+            routeType,
           },
         ])
         if (data.proposed_action) {
           setPendingAction(data.proposed_action as ProposedAction)
         }
-
-        // ── Orchestration handoff — DISABLED ──
-        // Disabled until builder-agent source is identified and orphan issue resolved.
-        // When re-enabled: uncomment and pass profileId via options.
-        // See: src/star/orchestrator.ts for the full pipeline.
       }
     } catch (err: unknown) {
       const e = err as { name?: string; message?: string }
@@ -158,7 +188,7 @@ export function useAI(
     } finally {
       setIsLoading(false)
     }
-  }, [tenantId, options?.transformBusinessAssistantText, options?.getClientPageContext, syncAiSessionId])
+  }, [tenantId, options?.transformBusinessAssistantText, options?.getClientPageContext, options?.profileId, syncAiSessionId])
 
   const confirmAction = useCallback(async () => {
     if (!pendingAction || !tenantId) return

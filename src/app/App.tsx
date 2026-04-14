@@ -83,6 +83,7 @@ const Analytics = lazy(() => import('../pages/admin/Analytics'))
 const IntegrationsPage = lazy(() => import('../pages/admin/Integrations'))
 const ZiroInsights = lazy(() => import('../pages/admin/ZiroInsights'))
 const SkillsManager = lazy(() => import('../pages/admin/SkillsManager'))
+const ZiroWorkPage = lazy(() => import('../pages/admin/ZiroWorkPage'))
 
 // Teacher/Parent/Student pages (lazy)
 const TeacherDashboard = lazy(() => import('../pages/teacher/TeacherDashboard'))
@@ -303,6 +304,7 @@ export default function App() {
               <Route path="integrations" element={<IntegrationsPage />} />
               <Route path="ziro-insights" element={<ZiroInsights />} />
               <Route path="skills" element={<SkillsManager />} />
+              <Route path="zirowork" element={<ZiroWorkPage />} />
             </Route>
 
             {/* Teacher routes */}
