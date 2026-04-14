@@ -19,6 +19,23 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react')) {
             return 'ui'
           }
+          // Heavy export/PDF libs — split so they're only loaded when needed
+          if (
+            id.includes('node_modules/jspdf') ||
+            id.includes('node_modules/jszip') ||
+            id.includes('node_modules/html-to-image') ||
+            id.includes('node_modules/html2canvas')
+          ) {
+            return 'pdf-export'
+          }
+          // Recharts — 342KB; isolate so pages that don't chart don't load it
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
+            return 'charts'
+          }
+          // Supabase realtime/storage sub-packages — isolate from auth client
+          if (id.includes('node_modules/@supabase/realtime') || id.includes('node_modules/@supabase/storage')) {
+            return 'supabase-rt'
+          }
         },
       },
     },

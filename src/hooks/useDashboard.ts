@@ -257,57 +257,56 @@ export function useDashboard(locationIds?: string[] | null) {
         blockType: b.block_type ?? 'student_session',
       }))
 
-      // === At-risk students (no session log in 14+ days) ===
-      let atRiskStudents: DashboardData['atRiskStudents'] = []
-      if (activeStudentIds.length > 0) {
-        const lastSessionByStudent = new Map<string, string>()
-        ;(recentLogs ?? []).forEach((l: any) => {
-          if (!lastSessionByStudent.has(l.student_id)) lastSessionByStudent.set(l.student_id, l.block_date)
-        })
+      // === Compute at-risk IDs and log enrichment IDs (derived from batch 2 results) ===
+      const lastSessionByStudent = new Map<string, string>()
+      ;(recentLogs ?? []).forEach((l: any) => {
+        if (!lastSessionByStudent.has(l.student_id)) lastSessionByStudent.set(l.student_id, l.block_date)
+      })
+      const atRiskIds = activeStudentIds.length > 0
+        ? activeStudentIds.filter((id: string) => {
+            const lastDate = lastSessionByStudent.get(id)
+            return !lastDate || lastDate < fourteenDaysAgoStr
+          }).slice(0, 20)
+        : []
 
-        // Find students with no log or last log > 14 days ago
-        const atRiskIds = activeStudentIds.filter((id: string) => {
-          const lastDate = lastSessionByStudent.get(id)
-          return !lastDate || lastDate < fourteenDaysAgoStr
-        })
+      const logStudentIds = [...new Set((recentLogRows ?? []).map((l: any) => l.student_id as string))]
+      const logTeacherIds = [...new Set((recentLogRows ?? []).map((l: any) => l.teacher_id as string))]
 
-        if (atRiskIds.length > 0) {
-          const { data: atRiskStudentRows } = await supabase
-            .from('students')
-            .select('id, first_name, last_name, instrument, location_id')
-            .eq('tenant_id', tenantId!)
-            .in('id', atRiskIds)
-            .limit(20)
-
-          atRiskStudents = (atRiskStudentRows ?? []).map((s: any) => {
-            const lastDate = lastSessionByStudent.get(s.id)
-            const daysSince = lastDate
-              ? Math.floor((nowMs - new Date(lastDate).getTime()) / 86400000)
-              : 999
-            return {
-              id: s.id,
-              name: `${s.first_name} ${s.last_name}`.trim(),
-              instrument: s.instrument,
-              locationName: locMap.get(s.location_id) ?? 'Unknown',
-              daysSinceSession: daysSince,
-            }
-          }).sort((a, b) => b.daysSinceSession - a.daysSinceSession)
-        }
-      }
-
-      // === Recent session logs enrichment ===
-      const logStudentIds = [...new Set((recentLogRows ?? []).map((l: any) => l.student_id))]
-      const logTeacherIds = [...new Set((recentLogRows ?? []).map((l: any) => l.teacher_id))]
-
-      // Batch 3: Resolve log student + teacher names in parallel
-      const [logStudentsResult, logTeachersResult] = await Promise.all([
+      // Batch 3: at-risk names + log enrichment — all 3 in parallel, one round trip
+      const [atRiskStudentRes, logStudentsResult, logTeachersResult] = await Promise.all([
+        atRiskIds.length > 0
+          ? supabase
+              .from('students')
+              .select('id, first_name, last_name, instrument, location_id')
+              .eq('tenant_id', tenantId!)
+              .in('id', atRiskIds)
+          : Promise.resolve({ data: [] as any[] }),
         logStudentIds.length > 0
           ? supabase.from('students').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', logStudentIds)
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve({ data: [] as any[] }),
         logTeacherIds.length > 0
           ? supabase.from('teachers').select('id, first_name, last_name').eq('tenant_id', tenantId!).in('id', logTeacherIds)
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve({ data: [] as any[] }),
       ])
+
+      // Build at-risk students from parallel result
+      let atRiskStudents: DashboardData['atRiskStudents'] = []
+      if (atRiskIds.length > 0) {
+        atRiskStudents = (atRiskStudentRes.data ?? []).map((s: any) => {
+          const lastDate = lastSessionByStudent.get(s.id)
+          const daysSince = lastDate
+            ? Math.floor((nowMs - new Date(lastDate).getTime()) / 86400000)
+            : 999
+          return {
+            id: s.id,
+            name: `${s.first_name} ${s.last_name}`.trim(),
+            instrument: s.instrument,
+            locationName: locMap.get(s.location_id) ?? 'Unknown',
+            daysSinceSession: daysSince,
+          }
+        }).sort((a, b) => b.daysSinceSession - a.daysSinceSession)
+      }
+
       const logStudents = logStudentsResult.data
       const logTeachers = logTeachersResult.data
       const logStudentMap = new Map((logStudents ?? []).map((s: any) => [s.id, `${s.first_name} ${s.last_name}`.trim()]))

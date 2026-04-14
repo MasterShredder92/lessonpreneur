@@ -22,42 +22,9 @@ export function useTeachers() {
   return useQuery({
     queryKey: qk.teachers.list(tenantId, canViewTeacherCompensation),
     enabled: !!tenantId,
+    staleTime: 2 * 60 * 1000, // 2-minute cache — teachers don't change every second
     queryFn: async () => {
-      const { data: teachers, error } = await supabase
-        .from('teachers')
-        .select(`
-          *,
-          profile:profiles!teachers_profile_id_fkey(id, first_name, last_name, email, phone, is_active)
-        `)
-        .eq('tenant_id', tenantId!)
-        .order('first_name')
-        .order('last_name')
-
-      if (error) throw error
-
-      // Get locations for display names
-      const { data: locations } = await supabase
-        .from('locations')
-        .select('id, name')
-        .eq('tenant_id', tenantId!)
-
-      const locMap = new Map(locations?.map((l) => [l.id, l.name]) ?? [])
-
-      // Get student counts per teacher
-      const { data: students } = await supabase
-        .from('students')
-        .select('teacher_id')
-        .eq('tenant_id', tenantId!)
-        .eq('status', 'active')
-
-      const studentCounts = new Map<string, number>()
-      students?.forEach((s: any) => {
-        if (s.teacher_id) {
-          studentCounts.set(s.teacher_id, (studentCounts.get(s.teacher_id) ?? 0) + 1)
-        }
-      })
-
-      // Get block counts this week per teacher
+      // Pre-compute week boundaries before firing queries
       const today = new Date()
       const dayOfWeek = today.getDay()
       const monday = new Date(today)
@@ -67,29 +34,61 @@ export function useTeachers() {
       const mondayStr = monday.toISOString().split('T')[0]
       const sundayStr = sunday.toISOString().split('T')[0]
 
-      const { data: blocks } = await supabase
-        .from('schedule_blocks')
-        .select('teacher_id')
-        .eq('tenant_id', tenantId!)
-        .eq('status', 'booked')
-        .not('student_id', 'is', null)
-        .gte('block_date', mondayStr)
-        .lte('block_date', sundayStr)
+      // All 5 queries in parallel — eliminates 4 sequential round trips
+      const [teachersRes, locationsRes, studentsRes, blocksRes, teacherLocsRes] = await Promise.all([
+        supabase
+          .from('teachers')
+          .select(`
+            *,
+            profile:profiles!teachers_profile_id_fkey(id, first_name, last_name, email, phone, is_active)
+          `)
+          .eq('tenant_id', tenantId!)
+          .order('first_name')
+          .order('last_name'),
+
+        supabase
+          .from('locations')
+          .select('id, name')
+          .eq('tenant_id', tenantId!),
+
+        supabase
+          .from('students')
+          .select('teacher_id')
+          .eq('tenant_id', tenantId!)
+          .eq('status', 'active'),
+
+        supabase
+          .from('schedule_blocks')
+          .select('teacher_id')
+          .eq('tenant_id', tenantId!)
+          .eq('status', 'booked')
+          .not('student_id', 'is', null)
+          .gte('block_date', mondayStr)
+          .lte('block_date', sundayStr),
+
+        supabase.rpc('get_teacher_locations_for_tenant', { p_tenant_id: tenantId! }),
+      ])
+
+      const { data: teachers, error } = teachersRes
+      if (error) throw error
+
+      const locMap = new Map(locationsRes.data?.map((l) => [l.id, l.name]) ?? [])
+
+      const studentCounts = new Map<string, number>()
+      studentsRes.data?.forEach((s: any) => {
+        if (s.teacher_id) {
+          studentCounts.set(s.teacher_id, (studentCounts.get(s.teacher_id) ?? 0) + 1)
+        }
+      })
 
       const blockCounts = new Map<string, number>()
-      blocks?.forEach((b: any) => {
+      blocksRes.data?.forEach((b: any) => {
         blockCounts.set(b.teacher_id, (blockCounts.get(b.teacher_id) ?? 0) + 1)
       })
 
-      // Get locations from teacher_locations (sole source of truth for display).
-      // Use RPC to avoid oversized URL from .in() with 60+ teacher UUIDs.
       const teacherIdSet = new Set(teachers.map((t: any) => t.id))
-      const { data: teacherLocs } = await supabase.rpc('get_teacher_locations_for_tenant', {
-        p_tenant_id: tenantId!,
-      })
-
       const locsByTeacher = new Map<string, Set<string>>()
-      teacherLocs?.filter((tl: any) => teacherIdSet.has(tl.teacher_id)).forEach((tl: any) => {
+      teacherLocsRes.data?.filter((tl: any) => teacherIdSet.has(tl.teacher_id)).forEach((tl: any) => {
         if (!locsByTeacher.has(tl.teacher_id)) locsByTeacher.set(tl.teacher_id, new Set())
         locsByTeacher.get(tl.teacher_id)!.add(tl.location_id)
       })

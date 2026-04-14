@@ -347,10 +347,7 @@ export const qk = {
     screenshot: (id: string) => ['issue-screenshot', id] as const,
   },
 
-  // ── Integrations ───────────────────────────────
-  integrations: {
-    configs: ['integration_configs'] as const,
-  },
+  // ── Integrations (full definition below, with webhookEvents + outboundLog) ──
 
   // ── Tenant / settings ──────────────────────────
   tenant: {
@@ -436,6 +433,13 @@ export const qk = {
     pending: ['pending-reminders'] as const,
   },
 
+  // ── Notification center ──────────────────────────
+  notificationCenter: {
+    all: ['notification-center'] as const,
+    list: (tenantId: string | null, profileId: string) =>
+      ['notification-center', tenantId, profileId] as const,
+  },
+
   // ── Team ───────────────────────────────────────
   team: {
     members: ['team_members'] as const,
@@ -493,5 +497,18 @@ export const qk = {
     configs: ['integration_configs'] as const,
     webhookEvents: (integrationId?: string | null) => ['webhook_events', integrationId] as const,
     outboundLog: ['webhook_events', 'outbound'] as const,
+  },
+
+  // ── SPEED — Performance monitoring ───────────────
+  performance: {
+    all: ['performance'] as const,
+    metrics: (tenantId: string | null, daysBack: number) =>
+      ['performance', 'metrics', tenantId, daysBack] as const,
+    slowQueries: (tenantId: string | null, daysBack: number) =>
+      ['performance', 'slow-queries', tenantId, daysBack] as const,
+    activeAlerts: (tenantId: string | null) =>
+      ['performance', 'alerts', 'active', tenantId] as const,
+    resolvedAlerts: (tenantId: string | null) =>
+      ['performance', 'alerts', 'resolved', tenantId] as const,
   },
 } as const

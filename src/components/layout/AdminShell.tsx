@@ -7,8 +7,9 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
 import { ADMIN_NAV_ITEMS } from '../../lib/constants'
 import { useTheme } from '../../hooks/useTheme'
-import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Sparkles, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound, LineChart, Zap } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Sparkles, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound, LineChart, Zap, Gauge } from 'lucide-react'
 import ChangePasswordModal from '../shared/ChangePasswordModal'
+import NotificationBell from '../shared/NotificationBell'
 import TopViewTabs from '../shared/TopViewTabs'
 import FloatingIssueReporter from '../shared/FloatingIssueReporter'
 const ZiroPanel = lazy(() => import('../ziro/ZiroPanel'))
@@ -275,6 +276,18 @@ function AdminShellInner() {
             </NavLink>
           )}
 
+          {(isOwner || effectiveRole === 'admin') && (
+            <NavLink
+              to="/admin/performance"
+              title={!sidebarOpen ? 'SPEED — Performance' : undefined}
+              onClick={(e) => e.stopPropagation()}
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Gauge size={15} />
+              <span className="nav-label">SPEED</span>
+            </NavLink>
+          )}
+
           <NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={isStudioDirector ? { display: 'none' } : undefined}>
             <Plug size={15} />
             <span className="nav-label">Integrations</span>
@@ -285,6 +298,8 @@ function AdminShellInner() {
               <StudioDirectorIssueButton variant="sidebar" />
             </div>
           )}
+
+          <NotificationBell sidebarOpen={sidebarOpen} />
 
           <NavLink to="/admin/settings" title={!sidebarOpen ? 'Settings' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Settings2 size={15} />

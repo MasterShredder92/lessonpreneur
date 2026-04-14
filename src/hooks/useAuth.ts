@@ -35,23 +35,24 @@ export function useAuth(): AuthState & {
           if (profileData) {
             setProfile(profileData as Profile)
 
-            const { data: locData } = await supabase
-              .from('profile_locations')
-              .select('location_id')
-              .eq('profile_id', userId)
+            // Fetch profile_locations and teacher record in parallel — eliminates
+            // 2 sequential round trips on every login/auth refresh
+            const [locResult, teacherResult] = await Promise.all([
+              supabase
+                .from('profile_locations')
+                .select('location_id')
+                .eq('profile_id', userId),
+              supabase
+                .from('teachers')
+                .select('*')
+                .eq('profile_id', userId)
+                .eq('tenant_id', (profileData as Profile).tenant_id)
+                .limit(1)
+                .maybeSingle(),
+            ])
 
-            setLocationIds(locData?.map((l) => l.location_id) ?? [])
-
-            // Check for dual-role: fetch teacher record linked to this profile
-            const { data: teacherData } = await supabase
-              .from('teachers')
-              .select('*')
-              .eq('profile_id', userId)
-              .eq('tenant_id', (profileData as Profile).tenant_id)
-              .limit(1)
-              .maybeSingle()
-
-            setTeacherRecord((teacherData as Teacher) ?? null)
+            setLocationIds(locResult.data?.map((l) => l.location_id) ?? [])
+            setTeacherRecord((teacherResult.data as Teacher) ?? null)
             return // Success — exit the retry loop
           }
         } catch (err) {
