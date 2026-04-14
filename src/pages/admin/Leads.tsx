@@ -962,12 +962,6 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
           <button className={`lead-detail-tab${tab === 'form' ? ' active' : ''}`} onClick={() => setTab('form')}>Contact Form</button>
         </div>
 
-        {lead.intake_submission_id && (
-          <div style={{ padding: '0 18px', flexShrink: 0 }}>
-            <OriginalIntakePanel intakeSubmissionId={lead.intake_submission_id} />
-          </div>
-        )}
-
         {/* Scrollable content — star recommendation now scrolls with the rest */}
         <div className="lead-detail-scroll">
 
@@ -1373,6 +1367,11 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
           {/* CONTACT FORM TAB — complete intake snapshot */}
           {tab === 'form' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Original intake form submission — only shown here */}
+              {lead.intake_submission_id && (
+                <OriginalIntakePanel intakeSubmissionId={lead.intake_submission_id} />
+              )}
 
               {/* Student Info — show all siblings for family leads */}
               {allFamilyLeads.map((sl, idx) => {
