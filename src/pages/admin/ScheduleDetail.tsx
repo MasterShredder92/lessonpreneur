@@ -147,7 +147,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
   // Modal state
   const [assignModal, setAssignModal] = useState<GridBlock | null>(null)
   const [detailModal, setDetailModal] = useState<GridBlock | null>(null) // legacy — kept for LastDay/FirstDay/Series modal refs
-  const [recurring, setRecurring] = useState(true)
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<'weekly' | 'biweekly' | 'none'>('weekly')
   const [nonRecurringReason, setNonRecurringReason] = useState('')
   const [selectedStudentId, setSelectedStudentId] = useState('')
   const [studentSearch, setStudentSearch] = useState('')
@@ -440,7 +440,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
         room: null,
         notes: null,
       })
-      setRecurring(true)
+      setRecurrenceFrequency('weekly')
     setNonRecurringReason('')
       setSelectedStudentId('')
       setStudentSearch('')
@@ -492,11 +492,12 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
       await assignStudent.mutateAsync({
         blockId: assignModal.block_id,
         studentId: selectedStudentId,
-        recurring,
+        recurring: recurrenceFrequency !== 'none',
+        frequency: recurrenceFrequency,
       })
       setAssignModal(null)
       setSelectedStudentId('')
-      setRecurring(true)
+      setRecurrenceFrequency('weekly')
       setNonRecurringReason('')
       setStudentSearch('')
       setAssignRoom('')
@@ -985,7 +986,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
             if (!tenantId) return
             if (block.block_id) {
               // Existing open_time block — use it directly
-              setAssignModal(block); setRecurring(true); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null)
+              setAssignModal(block); setRecurrenceFrequency('weekly'); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null)
               return
             }
             // No block exists — create one first
@@ -995,7 +996,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
               status: 'available', block_type: 'open_time', is_recurring: false,
             }).select().single()
             if (error || !newBlock) return
-            setAssignModal({ ...block, block_id: newBlock.id }); setRecurring(true); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null)
+            setAssignModal({ ...block, block_id: newBlock.id }); setRecurrenceFrequency('weekly'); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null)
           }}
           onDragDrop={async (source, target) => {
             if (!source.student_id || (target.block_type !== 'open_time' && target.block_id !== '')) return
@@ -1326,7 +1327,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
                       <div
                         key={`${time}-${t.id}`}
                         data-guide-block-type="open_time"
-                        onClick={() => { setAssignModal(block); setRecurring(true); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null) }}
+                        onClick={() => { setAssignModal(block); setRecurrenceFrequency('weekly'); setSelectedStudentId(''); setStudentSearch(''); setAssignRoom(''); setAssignError(null) }}
                         onDragOver={(e) => { e.preventDefault(); setDragOverTarget(block.block_id) }}
                         onDragLeave={() => setDragOverTarget(null)}
                         onDrop={(e) => { e.preventDefault(); handleDrop(block) }}
@@ -1825,13 +1826,19 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
                         )
                       })()}
 
-                      {/* Recurring — default ON, reason required if OFF */}
+                      {/* Recurrence frequency — weekly, biweekly, or single */}
                       <div style={{ marginBottom: 14 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                          <input type="checkbox" checked={recurring} onChange={(e) => { setRecurring(e.target.checked); if (e.target.checked) setNonRecurringReason('') }} style={{ accentColor: '#E8488A' }} />
-                          <span style={{ fontSize: 12, color: '#C0C0E0' }}>Recurring every {new Date(assignModal.block_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}</span>
-                        </label>
-                        {!recurring && (
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Recurrence</div>
+                        <select
+                          value={recurrenceFrequency}
+                          onChange={(e) => { setRecurrenceFrequency(e.target.value as 'weekly' | 'biweekly' | 'none'); if (e.target.value !== 'none') setNonRecurringReason('') }}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 12, outline: 'none' }}
+                        >
+                          <option value="weekly">Every {new Date(assignModal.block_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })} (weekly)</option>
+                          <option value="biweekly">Every other {new Date(assignModal.block_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })} (every 2 weeks)</option>
+                          <option value="none">Single session only</option>
+                        </select>
+                        {recurrenceFrequency === 'none' && (
                           <div style={{ marginTop: 8, padding: 10, borderRadius: 8, background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)' }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: '#FFB800', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Reason for single session</div>
                             <select value={nonRecurringReason} onChange={(e) => setNonRecurringReason(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 12, outline: 'none', marginBottom: nonRecurringReason === 'custom' ? 6 : 0 }}>
@@ -1857,13 +1864,13 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
                         onClick={async () => {
                           setAssignError(null)
                           // Require reason if not recurring
-                          if (!recurring && (!nonRecurringReason || nonRecurringReason === 'custom')) {
+                          if (recurrenceFrequency === 'none' && (!nonRecurringReason || nonRecurringReason === 'custom')) {
                             setAssignError('Please select a reason for this single session.')
                             return
                           }
                           try {
                             // Log non-recurring reason to audit
-                            if (!recurring && nonRecurringReason) {
+                            if (recurrenceFrequency === 'none' && nonRecurringReason) {
                               await supabase.from('audit_log').insert({
                                 action: 'NON_RECURRING_BOOKING',
                                 table_name: 'schedule_blocks',
@@ -1898,7 +1905,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
                               const { error: typeErr } = await supabase.from('schedule_blocks').update({ block_type: assignBlockType }).eq('id', assignModal.block_id)
                               if (typeErr) throw new Error('Failed to set block type: ' + typeErr.message)
                             }
-                            await assignStudent.mutateAsync({ blockId: assignModal.block_id, studentId: selectedStudentId, recurring })
+                            await assignStudent.mutateAsync({ blockId: assignModal.block_id, studentId: selectedStudentId, recurring: recurrenceFrequency !== 'none', frequency: recurrenceFrequency })
                             setAssignModal(null)
                             setSelectedStudentId('')
                             setStudentSearch('')

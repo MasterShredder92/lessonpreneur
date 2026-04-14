@@ -78,74 +78,75 @@ export function useScheduleGrid(date: string, locationId: string | null) {
       const { data: blocks, error } = await query
       if (error) throw error
 
-      // Get teacher names
-      const teacherIds = [...new Set(blocks.map((b: any) => b.teacher_id))]
+      const teacherIds = [...new Set(blocks.map((b: any) => b.teacher_id as string))]
       if (teacherIds.length === 0) return { blocks: [], teachers: [], timeSlots: [] }
 
-      const { data: teachers } = await supabase
-        .from('teachers')
-        .select('id, first_name, last_name, photo_url, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
-        .eq('tenant_id', tenantId!)
-        .in('id', teacherIds)
+      // Pre-compute IDs before firing parallel sub-queries
+      const studentIds = [...new Set(blocks.filter((b: any) => b.student_id).map((b: any) => b.student_id as string))]
+      const roomIds = [...new Set(blocks.filter((b: any) => b.room_id).map((b: any) => b.room_id as string))]
+      const blockIds = blocks.map((b: any) => b.id as string)
+      const locId = locationId || blocks[0]?.location_id
+
+      // All 5 sub-queries in parallel — eliminates 5 sequential round trips
+      const [teachersRes, studentsRes, roomsRes, locationRes, logsRes] = await Promise.all([
+        supabase
+          .from('teachers')
+          .select('id, first_name, last_name, photo_url, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
+          .eq('tenant_id', tenantId!)
+          .in('id', teacherIds),
+
+        studentIds.length > 0
+          ? supabase
+              .from('students')
+              .select('id, first_name, last_name, instrument')
+              .eq('tenant_id', tenantId!)
+              .in('id', studentIds)
+          : Promise.resolve({ data: [] as any[] }),
+
+        roomIds.length > 0
+          ? supabase.from('rooms').select('id, name').eq('tenant_id', tenantId!).in('id', roomIds)
+          : Promise.resolve({ data: [] as any[] }),
+
+        locId
+          ? supabase.from('locations').select('name').eq('tenant_id', tenantId!).eq('id', locId).single()
+          : Promise.resolve({ data: null }),
+
+        supabase
+          .from('session_log')
+          .select('id, schedule_block_id, worked_on, engagement_level, progress_indicator, teacher_note, parent_update_status')
+          .eq('tenant_id', tenantId!)
+          .in('schedule_block_id', blockIds),
+      ])
 
       const teacherMap = new Map<string, string>()
       const teacherPhotoMap = new Map<string, string | null>()
-      teachers?.forEach((t: any) => {
+      teachersRes.data?.forEach((t: any) => {
         const name = t.first_name ? `${t.first_name} ${t.last_name ?? ''}`.trim() : `${t.profile?.first_name ?? ''} ${t.profile?.last_name ?? ''}`.trim()
         teacherMap.set(t.id, name || 'Unknown')
         teacherPhotoMap.set(t.id, t.photo_url ?? null)
       })
 
-      // Get student names for booked blocks
-      const studentIds = blocks.filter((b: any) => b.student_id).map((b: any) => b.student_id)
       const studentMap = new Map<string, { name: string; instrument: string }>()
-      if (studentIds.length > 0) {
-        const { data: students } = await supabase
-          .from('students')
-          .select('id, first_name, last_name, instrument')
-          .eq('tenant_id', tenantId!)
-          .in('id', studentIds)
-        students?.forEach((s: any) => {
-          studentMap.set(s.id, { name: `${s.first_name} ${s.last_name}`, instrument: s.instrument })
-        })
-      }
+      studentsRes.data?.forEach((s: any) => {
+        studentMap.set(s.id, { name: `${s.first_name} ${s.last_name}`, instrument: s.instrument })
+      })
 
-      // Get room names
-      const roomIds = blocks.filter((b: any) => b.room_id).map((b: any) => b.room_id)
       const roomMap = new Map<string, string>()
-      if (roomIds.length > 0) {
-        const { data: rooms } = await supabase.from('rooms').select('id, name').eq('tenant_id', tenantId!).in('id', [...new Set(roomIds)])
-        rooms?.forEach((r: any) => roomMap.set(r.id, r.name))
-      }
+      roomsRes.data?.forEach((r: any) => roomMap.set(r.id, r.name))
 
-      // Get location name
-      const locId = locationId || blocks[0]?.location_id
-      let locationName = ''
-      if (locId) {
-        const { data: loc } = await supabase.from('locations').select('name').eq('tenant_id', tenantId!).eq('id', locId).single()
-        locationName = loc?.name ?? ''
-      }
+      const locationName = (locationRes.data as any)?.name ?? ''
 
-      // Get session logs for these blocks
-      const blockIds = blocks.map((b: any) => b.id)
       const sessionLogMap = new Map<string, SessionLogSummary>()
-      if (blockIds.length > 0) {
-        const { data: logs } = await supabase
-          .from('session_log')
-          .select('id, schedule_block_id, worked_on, engagement_level, progress_indicator, teacher_note, parent_update_status')
-          .eq('tenant_id', tenantId!)
-          .in('schedule_block_id', blockIds)
-        logs?.forEach((l: any) => {
-          sessionLogMap.set(l.schedule_block_id, {
-            id: l.id,
-            worked_on: l.worked_on ?? [],
-            engagement_level: l.engagement_level,
-            progress_indicator: l.progress_indicator,
-            teacher_note: l.teacher_note,
-            parent_update_status: l.parent_update_status,
-          })
+      logsRes.data?.forEach((l: any) => {
+        sessionLogMap.set(l.schedule_block_id, {
+          id: l.id,
+          worked_on: l.worked_on ?? [],
+          engagement_level: l.engagement_level,
+          progress_indicator: l.progress_indicator,
+          teacher_note: l.teacher_note,
+          parent_update_status: l.parent_update_status,
         })
-      }
+      })
 
       // Build enriched blocks
       const enrichedBlocks: GridBlock[] = blocks.map((b: any) => {
@@ -205,24 +206,29 @@ export function useScheduleGrid(date: string, locationId: string | null) {
   })
 }
 
+export type RecurrenceFrequency = 'weekly' | 'biweekly' | 'none'
+
 export function useAssignStudent() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (params: { blockId: string; studentId: string; recurring: boolean }) => {
+    mutationFn: async (params: { blockId: string; studentId: string; recurring: boolean; frequency?: RecurrenceFrequency }) => {
+      const frequency = params.frequency ?? (params.recurring ? 'weekly' : 'none')
+      const isRecurring = frequency !== 'none'
+
       const { error } = await supabase
         .from('schedule_blocks')
         .update({
           student_id: params.studentId,
           status: 'booked' as const,
           block_type: 'student_session',
-          is_recurring: params.recurring,
+          is_recurring: isRecurring,
         })
         .eq('id', params.blockId)
 
       if (error) throw error
 
-      // If recurring, also assign to future blocks at same day/time/DOW
-      if (params.recurring) {
+      // If recurring (weekly or biweekly), also assign to future blocks at same day/time/DOW
+      if (isRecurring) {
         const { data: block } = await supabase
           .from('schedule_blocks')
           .select('teacher_id, block_date, start_time')
@@ -231,9 +237,12 @@ export function useAssignStudent() {
 
         if (block) {
           const dow = new Date(block.block_date + 'T00:00:00').getDay()
-          const fourteenDaysOut = new Date()
-          fourteenDaysOut.setDate(fourteenDaysOut.getDate() + 14)
-          const maxDate = fourteenDaysOut.toISOString().split('T')[0]
+          const originDate = new Date(block.block_date + 'T00:00:00')
+          // Biweekly looks 28 days ahead, weekly looks 14 days
+          const lookAheadDays = frequency === 'biweekly' ? 28 : 14
+          const maxDateObj = new Date()
+          maxDateObj.setDate(maxDateObj.getDate() + lookAheadDays)
+          const maxDate = maxDateObj.toISOString().split('T')[0]
           const { data: futureBlocks } = await supabase
             .from('schedule_blocks')
             .select('id, block_date')
@@ -244,9 +253,18 @@ export function useAssignStudent() {
             .gt('block_date', block.block_date)
             .lte('block_date', maxDate)
 
-          // Filter to same day of week
+          // Filter to same day of week, and for biweekly skip alternate weeks
           const sameDayBlockIds = (futureBlocks ?? [])
-            .filter((fb: any) => new Date(fb.block_date + 'T00:00:00').getDay() === dow)
+            .filter((fb: any) => {
+              const fbDate = new Date(fb.block_date + 'T00:00:00')
+              if (fbDate.getDay() !== dow) return false
+              if (frequency === 'biweekly') {
+                const daysDiff = Math.round((fbDate.getTime() - originDate.getTime()) / (1000 * 60 * 60 * 24))
+                const weeksDiff = Math.round(daysDiff / 7)
+                return weeksDiff % 2 === 0 // every other week
+              }
+              return true
+            })
             .map((fb: any) => fb.id)
 
           if (sameDayBlockIds.length > 0) {

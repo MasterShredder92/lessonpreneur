@@ -24,6 +24,23 @@ export interface ZiroAgent {
   created_at: string
   last_used_at: string | null
   retired_at: string | null
+  role: string | null
+  instructions: string | null
+  usage_triggers: string[]
+  auto_use_by_star: boolean
+  profile_summary: string | null
+  updated_at: string
+}
+
+export interface ZiroStarConfig {
+  id: string
+  tenant_id: string
+  instructions: string | null
+  routing_rules: Record<string, unknown>
+  default_skill_ids: string[]
+  delegation_rules: unknown[]
+  created_at: string
+  updated_at: string
 }
 
 export interface ZiroAgentSkill {
@@ -119,6 +136,11 @@ export function useCreateAgent(tenantId: string | null) {
       owner_type?: 'system' | 'user'
       invocation_rules?: Record<string, unknown>
       created_by?: string | null
+      role?: string
+      instructions?: string
+      usage_triggers?: string[]
+      auto_use_by_star?: boolean
+      profile_summary?: string
     }) => {
       // Guard: block vague agent names (Policy P2)
       if (VAGUE_AGENT_NAMES.some(v => input.name.toLowerCase().includes(v))) {
@@ -149,6 +171,11 @@ export function useCreateAgent(tenantId: string | null) {
           lifecycle_type: input.lifecycle_type,
           invocation_rules: input.invocation_rules ?? {},
           created_by: input.created_by ?? null,
+          role: input.role ?? null,
+          instructions: input.instructions ?? null,
+          usage_triggers: input.usage_triggers ?? [],
+          auto_use_by_star: input.auto_use_by_star ?? true,
+          profile_summary: input.profile_summary ?? null,
         })
         .select()
         .single()
@@ -170,6 +197,11 @@ export function useUpdateAgent() {
       purpose?: string
       invocation_rules?: Record<string, unknown>
       lifecycle_type?: 'temporary' | 'persistent'
+      role?: string | null
+      instructions?: string | null
+      usage_triggers?: string[]
+      auto_use_by_star?: boolean
+      profile_summary?: string | null
     }) => {
       const { id, ...updates } = input
       const { error } = await supabase
@@ -340,6 +372,110 @@ export function useDetachAgentFromStar(tenantId: string | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.agents.starAttached(tenantId) })
+    },
+  })
+}
+
+// ── Clone agent ─────────────────────────────────────────
+
+export function useCloneAgent(tenantId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (sourceAgentId: string) => {
+      // Fetch source agent
+      const { data: source, error: fetchErr } = await supabase
+        .from('ziro_agents')
+        .select('*')
+        .eq('id', sourceAgentId)
+        .single()
+      if (fetchErr || !source) throw fetchErr ?? new Error('Agent not found')
+
+      // Insert clone
+      const { data: clone, error: insertErr } = await supabase
+        .from('ziro_agents')
+        .insert({
+          tenant_id: tenantId!,
+          name: `${source.name} (Copy)`,
+          purpose: source.purpose,
+          status: 'active',
+          owner_type: 'user',
+          lifecycle_type: 'persistent',
+          invocation_rules: source.invocation_rules ?? {},
+          role: source.role,
+          instructions: source.instructions,
+          usage_triggers: source.usage_triggers ?? [],
+          auto_use_by_star: source.auto_use_by_star ?? true,
+          profile_summary: source.profile_summary,
+        })
+        .select()
+        .single()
+      if (insertErr || !clone) throw insertErr ?? new Error('Clone insert failed')
+
+      // Copy skill attachments
+      const { data: skills } = await supabase
+        .from('ziro_agent_skills')
+        .select('skill_id, is_primary')
+        .eq('agent_id', sourceAgentId)
+        .limit(20)
+
+      if (skills && skills.length > 0) {
+        await supabase.from('ziro_agent_skills').insert(
+          skills.map(s => ({
+            tenant_id: tenantId!,
+            agent_id: clone.id,
+            skill_id: s.skill_id,
+            is_primary: s.is_primary,
+          })),
+        )
+      }
+
+      return clone as ZiroAgent
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.agents.all })
+    },
+  })
+}
+
+// ── Star config ─────────────────────────────────────────
+
+export function useStarConfig(tenantId: string | null) {
+  return useQuery({
+    queryKey: ['ziro-star-config', tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ziro_star_config')
+        .select('*')
+        .eq('tenant_id', tenantId!)
+        .maybeSingle()
+      if (error) throw error
+      return data as ZiroStarConfig | null
+    },
+  })
+}
+
+export function useUpsertStarConfig(tenantId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: {
+      instructions?: string | null
+      routing_rules?: Record<string, unknown>
+      delegation_rules?: unknown[]
+    }) => {
+      const { error } = await supabase
+        .from('ziro_star_config')
+        .upsert({
+          tenant_id: tenantId!,
+          instructions: input.instructions ?? null,
+          routing_rules: input.routing_rules ?? {},
+          delegation_rules: input.delegation_rules ?? [],
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'tenant_id' })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ziro-star-config', tenantId] })
     },
   })
 }
