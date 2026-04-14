@@ -411,12 +411,6 @@ export const qk = {
     starAttached: (tenantId: string | null) => ['ziro-star-agents', tenantId] as const,
   },
 
-  // ── Ziro Star Config ─────────────────────────
-  starConfig: {
-    all: ['ziro-star-config'] as const,
-    detail: (tenantId: string | null) => ['ziro-star-config', tenantId] as const,
-  },
-
   // ── Moderation ─────────────────────────────────
   moderation: {
     queue: ['moderation-queue'] as const,

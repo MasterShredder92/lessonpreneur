@@ -7,7 +7,6 @@ import {
   useAgentSkills,
   useCreateAgent,
   useUpdateAgent,
-  useCloneAgent,
   useRetireAgent,
   useActivateAgent,
   useIdleAgent,
@@ -17,8 +16,6 @@ import {
   useDetachSkillFromAgent,
   useAttachAgentToStar,
   useDetachAgentFromStar,
-  useStarConfig,
-  useUpsertStarConfig,
   type ZiroAgent,
 } from '../../hooks/useAgents'
 import { useSkills, type ZiroSkill } from '../../hooks/useSkills'
@@ -47,12 +44,9 @@ import {
   Clock,
   RefreshCw,
   BarChart3,
-  Pencil,
-  Copy,
-  Save,
 } from 'lucide-react'
 
-type MainTab = 'skills' | 'agents' | 'history' | 'analytics' | 'star'
+type MainTab = 'skills' | 'agents' | 'history' | 'analytics'
 
 const STATUS_COLORS: Record<string, string> = {
   active: '#22C55E',
@@ -119,11 +113,10 @@ export default function ZiroWorkPage() {
         </div>
 
         {/* Main tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
           {([
             { key: 'skills', label: 'Skills', icon: <Zap size={13} /> },
             { key: 'agents', label: 'Agents', icon: <Bot size={13} /> },
-            { key: 'star', label: 'Star', icon: <Star size={13} /> },
             { key: 'history', label: 'Task History', icon: <History size={13} /> },
             { key: 'analytics', label: 'Route Analytics', icon: <BarChart3 size={13} /> },
           ] as const).map(t => (
@@ -145,86 +138,10 @@ export default function ZiroWorkPage() {
 
         {mainTab === 'skills' && <SkillsManager embedded />}
         {mainTab === 'agents' && <AgentsTab tenantId={tenantId} isOwner={isOwner} />}
-        {mainTab === 'star' && <StarConfigTab tenantId={tenantId} />}
         {mainTab === 'history' && <TaskHistoryTab tenantId={tenantId} />}
         {mainTab === 'analytics' && <RouteAnalyticsTab tenantId={tenantId} />}
       </div>
     </IssueContextProvider>
-  )
-}
-
-// ═══════════════════════════════════════════════════════
-// STAR CONFIG TAB
-// ═══════════════════════════════════════════════════════
-
-function StarConfigTab({ tenantId }: { tenantId: string | null }) {
-  const { data: config, isLoading } = useStarConfig(tenantId)
-  const upsert = useUpsertStarConfig(tenantId)
-  const [instructions, setInstructions] = useState<string | null>(null)
-  const [dirty, setDirty] = useState(false)
-
-  // Sync from loaded config on first load
-  const currentInstructions = instructions ?? config?.instructions ?? ''
-
-  if (isLoading) return <MusicLoader />
-
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-        <Star size={18} style={{ color: '#FFB800' }} />
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#E0E0F4' }}>Star Configuration</div>
-          <div style={{ fontSize: 12, color: '#8080A8', marginTop: 2 }}>Global persona, instructions, and behavior directives for Star.</div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Global Instructions */}
-        <div>
-          <label style={labelStyle}>Global Instructions</label>
-          <div style={{ fontSize: 11, color: '#606088', marginBottom: 8 }}>
-            These instructions are prepended to every Star conversation. Use them to define Star's personality, tone, priorities, and boundaries.
-          </div>
-          <textarea
-            value={currentInstructions}
-            onChange={e => { setInstructions(e.target.value); setDirty(true) }}
-            placeholder="e.g. You are Star, the AI business advisor for our music school. Always prioritize retention over acquisition. Speak concisely and professionally..."
-            style={{ ...inputStyle, minHeight: 180, resize: 'vertical', lineHeight: 1.5 }}
-          />
-        </div>
-
-        {/* Save */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={() => {
-              upsert.mutate(
-                {
-                  instructions: currentInstructions.trim() || null,
-                  routing_rules: config?.routing_rules ?? {},
-                  default_skill_ids: config?.default_skill_ids ?? [],
-                  delegation_rules: config?.delegation_rules ?? [],
-                },
-                {
-                  onSuccess: () => { toast('Star config saved', 'success'); setDirty(false) },
-                  onError: (err: any) => toast(err.message, 'error'),
-                },
-              )
-            }}
-            disabled={!dirty || upsert.isPending}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '10px 20px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-              background: dirty ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.03)',
-              border: dirty ? '1px solid rgba(212,34,106,0.3)' : '1px solid rgba(255,255,255,0.06)',
-              color: dirty ? '#D4226A' : '#606088',
-              cursor: dirty ? 'pointer' : 'default',
-            }}
-          >
-            <Save size={13} /> {upsert.isPending ? 'Saving...' : 'Save Star Config'}
-          </button>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -238,7 +155,6 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
   const { data: skills } = useSkills()
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [editingAgent, setEditingAgent] = useState<ZiroAgent | null>(null)
 
   const starAgentIds = new Set((starAgents ?? []).map(sa => sa.agent_id))
 
@@ -254,7 +170,7 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
       {/* Metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
         <MetricCard label="Active" value={activeAgents.length} color="#22C55E" />
-        <MetricCard label="Paused" value={idleAgents.length} color="#FFB800" />
+        <MetricCard label="Idle" value={idleAgents.length} color="#FFB800" />
         <MetricCard label="Temporary" value={tempAgents.length} color="#FF5500" />
         <MetricCard label="Retired" value={retiredAgents.length} color="#EF4444" />
       </div>
@@ -291,7 +207,6 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
               isStarAttached={starAgentIds.has(agent.id)}
               isExpanded={expanded === agent.id}
               onToggle={() => setExpanded(expanded === agent.id ? null : agent.id)}
-              onEdit={() => setEditingAgent(agent)}
               skills={skills ?? []}
             />
           ))}
@@ -299,32 +214,21 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
       )}
 
       {showCreate && (
-        <AgentFormModal
+        <CreateAgentModal
           tenantId={tenantId}
-          mode="create"
           onClose={() => setShowCreate(false)}
-        />
-      )}
-
-      {editingAgent && (
-        <AgentFormModal
-          tenantId={tenantId}
-          mode="edit"
-          agent={editingAgent}
-          onClose={() => setEditingAgent(null)}
         />
       )}
     </div>
   )
 }
 
-function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEdit, skills }: {
+function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, skills }: {
   agent: ZiroAgent
   tenantId: string | null
   isStarAttached: boolean
   isExpanded: boolean
   onToggle: () => void
-  onEdit: () => void
   skills: ZiroSkill[]
 }) {
   const { data: agentSkills } = useAgentSkills(isExpanded ? agent.id : null)
@@ -333,7 +237,6 @@ function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEd
   const idleAgent = useIdleAgent()
   const convertTemp = useConvertTempAgent()
   const deleteAgent = useDeleteAgent()
-  const cloneAgent = useCloneAgent(tenantId)
   const attachToStar = useAttachAgentToStar(tenantId)
   const detachFromStar = useDetachAgentFromStar(tenantId)
   const attachSkill = useAttachSkillToAgent()
@@ -361,15 +264,12 @@ function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEd
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>{agent.name}</span>
-            {agent.role && <span style={{ fontSize: 11, color: '#A0A0C8', fontStyle: 'italic' }}>{agent.role}</span>}
-            <span style={pillStyle(statusColor)}>
-              {agent.status === 'idle' ? 'PAUSED' : agent.status.toUpperCase()}
-            </span>
+            <span style={pillStyle(statusColor)}>{agent.status.toUpperCase()}</span>
             <span style={pillStyle(agent.lifecycle_type === 'temporary' ? '#FF5500' : '#3b82f6')}>
               {agent.lifecycle_type === 'temporary' ? 'TEMP' : 'PERSISTENT'}
             </span>
-            <span style={pillStyle(agent.auto_use_by_star ? '#22C55E' : '#FF5500')}>
-              {agent.auto_use_by_star ? 'AUTO' : 'EXPLICIT'}
+            <span style={pillStyle(agent.owner_type === 'user' ? '#D4226A' : '#8080A8')}>
+              {agent.owner_type === 'user' ? 'USER' : 'SYSTEM'}
             </span>
             {isStarAttached && (
               <span style={{ ...pillStyle('#FFB800'), display: 'inline-flex', alignItems: 'center', gap: 3 }}>
@@ -392,42 +292,11 @@ function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEd
       {/* Expanded detail */}
       {isExpanded && (
         <div style={{ padding: '0 18px 16px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-          {/* Agent profile details */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-            {agent.profile_summary && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <div style={sectionLabelStyle}>Profile Summary</div>
-                <div style={{ fontSize: 12, color: '#A0A0C8', lineHeight: 1.4 }}>{agent.profile_summary}</div>
-              </div>
-            )}
-            {agent.instructions && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <div style={sectionLabelStyle}>Instructions</div>
-                <div style={{
-                  fontSize: 12, color: '#A0A0C8', lineHeight: 1.5,
-                  padding: '8px 12px', borderRadius: 8,
-                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
-                  whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto',
-                }}>
-                  {agent.instructions}
-                </div>
-              </div>
-            )}
-            {agent.usage_triggers && agent.usage_triggers.length > 0 && (
-              <div>
-                <div style={sectionLabelStyle}>Usage Triggers</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {agent.usage_triggers.map((t, i) => (
-                    <span key={i} style={pillStyle('#8080A8')}>{t}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Attached skills */}
           <div style={{ marginTop: 14 }}>
-            <div style={sectionLabelStyle}>Attached Skills</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+              Attached Skills
+            </div>
             {(agentSkills ?? []).length === 0 ? (
               <div style={{ fontSize: 12, color: '#606088', fontStyle: 'italic' }}>No skills attached.</div>
             ) : (
@@ -480,7 +349,9 @@ function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEd
           {/* Invocation rules */}
           {Object.keys(agent.invocation_rules).length > 0 && (
             <div style={{ marginTop: 14 }}>
-              <div style={sectionLabelStyle}>Invocation Rules</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                Invocation Rules
+              </div>
               <pre style={{ fontSize: 11, color: '#A0A0C8', padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', overflow: 'auto', maxHeight: 120 }}>
                 {JSON.stringify(agent.invocation_rules, null, 2)}
               </pre>
@@ -489,17 +360,6 @@ function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEd
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 6, marginTop: 16, flexWrap: 'wrap' }}>
-            {/* Edit */}
-            <ActionBtn icon={<Pencil size={11} />} label="Edit" color="#A0A0C8"
-              onClick={onEdit} />
-
-            {/* Clone */}
-            <ActionBtn icon={<Copy size={11} />} label="Clone" color="#8080A8"
-              onClick={() => cloneAgent.mutate(agent, {
-                onSuccess: (cloned) => toast(`Cloned as "${cloned.name}"`, 'success'),
-                onError: (err: any) => toast(err.message, 'error'),
-              })} />
-
             {/* Star attach/detach */}
             {isStarAttached ? (
               <ActionBtn icon={<Unlink size={11} />} label="Detach from Star" color="#FF5500"
@@ -511,8 +371,8 @@ function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEd
 
             {/* Status transitions */}
             {agent.status === 'active' && (
-              <ActionBtn icon={<Power size={11} />} label="Pause" color="#FFB800"
-                onClick={() => idleAgent.mutate(agent.id, { onSuccess: () => toast('Agent paused', 'success') })} />
+              <ActionBtn icon={<Power size={11} />} label="Set Idle" color="#FFB800"
+                onClick={() => idleAgent.mutate(agent.id, { onSuccess: () => toast('Agent set to idle', 'success') })} />
             )}
             {agent.status === 'idle' && (
               <ActionBtn icon={<Power size={11} />} label="Activate" color="#22C55E"
@@ -560,32 +420,16 @@ function ActionBtn({ icon, label, color, onClick }: { icon: React.ReactNode; lab
 }
 
 // ═══════════════════════════════════════════════════════
-// AGENT FORM MODAL (CREATE + EDIT)
+// CREATE AGENT MODAL
 // ═══════════════════════════════════════════════════════
 
-function AgentFormModal({ tenantId, mode, agent, onClose }: {
-  tenantId: string | null
-  mode: 'create' | 'edit'
-  agent?: ZiroAgent
-  onClose: () => void
-}) {
+function CreateAgentModal({ tenantId, onClose }: { tenantId: string | null; onClose: () => void }) {
   const { user } = useAuthContext()
   const createAgent = useCreateAgent(tenantId)
-  const updateAgent = useUpdateAgent()
-
-  const [name, setName] = useState(agent?.name ?? '')
-  const [purpose, setPurpose] = useState(agent?.purpose ?? '')
-  const [role, setRole] = useState(agent?.role ?? '')
-  const [instructions, setInstructions] = useState(agent?.instructions ?? '')
-  const [profileSummary, setProfileSummary] = useState(agent?.profile_summary ?? '')
-  const [lifecycle, setLifecycle] = useState<'temporary' | 'persistent'>(agent?.lifecycle_type ?? 'persistent')
-  const [autoUse, setAutoUse] = useState(agent?.auto_use_by_star ?? true)
-  const [keywords, setKeywords] = useState(
-    (agent?.invocation_rules as { keywords?: string[] })?.keywords?.join(', ') ?? ''
-  )
-  const [usageTriggers, setUsageTriggers] = useState(agent?.usage_triggers?.join(', ') ?? '')
-
-  const isPending = createAgent.isPending || updateAgent.isPending
+  const [name, setName] = useState('')
+  const [purpose, setPurpose] = useState('')
+  const [lifecycle, setLifecycle] = useState<'temporary' | 'persistent'>('persistent')
+  const [keywords, setKeywords] = useState('')
 
   const handleSubmit = () => {
     if (!name.trim() || !purpose.trim()) {
@@ -597,97 +441,38 @@ function AgentFormModal({ tenantId, mode, agent, onClose }: {
       toast('Agent name is too vague — use a specific specialist name', 'error')
       return
     }
-
-    const parsedKeywords = keywords.trim() ? keywords.split(',').map(k => k.trim()).filter(Boolean) : []
-    const parsedTriggers = usageTriggers.trim() ? usageTriggers.split(',').map(t => t.trim()).filter(Boolean) : []
-
-    if (mode === 'edit' && agent) {
-      updateAgent.mutate({
-        id: agent.id,
-        name: name.trim(),
-        purpose: purpose.trim(),
-        role: role.trim() || null,
-        instructions: instructions.trim() || null,
-        profile_summary: profileSummary.trim() || null,
-        lifecycle_type: lifecycle,
-        auto_use_by_star: autoUse,
-        invocation_rules: parsedKeywords.length > 0 ? { keywords: parsedKeywords } : {},
-        usage_triggers: parsedTriggers,
-      }, {
-        onSuccess: () => { toast('Agent updated', 'success'); onClose() },
-        onError: (err: any) => toast(err.message, 'error'),
-      })
-    } else {
-      createAgent.mutate({
-        name: name.trim(),
-        purpose: purpose.trim(),
-        role: role.trim() || undefined,
-        instructions: instructions.trim() || undefined,
-        profile_summary: profileSummary.trim() || undefined,
-        lifecycle_type: lifecycle,
-        auto_use_by_star: autoUse,
-        owner_type: 'user',
-        invocation_rules: parsedKeywords.length > 0 ? { keywords: parsedKeywords } : {},
-        usage_triggers: parsedTriggers,
-        created_by: user?.id ?? null,
-      }, {
-        onSuccess: () => { toast('Agent created', 'success'); onClose() },
-        onError: (err: any) => toast(err.message, 'error'),
-      })
-    }
+    createAgent.mutate({
+      name: name.trim(),
+      purpose: purpose.trim(),
+      lifecycle_type: lifecycle,
+      owner_type: 'user',
+      invocation_rules: keywords.trim() ? { keywords: keywords.split(',').map(k => k.trim()).filter(Boolean) } : {},
+      created_by: user?.id ?? null,
+    }, {
+      onSuccess: () => { toast('Agent created', 'success'); onClose() },
+      onError: (err: any) => toast(err.message, 'error'),
+    })
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,2,9,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
-      <div
-        style={{ width: '100%', maxWidth: 600, maxHeight: '90vh', overflow: 'auto', background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 24 }}
-        onClick={e => e.stopPropagation()}
-      >
+      <div style={{ width: '100%', maxWidth: 520, background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 24 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
           <h3 style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Bot size={18} style={{ color: '#D4226A' }} />
-            {mode === 'edit' ? 'Edit Agent' : 'Create Agent'}
+            <Bot size={18} style={{ color: '#D4226A' }} /> Create Agent
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#606088', cursor: 'pointer' }}><X size={18} /></button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Name */}
           <div>
             <label style={labelStyle}>Agent Name</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Billing Analyst, Lead Qualifier" style={inputStyle} />
           </div>
-
-          {/* Role */}
-          <div>
-            <label style={labelStyle}>Role <span style={{ fontWeight: 400, color: '#606088' }}>(optional)</span></label>
-            <input value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. Financial Specialist, Retention Expert" style={inputStyle} />
-          </div>
-
-          {/* Purpose */}
           <div>
             <label style={labelStyle}>Purpose</label>
             <textarea value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="What does this agent specialize in?" style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }} />
           </div>
-
-          {/* Instructions */}
-          <div>
-            <label style={labelStyle}>Instructions <span style={{ fontWeight: 400, color: '#606088' }}>(behavioral directives for this agent)</span></label>
-            <textarea
-              value={instructions}
-              onChange={e => setInstructions(e.target.value)}
-              placeholder="e.g. Always check billing history before making recommendations. Flag invoices over $500 for owner review. Never adjust rates without confirmation."
-              style={{ ...inputStyle, minHeight: 100, resize: 'vertical', lineHeight: 1.5 }}
-            />
-          </div>
-
-          {/* Profile Summary */}
-          <div>
-            <label style={labelStyle}>Profile Summary <span style={{ fontWeight: 400, color: '#606088' }}>(short bio visible in agent list)</span></label>
-            <input value={profileSummary} onChange={e => setProfileSummary(e.target.value)} placeholder="e.g. Handles all billing inquiries and invoice reconciliation" style={inputStyle} />
-          </div>
-
-          {/* Lifecycle */}
           <div>
             <label style={labelStyle}>Lifecycle</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -704,48 +489,16 @@ function AgentFormModal({ tenantId, mode, agent, onClose }: {
               ))}
             </div>
           </div>
-
-          {/* Delegation Mode */}
-          <div>
-            <label style={labelStyle}>Delegation Mode</label>
-            <div style={{ fontSize: 11, color: '#606088', marginBottom: 8 }}>
-              Auto: Star routes tasks to this agent automatically. Explicit: only used when you ask for it by name.
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {([
-                { value: true, label: 'Auto', desc: 'Star delegates automatically' },
-                { value: false, label: 'Explicit', desc: 'Manual invocation only' },
-              ] as const).map(opt => (
-                <button key={String(opt.value)} onClick={() => setAutoUse(opt.value)} style={{
-                  flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                  background: autoUse === opt.value ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.03)',
-                  color: autoUse === opt.value ? '#D4226A' : '#8080A8',
-                  border: autoUse === opt.value ? '1px solid rgba(212,34,106,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                  cursor: 'pointer',
-                }}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Invocation Keywords */}
           <div>
             <label style={labelStyle}>Invocation Keywords <span style={{ fontWeight: 400, color: '#606088' }}>(comma-separated, optional)</span></label>
             <input value={keywords} onChange={e => setKeywords(e.target.value)} placeholder="e.g. billing, invoice, payment" style={inputStyle} />
-          </div>
-
-          {/* Usage Triggers */}
-          <div>
-            <label style={labelStyle}>Usage Triggers <span style={{ fontWeight: 400, color: '#606088' }}>(comma-separated, optional)</span></label>
-            <input value={usageTriggers} onChange={e => setUsageTriggers(e.target.value)} placeholder="e.g. overdue invoice, payment failed, rate change" style={inputStyle} />
           </div>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={handleSubmit} disabled={isPending} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'rgba(212,34,106,0.15)', border: '1px solid rgba(212,34,106,0.3)', color: '#D4226A', cursor: 'pointer' }}>
-            {isPending ? (mode === 'edit' ? 'Saving...' : 'Creating...') : (mode === 'edit' ? 'Save Changes' : 'Create Agent')}
+          <button onClick={handleSubmit} disabled={createAgent.isPending} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'rgba(212,34,106,0.15)', border: '1px solid rgba(212,34,106,0.3)', color: '#D4226A', cursor: 'pointer' }}>
+            {createAgent.isPending ? 'Creating...' : 'Create Agent'}
           </button>
         </div>
       </div>
@@ -993,11 +746,6 @@ function DetailBlock({ label, value, span2 }: { label: string; value: string; sp
       <div style={{ fontSize: 12, color: '#A0A0C8', wordBreak: 'break-word' }}>{value}</div>
     </div>
   )
-}
-
-const sectionLabelStyle: CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: '#8080A8',
-  textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8,
 }
 
 const labelStyle: CSSProperties = {

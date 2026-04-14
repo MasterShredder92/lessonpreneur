@@ -106,18 +106,12 @@ export interface AgentRecord {
   tenant_id: string
   name: string
   purpose: string | null
-  role: string | null
-  instructions: string | null
-  usage_triggers: string[]
-  auto_use_by_star: boolean
-  profile_summary: string | null
   status: 'active' | 'idle' | 'retired'
   owner_type: 'system' | 'user'
   lifecycle_type: 'temporary' | 'persistent'
   invocation_rules: Record<string, unknown>
   created_by: string | null
   created_at: string
-  updated_at: string
   last_used_at: string | null
   retired_at: string | null
 }
@@ -375,10 +369,9 @@ async function findStarAgentForSkill(
     .select(`
       agent_id,
       ziro_agents!inner (
-        id, tenant_id, name, purpose, role, instructions,
-        usage_triggers, auto_use_by_star, profile_summary,
-        status, owner_type, lifecycle_type, invocation_rules,
-        created_by, created_at, updated_at, last_used_at, retired_at
+        id, tenant_id, name, purpose, status, owner_type,
+        lifecycle_type, invocation_rules, created_by,
+        created_at, last_used_at, retired_at
       )
     `)
     .eq('tenant_id', tenantId)
@@ -392,8 +385,6 @@ async function findStarAgentForSkill(
     const agent = (row as any).ziro_agents as AgentRecord
     // Edge case: skip non-active agents (retired agent accidentally still in star_agents)
     if (agent.status !== 'active') continue
-    // Respect auto_use_by_star — skip agents that require explicit invocation
-    if (!agent.auto_use_by_star) continue
 
     const { data: skills } = await supabase
       .from('ziro_agent_skills')
@@ -435,10 +426,9 @@ async function findStarAgentByInvocationRule(
     .select(`
       agent_id,
       ziro_agents!inner (
-        id, tenant_id, name, purpose, role, instructions,
-        usage_triggers, auto_use_by_star, profile_summary,
-        status, owner_type, lifecycle_type, invocation_rules,
-        created_by, created_at, updated_at, last_used_at, retired_at
+        id, tenant_id, name, purpose, status, owner_type,
+        lifecycle_type, invocation_rules, created_by,
+        created_at, last_used_at, retired_at
       )
     `)
     .eq('tenant_id', tenantId)
@@ -454,8 +444,6 @@ async function findStarAgentByInvocationRule(
   for (const row of data) {
     const agent = (row as any).ziro_agents as AgentRecord
     if (agent.status !== 'active') continue
-    // Respect auto_use_by_star — skip agents that require explicit invocation
-    if (!agent.auto_use_by_star) continue
 
     const rules = agent.invocation_rules as { keywords?: string[] }
     if (!rules.keywords || !Array.isArray(rules.keywords) || rules.keywords.length === 0) continue
