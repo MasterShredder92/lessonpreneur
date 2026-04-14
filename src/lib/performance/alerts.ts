@@ -289,6 +289,379 @@ export function scoreCls(score: number | null): 'good' | 'needs-improvement' | '
   return 'poor'
 }
 
+// ─── Route → file mapping ────────────────────────────────────────────────────
+
+const ROUTE_FILE_MAP: Record<string, string> = {
+  '/admin/dashboard': 'src/pages/admin/Dashboard.tsx + src/hooks/useDashboard.ts',
+  '/admin/students': 'src/pages/admin/Students.tsx + src/hooks/useStudents.ts',
+  '/admin/teachers': 'src/pages/admin/Teachers.tsx + src/hooks/useTeachers.ts',
+  '/admin/leads': 'src/pages/admin/Leads.tsx + src/hooks/useLeads.ts',
+  '/admin/families': 'src/pages/admin/Families.tsx + src/hooks/useStudents.ts',
+  '/admin/billing': 'src/pages/admin/Billing.tsx + src/hooks/useBilling.ts',
+  '/admin/settings': 'src/pages/admin/Settings.tsx',
+  '/admin/financials': 'src/pages/admin/Financials.tsx',
+  '/admin/retention': 'src/pages/admin/Retention.tsx + src/hooks/useRetention.ts',
+  '/admin/payroll': 'src/pages/admin/Payroll.tsx',
+  '/admin/integrations': 'src/pages/admin/Integrations.tsx',
+  '/admin/zirowork': 'src/pages/admin/ZiroWorkPage.tsx',
+  '/teacher/dashboard': 'src/pages/teacher/TeacherDashboard.tsx',
+  '/parent/dashboard': 'src/pages/parent/ParentDashboard.tsx',
+}
+
+const QUERY_HOOK_MAP: Record<string, string> = {
+  'students.list': 'src/hooks/useStudents.ts — useStudents()',
+  'teachers.list': 'src/hooks/useTeachers.ts — useTeachers()',
+  'leads.list': 'src/hooks/useLeads.ts — useLeads()',
+  'schedule.grid': 'src/hooks/useScheduleGrid.ts — useScheduleGrid()',
+  'dashboard.data': 'src/hooks/useDashboard.ts — useDashboard()',
+  'families.list': 'src/hooks/useStudents.ts — useFamilies()',
+}
+
+function resolveRouteFiles(route: string): string {
+  if (ROUTE_FILE_MAP[route]) return ROUTE_FILE_MAP[route]
+  // Try prefix match for schedule routes like /admin/schedule/2026-04-14
+  if (route.startsWith('/admin/schedule')) return 'src/pages/admin/ScheduleDetail.tsx + src/hooks/useScheduleGrid.ts'
+  // Generic admin route
+  const slug = route.replace('/admin/', '').split('/')[0]
+  if (slug) return `src/pages/admin/${slug.charAt(0).toUpperCase() + slug.slice(1)}.tsx (likely)`
+  return 'Unknown — inspect route manually'
+}
+
+function resolveQueryFiles(queryLabel: string): string {
+  if (QUERY_HOOK_MAP[queryLabel]) return QUERY_HOOK_MAP[queryLabel]
+  // Infer from label pattern like "students.list" → useStudents
+  const [domain] = queryLabel.split('.')
+  if (domain) return `src/hooks/use${domain.charAt(0).toUpperCase() + domain.slice(1)}.ts (likely)`
+  return 'Unknown — search codebase for query label'
+}
+
+// ─── Claude Code fix prompt generation ───────────────────────────────────────
+
+export type PromptCategory = 'fix' | 'sql' | 'frontend'
+
+export interface FixPrompt {
+  category: PromptCategory
+  label: string
+  prompt: string
+}
+
+/**
+ * Generate ready-to-paste Claude Code prompts for a performance alert.
+ * Returns 1-3 prompts depending on alert type (fix, sql, frontend).
+ */
+export function generateFixPrompts(alert: PerformanceAlert): FixPrompt[] {
+  const d = alert.details as any
+  const route = d?.route as string | undefined
+  const queryLabel = d?.query_label as string | undefined
+  const tableName = d?.table_name as string | undefined
+  const avgMs = d?.avg_ms as number | undefined
+  const maxMs = d?.max_ms as number | undefined
+  const occurrences = d?.occurrence_count as number | undefined
+  const sampleCount = d?.sample_count as number | undefined
+  const avgLcp = d?.avg_lcp_ms as number | undefined
+  const avgFcp = d?.avg_fcp_ms as number | undefined
+  const avgInp = d?.avg_inp_ms as number | undefined
+  const avgCls = d?.avg_cls as number | undefined
+
+  switch (alert.alert_type as AlertType) {
+    case 'slow_query':
+      return buildSlowQueryPrompts(alert, queryLabel, tableName, avgMs, maxMs, occurrences)
+    case 'slow_lcp':
+      return buildWebVitalPrompts(alert, 'LCP', route, avgLcp, sampleCount)
+    case 'slow_fcp':
+      return buildWebVitalPrompts(alert, 'FCP', route, avgFcp, sampleCount)
+    case 'slow_inp':
+      return buildInpPrompts(alert, route, avgInp, sampleCount)
+    case 'high_cls':
+      return buildClsPrompts(alert, route, avgCls, sampleCount)
+    case 'high_slow_query_rate':
+      return buildSlowRatePrompts(alert, d)
+    default:
+      return [{ category: 'fix', label: 'Copy Fix Prompt', prompt: buildGenericPrompt(alert) }]
+  }
+}
+
+function buildSlowQueryPrompts(
+  alert: PerformanceAlert,
+  queryLabel?: string,
+  tableName?: string,
+  avgMs?: number,
+  maxMs?: number,
+  occurrences?: number,
+): FixPrompt[] {
+  const hookFile = queryLabel ? resolveQueryFiles(queryLabel) : 'Unknown'
+  const prompts: FixPrompt[] = []
+
+  prompts.push({
+    category: 'fix',
+    label: 'Copy Fix Prompt',
+    prompt: `SPEED ALERT — Slow Query Fix
+Severity: ${alert.severity.toUpperCase()}
+Query: ${queryLabel ?? 'unknown'}
+Table: ${tableName ?? 'unknown'}
+Avg execution time: ${avgMs ?? '?'}ms (threshold: 500ms)
+Max execution time: ${maxMs ?? '?'}ms
+Occurrences: ${occurrences ?? '?'}
+
+DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+
+FILES TO INSPECT:
+${hookFile}
+
+TASK:
+1. Open the hook file above and find the Supabase query labeled "${queryLabel}".
+2. Analyze the query shape:
+   - Is it using .select('*')? Switch to explicit column list.
+   - Is .limit() present? Add one if missing (max 500 for lists).
+   - Are there missing WHERE filters? Add tenant_id + date range bounds.
+   - Is there an N+1 pattern (queries inside loops)? Refactor to batch.
+   - Are enrichment sub-queries parallelized with Promise.all()? Fix if sequential.
+3. Check if the ${tableName ?? 'target'} table has indexes on the filter columns:
+   - Run: SELECT indexname, indexdef FROM pg_indexes WHERE tablename = '${tableName ?? '<table>'}';
+   - Add missing indexes on foreign key and filter columns.
+4. After patching, verify the query timing improves:
+   - Navigate to the page that triggers this query.
+   - Check the SPEED dashboard in Settings for updated timing.
+   - Target: under 500ms avg execution time.
+5. Do NOT silence the alert — fix the actual query performance.
+6. Report: exact files changed, what was wrong, what you fixed, new timing.
+
+npm run build && vercel --prod`,
+  })
+
+  prompts.push({
+    category: 'sql',
+    label: 'Copy SQL Prompt',
+    prompt: `SPEED ALERT — Database Index Check
+Table: ${tableName ?? 'unknown'}
+Query: ${queryLabel ?? 'unknown'}
+Avg time: ${avgMs ?? '?'}ms | Max: ${maxMs ?? '?'}ms
+
+Run these checks on Supabase project dhsyxyhtoadrqfrlmsqe:
+
+1. Check existing indexes:
+   SELECT indexname, indexdef FROM pg_indexes WHERE tablename = '${tableName ?? '<table>'}';
+
+2. Check table size:
+   SELECT pg_size_pretty(pg_total_relation_size('${tableName ?? '<table>'}'));
+
+3. Analyze the slow query plan — find the Supabase query in ${hookFile} and run EXPLAIN ANALYZE on the raw SQL equivalent.
+
+4. Add missing indexes on:
+   - tenant_id (if not already indexed)
+   - Any foreign key columns used in JOINs
+   - Any columns used in WHERE/filter clauses
+   - Composite index on (tenant_id, <most-common-filter>, created_at DESC) if date-ranged
+
+5. Verify improvement after index creation.`,
+  })
+
+  return prompts
+}
+
+function buildWebVitalPrompts(
+  alert: PerformanceAlert,
+  vital: 'LCP' | 'FCP',
+  route?: string,
+  avgMs?: number,
+  sampleCount?: number,
+): FixPrompt[] {
+  const files = route ? resolveRouteFiles(route) : 'Unknown'
+  const threshold = vital === 'LCP' ? THRESHOLDS.lcp : THRESHOLDS.fcp
+  const prompts: FixPrompt[] = []
+
+  prompts.push({
+    category: 'frontend',
+    label: 'Copy Frontend Prompt',
+    prompt: `SPEED ALERT — Slow ${vital} Fix
+Severity: ${alert.severity.toUpperCase()}
+Route: ${route ?? 'unknown'}
+Avg ${vital}: ${avgMs ?? '?'}ms (warning: ${threshold.warning}ms, critical: ${threshold.critical}ms)
+Samples: ${sampleCount ?? '?'}
+
+DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+
+FILES TO INSPECT:
+${files}
+
+TASK:
+1. Open the page component and analyze what renders above the fold.
+2. Check the component's data-fetching hooks:
+   - Are queries blocking first render? Add Suspense/skeleton loading.
+   - Is the query fetching more data than the view needs? Trim the select.
+   - Are multiple sequential queries causing a waterfall? Parallelize with Promise.all().
+3. Check for render-blocking resources:
+   - Large images without preload or lazy loading.
+   - Heavy components imported synchronously that should be lazy().
+   - Inline SVGs or large data URIs above the fold.
+4. Verify the route is code-split (should use lazy() import in App.tsx).
+5. ${vital === 'LCP'
+      ? 'If the LCP element is an image, add <link rel="preload" as="image"> in index.html or preload it programmatically.'
+      : 'If FCP is slow, check if AuthContext or global providers are blocking initial paint with sequential data fetches.'}
+6. After fixing, navigate to ${route ?? 'the route'} and verify ${vital} drops below ${threshold.warning}ms in SPEED dashboard.
+7. Do NOT add loading spinners as a fix — fix the actual bottleneck.
+8. Report: exact files changed, what was bottlenecking, new ${vital} timing.
+
+npm run build && vercel --prod`,
+  })
+
+  return prompts
+}
+
+function buildInpPrompts(
+  alert: PerformanceAlert,
+  route?: string,
+  avgInp?: number,
+  sampleCount?: number,
+): FixPrompt[] {
+  const files = route ? resolveRouteFiles(route) : 'Unknown'
+
+  return [{
+    category: 'frontend',
+    label: 'Copy Frontend Prompt',
+    prompt: `SPEED ALERT — Slow INP (Interaction to Next Paint) Fix
+Severity: ${alert.severity.toUpperCase()}
+Route: ${route ?? 'unknown'}
+Avg INP: ${avgInp ?? '?'}ms (warning: 200ms, critical: 500ms)
+Samples: ${sampleCount ?? '?'}
+
+DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+
+FILES TO INSPECT:
+${files}
+
+TASK:
+1. Open the page component and identify interactive elements (buttons, inputs, dropdowns, modals).
+2. Profile click/input handlers for expensive synchronous work:
+   - Are handlers triggering large React re-renders? Add React.memo() on heavy child components.
+   - Are handlers doing synchronous computation (sorting, filtering large arrays)? Move to useMemo or debounce.
+   - Are handlers opening modals that mount expensive components? Lazy-load modal content.
+3. Check for expensive derived state that recalculates on every interaction:
+   - Large .filter().map().sort() chains in render body → move to useMemo with proper deps.
+   - State updates that cause the entire page to re-render → split state or use React.memo.
+4. Check if any onClick handlers call multiple sequential Supabase queries — batch them.
+5. After fixing, interact with the page and verify INP drops below 200ms in SPEED dashboard.
+6. Report: exact files changed, which interaction was slow, what you fixed.
+
+npm run build && vercel --prod`,
+  }]
+}
+
+function buildClsPrompts(
+  alert: PerformanceAlert,
+  route?: string,
+  avgCls?: number,
+  sampleCount?: number,
+): FixPrompt[] {
+  const files = route ? resolveRouteFiles(route) : 'Unknown'
+
+  return [{
+    category: 'frontend',
+    label: 'Copy Frontend Prompt',
+    prompt: `SPEED ALERT — High CLS (Layout Shift) Fix
+Severity: ${alert.severity.toUpperCase()}
+Route: ${route ?? 'unknown'}
+Avg CLS: ${avgCls?.toFixed(4) ?? '?'} (warning: 0.1, critical: 0.25)
+Samples: ${sampleCount ?? '?'}
+
+DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+
+FILES TO INSPECT:
+${files}
+
+TASK:
+1. Open the page component and identify elements that load asynchronously (images, data-driven content, charts).
+2. For each async element:
+   - Set explicit width/height or aspect-ratio on containers BEFORE data loads.
+   - Add skeleton placeholders that match the final layout dimensions.
+   - If using Recharts or similar, set fixed container height.
+3. Check for dynamic content insertion:
+   - Toasts, banners, or alerts that push content down → use fixed positioning.
+   - Conditional renders that insert elements above existing content → reserve space.
+4. Check font loading — if custom fonts cause text reflow, add font-display: swap and preload the font.
+5. After fixing, navigate to ${route ?? 'the route'} and verify CLS drops below 0.1 in SPEED dashboard.
+6. Report: exact files changed, which elements were shifting, what you fixed.
+
+npm run build && vercel --prod`,
+  }]
+}
+
+function buildSlowRatePrompts(
+  alert: PerformanceAlert,
+  details: any,
+): FixPrompt[] {
+  return [{
+    category: 'fix',
+    label: 'Copy Fix Prompt',
+    prompt: `SPEED ALERT — High Slow Query Rate
+Severity: ${alert.severity.toUpperCase()}
+Slow query rate: ${details?.rate_pct ?? '?'}% of all queries exceed 500ms
+Slow queries: ${details?.slow_count ?? '?'} out of ${details?.total_count ?? '?'} total
+
+DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+
+TASK:
+1. Go to Settings > SPEED tab in the app. Review the "Slow Queries" table for the top offenders.
+2. For each slow query listed:
+   a. Find the hook file using the query label (e.g., "students.list" → src/hooks/useStudents.ts).
+   b. Inspect the Supabase query shape — check for select('*'), missing .limit(), missing date filters.
+   c. Check the target table for missing indexes.
+   d. Fix the query and verify timing improvement.
+3. Check Supabase dashboard at https://supabase.com/dashboard/project/dhsyxyhtoadrqfrlmsqe:
+   - Connection pool utilization
+   - Database CPU usage
+   - Slow query logs in the Logs explorer
+4. Priority order: fix the slowest queries first (highest avg_ms).
+5. Target: get slow query rate below 15%.
+6. Report: each query fixed, what was wrong, new timing, overall rate improvement.
+
+npm run build && vercel --prod`,
+  }, {
+    category: 'sql',
+    label: 'Copy SQL Prompt',
+    prompt: `SPEED ALERT — Bulk Index Audit
+${details?.slow_count ?? '?'} slow queries detected (>${THRESHOLDS.queryMs.warning}ms) out of ${details?.total_count ?? '?'} total.
+
+Run on Supabase project dhsyxyhtoadrqfrlmsqe:
+
+1. Find tables missing indexes on foreign keys:
+   SELECT c.relname AS table, a.attname AS column
+   FROM pg_constraint con
+   JOIN pg_class c ON c.oid = con.conrelid
+   JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(con.conkey)
+   WHERE con.contype = 'f'
+   AND NOT EXISTS (
+     SELECT 1 FROM pg_index i
+     WHERE i.indrelid = c.oid
+     AND a.attnum = ANY(i.indkey)
+   );
+
+2. Check table sizes to prioritize:
+   SELECT relname, pg_size_pretty(pg_total_relation_size(relid))
+   FROM pg_catalog.pg_statio_user_tables
+   ORDER BY pg_total_relation_size(relid) DESC LIMIT 20;
+
+3. Add missing indexes on the largest tables first.
+4. Verify query times improve in the SPEED dashboard.`,
+  }]
+}
+
+function buildGenericPrompt(alert: PerformanceAlert): string {
+  return `SPEED ALERT — Performance Issue
+Type: ${alert.alert_type}
+Severity: ${alert.severity.toUpperCase()}
+Message: ${alert.message}
+Details: ${JSON.stringify(alert.details, null, 2)}
+
+DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+
+Investigate this alert, identify the root cause, fix it, and verify the fix.
+Do NOT silence the alert — fix the actual performance issue.
+Report: exact files changed, what was wrong, what you fixed.
+
+npm run build && vercel --prod`
+}
+
 // ─── Remediation guidance ────────────────────────────────────────────────────
 
 export interface RemediationGuide {

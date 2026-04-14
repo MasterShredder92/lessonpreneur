@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Legend,
 } from 'recharts'
-import { Activity, AlertTriangle, CheckCircle2, Zap, Database, Clock, TrendingUp, RefreshCw } from 'lucide-react'
+import { Activity, AlertTriangle, CheckCircle2, Zap, Database, Clock, TrendingUp, RefreshCw, ClipboardCopy } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import MusicLoader from '../../components/shared/MusicLoader'
@@ -32,8 +32,11 @@ import {
   scoreFcp,
   scoreCls,
   getRemediation,
+  generateFixPrompts,
   type PerformanceAlert,
+  type FixPrompt,
 } from '../../lib/performance/alerts'
+import { toast } from '../../components/shared/Toast'
 
 // ─── Style helpers ───────────────────────────────────────────────────────────
 
@@ -513,13 +516,67 @@ function HeroCard({ icon, title, value, sub, subColor }: {
   )
 }
 
+function CopyButton({ prompt }: { prompt: FixPrompt }) {
+  const [copied, setCopied] = useState(false)
+  const categoryColors: Record<string, { bg: string; border: string; text: string }> = {
+    fix:      { bg: 'rgba(212,34,106,0.12)', border: 'rgba(212,34,106,0.3)', text: '#D4226A' },
+    sql:      { bg: 'rgba(255,184,0,0.12)',  border: 'rgba(255,184,0,0.3)',  text: '#FFB800' },
+    frontend: { bg: 'rgba(56,189,248,0.12)', border: 'rgba(56,189,248,0.3)', text: '#38bdf8' },
+  }
+  const c = categoryColors[prompt.category] ?? categoryColors.fix
+
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(prompt.prompt)
+          setCopied(true)
+          toast('Prompt copied to clipboard', 'success')
+          setTimeout(() => setCopied(false), 2000)
+        } catch {
+          // Fallback for non-HTTPS
+          const ta = document.createElement('textarea')
+          ta.value = prompt.prompt
+          ta.style.position = 'fixed'
+          ta.style.opacity = '0'
+          document.body.appendChild(ta)
+          ta.select()
+          document.execCommand('copy')
+          document.body.removeChild(ta)
+          setCopied(true)
+          toast('Prompt copied to clipboard', 'success')
+          setTimeout(() => setCopied(false), 2000)
+        }
+      }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '5px 12px', borderRadius: 6,
+        background: copied ? 'rgba(16,185,129,0.15)' : c.bg,
+        border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : c.border}`,
+        color: copied ? '#10b981' : c.text,
+        fontSize: 11, fontWeight: 700, cursor: 'pointer',
+        transition: 'all 150ms ease',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {copied ? (
+        <><CheckCircle2 size={12} /> Copied</>
+      ) : (
+        <><ClipboardCopy size={12} /> {prompt.label}</>
+      )}
+    </button>
+  )
+}
+
 function AlertRow({ alert, onResolve, resolving }: {
   alert: PerformanceAlert
   onResolve?: () => void
   resolving: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [showPrompt, setShowPrompt] = useState<number | null>(null)
   const remediation = getRemediation(alert)
+  const fixPrompts = generateFixPrompts(alert)
 
   return (
     <div style={{
@@ -527,6 +584,7 @@ function AlertRow({ alert, onResolve, resolving }: {
       background: alert.severity === 'critical' ? 'rgba(212,34,106,0.07)' : 'rgba(255,184,0,0.06)',
       border: `1px solid ${alert.severity === 'critical' ? 'rgba(212,34,106,0.2)' : 'rgba(255,184,0,0.15)'}`,
     }}>
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 14px' }}>
         <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setExpanded(v => !v)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
@@ -546,28 +604,32 @@ function AlertRow({ alert, onResolve, resolving }: {
             {alert.resolved && alert.resolved_at && ` · Resolved ${new Date(alert.resolved_at).toLocaleString()}`}
           </div>
         </div>
-        {onResolve && (
-          <button
-            onClick={onResolve}
-            disabled={resolving}
-            style={{
-              marginLeft: 12, flexShrink: 0, padding: '4px 10px', borderRadius: 6,
-              background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)',
-              color: '#10b981', fontSize: 11, fontWeight: 600, cursor: resolving ? 'wait' : 'pointer',
-              opacity: resolving ? 0.5 : 1,
-            }}
-          >
-            Resolve
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 10, flexShrink: 0 }}>
+          {fixPrompts.map((p, i) => <CopyButton key={i} prompt={p} />)}
+          {onResolve && (
+            <button
+              onClick={onResolve}
+              disabled={resolving}
+              style={{
+                padding: '5px 10px', borderRadius: 6,
+                background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)',
+                color: '#10b981', fontSize: 11, fontWeight: 600, cursor: resolving ? 'wait' : 'pointer',
+                opacity: resolving ? 0.5 : 1,
+              }}
+            >
+              Resolve
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* Expanded details */}
       {expanded && (
         <div style={{
-          padding: '0 14px 12px',
+          padding: '0 14px 14px',
           borderTop: '1px solid rgba(255,255,255,0.04)',
-          marginTop: 0,
         }}>
+          {/* Remediation summary */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
@@ -593,6 +655,69 @@ function AlertRow({ alert, onResolve, resolving }: {
               Recommended Fix
             </div>
             <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{remediation.recommendedFix}</div>
+          </div>
+
+          {/* Claude Code Fix Prompts */}
+          <div style={{
+            marginTop: 14,
+            padding: '12px 14px',
+            background: 'rgba(212,34,106,0.04)',
+            border: '1px solid rgba(212,34,106,0.12)',
+            borderRadius: 8,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#D4226A', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Claude Code Fix Prompt{fixPrompts.length > 1 ? 's' : ''}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {fixPrompts.map((p, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setShowPrompt(showPrompt === i ? null : i)}
+                    style={{
+                      padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                      background: showPrompt === i ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      color: showPrompt === i ? '#D4226A' : '#8080A8',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p.category === 'fix' ? 'Fix' : p.category === 'sql' ? 'SQL' : 'Frontend'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {showPrompt != null && fixPrompts[showPrompt] && (
+              <div style={{ position: 'relative' }}>
+                <pre style={{
+                  margin: 0,
+                  padding: '10px 12px',
+                  background: 'rgba(2,2,9,0.6)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  lineHeight: 1.6,
+                  color: '#B0B0D0',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  maxHeight: 320,
+                  overflowY: 'auto',
+                  fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+                }}>
+                  {fixPrompts[showPrompt].prompt}
+                </pre>
+                <div style={{ marginTop: 8 }}>
+                  <CopyButton prompt={fixPrompts[showPrompt]} />
+                </div>
+              </div>
+            )}
+
+            {showPrompt == null && (
+              <div style={{ fontSize: 11, color: '#7070a0' }}>
+                Click a tab above to preview the prompt, or use the copy buttons in the header to copy directly.
+              </div>
+            )}
           </div>
         </div>
       )}
