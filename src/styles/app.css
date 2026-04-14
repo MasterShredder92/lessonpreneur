@@ -2809,14 +2809,14 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 
 .teacher-row-grid {
   flex: 1; display: grid;
-  grid-template-columns: 1fr 130px 160px 65px 65px 28px;
-  gap: 8px; padding: 12px 16px 12px 14px;
+  grid-template-columns: 1fr 135px 165px 68px 68px 30px;
+  gap: 10px; padding: 13px 18px 13px 14px;
   align-items: center; min-width: 0;
 }
 .teacher-row-header {
   flex: 1; display: grid;
-  grid-template-columns: 1fr 130px 160px 65px 65px 28px;
-  gap: 8px; padding: 0 16px 0 14px;
+  grid-template-columns: 1fr 135px 165px 68px 68px 30px;
+  gap: 10px; padding: 0 18px 0 14px;
 }
 .teacher-row-stats { display: contents; }
 .teacher-row-stats-label { display: none; }

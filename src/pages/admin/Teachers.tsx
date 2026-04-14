@@ -82,21 +82,38 @@ function StatTile({
     <div
       onClick={onClick}
       style={{
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 10, padding: '16px 18px',
-        display: 'flex', flexDirection: 'column', gap: 4,
+        background: 'linear-gradient(150deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 12, padding: '18px 20px',
+        display: 'flex', flexDirection: 'column', gap: 5,
         cursor: onClick ? 'pointer' : 'default',
-        transition: 'border-color 0.15s',
+        transition: 'border-color 0.18s, box-shadow 0.18s',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+        position: 'relative', overflow: 'hidden',
       }}
-      onMouseEnter={(e) => onClick && (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)')}
-      onMouseLeave={(e) => onClick && (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)')}
+      onMouseEnter={(e) => {
+        if (!onClick) return
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)'
+        e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.25)'
+      }}
+      onMouseLeave={(e) => {
+        if (!onClick) return
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'
+        e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.15)'
+      }}
     >
-      <span style={{ fontSize: 28, fontWeight: 900, color: color ?? '#E8E8F4', lineHeight: 1 }}>
+      {color && (
+        <div style={{
+          position: 'absolute', top: 0, left: '15%', right: '15%', height: 1,
+          background: `linear-gradient(90deg, transparent, ${color}40, transparent)`,
+          pointerEvents: 'none',
+        }} />
+      )}
+      <span style={{ fontSize: 30, fontWeight: 900, color: color ?? '#E8E8F4', lineHeight: 1 }}>
         {value}
       </span>
-      <span style={{ fontSize: 12, fontWeight: 700, color: '#8080A8' }}>{label}</span>
-      {sub && <span style={{ fontSize: 11, color: '#52526A' }}>{sub}</span>}
+      <span style={{ fontSize: 11, fontWeight: 700, color: '#7070A0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+      {sub && <span style={{ fontSize: 10, color: '#4A4A6A' }}>{sub}</span>}
     </div>
   )
 }
@@ -309,12 +326,26 @@ export default function Teachers() {
 
               {/* View full roster CTA */}
               <button
-                className="btn-outline"
                 onClick={() => goToList()}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   width: '100%', justifyContent: 'center', padding: '14px 20px',
-                  fontSize: 13, fontWeight: 700,
+                  fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.018) 100%)',
+                  border: '1px solid rgba(255,255,255,0.09)',
+                  borderRadius: 12, color: '#8080A8',
+                  transition: 'border-color 0.18s, color 0.18s, box-shadow 0.18s',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'
+                  e.currentTarget.style.color = '#C0C0E0'
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.25)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)'
+                  e.currentTarget.style.color = '#8080A8'
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'
                 }}
               >
                 <List size={15} />
@@ -494,14 +525,15 @@ function TeacherListView({
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 3 }}>
+          <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 4 }}>
             <button
               onClick={() => setLocationFilter('')}
               style={{
-                padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                background: !locationFilter ? 'rgba(212,34,106,0.12)' : 'transparent',
-                color: !locationFilter ? '#E8488A' : '#8080A8',
-                border: !locationFilter ? '1px solid rgba(212,34,106,0.2)' : '1px solid transparent',
+                padding: '5px 13px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                background: !locationFilter ? 'rgba(212,34,106,0.14)' : 'transparent',
+                color: !locationFilter ? '#E8488A' : '#6060A0',
+                border: !locationFilter ? '1px solid rgba(212,34,106,0.24)' : '1px solid transparent',
+                transition: 'all 0.15s',
               }}
             >
               All
@@ -518,13 +550,14 @@ function TeacherListView({
                   key={loc.id}
                   onClick={() => setLocationFilter(isActive ? '' : locName)}
                   style={{
-                    padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    background: isActive ? `${locColor}20` : 'transparent',
-                    color: isActive ? locColor : '#8080A8',
+                    padding: '5px 13px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                    background: isActive ? `${locColor}1A` : 'transparent',
+                    color: isActive ? locColor : '#6060A0',
                     border: isActive ? `1px solid ${locColor}40` : '1px solid transparent',
+                    transition: 'all 0.15s',
                   }}
                 >
-                  {locName} <span style={{ opacity: 0.6, marginLeft: 2 }}>{count}</span>
+                  {locName} <span style={{ opacity: 0.55, marginLeft: 3, fontWeight: 600 }}>{count}</span>
                 </button>
               )
             })}
@@ -566,8 +599,8 @@ function TeacherListView({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} style={{
-                height: 62, background: 'rgba(255,255,255,0.02)',
-                borderRadius: 10, border: '1px solid rgba(255,255,255,0.04)',
+                height: 66, background: 'linear-gradient(135deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0.01) 100%)',
+                borderRadius: 12, border: '1px solid rgba(255,255,255,0.045)',
               }} />
             ))}
           </div>
@@ -580,12 +613,13 @@ function TeacherListView({
             {/* Column labels — hidden on mobile via CSS */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 0,
-              padding: '0 0 8px 0', marginBottom: 2,
+              padding: '0 0 6px 0', marginBottom: 4,
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
             }}>
-              <div style={{ width: 4, flexShrink: 0 }} />
+              <div style={{ width: 5, flexShrink: 0 }} />
               <div className="teacher-row-header" style={{
-                fontSize: 10, fontWeight: 700, color: '#52526A',
-                textTransform: 'uppercase', letterSpacing: 0.5,
+                fontSize: 9.5, fontWeight: 700, color: '#444466',
+                textTransform: 'uppercase', letterSpacing: '0.08em',
               }}>
                 <span>Teacher</span>
                 <span>Instruments</span>
@@ -655,35 +689,47 @@ function TeacherListView({
 function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void }) {
   const isInactive = !t.is_active
   const railColors = isInactive
-    ? ['#3A3A52']
+    ? ['#2E2E48']
     : t.location_colors.length > 0
       ? t.location_colors
       : ['#52526A']
+
+  // Gradient background for initials avatar using location color(s)
+  const avatarBg = isInactive
+    ? 'rgba(255,255,255,0.025)'
+    : railColors.length >= 2
+      ? `linear-gradient(135deg, ${railColors[0]}28, ${railColors[1]}18)`
+      : `linear-gradient(135deg, ${railColors[0]}28, ${railColors[0]}0e)`
+  const avatarBorder = isInactive ? 'rgba(255,255,255,0.04)' : `${railColors[0]}35`
+  const avatarColor = isInactive ? '#3A3A5A' : `${railColors[0]}E0`
 
   return (
     <div
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'stretch', gap: 0,
-        background: 'rgba(255,255,255,0.025)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 10, cursor: 'pointer',
-        transition: 'border-color 0.15s, box-shadow 0.15s',
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.038) 0%, rgba(255,255,255,0.016) 100%)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 12, cursor: 'pointer',
+        transition: 'border-color 0.18s, box-shadow 0.18s, background 0.18s',
         overflow: 'hidden', marginBottom: 6,
+        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'
-        e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.2)'
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'
+        e.currentTarget.style.boxShadow = '0 4px 22px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.05)'
+        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.024) 100%)'
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
-        e.currentTarget.style.boxShadow = 'none'
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'
+        e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)'
+        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.038) 0%, rgba(255,255,255,0.016) 100%)'
       }}
     >
-      {/* Color rail — multi-segment for multi-location teachers */}
-      <div style={{ width: 4, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+      {/* Color rail — multi-segment, full opacity, slightly wider */}
+      <div style={{ width: 5, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         {railColors.map((c, i) => (
-          <div key={i} style={{ flex: 1, background: c, opacity: isInactive ? 0.3 : 0.85 }} />
+          <div key={i} style={{ flex: 1, background: c, opacity: isInactive ? 0.22 : 1 }} />
         ))}
       </div>
 
@@ -696,78 +742,78 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
               src={t.photo_url}
               alt=""
               style={{
-                width: 36, height: 36, borderRadius: 10,
+                width: 38, height: 38, borderRadius: 10,
                 objectFit: 'cover', flexShrink: 0,
-                border: '1px solid rgba(255,255,255,0.08)',
-                opacity: isInactive ? 0.4 : 1,
+                border: `1px solid ${avatarBorder}`,
+                opacity: isInactive ? 0.35 : 1,
               }}
             />
           ) : (
             <div style={{
-              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-              background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.06)',
+              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              background: avatarBg,
+              border: `1px solid ${avatarBorder}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, fontWeight: 900, letterSpacing: 0.5,
-              color: isInactive ? '#4A4A6A' : '#9090B8',
+              fontSize: 12, fontWeight: 900, letterSpacing: 0.5,
+              color: avatarColor,
             }}>
               {(t.first_name[0] ?? '').toUpperCase()}{(t.last_name[0] ?? '').toUpperCase()}
             </div>
           )}
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{
-              fontSize: 14, fontWeight: 800, lineHeight: 1.25,
-              color: isInactive ? '#6060A8' : '#F0F0FA',
+              fontSize: 13.5, fontWeight: 800, lineHeight: 1.25,
+              color: isInactive ? '#5A5A88' : '#F0F0FA',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
               {t.first_name} {t.last_name}
               {t.is_sub_available && (
                 <span style={{
-                  fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 700,
-                  background: 'rgba(167,139,250,0.12)', color: '#A78BFA',
-                  border: '1px solid rgba(167,139,250,0.2)', lineHeight: 1,
-                  textTransform: 'uppercase', letterSpacing: 0.3,
+                  fontSize: 8.5, padding: '2px 7px', borderRadius: 20, fontWeight: 700,
+                  background: 'rgba(167,139,250,0.1)', color: '#A78BFA',
+                  border: '1px solid rgba(167,139,250,0.22)', lineHeight: 1,
+                  textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0,
                 }}>Sub</span>
               )}
             </div>
-            <div style={{ fontSize: 11, color: isInactive ? '#4A4A6A' : '#6B6B92', marginTop: 1 }}>
+            <div style={{ fontSize: 10.5, color: isInactive ? '#404068' : '#606090', marginTop: 2, fontWeight: 500 }}>
               {t.teacher_role ? t.teacher_role.charAt(0).toUpperCase() + t.teacher_role.slice(1) : 'Teacher'}
             </div>
           </div>
         </div>
 
-        {/* Instruments */}
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>
+        {/* Instruments — pill-shaped, refined palette */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0, alignItems: 'center' }}>
           {t.instruments.slice(0, 3).map((inst, i) => (
             <span key={i} style={{
-              fontSize: 10, padding: '3px 8px', borderRadius: 5, fontWeight: 700,
-              background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(212,34,106,0.08)',
-              color: isInactive ? '#4A4A6A' : '#D4689A',
-              border: `1px solid ${isInactive ? 'transparent' : 'rgba(212,34,106,0.12)'}`,
-              lineHeight: 1,
+              fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 700,
+              background: isInactive ? 'rgba(255,255,255,0.025)' : 'rgba(212,34,106,0.09)',
+              color: isInactive ? '#404068' : '#D4689A',
+              border: `1px solid ${isInactive ? 'rgba(255,255,255,0.04)' : 'rgba(212,34,106,0.18)'}`,
+              lineHeight: 1, letterSpacing: 0.2, whiteSpace: 'nowrap',
             }}>
               {inst.charAt(0).toUpperCase() + inst.slice(1)}
             </span>
           ))}
           {t.instruments.length > 3 && (
-            <span style={{ fontSize: 10, color: '#52526A', fontWeight: 600, alignSelf: 'center' }}>
+            <span style={{ fontSize: 10, color: '#454565', fontWeight: 700, alignSelf: 'center' }}>
               +{t.instruments.length - 3}
             </span>
           )}
         </div>
 
-        {/* Locations — refined chips */}
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>
+        {/* Locations — color-aware pill chips */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0, alignItems: 'center' }}>
           {t.location_names.map((name, i) => {
             const c = t.location_colors[i] ?? '#D4226A'
             return (
               <span key={i} style={{
-                fontSize: 10, padding: '3px 8px', borderRadius: 5, fontWeight: 700,
-                background: isInactive ? 'rgba(255,255,255,0.03)' : `${c}12`,
-                color: isInactive ? '#4A4A6A' : c,
-                border: `1px solid ${isInactive ? 'transparent' : `${c}25`}`,
-                lineHeight: 1,
+                fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 700,
+                background: isInactive ? 'rgba(255,255,255,0.025)' : `${c}16`,
+                color: isInactive ? '#404068' : c,
+                border: `1px solid ${isInactive ? 'rgba(255,255,255,0.04)' : `${c}35`}`,
+                lineHeight: 1, letterSpacing: 0.2, whiteSpace: 'nowrap',
               }}>
                 {name}
               </span>
@@ -779,8 +825,8 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
         <div className="teacher-row-stats">
           <div style={{ textAlign: 'right' }}>
             <span style={{
-              fontSize: 14, fontWeight: 800,
-              color: isInactive ? '#4A4A6A' : t.student_count > 0 ? '#E0E0F2' : '#52526A',
+              fontSize: 15, fontWeight: 900,
+              color: isInactive ? '#404068' : t.student_count > 0 ? '#DDE0F8' : '#404065',
             }}>
               {t.student_count}
             </span>
@@ -789,8 +835,8 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
 
           <div style={{ textAlign: 'right' }}>
             <span style={{
-              fontSize: 14, fontWeight: 800,
-              color: isInactive ? '#4A4A6A' : t.blocks_this_week > 0 ? '#E0E0F2' : '#52526A',
+              fontSize: 15, fontWeight: 900,
+              color: isInactive ? '#404068' : t.blocks_this_week > 0 ? '#DDE0F8' : '#404065',
             }}>
               {t.blocks_this_week}
             </span>
@@ -798,9 +844,9 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
           </div>
 
           {/* Status indicator + chevron */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end', marginLeft: 'auto' }}>
             <StatusDot status={isInactive ? 'inactive' : t.status} />
-            <ChevronRight size={13} color="#52526A" />
+            <ChevronRight size={14} color="#32324E" />
           </div>
         </div>
       </div>

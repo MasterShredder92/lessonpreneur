@@ -303,19 +303,19 @@ export default function TeacherDetail({ propId, onBack }: { propId?: string; onB
 
             {/* Name + status + instruments + bio */}
             <div style={{ minWidth: 0 }}>
-              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '3px 12px', borderRadius: 8, border: '1px solid', color: statusColor, borderColor: statusBorder, background: statusBg }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '4px 13px', borderRadius: 20, border: '1px solid', color: statusColor, borderColor: statusBorder, background: statusBg }}>
                 {statusLabel}
               </span>
               {(t.sub_available || t.is_sub_available) && (
-                <span style={{ marginLeft: 6, fontSize: 9, padding: '3px 8px', borderRadius: 6, background: 'rgba(168,85,247,0.15)', color: '#A78BFA', border: '1px solid rgba(168,85,247,0.25)', fontWeight: 700 }}>SUB</span>
+                <span style={{ marginLeft: 6, fontSize: 9, padding: '3px 9px', borderRadius: 20, background: 'rgba(168,85,247,0.12)', color: '#A78BFA', border: '1px solid rgba(168,85,247,0.25)', fontWeight: 700, letterSpacing: 0.5 }}>SUB</span>
               )}
               <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', margin: '10px 0 2px', color: '#E0E0F4' }}>{teacherName || 'Unknown Teacher'}</h1>
               <div style={{ fontSize: 12, color: '#A0A0C8' }}>{t.teacher_role ?? 'Music Teacher'}</div>
 
               {/* Instrument pills */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
                 {t.instruments?.map((inst: string) => (
-                  <span key={inst} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: 'rgba(212,34,106,0.1)', color: '#E8488A', fontWeight: 600 }}>{inst.charAt(0).toUpperCase() + inst.slice(1)}</span>
+                  <span key={inst} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 20, background: 'rgba(212,34,106,0.1)', color: '#E8488A', border: '1px solid rgba(212,34,106,0.2)', fontWeight: 700, letterSpacing: 0.2 }}>{inst.charAt(0).toUpperCase() + inst.slice(1)}</span>
                 ))}
               </div>
 
@@ -386,11 +386,11 @@ export default function TeacherDetail({ propId, onBack }: { propId?: string; onB
           <div style={{ textAlign: 'center', marginBottom: 12 }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 4px', color: '#E0E0F4' }}>{teacherName || 'Unknown Teacher'}</h1>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '3px 10px', borderRadius: 8, border: '1px solid', color: statusColor, borderColor: statusBorder, background: statusBg }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '4px 13px', borderRadius: 20, border: '1px solid', color: statusColor, borderColor: statusBorder, background: statusBg }}>
                 {statusLabel}
               </span>
               {(t.sub_available || t.is_sub_available) && (
-                <span style={{ fontSize: 9, padding: '3px 8px', borderRadius: 6, background: 'rgba(168,85,247,0.15)', color: '#A78BFA', border: '1px solid rgba(168,85,247,0.25)', fontWeight: 700 }}>SUB</span>
+                <span style={{ fontSize: 9, padding: '3px 9px', borderRadius: 20, background: 'rgba(168,85,247,0.12)', color: '#A78BFA', border: '1px solid rgba(168,85,247,0.25)', fontWeight: 700, letterSpacing: 0.5 }}>SUB</span>
               )}
             </div>
           </div>
@@ -420,7 +420,7 @@ export default function TeacherDetail({ propId, onBack }: { propId?: string; onB
             <div style={{ fontSize: 12, color: '#A0A0C8', marginBottom: 8 }}>{t.teacher_role ?? 'Music Teacher'}</div>
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
               {t.instruments?.map((inst: string) => (
-                <span key={inst} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: 'rgba(212,34,106,0.1)', color: '#E8488A', fontWeight: 600 }}>{inst.charAt(0).toUpperCase() + inst.slice(1)}</span>
+                <span key={inst} style={{ fontSize: 10, padding: '4px 11px', borderRadius: 20, background: 'rgba(212,34,106,0.1)', color: '#E8488A', border: '1px solid rgba(212,34,106,0.2)', fontWeight: 700, letterSpacing: 0.2 }}>{inst.charAt(0).toUpperCase() + inst.slice(1)}</span>
               ))}
             </div>
           </div>
