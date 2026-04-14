@@ -255,13 +255,27 @@ function SyncButtons() {
 
 function UncategorizedBadge({ monthKey }: { monthKey: string }) {
   const { data } = useUncategorizedTransactions(monthKey)
-  if (!data?.length) return null
+  const n = data?.length ?? 0
+  // Reserve horizontal space so tab labels do not shift when the count appears (CLS).
   return (
-    <span style={{
-      marginLeft: 6, padding: '2px 7px', borderRadius: 10, fontSize: 10, fontWeight: 800,
-      background: ORANGE, color: '#fff',
-    }}>
-      {data.length}
+    <span
+      aria-hidden={n === 0}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 22,
+        marginLeft: 6,
+        padding: n > 0 ? '2px 7px' : '2px 0',
+        borderRadius: 10,
+        fontSize: 10,
+        fontWeight: 800,
+        background: n > 0 ? ORANGE : 'transparent',
+        color: n > 0 ? '#fff' : 'transparent',
+        verticalAlign: 'middle',
+      }}
+    >
+      {n > 0 ? n : '\u00a0'}
     </span>
   )
 }

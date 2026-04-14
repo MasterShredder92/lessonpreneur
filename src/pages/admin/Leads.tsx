@@ -591,7 +591,7 @@ export default function Leads() {
                   data-lead-id={primaryLead.id}
                   data-guide-id={itemIdx === firstCardRenderIdx ? 'leads-first-card' : undefined}
                   className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
-                  onClick={() => { setDetailLead(primaryLead); aiMatch.clearMatch() }}
+                  onClick={() => { startTransition(() => { setDetailLead(primaryLead); aiMatch.clearMatch() }) }}
                 >
                   <div className="lead-card-edge" style={{ background: stageColor, boxShadow: `0 0 12px ${stageColor}60` }} />
                   <div className="lead-card-glow" style={{ background: `radial-gradient(circle, ${stageColor}18 0%, transparent 70%)` }} />
@@ -643,7 +643,7 @@ export default function Leads() {
                       })()}
                     </div>
                   </div>
-                  <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); setDetailLead(primaryLead); aiMatch.runMatch(primaryLead.id, tenantId!) }}>
+                  <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); startTransition(() => { setDetailLead(primaryLead); void aiMatch.runMatch(primaryLead.id, tenantId!) }) }}>
                     <UserPlus size={13} /><span>{fg.stage === 'lost' ? 'Get Them Back' : 'Find best teacher'}</span>
                   </button>
                 </div>
@@ -664,7 +664,7 @@ export default function Leads() {
                 data-lead-id={lead.id}
                 data-guide-id={itemIdx === firstCardRenderIdx ? 'leads-first-card' : undefined}
                 className={`lead-card${isStale ? ' lead-card-stale' : ''}`}
-                onClick={() => { setDetailLead(lead); aiMatch.clearMatch() }}
+                onClick={() => { startTransition(() => { setDetailLead(lead); aiMatch.clearMatch() }) }}
               >
                 <div className="lead-card-edge" style={{ background: stageColor, boxShadow: `0 0 12px ${stageColor}60` }} />
                 <div className="lead-card-glow" style={{ background: `radial-gradient(circle, ${stageColor}18 0%, transparent 70%)` }} />
@@ -740,7 +740,7 @@ export default function Leads() {
                     })()}
                   </div>
                 </div>
-                <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); setDetailLead(lead); aiMatch.runMatch(lead.id, tenantId!) }}>
+                <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); startTransition(() => { setDetailLead(lead); void aiMatch.runMatch(lead.id, tenantId!) }) }}>
                   <UserPlus size={13} /><span>{lead.stage === 'lost' ? 'Get Them Back' : 'Find best teacher'}</span>
                 </button>
               </div>

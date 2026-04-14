@@ -261,8 +261,48 @@ export default function Teachers() {
           </div>
 
           {isLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-              <div style={{ color: '#52526A', fontSize: 13 }}>Loading teacher data...</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ minHeight: 44 }} />
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                gap: 10, marginBottom: 8,
+              }}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 88,
+                      borderRadius: 12,
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                    }}
+                  />
+                ))}
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                gap: 8, marginBottom: 12,
+              }}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 52,
+                      borderRadius: 10,
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                    }}
+                  />
+                ))}
+              </div>
+              <div style={{
+                height: 48,
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.025)',
+                border: '1px solid rgba(255,255,255,0.06)',
+              }} />
             </div>
           ) : error ? (
             <div className="form-error">Failed to load: {(error as Error).message}</div>

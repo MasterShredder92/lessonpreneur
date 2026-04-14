@@ -99,6 +99,7 @@ export default function Settings() {
         <button className={`settings-tab ${tab === 'account' ? 'active' : ''}`} onClick={() => setTab('account')}>My Account</button>
       </div>
 
+      <div style={{ minHeight: 'min(72vh, 640px)' }}>
       {tab === 'business' && <BusinessTab tenantId={tenantId} isOwner={isOwner} />}
       {tab === 'locations' && <LocationsConsolidatedTab isOwner={isOwner} tenantId={tenantId} />}
       {tab === 'access' && canManageAccess && <AccessControlTab tenantId={tenantId} />}
@@ -110,6 +111,7 @@ export default function Settings() {
         </Suspense>
       )}
       {tab === 'account' && <AccountTab />}
+      </div>
     </div>
     </IssueContextProvider>
   )

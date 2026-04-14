@@ -175,8 +175,32 @@ const utilBtn: React.CSSProperties = {
 function LocationSnapshotCard({ locationId, name, color, onSelect }: {
   locationId: string; name: string; color: string; onSelect: () => void
 }) {
-  const { data } = useBillingSnapshot(locationId)
-  if (!data) return null
+  const { data, isPending } = useBillingSnapshot(locationId)
+  if (isPending || !data) {
+    return (
+      <div onClick={onSelect} style={{ cursor: 'pointer' }} aria-busy={isPending}>
+        <div
+          style={{
+            minHeight: 168,
+            borderRadius: 16,
+            padding: 16,
+            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div style={{ height: 12, width: '45%', borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 4 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ height: 52, borderRadius: 10, background: 'rgba(255,255,255,0.04)' }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div onClick={onSelect} style={{ cursor: 'pointer' }}>
       <BillingSnapshotCard
@@ -228,7 +252,7 @@ function BillingInner() {
   // Data hooks — billing snapshot (new role-scoped cards)
   const { data: snapshotAll, isLoading: snapshotLoading } = useBillingSnapshot()
   const directorLocId = isStudioDirector ? (locationIds?.[0] ?? undefined) : undefined
-  const { data: snapshotDirectorLoc } = useBillingSnapshot(directorLocId)
+  const { data: snapshotDirectorLoc, isPending: directorSnapshotPending } = useBillingSnapshot(directorLocId)
 
   // Data hooks — each section loads only when its tab is active (faster initial paint)
   const { data: families, isLoading: familiesLoading } = useBillingFamilies(locationFilter, activeSection === 'invoices')
@@ -382,8 +406,27 @@ function BillingInner() {
         </div>
       ) : isStudioDirector ? (
         /* Studio Director: only their location */
-        snapshotDirectorLoc && (
-          <div data-tour-id="billing-hero-cards" style={{ marginBottom: 16 }}>
+        <div data-tour-id="billing-hero-cards" style={{ marginBottom: 16, minHeight: directorSnapshotPending && !snapshotDirectorLoc ? 200 : undefined }}>
+          {directorSnapshotPending && !snapshotDirectorLoc ? (
+            <div
+              style={{
+                borderRadius: 16,
+                padding: 20,
+                border: '1px solid rgba(255,255,255,0.06)',
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+              }}
+            >
+              <div style={{ height: 14, width: 200, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} style={{ height: 72, borderRadius: 12, background: 'rgba(255,255,255,0.04)' }} />
+                ))}
+              </div>
+            </div>
+          ) : snapshotDirectorLoc ? (
             <BillingSnapshotCard
               title={activeLocations.find((l: any) => l.id === directorLocId)?.name ?? 'My Location'}
               data={snapshotDirectorLoc}
@@ -392,8 +435,8 @@ function BillingInner() {
               size="large"
               clickable={false}
             />
-          </div>
-        )
+          ) : null}
+        </div>
       ) : snapshotAll ? (
         /* Owner / Admin: aggregate + per-location breakdown */
         <div data-tour-id="billing-hero-cards" style={{ marginBottom: 16 }}>

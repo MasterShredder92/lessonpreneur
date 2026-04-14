@@ -163,8 +163,8 @@ function SectionHeader({ title, count, action }: { title: string; count?: number
 //  OVERVIEW PANEL
 // ══════════════════════════════
 function RetentionOverview({ locationIds, onEnter }: { locationIds?: string[] | null; onEnter: () => void }) {
-  const { data: metrics } = useRetentionMetrics(locationIds)
-  const { data: atRisk } = useAtRiskStudents(locationIds)
+  const { data: metrics, isPending: metricsPending } = useRetentionMetrics(locationIds)
+  const { data: atRisk, isPending: atRiskPending } = useAtRiskStudents(locationIds)
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto' }}>
@@ -201,18 +201,18 @@ function RetentionOverview({ locationIds, onEnter }: { locationIds?: string[] | 
           </div>
         </div>
 
-        {/* Metrics preview */}
-        {metrics ? (
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 32 }}>
+        {/* Metrics preview — stable height vs loaded cards (MetricCard can include subtext) */}
+        {metrics && !metricsPending ? (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 32, minHeight: 96 }}>
             <MetricCard label="Active Students" value={metrics.activeStudents} color="#22C55E" />
-            <MetricCard label="At-Risk" value={atRisk?.length ?? 0} color="#EF4444" />
+            <MetricCard label="At-Risk" value={atRiskPending ? '…' : (atRisk?.length ?? 0)} color="#EF4444" />
             <MetricCard label="Avg Months Enrolled" value={metrics.avgMonthsEnrolled} color="#FFB800" sub="per student" />
             <MetricCard label="Cards This Month" value={metrics.valueCardsSentThisMonth} color="#38BDF8" />
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 10, marginBottom: 32 }}>
-            {[0,1,2,3].map(i => (
-              <div key={i} style={{ flex: 1, height: 78, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }} />
+          <div style={{ display: 'flex', gap: 10, marginBottom: 32, minHeight: 96 }}>
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} style={{ flex: 1, minWidth: 130, minHeight: 92, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }} />
             ))}
           </div>
         )}
@@ -871,7 +871,7 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
 //  TAB 2: AT-RISK
 // ══════════════════════════════
 function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
-  const { data: students } = useAtRiskStudents(locationIds)
+  const { data: students, isPending: atRiskListPending } = useAtRiskStudents(locationIds)
   const dismiss = useDismissAtRisk()
   const navigate = useNavigate()
   const [reasonFilter, setReasonFilter] = useState<string | null>(null)
@@ -884,10 +884,13 @@ function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28 }}>
-        <MetricCard label="Total At-Risk" value={students?.length ?? 0} color="#EF4444" />
-        {Object.entries(byLocation).map(([loc, count]) => (
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28, minHeight: 92 }}>
+        <MetricCard label="Total At-Risk" value={atRiskListPending ? '…' : (students?.length ?? 0)} color="#EF4444" />
+        {!atRiskListPending && Object.entries(byLocation).map(([loc, count]) => (
           <MetricCard key={loc} label={loc} value={count} color={LOC_COLORS[loc] ?? '#8080A8'} />
+        ))}
+        {atRiskListPending && [0, 1, 2].map((i) => (
+          <div key={`sk-${i}`} style={{ flex: 1, minWidth: 130, minHeight: 92, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }} />
         ))}
       </div>
 
@@ -900,8 +903,11 @@ function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {filtered.map(s => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: atRiskListPending ? 200 : undefined }}>
+        {atRiskListPending && [0, 1, 2, 3].map((i) => (
+          <div key={`row-${i}`} style={{ height: 72, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }} />
+        ))}
+        {!atRiskListPending && filtered.map(s => (
           <div
             key={s.id}
             style={{
@@ -963,7 +969,7 @@ function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
             </div>
           </div>
         ))}
-        {filtered.length === 0 && (
+        {!atRiskListPending && filtered.length === 0 && (
           <div style={{ padding: '40px 24px', textAlign: 'center', background: 'rgba(255,255,255,0.012)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.06)' }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#22C55E', marginBottom: 4 }}>
               {reasonFilter ? 'No students match this filter.' : 'No at-risk students right now.'}
@@ -981,7 +987,7 @@ function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
 // ══════════════════════════════
 function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
   const [subTab, setSubTab] = useState<'former' | 'leads'>('former')
-  const { data: metrics } = useWinBackMetrics(locationIds)
+  const { data: metrics, isPending: winBackMetricsPending } = useWinBackMetrics(locationIds)
   const { data: formerStudents } = useFormerStudents(locationIds)
   const { data: lostLeads } = useLostLeads(locationIds)
   const navigate = useNavigate()
@@ -1002,15 +1008,21 @@ function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
 
   return (
     <div>
-      {metrics && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28 }}>
+      {winBackMetricsPending ? (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28, minHeight: 92 }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} style={{ flex: 1, minWidth: 130, minHeight: 92, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }} />
+          ))}
+        </div>
+      ) : metrics ? (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28, minHeight: 92 }}>
           <MetricCard label="Former Students" value={metrics.totalFormer} color="#EF4444" />
           <MetricCard label="Due for Reactivation" value={metrics.dueForReactivation} color="#FFB800" />
           <MetricCard label="Contacted" value={metrics.contactedThisMonth} color="#38BDF8" sub="this month" />
           <MetricCard label="Won Back" value={metrics.wonBackThisMonth} color="#22C55E" sub="this month" />
           <MetricCard label="Lost Leads" value={metrics.totalLostLeads} color="#A333FF" />
         </div>
-      )}
+      ) : null}
 
       {/* Sub-tab toggle */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 24, padding: 4, background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)', width: 'fit-content' }}>

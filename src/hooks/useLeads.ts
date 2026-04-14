@@ -53,52 +53,6 @@ export interface LeadRow {
   needs_follow_up?: boolean
 }
 
-/** Explicit columns — avoids wide rows + TOAST payload bloat from `select('*')`. */
-const LEADS_LIST_COLUMNS = [
-  'id',
-  'tenant_id',
-  'location_id',
-  'first_name',
-  'last_name',
-  'parent_name',
-  'email',
-  'phone',
-  'instrument',
-  'age',
-  'goals',
-  'preferred_days',
-  'preferred_times',
-  'stage',
-  'source',
-  'how_heard',
-  'is_military',
-  'assigned_teacher_id',
-  'matched_block_id',
-  'converted_student_id',
-  'follow_up_count',
-  'last_contact_at',
-  'next_follow_up_at',
-  'notes',
-  'lost_category',
-  'lost_reason',
-  'tags',
-  'next_action',
-  'age_range',
-  'experience',
-  'has_instrument',
-  'preferred_locations',
-  'personality_notes',
-  'student_name',
-  'family_id',
-  'compatibility_score',
-  'matched_teacher_id',
-  'referral_source',
-  'secondary_location_ids',
-  'intake_submission_id',
-  'created_at',
-  'updated_at',
-].join(',')
-
 export function useLeads(
   filters?: { locationId?: string; instrument?: string },
   options?: { enabled?: boolean },
@@ -109,38 +63,15 @@ export function useLeads(
     enabled: !!tenantId && (options?.enabled !== false),
     queryFn: async () => {
       const _t0 = performance.now()
-      let leadsQuery = supabase
-        .from('leads')
-        .select(LEADS_LIST_COLUMNS)
-        .eq('tenant_id', tenantId!)
-        .order('created_at', { ascending: false })
-        .limit(500)
-
-      if (filters?.locationId) leadsQuery = leadsQuery.eq('location_id', filters.locationId)
-      if (filters?.instrument) leadsQuery = leadsQuery.eq('instrument', filters.instrument)
-
-      const [{ data, error }, { data: allLocs }] = await Promise.all([
-        leadsQuery,
-        supabase.from('locations').select('id, name').eq('tenant_id', tenantId!),
-      ])
+      const { data: bundle, error } = await supabase.rpc('get_leads_list_for_tenant', {
+        p_tenant_id: tenantId!,
+        p_location_id: filters?.locationId ?? null,
+        p_instrument: filters?.instrument ?? null,
+        p_limit: 500,
+      })
       if (error) throw error
-
-      const locMap = new Map<string, string>()
-      allLocs?.forEach((l: any) => locMap.set(l.id, l.name?.replace(' Music Lessons', '') ?? ''))
-
-      const now = Date.now()
-      const result = data.map((l: any) => {
-        const created = new Date(l.created_at).getTime()
-        const daysSince = Math.floor((now - created) / (1000 * 60 * 60 * 24))
-        const lastChange = new Date(l.updated_at).getTime()
-        const daysSinceChange = Math.floor((now - lastChange) / (1000 * 60 * 60 * 24))
-        return {
-          ...l,
-          location_name: l.location_id ? locMap.get(l.location_id) ?? '—' : '—',
-          days_since_created: daysSince,
-          needs_follow_up: daysSinceChange >= 3 && !['enrolled', 'lost'].includes(l.stage),
-        }
-      }) as LeadRow[]
+      const rows = (bundle as { leads?: LeadRow[] } | null)?.leads
+      const result = (Array.isArray(rows) ? rows : []) as LeadRow[]
       logQueryPerf(tenantId!, 'leads.list', performance.now() - _t0, { tableName: 'leads', rowCount: result.length })
       return result
     },

@@ -21,6 +21,12 @@ export default function Login() {
     const password = passwordRef.current?.value ?? ''
     setError(null)
     setSubmitting(true)
+    // Yield two frames so the browser can paint "Signing in…" before auth + route work (INP).
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve())
+      })
+    })
     try {
       const { error: err } = await signIn(email, password)
       if (err) setError(err)

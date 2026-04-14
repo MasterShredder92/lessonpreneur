@@ -17,59 +17,6 @@ function stripCompensation(teacher: any): any {
   return stripped
 }
 
-/** Narrow select for list consumers — same shape as prior `*`, without unknown future wide columns. */
-const TEACHERS_LIST_SELECT = `
-  id,
-  tenant_id,
-  profile_id,
-  first_name,
-  last_name,
-  email,
-  phone,
-  photo_url,
-  is_active,
-  status,
-  instruments,
-  bio,
-  rate_per_block,
-  pay_rate_per_half_hour,
-  hire_date,
-  termination_date,
-  teacher_role,
-  is_sub_available,
-  sub_available,
-  needs_1099,
-  ai_context,
-  personality,
-  lesson_style,
-  best_age_range,
-  square_team_member_id,
-  primary_instruments,
-  secondary_instruments,
-  style_genre_strengths,
-  preferred_age_range,
-  acceptable_age_range,
-  skill_levels_by_instrument,
-  teaching_strengths,
-  musical_strengths_background,
-  best_first_lesson_fit,
-  best_match_students,
-  use_caution_internal_placement_notes,
-  meet_and_greet_fit,
-  substitute_coverage,
-  customer_facing_match_summary,
-  internal_matching_tags,
-  director_notes,
-  w9_status,
-  w9_completed_at,
-  contract_status,
-  contract_signed_at,
-  contract_pdf_url,
-  created_at,
-  updated_at,
-  profile:profiles!teachers_profile_id_fkey(id, first_name, last_name, email, phone, is_active)
-`
-
 export function useTeachers() {
   const { canViewTeacherCompensation, canViewTeacherDocuments } = usePermissions()
   const { tenantId } = useAuthContext()
@@ -79,7 +26,6 @@ export function useTeachers() {
     staleTime: 2 * 60 * 1000, // 2-minute cache — teachers don't change every second
     queryFn: async () => {
       const _t0 = performance.now()
-      // Pre-compute week boundaries before firing queries
       const today = new Date()
       const dayOfWeek = today.getDay()
       const monday = new Date(today)
@@ -89,82 +35,36 @@ export function useTeachers() {
       const mondayStr = monday.toISOString().split('T')[0]
       const sundayStr = sunday.toISOString().split('T')[0]
 
-      // All 5 queries in parallel — eliminates 4 sequential round trips
-      const [teachersRes, locationsRes, studentsRes, blocksRes, teacherLocsRes] = await Promise.all([
-        supabase
-          .from('teachers')
-          .select(TEACHERS_LIST_SELECT)
-          .eq('tenant_id', tenantId!)
-          .order('first_name')
-          .order('last_name')
-          .limit(500),
-
-        supabase
-          .from('locations')
-          .select('id, name')
-          .eq('tenant_id', tenantId!),
-
-        supabase
-          .from('students')
-          .select('teacher_id')
-          .eq('tenant_id', tenantId!)
-          .eq('status', 'active'),
-
-        supabase
-          .from('schedule_blocks')
-          .select('teacher_id')
-          .eq('tenant_id', tenantId!)
-          .eq('status', 'booked')
-          .not('student_id', 'is', null)
-          .gte('block_date', mondayStr)
-          .lte('block_date', sundayStr),
-
-        supabase.rpc('get_teacher_locations_for_tenant', { p_tenant_id: tenantId! }),
-      ])
-
-      const { data: teachers, error } = teachersRes
+      const { data: bundle, error } = await supabase.rpc('get_teachers_list_bundle', {
+        p_tenant_id: tenantId!,
+        p_week_start: mondayStr,
+        p_week_end: sundayStr,
+      })
       if (error) throw error
 
-      const locMap = new Map(locationsRes.data?.map((l) => [l.id, l.name]) ?? [])
-
-      const studentCounts = new Map<string, number>()
-      studentsRes.data?.forEach((s: any) => {
-        if (s.teacher_id) {
-          studentCounts.set(s.teacher_id, (studentCounts.get(s.teacher_id) ?? 0) + 1)
-        }
-      })
-
-      const blockCounts = new Map<string, number>()
-      blocksRes.data?.forEach((b: any) => {
-        blockCounts.set(b.teacher_id, (blockCounts.get(b.teacher_id) ?? 0) + 1)
-      })
-
-      const teacherIdSet = new Set(teachers.map((t: any) => t.id))
-      const locsByTeacher = new Map<string, Set<string>>()
-      teacherLocsRes.data?.filter((tl: any) => teacherIdSet.has(tl.teacher_id)).forEach((tl: any) => {
-        if (!locsByTeacher.has(tl.teacher_id)) locsByTeacher.set(tl.teacher_id, new Set())
-        locsByTeacher.get(tl.teacher_id)!.add(tl.location_id)
-      })
+      const b = bundle as { teachers?: any[]; locations?: { id: string; name: string }[] } | null
+      const teachers = b?.teachers ?? []
+      const locMap = new Map((b?.locations ?? []).map((l) => [l.id, l.name]))
 
       const result = teachers.map((t: any) => {
-        // Prefer direct first_name/last_name on teachers table, fallback to profile
         const profile = t.profile ?? {}
         if (!t.first_name && profile.first_name) t.first_name = profile.first_name
         if (!t.last_name && profile.last_name) t.last_name = profile.last_name
         if (!t.email && profile.email) t.email = profile.email
         if (!t.phone && profile.phone) t.phone = profile.phone
 
-        const tLocIds = [...(locsByTeacher.get(t.id) ?? [])]
+        const tLocIds: string[] = Array.isArray(t.location_ids) ? t.location_ids.map(String) : []
 
         const base = {
           ...t,
           location_ids: tLocIds,
-          location_names: tLocIds.map((id: string) => locMap.get(id) ?? 'Unknown'),
-          student_count: studentCounts.get(t.id) ?? 0,
-          blocks_this_week: blockCounts.get(t.id) ?? 0,
+          location_names: tLocIds.map((id: string) =>
+            (locMap.get(id) ?? 'Unknown').replace(' Music Lessons', ''),
+          ),
+          student_count: t.student_count ?? 0,
+          blocks_this_week: t.blocks_this_week ?? 0,
         }
 
-        // Strip compensation + compliance fields for studio directors
         if (!canViewTeacherCompensation) {
           return stripCompensation({ ...base, w9_status: undefined, w9_completed_at: undefined, contract_status: undefined, contract_signed_at: undefined, contract_pdf_url: undefined })
         }

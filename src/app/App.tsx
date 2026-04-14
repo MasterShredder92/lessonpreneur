@@ -11,8 +11,6 @@ import { RouteGuard } from './RouteGuard'
 import { LocationContext } from '../config/LocationContext'
 import type { LocKey } from '../config/locations'
 import { PreviewModeProvider } from '../hooks/usePreviewMode'
-import MusicLoader from '../components/shared/MusicLoader'
-
 function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
@@ -21,9 +19,33 @@ function ScrollToTop() {
   return null
 }
 
-// Suspense fallback
+// Suspense fallback — keep paint cost tiny so route chunks don't block first contentful paint
 function PageLoader() {
-  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', background: '#020209' }}><MusicLoader /></div>
+  return (
+    <div
+      style={{
+        minHeight: '55vh',
+        background: '#020209',
+        padding: '32px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+        maxWidth: 720,
+        margin: '0 auto',
+      }}
+      aria-busy
+      aria-label="Loading"
+    >
+      <div style={{ height: 22, width: '42%', borderRadius: 8, background: 'rgba(255,255,255,0.06)' }} />
+      <div style={{ height: 14, width: '70%', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 8 }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{ height: 64, borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }} />
+        ))}
+      </div>
+      <div style={{ flex: 1, minHeight: 120, borderRadius: 14, marginTop: 6, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }} />
+    </div>
+  )
 }
 
 // ── Lazy-loaded pages (code-split per route) ──

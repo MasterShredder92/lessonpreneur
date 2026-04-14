@@ -1,15 +1,18 @@
 import { useScheduleOverview, type LocationOverview } from '../../hooks/useScheduleOverview'
-import { Users, Music, Calendar, DollarSign, AlertTriangle, RefreshCw } from 'lucide-react'
-import MusicLoader from '../shared/MusicLoader'
+import { Users, Music, Calendar, DollarSign, AlertTriangle } from 'lucide-react'
 
 interface Props {
   onSelectLocation: (locationId: string) => void
 }
 
+/** Reserve vertical space for up to two rows of stat cards so optional cards do not shift layout (CLS). */
+const STATS_SECTION_MIN_HEIGHT = 248
+
 function StatCard({ label, value, sub, color, icon }: { label: string; value: string | number; sub?: string; color: string; icon: React.ReactNode }) {
   return (
     <div style={{
       flex: '1 1 160px',
+      minHeight: 104,
       padding: '20px 18px',
       borderRadius: 16,
       background: 'rgba(255,255,255,0.02)',
@@ -133,15 +136,60 @@ function LocationCard({ loc, onClick }: { loc: LocationOverview; onClick: () => 
   )
 }
 
+function ScheduleOverviewSkeleton() {
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(255,255,255,0.05)' }} />
+          <div style={{ height: 24, width: 140, borderRadius: 8, background: 'rgba(255,255,255,0.06)' }} />
+        </div>
+        <div style={{ height: 14, width: 'min(100%, 420px)', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }} />
+      </div>
+      <div style={{
+        display: 'flex', gap: 12, marginBottom: 28, flexWrap: 'wrap',
+        minHeight: STATS_SECTION_MIN_HEIGHT,
+      }}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            style={{
+              flex: '1 1 160px',
+              minHeight: 104,
+              borderRadius: 16,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ height: 12, width: 90, borderRadius: 4, background: 'rgba(255,255,255,0.05)', marginBottom: 12 }} />
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+        gap: 16,
+      }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              minHeight: 200,
+              borderRadius: 16,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ScheduleOverview({ onSelectLocation }: Props) {
   const { data, isLoading } = useScheduleOverview()
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
-        <MusicLoader />
-      </div>
-    )
+    return <ScheduleOverviewSkeleton />
   }
 
   if (!data) {
@@ -166,8 +214,8 @@ export default function ScheduleOverview({ onSelectLocation }: Props) {
         <p style={{ fontSize: 13, color: '#8080A8', fontWeight: 500, margin: 0 }}>{dayLabel} &mdash; Select a location to view the full teaching grid</p>
       </div>
 
-      {/* Top-level stats */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
+      {/* Top-level stats — fixed min height + always-mounted optional cards avoid CLS when metrics populate */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 28, flexWrap: 'wrap', minHeight: STATS_SECTION_MIN_HEIGHT }}>
         <StatCard
           label="Teachers Today"
           value={data.totalTeachersToday}
@@ -189,7 +237,7 @@ export default function ScheduleOverview({ onSelectLocation }: Props) {
           color="#22C55E"
           icon={<Calendar size={16} />}
         />
-        {data.totalCancellations > 0 && (
+        <div style={{ opacity: data.totalCancellations > 0 ? 1 : 0.22, flex: '1 1 160px', minWidth: 0 }}>
           <StatCard
             label="Call Outs"
             value={data.totalCancellations}
@@ -197,16 +245,16 @@ export default function ScheduleOverview({ onSelectLocation }: Props) {
             color="#EF4444"
             icon={<AlertTriangle size={16} />}
           />
-        )}
-        {data.totalMissedRevenue > 0 && (
+        </div>
+        <div style={{ opacity: data.totalMissedRevenue > 0 ? 1 : 0.22, flex: '1 1 160px', minWidth: 0 }}>
           <StatCard
             label="Missed Revenue"
-            value={`$${data.totalMissedRevenue.toLocaleString()}`}
+            value={data.totalMissedRevenue > 0 ? `$${data.totalMissedRevenue.toLocaleString()}` : '$0'}
             sub="per month from unfilled spots"
             color="#D4226A"
             icon={<DollarSign size={16} />}
           />
-        )}
+        </div>
       </div>
 
       {/* Location cards */}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useQuery } from '@tanstack/react-query'
@@ -27,6 +27,7 @@ import { qk } from '../../lib/queryKeys'
 
 export default function Dashboard() {
   const { tenantId } = useAuthContext()
+  const [, startNavTransition] = useTransition()
   const { setPageContext } = useZiroShell()
   useEffect(() => {
     setPageContext({ page: 'dashboard' })
@@ -41,8 +42,11 @@ export default function Dashboard() {
 
   // Billing snapshot data — role-scoped
   const directorLocationId = isStudioDirector ? (allowedLocationIds?.[0] ?? undefined) : undefined
-  const { data: snapshotAll } = useBillingSnapshot()                          // all-location aggregate
-  const { data: snapshotDirector } = useBillingSnapshot(directorLocationId)   // director's location only
+  const { data: snapshotAll, isPending: snapshotAllPending } = useBillingSnapshot()                          // all-location aggregate
+  const { data: snapshotDirector, isPending: snapshotDirectorPending } = useBillingSnapshot(directorLocationId)   // director's location only
+  const showBillingSkeleton = isStudioDirector
+    ? (snapshotDirectorPending && !snapshotDirector)
+    : (snapshotAllPending && !snapshotAll)
   const { data: locations } = useLocations()
 
   // Resolve director's location name + color
@@ -234,8 +238,10 @@ export default function Dashboard() {
               style={{ borderColor: `${c}30`, opacity: locked ? 0.4 : 1, cursor: locked ? 'default' : 'pointer', pointerEvents: locked ? 'none' : 'auto' }}
               onClick={() => {
                 if (locked) return
-                if (loc.locationId) navigate(`/admin/students?location=${loc.locationId}`)
-                else navigate('/admin/schedule')
+                startNavTransition(() => {
+                  if (loc.locationId) navigate(`/admin/students?location=${loc.locationId}`)
+                  else navigate('/admin/schedule')
+                })
               }}
             >
               <div className="loc-card-edge" style={{ background: `linear-gradient(180deg, ${c}, ${c}CC)`, boxShadow: `0 0 18px ${c}80` }} />
@@ -265,14 +271,34 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 3. Billing Snapshot — role-scoped cards */}
-      {(snapshotAll || snapshotDirector) && (
-        <div style={{ marginBottom: 16 }}>
-          <div className="section-header" style={{ marginBottom: 8 }}>
-            <span className="section-label">Billing Snapshot</span>
-            <div className="section-line" />
-          </div>
+      {/* 3. Billing Snapshot — role-scoped cards (reserve space while snapshot queries resolve — reduces CLS) */}
+      <div style={{ marginBottom: 16, minHeight: showBillingSkeleton ? 200 : undefined }}>
+        <div className="section-header" style={{ marginBottom: 8 }}>
+          <span className="section-label">Billing Snapshot</span>
+          <div className="section-line" />
+        </div>
 
+        {showBillingSkeleton ? (
+          <div
+            style={{
+              borderRadius: 16,
+              padding: 20,
+              border: '1px solid rgba(255,255,255,0.06)',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            <div style={{ height: 12, width: 180, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10 }}>
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} style={{ height: 56, borderRadius: 12, background: 'rgba(255,255,255,0.04)' }} />
+              ))}
+            </div>
+          </div>
+        ) : (snapshotAll || snapshotDirector) ? (
+          <>
           {isStudioDirector ? (
             /* Studio Director: two cards — all-schools summary + their location full detail */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -304,12 +330,13 @@ export default function Dashboard() {
                 accentColor="#D4226A"
                 variant="full"
                 clickable={true}
-                onMetricClick={() => navigate('/admin/billing')}
+                onMetricClick={() => startNavTransition(() => navigate('/admin/billing'))}
               />
             )
           )}
-        </div>
-      )}
+          </>
+        ) : null}
+      </div>
 
       {/* 4. Operations Metrics */}
       <div style={{ marginBottom: 16 }}>
@@ -318,7 +345,7 @@ export default function Dashboard() {
           <div className="section-line" />
         </div>
         <div className="ops-grid">
-          <div className="ops-widget" style={{ borderColor: 'rgba(212,34,106,0.2)' }} onClick={() => navigate('/admin/students')}>
+          <div className="ops-widget" style={{ borderColor: 'rgba(212,34,106,0.2)' }} onClick={() => startNavTransition(() => navigate('/admin/students'))}>
             <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #D4226A, #FF5500)', boxShadow: '0 0 18px rgba(212,34,106,0.52)' }} />
             <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(212,34,106,0.1) 0%, transparent 70%)' }} />
             <div className="ops-widget-label">Active Students</div>
@@ -329,7 +356,7 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="ops-widget" style={{ borderColor: 'rgba(255,120,0,0.18)' }} onClick={() => navigate('/admin/schedule')}>
+          <div className="ops-widget" style={{ borderColor: 'rgba(255,120,0,0.18)' }} onClick={() => startNavTransition(() => navigate('/admin/schedule'))}>
             <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 18px rgba(255,85,0,0.48)' }} />
             <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.09) 0%, transparent 70%)' }} />
             <div className="ops-widget-label">Open Slots This Week</div>
@@ -340,7 +367,7 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="ops-widget" style={{ borderColor: 'rgba(232,72,144,0.18)' }} onClick={() => navigate('/admin/leads')}>
+          <div className="ops-widget" style={{ borderColor: 'rgba(232,72,144,0.18)' }} onClick={() => startNavTransition(() => navigate('/admin/leads'))}>
             <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #BE185D, #E8488A)', boxShadow: '0 0 18px rgba(232,72,144,0.44)' }} />
             <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(232,72,144,0.09) 0%, transparent 70%)' }} />
             <div className="ops-widget-label">Leads in Pipeline</div>
@@ -351,14 +378,14 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="ops-widget" style={{ borderColor: 'rgba(255,184,0,0.18)' }} onClick={() => navigate('/admin/leads')}>
+          <div className="ops-widget" style={{ borderColor: 'rgba(255,184,0,0.18)' }} onClick={() => startNavTransition(() => navigate('/admin/leads'))}>
             <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #D97706, #FFB800)', boxShadow: '0 0 18px rgba(255,184,0,0.4)' }} />
             <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.09) 0%, transparent 70%)' }} />
             <div className="ops-widget-label">Enrolled This Month</div>
             <div className="ops-widget-value">{enrolledThisMonth}</div>
             <div className="ops-widget-sub">Leads converted to students</div>
           </div>
-          <div className="ops-widget" style={{ borderColor: 'rgba(167,60,150,0.18)' }} onClick={() => navigate('/admin/retention?tab=win-back')}>
+          <div className="ops-widget" style={{ borderColor: 'rgba(167,60,150,0.18)' }} onClick={() => startNavTransition(() => navigate('/admin/retention?tab=win-back'))}>
             <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #A73C96, #C060B0)', boxShadow: '0 0 18px rgba(167,60,150,0.4)' }} />
             <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(167,60,150,0.09) 0%, transparent 70%)' }} />
             <div className="ops-widget-label">Lost This Month</div>
@@ -372,7 +399,7 @@ export default function Dashboard() {
       {agreementStats && agreementStats.familiesMissingAgreement > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div
-            onClick={() => navigate('/admin/families?agreement=missing')}
+            onClick={() => startNavTransition(() => navigate('/admin/families?agreement=missing'))}
             style={{
               padding: '16px 20px', borderRadius: 14, cursor: 'pointer',
               background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.15)',
