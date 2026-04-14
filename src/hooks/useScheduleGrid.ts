@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { sendAppointmentNotification, buildBlockContext } from '../lib/appointmentNotifications'
 import { useAuthContext } from '../app/AuthContext'
 import { qk } from '../lib/queryKeys'
+import { logQueryPerf } from '../lib/performance/metrics'
 
 export type BlockType = 'open_time' | 'student_session' | 'first_day' | 'last_day' | 'not_bookable' | 'sub' | 'call_out' | 'meet_greet' | 'teacher_training' | 'makeup_session'
 
@@ -57,6 +58,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
     queryKey: qk.schedule.grid(tenantId, date, locationId),
     enabled: !!date && !!tenantId,
     queryFn: async () => {
+      const _t0 = performance.now()
       let query = supabase
         .from('schedule_blocks')
         .select(`
@@ -201,6 +203,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
       const timeSlotSet = new Set(enrichedBlocks.map((b) => b.start_time))
       const timeSlots = [...timeSlotSet].sort()
 
+      logQueryPerf(tenantId!, 'schedule.grid', performance.now() - _t0, { tableName: 'schedule_blocks', rowCount: enrichedBlocks.length })
       return { blocks: enrichedBlocks, teachers: teacherList, timeSlots }
     },
   })

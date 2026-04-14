@@ -1,5 +1,6 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { startPerformanceMonitoring } from '../lib/performance/monitor'
 import type { Profile, Teacher, UserRole } from '../lib/types'
 
 interface AuthContextValue {
@@ -19,6 +20,16 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const auth = useAuth()
+  const monitorStarted = useRef(false)
+
+  // Start SPEED performance monitoring once tenant resolves
+  useEffect(() => {
+    const tenantId = auth.profile?.tenant_id
+    if (tenantId && !monitorStarted.current) {
+      monitorStarted.current = true
+      startPerformanceMonitoring(tenantId)
+    }
+  }, [auth.profile?.tenant_id])
 
   return (
     <AuthContext.Provider

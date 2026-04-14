@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { qk } from '../lib/queryKeys'
+import { logQueryPerf } from '../lib/performance/metrics'
 
 export interface DashboardData {
   activeStudents: number
@@ -50,6 +51,7 @@ export function useDashboard(locationIds?: string[] | null) {
     queryKey: qk.dashboard.data(tenantId, locationIds ?? 'all'),
     enabled: !!tenantId,
     queryFn: async (): Promise<DashboardData> => {
+      const _t0 = performance.now()
       const now = new Date()
       const today = now.toISOString().split('T')[0]
       const dow = now.getDay()
@@ -325,6 +327,7 @@ export function useDashboard(locationIds?: string[] | null) {
       const sessionLogsToday = (recentLogRows ?? []).filter((l: any) => l.block_date === today).length
       const sessionLogsThisWeek = (recentLogRows ?? []).filter((l: any) => l.block_date >= mondayStr && l.block_date <= sundayStr).length
 
+      logQueryPerf(tenantId!, 'dashboard.data', performance.now() - _t0, { tableName: 'dashboard_aggregate' })
       return {
         activeStudents: active.length,
         studentsByLocation: studentsByLoc,

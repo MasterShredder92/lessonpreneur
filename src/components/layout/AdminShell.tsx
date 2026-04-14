@@ -7,7 +7,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePreviewMode } from '../../hooks/usePreviewMode'
 import { ADMIN_NAV_ITEMS } from '../../lib/constants'
 import { useTheme } from '../../hooks/useTheme'
-import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Sparkles, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound, LineChart, Zap, Gauge } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarDays, UserPlus, BookOpen, Settings2, LogOut, Sparkles, ChevronDown, ShieldCheck, Guitar, Plug, KeyRound, LineChart, Zap } from 'lucide-react'
 import ChangePasswordModal from '../shared/ChangePasswordModal'
 import NotificationBell from '../shared/NotificationBell'
 import TopViewTabs from '../shared/TopViewTabs'
@@ -273,18 +273,6 @@ function AdminShellInner() {
             >
               <Zap size={15} />
               <span className="nav-label">ZiroWork</span>
-            </NavLink>
-          )}
-
-          {(isOwner || effectiveRole === 'admin') && (
-            <NavLink
-              to="/admin/performance"
-              title={!sidebarOpen ? 'SPEED — Performance' : undefined}
-              onClick={(e) => e.stopPropagation()}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <Gauge size={15} />
-              <span className="nav-label">SPEED</span>
             </NavLink>
           )}
 

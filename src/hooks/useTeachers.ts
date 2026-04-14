@@ -4,6 +4,7 @@ import type { Teacher, TeacherAvailability, Student } from '../lib/types'
 import { usePermissions } from './usePermissions'
 import { useAuthContext } from '../app/AuthContext'
 import { qk } from '../lib/queryKeys'
+import { logQueryPerf } from '../lib/performance/metrics'
 
 // Columns that studio directors must never see
 const COMPENSATION_FIELDS = ['pay_rate_per_half_hour', 'rate_per_block', 'needs_1099'] as const
@@ -24,6 +25,7 @@ export function useTeachers() {
     enabled: !!tenantId,
     staleTime: 2 * 60 * 1000, // 2-minute cache — teachers don't change every second
     queryFn: async () => {
+      const _t0 = performance.now()
       // Pre-compute week boundaries before firing queries
       const today = new Date()
       const dayOfWeek = today.getDay()
@@ -93,7 +95,7 @@ export function useTeachers() {
         locsByTeacher.get(tl.teacher_id)!.add(tl.location_id)
       })
 
-      return teachers.map((t: any) => {
+      const result = teachers.map((t: any) => {
         // Prefer direct first_name/last_name on teachers table, fallback to profile
         const profile = t.profile ?? {}
         if (!t.first_name && profile.first_name) t.first_name = profile.first_name
@@ -117,6 +119,8 @@ export function useTeachers() {
         }
         return base
       }) as (Teacher & { location_names: string[] })[]
+      logQueryPerf(tenantId!, 'teachers.list', performance.now() - _t0, { tableName: 'teachers' })
+      return result
     },
   })
 }

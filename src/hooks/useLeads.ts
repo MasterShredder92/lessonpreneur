@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../app/AuthContext'
 import { qk } from '../lib/queryKeys'
+import { logQueryPerf } from '../lib/performance/metrics'
 
 export interface LeadRow {
   id: string
@@ -56,6 +57,7 @@ export function useLeads(filters?: { locationId?: string; instrument?: string })
     queryKey: qk.leads.list(tenantId, filters),
     enabled: !!tenantId,
     queryFn: async () => {
+      const _t0 = performance.now()
       let query = supabase
         .from('leads')
         .select('*')
@@ -77,7 +79,7 @@ export function useLeads(filters?: { locationId?: string; instrument?: string })
       }
 
       const now = Date.now()
-      return data.map((l: any) => {
+      const result = data.map((l: any) => {
         const created = new Date(l.created_at).getTime()
         const daysSince = Math.floor((now - created) / (1000 * 60 * 60 * 24))
         const lastChange = new Date(l.updated_at).getTime()
@@ -89,6 +91,8 @@ export function useLeads(filters?: { locationId?: string; instrument?: string })
           needs_follow_up: daysSinceChange >= 3 && !['enrolled', 'lost'].includes(l.stage),
         }
       }) as LeadRow[]
+      logQueryPerf(tenantId!, 'leads.list', performance.now() - _t0, { tableName: 'leads', rowCount: result.length })
+      return result
     },
   })
 }

@@ -31,6 +31,7 @@ import {
   scoreLcp,
   scoreFcp,
   scoreCls,
+  getRemediation,
   type PerformanceAlert,
 } from '../../lib/performance/alerts'
 
@@ -134,8 +135,8 @@ export default function Performance() {
   const [daysBack, setDaysBack] = useState(7)
   const [alertTab, setAlertTab] = useState<'active' | 'resolved'>('active')
 
-  // Only owner / company_director can access this page
-  if (!isOwner && !isCompanyDirector) {
+  // Owner only — embedded in Settings, also guarded by route
+  if (!isOwner) {
     return <Navigate to="/admin/dashboard" replace />
   }
 
@@ -517,41 +518,83 @@ function AlertRow({ alert, onResolve, resolving }: {
   onResolve?: () => void
   resolving: boolean
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const remediation = getRemediation(alert)
+
   return (
     <div style={{
-      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-      padding: '10px 14px', borderRadius: 8,
+      borderRadius: 8,
       background: alert.severity === 'critical' ? 'rgba(212,34,106,0.07)' : 'rgba(255,184,0,0.06)',
       border: `1px solid ${alert.severity === 'critical' ? 'rgba(212,34,106,0.2)' : 'rgba(255,184,0,0.15)'}`,
     }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: severityColor(alert.severity), textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {alert.severity}
-          </span>
-          <span style={{ fontSize: 11, color: '#6060a0', background: 'rgba(255,255,255,0.05)', padding: '1px 6px', borderRadius: 4 }}>
-            {alertTypeLabel(alert.alert_type)}
-          </span>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 14px' }}>
+        <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setExpanded(v => !v)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: severityColor(alert.severity), textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {alert.severity}
+            </span>
+            <span style={{ fontSize: 11, color: '#6060a0', background: 'rgba(255,255,255,0.05)', padding: '1px 6px', borderRadius: 4 }}>
+              {alertTypeLabel(alert.alert_type)}
+            </span>
+            <span style={{ fontSize: 10, color: '#5050a0', marginLeft: 'auto' }}>
+              {expanded ? '▾ collapse' : '▸ details'}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.5 }}>{alert.message}</div>
+          <div style={{ fontSize: 10, color: '#5050a0', marginTop: 2 }}>
+            {new Date(alert.created_at).toLocaleString()}
+            {alert.resolved && alert.resolved_at && ` · Resolved ${new Date(alert.resolved_at).toLocaleString()}`}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.5 }}>{alert.message}</div>
-        <div style={{ fontSize: 10, color: '#5050a0', marginTop: 2 }}>
-          {new Date(alert.created_at).toLocaleString()}
-          {alert.resolved && alert.resolved_at && ` · Resolved ${new Date(alert.resolved_at).toLocaleString()}`}
-        </div>
+        {onResolve && (
+          <button
+            onClick={onResolve}
+            disabled={resolving}
+            style={{
+              marginLeft: 12, flexShrink: 0, padding: '4px 10px', borderRadius: 6,
+              background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)',
+              color: '#10b981', fontSize: 11, fontWeight: 600, cursor: resolving ? 'wait' : 'pointer',
+              opacity: resolving ? 0.5 : 1,
+            }}
+          >
+            Resolve
+          </button>
+        )}
       </div>
-      {onResolve && (
-        <button
-          onClick={onResolve}
-          disabled={resolving}
-          style={{
-            marginLeft: 12, flexShrink: 0, padding: '4px 10px', borderRadius: 6,
-            background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)',
-            color: '#10b981', fontSize: 11, fontWeight: 600, cursor: resolving ? 'wait' : 'pointer',
-            opacity: resolving ? 0.5 : 1,
-          }}
-        >
-          Resolve
-        </button>
+
+      {expanded && (
+        <div style={{
+          padding: '0 14px 12px',
+          borderTop: '1px solid rgba(255,255,255,0.04)',
+          marginTop: 0,
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
+                Issue Type
+              </div>
+              <div style={{ fontSize: 12, color: '#C0C0E0' }}>{remediation.issueType}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
+                Affected Area
+              </div>
+              <div style={{ fontSize: 12, color: '#E0E0F4', fontWeight: 600, fontFamily: 'monospace' }}>{remediation.affectedArea}</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#6060a0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
+              Likely Cause
+            </div>
+            <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.5 }}>{remediation.likelyCause}</div>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#D4226A', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
+              Recommended Fix
+            </div>
+            <div style={{ fontSize: 12, color: '#C0C0E0', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{remediation.recommendedFix}</div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -41,6 +41,7 @@ export interface RouteSummary {
   avg_fcp_ms: number | null
   avg_load_ms: number | null
   avg_cls: number | null
+  avg_inp_ms: number | null
   p75_lcp_ms: number | null
 }
 
@@ -130,6 +131,26 @@ export function logQueryPerf(
     })
 }
 
+/**
+ * Wrap a queryFn to automatically log its execution time.
+ * Usage: queryFn: timedQuery(tenantId, 'students.list', 'students', actualFn)
+ */
+export function timedQuery<T>(
+  tenantId: string | null,
+  queryLabel: string,
+  tableName: string,
+  fn: () => Promise<T>,
+): () => Promise<T> {
+  return async () => {
+    if (!tenantId) return fn()
+    const start = performance.now()
+    const result = await fn()
+    const elapsed = performance.now() - start
+    logQueryPerf(tenantId, queryLabel, elapsed, { tableName })
+    return result
+  }
+}
+
 // ─── Read (dashboard queries) ────────────────────────────────────────────────
 
 /** Fetch up to 500 raw page metric rows for the given date window (most recent first). */
@@ -167,6 +188,7 @@ export function buildRouteSummaries(rows: PageMetricRow[]): RouteSummary[] {
     const fcps = group.map(r => r.fcp_ms).filter((v): v is number => v != null)
     const loads = group.map(r => r.load_time_ms).filter((v): v is number => v != null)
     const clss = group.map(r => r.cls_score).filter((v): v is number => v != null)
+    const inps = group.map(r => r.inp_ms).filter((v): v is number => v != null)
 
     const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null
     const p75 = (arr: number[]) => {
@@ -182,6 +204,7 @@ export function buildRouteSummaries(rows: PageMetricRow[]): RouteSummary[] {
       avg_fcp_ms: avg(fcps),
       avg_load_ms: avg(loads),
       avg_cls: clss.length ? Math.round(clss.reduce((a, b) => a + b, 0) / clss.length * 10000) / 10000 : null,
+      avg_inp_ms: avg(inps),
       p75_lcp_ms: p75(lcps),
     })
   }

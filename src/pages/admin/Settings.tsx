@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import MusicLoader from '../../components/shared/MusicLoader'
@@ -22,6 +22,8 @@ import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import { useOnboarding } from '../../contexts/OnboardingContext'
 import { qk } from '../../lib/queryKeys'
 
+const PerformancePage = lazy(() => import('./Performance'))
+
 interface LocationFormData {
   name: string; address: string; city: string; state: string; zip: string
   phone: string; email: string; website: string; google_review_url: string
@@ -32,7 +34,7 @@ const emptyForm: LocationFormData = {
   phone: '', email: '', website: '', google_review_url: '',
 }
 
-type Tab = 'business' | 'locations' | 'access' | 'billing-config' | 'issues' | 'account'
+type Tab = 'business' | 'locations' | 'access' | 'billing-config' | 'issues' | 'performance' | 'account'
 
 // Map old tab names to new ones for bookmark compatibility
 const TAB_REDIRECTS: Record<string, Tab> = {
@@ -43,7 +45,7 @@ const TAB_REDIRECTS: Record<string, Tab> = {
   integrations: 'business', // integrations removed from settings
 }
 
-const VALID_TABS: Tab[] = ['business', 'locations', 'access', 'billing-config', 'issues', 'account']
+const VALID_TABS: Tab[] = ['business', 'locations', 'access', 'billing-config', 'issues', 'performance', 'account']
 
 export default function Settings() {
   const { role, tenantId } = useAuthContext()
@@ -91,6 +93,9 @@ export default function Settings() {
         {(role === 'owner' || role === 'admin' || role === 'company_director') && (
           <button className={`settings-tab ${tab === 'issues' ? 'active' : ''}`} onClick={() => setTab('issues')}>Issues</button>
         )}
+        {isOwner && (
+          <button className={`settings-tab ${tab === 'performance' ? 'active' : ''}`} onClick={() => setTab('performance')}>SPEED</button>
+        )}
         <button className={`settings-tab ${tab === 'account' ? 'active' : ''}`} onClick={() => setTab('account')}>My Account</button>
       </div>
 
@@ -99,6 +104,11 @@ export default function Settings() {
       {tab === 'access' && canManageAccess && <AccessControlTab tenantId={tenantId} />}
       {tab === 'billing-config' && isOwner && <BillingConfigTab />}
       {tab === 'issues' && <IssuesTab />}
+      {tab === 'performance' && isOwner && (
+        <Suspense fallback={<MusicLoader />}>
+          <PerformancePage />
+        </Suspense>
+      )}
       {tab === 'account' && <AccountTab />}
     </div>
     </IssueContextProvider>

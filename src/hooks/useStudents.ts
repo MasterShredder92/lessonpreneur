@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { LESSON_LOOKBACK_DAYS } from '../lib/constants'
 import { useAuthContext } from '../app/AuthContext'
 import { qk } from '../lib/queryKeys'
+import { logQueryPerf } from '../lib/performance/metrics'
 
 export interface StudentRow {
   id: string
@@ -86,6 +87,7 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
     enabled: (opts?.enabled !== false) && !!tenantId,
     placeholderData: keepPreviousData,
     queryFn: async () => {
+      const _t0 = performance.now()
       let query = supabase
         .from('students')
         .select('*')
@@ -170,7 +172,7 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
         studentTeachersMap.set(b.student_id, list)
       })
 
-      return students.map((s: any) => {
+      const result = students.map((s: any) => {
         const fam = famMap.get(s.family_id) ?? { name: 'Unknown', email: null, phone: null, contact: null }
         const next = nextLessonMap.get(s.id)
         return {
@@ -186,6 +188,8 @@ export function useStudents(filters?: { status?: string; locationId?: string; te
           scheduled_teachers: studentTeachersMap.get(s.id) ?? [],
         }
       }) as StudentRow[]
+      logQueryPerf(tenantId!, 'students.list', performance.now() - _t0, { tableName: 'students', rowCount: result.length })
+      return result
     },
   })
 }

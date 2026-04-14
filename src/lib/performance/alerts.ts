@@ -103,6 +103,24 @@ export function evaluateThresholds(
       }
     }
 
+    if (summary.avg_inp_ms != null) {
+      if (summary.avg_inp_ms >= THRESHOLDS.inp.critical) {
+        alerts.push({
+          alert_type: 'slow_inp',
+          severity: 'critical',
+          message: `Critical INP on ${summary.page_route}: avg ${summary.avg_inp_ms}ms (threshold ${THRESHOLDS.inp.critical}ms)`,
+          details: { route: summary.page_route, avg_inp_ms: summary.avg_inp_ms, sample_count: summary.sample_count },
+        })
+      } else if (summary.avg_inp_ms >= THRESHOLDS.inp.warning) {
+        alerts.push({
+          alert_type: 'slow_inp',
+          severity: 'warning',
+          message: `Slow INP on ${summary.page_route}: avg ${summary.avg_inp_ms}ms (threshold ${THRESHOLDS.inp.warning}ms)`,
+          details: { route: summary.page_route, avg_inp_ms: summary.avg_inp_ms, sample_count: summary.sample_count },
+        })
+      }
+    }
+
     if (summary.avg_cls != null) {
       if (summary.avg_cls >= THRESHOLDS.cls.critical) {
         alerts.push({
@@ -269,4 +287,75 @@ export function scoreCls(score: number | null): 'good' | 'needs-improvement' | '
   if (score <= 0.1) return 'good'
   if (score <= 0.25) return 'needs-improvement'
   return 'poor'
+}
+
+// ─── Remediation guidance ────────────────────────────────────────────────────
+
+export interface RemediationGuide {
+  issueType: string
+  likelyCause: string
+  recommendedFix: string
+  affectedArea: string
+}
+
+/**
+ * Given an alert, return actionable remediation guidance a developer
+ * can work from directly.
+ */
+export function getRemediation(alert: PerformanceAlert): RemediationGuide {
+  const route = (alert.details as any)?.route as string | undefined
+  const queryLabel = (alert.details as any)?.query_label as string | undefined
+  const tableName = (alert.details as any)?.table_name as string | undefined
+
+  switch (alert.alert_type as AlertType) {
+    case 'slow_lcp':
+      return {
+        issueType: 'Slow Largest Contentful Paint',
+        affectedArea: route ? `Route: ${route}` : 'Unknown route',
+        likelyCause: 'Heavy above-the-fold content, render-blocking resources, large unoptimized images, or slow server response delaying the main content paint.',
+        recommendedFix: `1. Preload hero images with <link rel="preload">.\n2. Lazy-load components below the fold.\n3. Check if this route fetches too much data before first render — add skeleton loading.\n4. Audit the route's Supabase queries for unbounded selects.`,
+      }
+    case 'slow_fcp':
+      return {
+        issueType: 'Slow First Contentful Paint',
+        affectedArea: route ? `Route: ${route}` : 'Unknown route',
+        likelyCause: 'Large JS bundles blocking initial render, render-blocking CSS, or slow Supabase auth check delaying first paint.',
+        recommendedFix: `1. Verify the route is code-split (lazy import).\n2. Move non-critical CSS below the fold.\n3. Check if AuthContext loading waterfall is causing delays.\n4. Run \`npx vite build --report\` to check chunk sizes for this route.`,
+      }
+    case 'high_cls':
+      return {
+        issueType: 'High Cumulative Layout Shift',
+        affectedArea: route ? `Route: ${route}` : 'Unknown route',
+        likelyCause: 'Images or embeds without explicit dimensions, async-loaded content pushing elements around, or font swap causing text reflow.',
+        recommendedFix: `1. Set explicit width/height on all images.\n2. Reserve space for async content with skeleton placeholders.\n3. Use font-display: swap with preloaded fonts.\n4. Check for dynamic content that inserts above existing elements.`,
+      }
+    case 'slow_inp':
+      return {
+        issueType: 'Slow Interaction to Next Paint',
+        affectedArea: route ? `Route: ${route}` : 'Unknown route',
+        likelyCause: 'Expensive event handlers, large React re-renders triggered by user interaction, or synchronous processing blocking the main thread.',
+        recommendedFix: `1. Profile the route's click/input handlers for heavy computation.\n2. Debounce search inputs and filter changes.\n3. Use React.memo or useMemo for expensive derived state.\n4. Move heavy processing to Web Workers if applicable.`,
+      }
+    case 'slow_query':
+      return {
+        issueType: 'Slow Supabase Query',
+        affectedArea: queryLabel ? `Query: ${queryLabel}${tableName ? ` (table: ${tableName})` : ''}` : 'Unknown query',
+        likelyCause: `Query exceeds 500ms — likely missing index, unbounded select, or excessive row count on ${tableName ?? 'unknown'} table.`,
+        recommendedFix: `1. Add .limit() if not present.\n2. Add index on the filter columns used in this query.\n3. Use .select('col1,col2') instead of select('*').\n4. Add date-range filter if querying time-series data.\n5. Check if N+1 pattern — fetching related data in a loop instead of a JOIN.`,
+      }
+    case 'high_slow_query_rate':
+      return {
+        issueType: 'High Percentage of Slow Queries',
+        affectedArea: 'System-wide query layer',
+        likelyCause: 'Multiple queries hitting performance thresholds — may indicate missing indexes, connection pooling issues, or Supabase plan limits.',
+        recommendedFix: `1. Review the Slow Queries table above for the top offenders.\n2. Add indexes on frequently filtered foreign key columns.\n3. Check Supabase dashboard for connection pool saturation.\n4. Consider upgrading Supabase plan if hitting compute limits.`,
+      }
+    default:
+      return {
+        issueType: alert.alert_type,
+        affectedArea: 'Unknown',
+        likelyCause: 'Unknown — review alert details.',
+        recommendedFix: 'Investigate the alert details and associated metrics.',
+      }
+  }
 }
