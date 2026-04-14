@@ -269,7 +269,7 @@ export default function PayInvoice() {
           <div style={S.header}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               {loc?.logo_url ? (
-                <img src={loc.logo_url} alt="" style={{ width: 52, height: 52, borderRadius: 14, objectFit: 'cover', border: `1px solid rgba(${rgb},0.3)` }} />
+                <img src={loc.logo_url} alt={`${loc.name || 'Studio'} logo`} style={{ width: 52, height: 52, borderRadius: 14, objectFit: 'cover', border: `1px solid rgba(${rgb},0.3)` }} />
               ) : loc ? (
                 <div style={{
                   width: 52, height: 52, borderRadius: 14, flexShrink: 0,

@@ -55,9 +55,7 @@ export default function MoreLanding() {
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 'clamp(52px, 10vw, 96px)', color: '#fff', lineHeight: 0.92, letterSpacing: '1px', marginBottom: 0 }}>
             MORE INSTRUMENTS.
-          </h1>
-          <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 'clamp(52px, 10vw, 96px)', color: LD.accentColor, lineHeight: 0.92, letterSpacing: '1px', marginBottom: 20 }}>
-            ONE SCHOOL.
+            <span style={{ display: 'block', color: LD.accentColor, marginTop: 0, marginBottom: 20 }}>ONE SCHOOL.</span>
           </h1>
           <p style={{ fontSize: 17, color: '#ccc', fontWeight: 600, lineHeight: 1.5, marginBottom: 10 }}>
             From violin to brass to bass — if you want to learn it, we probably teach it.

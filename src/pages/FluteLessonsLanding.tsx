@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { useLandingSEO, buildInstrumentJsonLd } from '../hooks/useLandingSEO'
 import { setLocColors } from '../lib/setLocColors'
 import { useLocationStats } from '../hooks/useLocationStats'
 import ReviewsSection from '../components/site/ReviewsSection'
@@ -45,11 +46,13 @@ export default function FluteLessonsLanding() {
   const locStats = useLocationStats(loc)
   const currentInstrument = pathname.split('/')[2] || 'flute-lessons'
 
-  useEffect(() => {
-    document.title = `Flute Lessons in ${LD.name}, NE | Private Instruction for All Ages — Adkins Music`
-    document.querySelector('meta[name="description"]')?.setAttribute('content',
-      `Private flute lessons in ${LD.name}, NE for kids and adults. Expert background-checked instructors, band support, flexible scheduling, no contracts. Call ${LD.phone} or sign up online.`)
-  }, [loc])
+  useLandingSEO({
+    loc,
+    title: `Flute Lessons in ${LD.name}, NE | All Ages — Adkins Music Lessons`,
+    description: `Private flute lessons in ${LD.name}, NE for kids and adults. Background-checked instructors, band support, flexible scheduling, no contracts. ${LD.phone}`,
+    path: `/${loc}/flute-lessons`,
+    jsonLd: buildInstrumentJsonLd(loc, 'Flute', 'flute-lessons', 'Private one-on-one flute lessons covering classical technique, band preparation, and contemporary styles. All ages and skill levels.'),
+  })
 
   useEffect(() => {
     setLocColors({ '--c': LD.accentColor, '--cg': LD.accentGlow, '--cl': LD.accentLight, '--loc-color': LD.accentColor })

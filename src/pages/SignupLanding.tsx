@@ -119,6 +119,26 @@ export default function SignupLanding() {
     return null
   }, [urlSegments])
 
+  // SEO meta tags for signup page
+  useEffect(() => {
+    const locName = siteLoc.name
+    document.title = `Sign Up for Music Lessons in ${locName}, NE — Adkins Music Lessons`
+    const setMeta = (attr: string, key: string, val: string) => {
+      let el = document.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null
+      if (!el) { el = document.createElement('meta'); el.setAttribute(attr, key); document.head.appendChild(el) }
+      el.setAttribute('content', val)
+    }
+    const desc = `Enroll in private music lessons in ${locName}, NE. Piano, guitar, vocals, drums and more. No contracts, flexible scheduling. Sign up in 60 seconds.`
+    setMeta('name', 'description', desc)
+    setMeta('property', 'og:title', `Sign Up — Adkins Music Lessons ${locName}`)
+    setMeta('property', 'og:description', desc)
+    const url = `https://www.adkinsmusiclessons.com/${siteLoc.key}/signup`
+    setMeta('property', 'og:url', url)
+    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null
+    if (!canonical) { canonical = document.createElement('link'); canonical.setAttribute('rel', 'canonical'); document.head.appendChild(canonical) }
+    canonical.setAttribute('href', url)
+  }, [siteLoc])
+
   // Set CSS variable
   useEffect(() => {
     setLocColors({ '--c': locColor })

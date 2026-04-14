@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom'
 import { LOCATIONS, type LocKey } from '../config/locations'
 import { useSiteLocation } from '../hooks/useSiteLocation'
+import { useLandingSEO, buildInstrumentJsonLd } from '../hooks/useLandingSEO'
 import { setLocColors } from '../lib/setLocColors'
 import { useLocationStats } from '../hooks/useLocationStats'
 import ReviewsSection from '../components/site/ReviewsSection'
@@ -44,11 +45,13 @@ export default function ViolinLessonsLanding() {
   const locStats = useLocationStats(loc)
   const currentInstrument = pathname.split('/')[2] || 'violin-lessons'
 
-  useEffect(() => {
-    document.title = `Violin Lessons in ${LD.name}, NE | Private Instruction for All Ages — Adkins Music`
-    document.querySelector('meta[name="description"]')?.setAttribute('content',
-      `Private violin lessons in ${LD.name}, NE for kids and adults. Expert background-checked instructors, flexible scheduling, no contracts. Classical, fiddle, and contemporary styles. Call ${LD.phone} or sign up online.`)
-  }, [loc])
+  useLandingSEO({
+    loc,
+    title: `Violin Lessons in ${LD.name}, NE | All Ages — Adkins Music Lessons`,
+    description: `Private violin lessons in ${LD.name}, NE for kids and adults. Background-checked instructors, flexible scheduling, no contracts. Classical, fiddle, and contemporary styles. ${LD.phone}`,
+    path: `/${loc}/violin-lessons`,
+    jsonLd: buildInstrumentJsonLd(loc, 'Violin', 'violin-lessons', 'Private one-on-one violin lessons covering classical, fiddle, and contemporary styles. All ages and skill levels.'),
+  })
 
   useEffect(() => {
     setLocColors({ '--c': LD.accentColor, '--cg': LD.accentGlow, '--cl': LD.accentLight, '--loc-color': LD.accentColor })
