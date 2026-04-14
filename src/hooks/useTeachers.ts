@@ -81,28 +81,17 @@ export function useTeachers() {
         blockCounts.set(b.teacher_id, (blockCounts.get(b.teacher_id) ?? 0) + 1)
       })
 
-      // Get locations from BOTH teacher_locations AND teacher_availability
-      // Use RPC to avoid oversized URL from .in() with 60+ teacher UUIDs
+      // Get locations from teacher_locations (sole source of truth for display).
+      // Use RPC to avoid oversized URL from .in() with 60+ teacher UUIDs.
       const teacherIdSet = new Set(teachers.map((t: any) => t.id))
       const { data: teacherLocs } = await supabase.rpc('get_teacher_locations_for_tenant', {
         p_tenant_id: tenantId!,
       })
 
-      const { data: availLocs } = await supabase
-        .from('teacher_availability')
-        .select('teacher_id, location_id')
-        .eq('tenant_id', tenantId!)
-        .eq('is_active', true)
-
-      // Merge both sources — availability is the real source of truth
       const locsByTeacher = new Map<string, Set<string>>()
       teacherLocs?.filter((tl: any) => teacherIdSet.has(tl.teacher_id)).forEach((tl: any) => {
         if (!locsByTeacher.has(tl.teacher_id)) locsByTeacher.set(tl.teacher_id, new Set())
         locsByTeacher.get(tl.teacher_id)!.add(tl.location_id)
-      })
-      availLocs?.filter((al: any) => teacherIdSet.has(al.teacher_id)).forEach((al: any) => {
-        if (!locsByTeacher.has(al.teacher_id)) locsByTeacher.set(al.teacher_id, new Set())
-        locsByTeacher.get(al.teacher_id)!.add(al.location_id)
       })
 
       return teachers.map((t: any) => {

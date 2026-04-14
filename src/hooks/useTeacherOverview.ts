@@ -50,7 +50,7 @@ export function useTeacherOverview() {
       const sundayStr = sunday.toISOString().split('T')[0]
 
       // All sub-queries run in parallel — no waterfall
-      const [teachersRes, studentsRes, blocksRes, locsRpcRes, availRes, locationRes] =
+      const [teachersRes, studentsRes, blocksRes, locsRpcRes, locationRes] =
         await Promise.all([
           // Minimal teacher select — no bio, no compensation, no compliance fields
           supabase
@@ -82,15 +82,9 @@ export function useTeacherOverview() {
             .gte('block_date', mondayStr)
             .lte('block_date', sundayStr),
 
-          // Teacher→location mapping via RPC (avoids oversized .in() URL with 60+ UUIDs)
+          // Teacher→location mapping via RPC — sole source of truth for display
+          // (avoids oversized .in() URL with 60+ UUIDs)
           supabase.rpc('get_teacher_locations_for_tenant', { p_tenant_id: tenantId! }),
-
-          // Availability table as secondary location source
-          supabase
-            .from('teacher_availability')
-            .select('teacher_id, location_id')
-            .eq('tenant_id', tenantId!)
-            .eq('is_active', true),
 
           // Location names + brand colors
           supabase
@@ -124,7 +118,7 @@ export function useTeacherOverview() {
         blockCounts.set(b.teacher_id, (blockCounts.get(b.teacher_id) ?? 0) + 1)
       })
 
-      // Merge location sources: teacher_locations RPC + teacher_availability
+      // Build location map per teacher from teacher_locations (sole source of truth)
       const teacherIdSet = new Set(teachers.map((t: any) => t.id))
       const locsByTeacher = new Map<string, Set<string>>()
 
@@ -133,13 +127,6 @@ export function useTeacherOverview() {
         .forEach((tl: any) => {
           if (!locsByTeacher.has(tl.teacher_id)) locsByTeacher.set(tl.teacher_id, new Set())
           locsByTeacher.get(tl.teacher_id)!.add(tl.location_id)
-        })
-
-      availRes.data
-        ?.filter((al: any) => teacherIdSet.has(al.teacher_id))
-        .forEach((al: any) => {
-          if (!locsByTeacher.has(al.teacher_id)) locsByTeacher.set(al.teacher_id, new Set())
-          locsByTeacher.get(al.teacher_id)!.add(al.location_id)
         })
 
       return teachers.map((t: any): TeacherOverview => {
