@@ -11,7 +11,10 @@ export interface ActiveSkillSummary {
 
 interface AttachedAgentSummary {
   name: string
+  role: string | null
   purpose: string | null
+  instructions: string | null
+  auto_use: boolean
   skill_names: string[]
 }
 
@@ -25,8 +28,8 @@ interface AttachedAgentSummary {
  * - Governance rules for execution routing
  */
 export async function loadActiveSkillsContext(tenantId: string): Promise<string> {
-  // Load skills and agents in parallel
-  const [skillsResult, agentsResult] = await Promise.all([
+  // Load skills, agents, and Star config in parallel
+  const [skillsResult, agentsResult, starConfigResult] = await Promise.all([
     supabase
       .from('ziro_skills')
       .select('key, name, description, allowed_tools, risk_tier, system_prompt_fragment')
@@ -35,14 +38,29 @@ export async function loadActiveSkillsContext(tenantId: string): Promise<string>
       .order('name')
       .limit(50),
     loadAttachedAgents(tenantId),
+    supabase
+      .from('ziro_star_config')
+      .select('instructions')
+      .eq('tenant_id', tenantId)
+      .maybeSingle(),
   ])
 
   const skills = (skillsResult.data ?? []) as ActiveSkillSummary[]
   const agents = agentsResult
+  const starInstructions = starConfigResult.data?.instructions?.trim()
 
-  if (skills.length === 0 && agents.length === 0) return ''
+  if (skills.length === 0 && agents.length === 0 && !starInstructions) return ''
 
   const parts: string[] = []
+
+  // Star global instructions block
+  if (starInstructions) {
+    parts.push(`== STAR GLOBAL INSTRUCTIONS ==
+The following instructions were set by the business owner. Follow them at all times.
+
+${starInstructions}
+== END STAR GLOBAL INSTRUCTIONS ==`)
+  }
 
   // Skills block
   if (skills.length > 0) {
@@ -71,18 +89,23 @@ SKILL GOVERNANCE:
   // Agents block
   if (agents.length > 0) {
     const agentLines = agents.map(a => {
+      const rolePart = a.role ? ` [${a.role}]` : ''
       const skills = a.skill_names.length > 0 ? ` — skills: ${a.skill_names.join(', ')}` : ''
-      return `- ${a.name}: ${a.purpose ?? 'No purpose defined'}${skills}`
+      const autoUse = a.auto_use ? '' : ' (EXPLICIT INVOCATION ONLY)'
+      const instructionNote = a.instructions ? `\n  Instructions: ${a.instructions.slice(0, 200)}${a.instructions.length > 200 ? '…' : ''}` : ''
+      return `- ${a.name}${rolePart}: ${a.purpose ?? 'No purpose defined'}${skills}${autoUse}${instructionNote}`
     })
 
     parts.push(`== ATTACHED AGENTS ==
 ${agents.length} agent(s) are attached to Star. When a task matches an agent's specialty, delegate to it.
+Agents marked "EXPLICIT INVOCATION ONLY" should only be used when the user specifically asks for that agent.
 Do NOT create new agents unless the user explicitly requests a temporary specialist.
 
 ${agentLines.join('\n')}
 
 AGENT ROUTING:
 - Prefer skills first. Only delegate to an agent when it already owns the matching skill.
+- Respect each agent's instructions when delegating work to them.
 - Never create overlapping agents for the same category.
 - Temporary agents retire after task completion unless the user saves them.
 == END AGENTS ==`)
@@ -104,7 +127,7 @@ async function loadAttachedAgents(tenantId: string): Promise<AttachedAgentSummar
 
   const { data: agents } = await supabase
     .from('ziro_agents')
-    .select('id, name, purpose')
+    .select('id, name, role, purpose, instructions, auto_use_by_star')
     .in('id', agentIds)
     .eq('status', 'active')
     .limit(30)
@@ -121,7 +144,14 @@ async function loadAttachedAgents(tenantId: string): Promise<AttachedAgentSummar
       .limit(10)
 
     const skillNames = (agentSkills ?? []).map((as: any) => as.ziro_skills?.name ?? 'Unknown')
-    results.push({ name: agent.name, purpose: agent.purpose, skill_names: skillNames })
+    results.push({
+      name: agent.name,
+      role: (agent as any).role ?? null,
+      purpose: agent.purpose,
+      instructions: (agent as any).instructions ?? null,
+      auto_use: (agent as any).auto_use_by_star ?? true,
+      skill_names: skillNames,
+    })
   }
 
   return results
