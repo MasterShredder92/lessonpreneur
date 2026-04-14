@@ -525,19 +525,20 @@ function TeacherListView({
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 4 }}>
-            <button
+          <div style={{
+            display: 'flex', gap: 3,
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 11, padding: 4,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          }}>
+            <LocationFilterPill
+              label="All"
+              isActive={!locationFilter}
+              color="#D4226A"
+              count={currentBase.length}
               onClick={() => setLocationFilter('')}
-              style={{
-                padding: '5px 13px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                background: !locationFilter ? 'rgba(212,34,106,0.14)' : 'transparent',
-                color: !locationFilter ? '#E8488A' : '#6060A0',
-                border: !locationFilter ? '1px solid rgba(212,34,106,0.24)' : '1px solid transparent',
-                transition: 'all 0.15s',
-              }}
-            >
-              All
-            </button>
+            />
             {locations?.filter((l: any) => l.is_active).map((loc: any) => {
               const locName = loc.name.replace(' Music Lessons', '')
               const isActive = locationFilter === locName
@@ -546,23 +547,74 @@ function TeacherListView({
                 t.location_names.some((n) => n.toLowerCase() === locName.toLowerCase()),
               ).length
               return (
-                <button
+                <LocationFilterPill
                   key={loc.id}
+                  label={locName}
+                  isActive={isActive}
+                  color={locColor}
+                  count={count}
                   onClick={() => setLocationFilter(isActive ? '' : locName)}
-                  style={{
-                    padding: '5px 13px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                    background: isActive ? `${locColor}1A` : 'transparent',
-                    color: isActive ? locColor : '#6060A0',
-                    border: isActive ? `1px solid ${locColor}40` : '1px solid transparent',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {locName} <span style={{ opacity: 0.55, marginLeft: 3, fontWeight: 600 }}>{count}</span>
-                </button>
+                />
               )
             })}
           </div>
         </div>
+
+        {/* Premium location context banner — shown when filtering by a single location */}
+        {locationFilter && (() => {
+          const activeLoc = locations?.find((l: any) =>
+            l.name.replace(' Music Lessons', '').toLowerCase() === locationFilter.toLowerCase()
+          )
+          const locColor = activeLoc?.color ?? '#D4226A'
+          return (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              background: `linear-gradient(135deg, ${locColor}0C 0%, ${locColor}05 100%)`,
+              border: `1px solid ${locColor}28`,
+              borderLeft: `4px solid ${locColor}`,
+              borderRadius: 12, padding: '14px 18px',
+              marginBottom: 16,
+              boxShadow: `0 4px 20px rgba(0,0,0,0.25), inset 0 1px 0 ${locColor}18`,
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {/* Subtle radial glow */}
+              <div style={{
+                position: 'absolute', top: -20, left: -10, width: 120, height: 120,
+                background: `radial-gradient(circle, ${locColor}12 0%, transparent 70%)`,
+                pointerEvents: 'none',
+              }} />
+              <MapPin size={15} color={locColor} style={{ flexShrink: 0 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: locColor, letterSpacing: 0.1 }}>
+                  {locationFilter} Music Lessons
+                </div>
+                <div style={{ fontSize: 11, color: `${locColor}99`, marginTop: 2, fontWeight: 600 }}>
+                  {displayList.length} teacher{displayList.length !== 1 ? 's' : ''} in this location
+                </div>
+              </div>
+              <button
+                onClick={() => setLocationFilter('')}
+                style={{
+                  fontSize: 10, fontWeight: 700, padding: '4px 12px',
+                  borderRadius: 999, cursor: 'pointer',
+                  background: `${locColor}18`, color: locColor,
+                  border: `1px solid ${locColor}35`,
+                  transition: 'all 0.15s', flexShrink: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = `${locColor}30`
+                  e.currentTarget.style.borderColor = `${locColor}55`
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = `${locColor}18`
+                  e.currentTarget.style.borderColor = `${locColor}35`
+                }}
+              >
+                Clear Filter
+              </button>
+            </div>
+          )
+        })()}
 
         {/* Search + instrument filter */}
         <div className="schedule-filters" style={{ marginBottom: 16 }}>
@@ -613,13 +665,13 @@ function TeacherListView({
             {/* Column labels — hidden on mobile via CSS */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 0,
-              padding: '0 0 6px 0', marginBottom: 4,
-              borderBottom: '1px solid rgba(255,255,255,0.04)',
+              padding: '0 0 8px 0', marginBottom: 6,
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
             }}>
               <div style={{ width: 5, flexShrink: 0 }} />
               <div className="teacher-row-header" style={{
-                fontSize: 9.5, fontWeight: 700, color: '#444466',
-                textTransform: 'uppercase', letterSpacing: '0.08em',
+                fontSize: 9.5, fontWeight: 700, color: '#505080',
+                textTransform: 'uppercase', letterSpacing: '0.09em',
               }}>
                 <span>Teacher</span>
                 <span>Instruments</span>
@@ -684,6 +736,44 @@ function TeacherListView({
   )
 }
 
+/* ── Location filter pill ────────────────────────────────── */
+
+function LocationFilterPill({
+  label, isActive, color, count, onClick,
+}: {
+  label: string; isActive: boolean; color: string; count: number; onClick: () => void
+}) {
+  const [hovered, setHovered] = useState(false)
+  const active = isActive || hovered
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+        background: active ? `${color}22` : 'transparent',
+        color: active ? color : '#5858A0',
+        border: active ? `1px solid ${color}44` : '1px solid transparent',
+        transition: 'all 0.15s cubic-bezier(0.4,0,0.2,1)',
+        boxShadow: isActive ? `0 0 14px ${color}25, inset 0 1px 0 ${color}18` : 'none',
+        letterSpacing: 0.2, whiteSpace: 'nowrap',
+        display: 'flex', alignItems: 'center', gap: 5,
+      }}
+    >
+      {label}
+      <span style={{
+        fontSize: 9.5, fontWeight: 600,
+        opacity: isActive ? 0.75 : 0.45,
+        transition: 'opacity 0.15s',
+      }}>
+        {count}
+      </span>
+    </button>
+  )
+}
+
 /* ── Single teacher card row ─────────────────────────────── */
 
 function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void }) {
@@ -703,33 +793,47 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
   const avatarBorder = isInactive ? 'rgba(255,255,255,0.04)' : `${railColors[0]}35`
   const avatarColor = isInactive ? '#3A3A5A' : `${railColors[0]}E0`
 
+  const primaryColor = isInactive ? null : (railColors[0] ?? null)
+
   return (
     <div
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'stretch', gap: 0,
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.038) 0%, rgba(255,255,255,0.016) 100%)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        borderRadius: 12, cursor: 'pointer',
-        transition: 'border-color 0.18s, box-shadow 0.18s, background 0.18s',
-        overflow: 'hidden', marginBottom: 6,
-        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.042) 0%, rgba(255,255,255,0.018) 100%)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 13, cursor: 'pointer',
+        transition: 'border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease',
+        overflow: 'hidden', marginBottom: 7,
+        boxShadow: '0 2px 14px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)',
+        position: 'relative',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'
-        e.currentTarget.style.boxShadow = '0 4px 22px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.05)'
-        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.024) 100%)'
+        const hoverColor = primaryColor ?? 'rgba(255,255,255,0.06)'
+        e.currentTarget.style.borderColor = primaryColor
+          ? `${primaryColor}35`
+          : 'rgba(255,255,255,0.16)'
+        e.currentTarget.style.boxShadow = primaryColor
+          ? `0 6px 28px rgba(0,0,0,0.38), 0 0 0 1px ${primaryColor}12, inset 0 1px 0 rgba(255,255,255,0.07)`
+          : '0 6px 28px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.07)'
+        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.062) 0%, rgba(255,255,255,0.028) 100%)'
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'
-        e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)'
-        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.038) 0%, rgba(255,255,255,0.016) 100%)'
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'
+        e.currentTarget.style.boxShadow = '0 2px 14px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)'
+        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.042) 0%, rgba(255,255,255,0.018) 100%)'
       }}
     >
-      {/* Color rail — multi-segment, full opacity, slightly wider */}
-      <div style={{ width: 5, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+      {/* Color rail — multi-segment with subtle edge glow */}
+      <div style={{
+        width: 5, display: 'flex', flexDirection: 'column', flexShrink: 0,
+        boxShadow: !isInactive && primaryColor ? `2px 0 10px ${primaryColor}30` : 'none',
+      }}>
         {railColors.map((c, i) => (
-          <div key={i} style={{ flex: 1, background: c, opacity: isInactive ? 0.22 : 1 }} />
+          <div key={i} style={{
+            flex: 1, background: c,
+            opacity: isInactive ? 0.18 : 1,
+          }} />
         ))}
       </div>
 
@@ -742,19 +846,21 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
               src={t.photo_url}
               alt=""
               style={{
-                width: 38, height: 38, borderRadius: 10,
+                width: 40, height: 40, borderRadius: 11,
                 objectFit: 'cover', flexShrink: 0,
                 border: `1px solid ${avatarBorder}`,
+                boxShadow: !isInactive && primaryColor ? `0 0 10px ${primaryColor}30` : 'none',
                 opacity: isInactive ? 0.35 : 1,
               }}
             />
           ) : (
             <div style={{
-              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              width: 40, height: 40, borderRadius: 11, flexShrink: 0,
               background: avatarBg,
               border: `1px solid ${avatarBorder}`,
+              boxShadow: !isInactive && primaryColor ? `0 0 10px ${primaryColor}25` : 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 900, letterSpacing: 0.5,
+              fontSize: 12.5, fontWeight: 900, letterSpacing: 0.5,
               color: avatarColor,
             }}>
               {(t.first_name[0] ?? '').toUpperCase()}{(t.last_name[0] ?? '').toUpperCase()}
@@ -763,41 +869,51 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{
               fontSize: 13.5, fontWeight: 800, lineHeight: 1.25,
-              color: isInactive ? '#5A5A88' : '#F0F0FA',
+              color: isInactive ? '#4E4E78' : '#F2F2FC',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
               {t.first_name} {t.last_name}
               {t.is_sub_available && (
                 <span style={{
-                  fontSize: 8.5, padding: '2px 7px', borderRadius: 20, fontWeight: 700,
-                  background: 'rgba(167,139,250,0.1)', color: '#A78BFA',
-                  border: '1px solid rgba(167,139,250,0.22)', lineHeight: 1,
-                  textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0,
+                  fontSize: 8.5, padding: '2px 8px', borderRadius: 999, fontWeight: 700,
+                  background: 'rgba(167,139,250,0.12)', color: '#B09DFC',
+                  border: '1px solid rgba(167,139,250,0.28)', lineHeight: 1,
+                  textTransform: 'uppercase', letterSpacing: 0.6, flexShrink: 0,
+                  boxShadow: '0 0 8px rgba(167,139,250,0.2)',
                 }}>Sub</span>
               )}
             </div>
-            <div style={{ fontSize: 10.5, color: isInactive ? '#404068' : '#606090', marginTop: 2, fontWeight: 500 }}>
+            <div style={{
+              fontSize: 10.5, color: isInactive ? '#3C3C62' : '#6868A0',
+              marginTop: 2.5, fontWeight: 600, letterSpacing: 0.1,
+            }}>
               {t.teacher_role ? t.teacher_role.charAt(0).toUpperCase() + t.teacher_role.slice(1) : 'Teacher'}
             </div>
           </div>
         </div>
 
-        {/* Instruments — pill-shaped, refined palette */}
+        {/* Instruments — pill-shaped, premium palette */}
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0, alignItems: 'center' }}>
           {t.instruments.slice(0, 3).map((inst, i) => (
             <span key={i} style={{
-              fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 700,
-              background: isInactive ? 'rgba(255,255,255,0.025)' : 'rgba(212,34,106,0.09)',
-              color: isInactive ? '#404068' : '#D4689A',
-              border: `1px solid ${isInactive ? 'rgba(255,255,255,0.04)' : 'rgba(212,34,106,0.18)'}`,
-              lineHeight: 1, letterSpacing: 0.2, whiteSpace: 'nowrap',
+              fontSize: 10, padding: '4px 11px', borderRadius: 999, fontWeight: 700,
+              background: isInactive
+                ? 'rgba(255,255,255,0.025)'
+                : 'linear-gradient(135deg, rgba(212,34,106,0.13) 0%, rgba(212,34,106,0.07) 100%)',
+              color: isInactive ? '#3A3A60' : '#D96EA0',
+              border: `1px solid ${isInactive ? 'rgba(255,255,255,0.045)' : 'rgba(212,34,106,0.22)'}`,
+              lineHeight: 1, letterSpacing: 0.25, whiteSpace: 'nowrap',
+              boxShadow: isInactive ? 'none' : 'inset 0 1px 0 rgba(212,34,106,0.1)',
             }}>
               {inst.charAt(0).toUpperCase() + inst.slice(1)}
             </span>
           ))}
           {t.instruments.length > 3 && (
-            <span style={{ fontSize: 10, color: '#454565', fontWeight: 700, alignSelf: 'center' }}>
+            <span style={{
+              fontSize: 9.5, color: '#484870', fontWeight: 700,
+              alignSelf: 'center', letterSpacing: 0.1,
+            }}>
               +{t.instruments.length - 3}
             </span>
           )}
@@ -809,11 +925,12 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
             const c = t.location_colors[i] ?? '#D4226A'
             return (
               <span key={i} style={{
-                fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 700,
-                background: isInactive ? 'rgba(255,255,255,0.025)' : `${c}16`,
-                color: isInactive ? '#404068' : c,
-                border: `1px solid ${isInactive ? 'rgba(255,255,255,0.04)' : `${c}35`}`,
-                lineHeight: 1, letterSpacing: 0.2, whiteSpace: 'nowrap',
+                fontSize: 10, padding: '4px 11px', borderRadius: 999, fontWeight: 700,
+                background: isInactive ? 'rgba(255,255,255,0.025)' : `${c}18`,
+                color: isInactive ? '#3A3A60' : c,
+                border: `1px solid ${isInactive ? 'rgba(255,255,255,0.045)' : `${c}40`}`,
+                lineHeight: 1, letterSpacing: 0.25, whiteSpace: 'nowrap',
+                boxShadow: isInactive ? 'none' : `inset 0 1px 0 ${c}18`,
               }}>
                 {name}
               </span>
@@ -826,7 +943,7 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
           <div style={{ textAlign: 'right' }}>
             <span style={{
               fontSize: 15, fontWeight: 900,
-              color: isInactive ? '#404068' : t.student_count > 0 ? '#DDE0F8' : '#404065',
+              color: isInactive ? '#383858' : t.student_count > 0 ? '#E0E2F8' : '#3A3A5A',
             }}>
               {t.student_count}
             </span>
@@ -836,7 +953,7 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
           <div style={{ textAlign: 'right' }}>
             <span style={{
               fontSize: 15, fontWeight: 900,
-              color: isInactive ? '#404068' : t.blocks_this_week > 0 ? '#DDE0F8' : '#404065',
+              color: isInactive ? '#383858' : t.blocks_this_week > 0 ? '#E0E2F8' : '#3A3A5A',
             }}>
               {t.blocks_this_week}
             </span>
@@ -846,7 +963,7 @@ function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void })
           {/* Status indicator + chevron */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end', marginLeft: 'auto' }}>
             <StatusDot status={isInactive ? 'inactive' : t.status} />
-            <ChevronRight size={14} color="#32324E" />
+            <ChevronRight size={14} color="#38384E" />
           </div>
         </div>
       </div>
