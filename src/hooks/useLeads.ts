@@ -29,6 +29,8 @@ export interface LeadRow {
   last_contact_at: string | null
   next_follow_up_at: string | null
   notes: string | null
+  lost_category?: string | null
+  lost_reason?: string | null
   tags: string[] | null
   next_action: string | null
   age_range: string | null
@@ -129,6 +131,20 @@ export function useUpdateLead() {
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<LeadRow> & { id: string }) => {
       const { error } = await supabase.from('leads').update(updates).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.leads.all })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+    },
+  })
+}
+
+export function useUpdateLeadsInFamily() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ familyId, updates }: { familyId: string; updates: Partial<LeadRow> }) => {
+      const { error } = await supabase.from('leads').update(updates).eq('family_id', familyId)
       if (error) throw error
     },
     onSuccess: () => {

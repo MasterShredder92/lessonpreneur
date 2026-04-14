@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { sendAppointmentNotification, buildBlockContext } from '../lib/appointmentNotifications'
 import { useAuthContext } from '../app/AuthContext'
@@ -57,6 +57,7 @@ export function useScheduleGrid(date: string, locationId: string | null) {
   return useQuery({
     queryKey: qk.schedule.grid(tenantId, date, locationId),
     enabled: !!date && !!tenantId,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const _t0 = performance.now()
 

@@ -1,9 +1,9 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo, useTransition } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { logAudit } from '../../lib/auditLog'
-import { useLeads, useUpdateLeadStage, useUpdateLead, useCreateLead, type LeadRow } from '../../hooks/useLeads'
+import { useLeads, useUpdateLeadStage, useUpdateLead, useUpdateLeadsInFamily, useCreateLead, type LeadRow } from '../../hooks/useLeads'
 import { useLocations } from '../../hooks/useLocations'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAIMatch, type TeacherMatch } from '../../hooks/useAIMatch'
@@ -159,6 +159,7 @@ export default function Leads() {
   const { data: locations } = useLocations()
   const { isStudioDirector, locationIds } = usePermissions()
   const canEdit = role === 'owner' || role === 'admin' || isStudioDirector
+  const [, startTransition] = useTransition()
 
   // URL-persisted filters
   const { getParam, setParam } = useUrlFilters()
@@ -166,10 +167,10 @@ export default function Leads() {
   const instrumentFilter = getParam('instrument')
   const stageFilter = getParam('stage')
   const leadView = (getParam('view') || 'active') as 'active' | 'enrolled' | 'lost'
-  const setLocationFilter = (v: string) => setParam('location', v)
-  const setInstrumentFilter = (v: string) => setParam('instrument', v)
-  const setStageFilter = (v: string) => setParam('stage', v)
-  const setLeadView = (v: 'active' | 'enrolled' | 'lost') => setParam('view', v === 'active' ? '' : v)
+  const setLocationFilter = useCallback((v: string) => startTransition(() => setParam('location', v)), [setParam])
+  const setInstrumentFilter = useCallback((v: string) => startTransition(() => setParam('instrument', v)), [setParam])
+  const setStageFilter = useCallback((v: string) => startTransition(() => setParam('stage', v)), [setParam])
+  const setLeadView = useCallback((v: 'active' | 'enrolled' | 'lost') => startTransition(() => setParam('view', v === 'active' ? '' : v)), [setParam])
   const [detailLead, setDetailLead] = useState<LeadRow | null>(null)
   const [convertLead, setConvertLead] = useState<LeadRow | null>(null)
   const [editingNextAction, setEditingNextAction] = useState(false)
@@ -190,54 +191,77 @@ export default function Leads() {
 
   const updateStage = useUpdateLeadStage()
   const updateLead = useUpdateLead()
+  const updateLeadsInFamily = useUpdateLeadsInFamily()
 
-  const instruments = [...new Set(leads?.map((l) => l.instrument).filter(Boolean) ?? [])]
+  const instruments = useMemo(
+    () => [...new Set(leads?.map((l) => l.instrument).filter(Boolean) ?? [])],
+    [leads],
+  )
 
   // Counts per location and instrument for active leads
-  const activeLeads = (leads ?? []).filter((l) => !['enrolled', 'lost'].includes(l.stage))
-  const locationCounts: Record<string, number> = {}
-  const instrumentCounts: Record<string, number> = {}
-  activeLeads.forEach((l) => {
-    if (l.location_id) locationCounts[l.location_id] = (locationCounts[l.location_id] ?? 0) + 1
-    if (l.instrument) instrumentCounts[l.instrument] = (instrumentCounts[l.instrument] ?? 0) + 1
-  })
+  const { locationCounts, instrumentCounts } = useMemo(() => {
+    const activeLeads = (leads ?? []).filter((l) => !['enrolled', 'lost'].includes(l.stage))
+    const locationCounts: Record<string, number> = {}
+    const instrumentCounts: Record<string, number> = {}
+    for (const l of activeLeads) {
+      if (l.location_id) locationCounts[l.location_id] = (locationCounts[l.location_id] ?? 0) + 1
+      if (l.instrument) instrumentCounts[l.instrument] = (instrumentCounts[l.instrument] ?? 0) + 1
+    }
+    return { locationCounts, instrumentCounts }
+  }, [leads])
 
   // Stage counts
-  const stageCounts: Record<string, number> = {}
-  leads?.forEach((l) => { stageCounts[l.stage] = (stageCounts[l.stage] ?? 0) + 1 })
-  const followUpCount = leads?.filter((l) => l.needs_follow_up).length ?? 0
+  const { stageCounts, followUpCount } = useMemo(() => {
+    const stageCounts: Record<string, number> = {}
+    let followUpCount = 0
+    for (const l of leads ?? []) {
+      stageCounts[l.stage] = (stageCounts[l.stage] ?? 0) + 1
+      if (l.needs_follow_up) followUpCount++
+    }
+    return { stageCounts, followUpCount }
+  }, [leads])
 
   // Filter leads based on tab
-  let filteredLeads: LeadRow[]
-  if (leadView === 'lost') {
-    filteredLeads = (leads ?? []).filter((l) => l.stage === 'lost')
-  } else if (leadView === 'enrolled') {
-    filteredLeads = (leads ?? []).filter((l) => l.stage === 'enrolled')
-    filteredLeads = [...filteredLeads].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-  } else {
-    filteredLeads = (leads ?? []).filter((l) => !['enrolled', 'lost'].includes(l.stage))
-  }
-  if (stageFilter) filteredLeads = filteredLeads.filter((l) => l.stage === stageFilter)
-  filteredLeads = [...filteredLeads].sort((a, b) => {
-    if (!['enrolled', 'lost'].includes(a.stage) && ['enrolled', 'lost'].includes(b.stage)) return -1
-    if (['enrolled', 'lost'].includes(a.stage) && !['enrolled', 'lost'].includes(b.stage)) return 1
-    if (leadView === 'active') {
-      return sortOrder === 'newest'
-        ? a.days_since_created - b.days_since_created
-        : b.days_since_created - a.days_since_created
+  const filteredLeads = useMemo(() => {
+    let filtered: LeadRow[]
+    if (leadView === 'lost') {
+      filtered = (leads ?? []).filter((l) => l.stage === 'lost')
+    } else if (leadView === 'enrolled') {
+      filtered = (leads ?? []).filter((l) => l.stage === 'enrolled')
+      filtered = [...filtered].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    } else {
+      filtered = (leads ?? []).filter((l) => !['enrolled', 'lost'].includes(l.stage))
     }
-    return b.days_since_created - a.days_since_created
-  })
+    if (stageFilter) filtered = filtered.filter((l) => l.stage === stageFilter)
+    return [...filtered].sort((a, b) => {
+      if (!['enrolled', 'lost'].includes(a.stage) && ['enrolled', 'lost'].includes(b.stage)) return -1
+      if (['enrolled', 'lost'].includes(a.stage) && !['enrolled', 'lost'].includes(b.stage)) return 1
+      if (leadView === 'active') {
+        return sortOrder === 'newest'
+          ? a.days_since_created - b.days_since_created
+          : b.days_since_created - a.days_since_created
+      }
+      return b.days_since_created - a.days_since_created
+    })
+  }, [leads, leadView, stageFilter, sortOrder])
 
   // Group into family cards + solo cards for pipeline display
-  const leadsForPipeline =
-    leadView === 'enrolled' ? dedupeEnrolledByStudent(filteredLeads) : filteredLeads
-  const pipelineItems = groupLeadsIntoFamilies(leadsForPipeline as LeadRow[])
+  const leadsForPipeline = useMemo(
+    () => (leadView === 'enrolled' ? dedupeEnrolledByStudent(filteredLeads) : filteredLeads),
+    [filteredLeads, leadView],
+  )
+  const pipelineItems = useMemo(
+    () => groupLeadsIntoFamilies(leadsForPipeline as LeadRow[]),
+    [leadsForPipeline],
+  )
 
   // Location grouping for owner/company_director on active tab (only when no location filter already selected)
-  const isGroupedByLocation = (role === 'owner' || role === 'company_director') && leadView === 'active' && !locationFilter
+  const isGroupedByLocation = useMemo(
+    () => (role === 'owner' || role === 'company_director') && leadView === 'active' && !locationFilter,
+    [role, leadView, locationFilter],
+  )
   type LocationHeader = { type: 'location-header'; name: string; count: number }
-  const renderItems: (PipelineItem | LocationHeader)[] = (() => {
+  const renderItems: (PipelineItem | LocationHeader)[] = useMemo(() => {
     if (!isGroupedByLocation) return pipelineItems
     const locGroupMap = new Map<string, PipelineItem[]>()
     for (const item of pipelineItems) {
@@ -253,15 +277,21 @@ export default function Leads() {
       { type: 'location-header', name, count: items.length },
       ...items,
     ])
-  })()
-  const firstCardRenderIdx = renderItems.findIndex(i => i.type !== 'location-header')
+  }, [isGroupedByLocation, pipelineItems])
+  const firstCardRenderIdx = useMemo(
+    () => renderItems.findIndex(i => i.type !== 'location-header'),
+    [renderItems],
+  )
 
   // Family-aware counts for tabs
-  const allItems = groupLeadsIntoFamilies(leads ?? [])
-  const activeCount = allItems.filter(i => i.type === 'family' ? !['enrolled', 'lost'].includes(i.stage) : !['enrolled', 'lost'].includes(i.lead.stage)).length
-  const enrolledLeadsRaw = (leads ?? []).filter((l) => l.stage === 'enrolled')
-  const enrolledCount = dedupeEnrolledByStudent(enrolledLeadsRaw).length
-  const lostCount = allItems.filter(i => i.type === 'family' ? i.stage === 'lost' : i.lead.stage === 'lost').length
+  const { activeCount, enrolledCount, lostCount } = useMemo(() => {
+    const allItems = groupLeadsIntoFamilies(leads ?? [])
+    const activeCount = allItems.filter(i => i.type === 'family' ? !['enrolled', 'lost'].includes(i.stage) : !['enrolled', 'lost'].includes(i.lead.stage)).length
+    const enrolledLeadsRaw = (leads ?? []).filter((l) => l.stage === 'enrolled')
+    const enrolledCount = dedupeEnrolledByStudent(enrolledLeadsRaw).length
+    const lostCount = allItems.filter(i => i.type === 'family' ? i.stage === 'lost' : i.lead.stage === 'lost').length
+    return { activeCount, enrolledCount, lostCount }
+  }, [leads])
 
   const handleAdvance = async (lead: LeadRow) => {
     const next = NEXT_STAGE[lead.stage]; if (!next) return
@@ -294,32 +324,34 @@ export default function Leads() {
 
   const confirmMarkLost = async () => {
     if (!lostCategoryLead) return
+    const leadToUpdate = lostCategoryLead
+    // Close quickly so the click paints immediately (INP) while we do network work.
+    setLostCategoryLead(null)
+    setDetailLead(null)
     try {
-      await updateStage.mutateAsync({ id: lostCategoryLead.id, stage: 'lost', familyId: lostCategoryLead.family_id })
+      await updateStage.mutateAsync({ id: leadToUpdate.id, stage: 'lost', familyId: leadToUpdate.family_id })
       if (isStudioDirector && tenantId && profile?.id) {
         logAudit({
           tenantId, performedBy: profile.id,
           userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
           userRole: 'studio_director', action: 'LEAD_MARK_LOST',
-          tableName: 'leads', recordId: lostCategoryLead.id,
-          entityName: `${lostCategoryLead.first_name ?? ''} ${lostCategoryLead.last_name ?? ''}`.trim() || null,
-          locationId: lostCategoryLead.location_id ?? null,
+          tableName: 'leads', recordId: leadToUpdate.id,
+          entityName: `${leadToUpdate.first_name ?? ''} ${leadToUpdate.last_name ?? ''}`.trim() || null,
+          locationId: leadToUpdate.location_id ?? null,
           newValue: { stage: 'lost', lost_category: lostCategory, lost_reason: lostReason || null },
         })
       }
       if (lostCategory) {
-        // Update lost category on each lead in the family
-        if (lostCategoryLead.family_id) {
-          const siblings = (leads ?? []).filter(l => l.family_id === lostCategoryLead.family_id)
-          for (const sib of siblings) {
-            await updateLead.mutateAsync({ id: sib.id, lost_category: lostCategory, lost_reason: lostReason || null })
-          }
+        // Batch update lost category on the family in one query.
+        if (leadToUpdate.family_id) {
+          await updateLeadsInFamily.mutateAsync({
+            familyId: leadToUpdate.family_id,
+            updates: { lost_category: lostCategory, lost_reason: lostReason || null },
+          })
         } else {
-          await updateLead.mutateAsync({ id: lostCategoryLead.id, lost_category: lostCategory, lost_reason: lostReason || null })
+          await updateLead.mutateAsync({ id: leadToUpdate.id, lost_category: lostCategory, lost_reason: lostReason || null })
         }
       }
-      setLostCategoryLead(null)
-      setDetailLead(null)
     } catch (err: any) {
       toast(err.message ?? 'Failed to mark lead as lost', 'error')
     }
@@ -336,37 +368,43 @@ export default function Leads() {
     }
   }
 
-  const handleExportLeads = () => {
-    const rows = [
-      ['Student', 'Parent', 'Email', 'Phone', 'Instrument', 'Location', 'Stage', 'Days', 'Source', 'Created', 'Notes']
-    ]
-    filteredLeads.forEach((l) => {
-      rows.push([
-        `${l.first_name} ${l.last_name ?? ''}`.trim(),
-        l.parent_name ?? '',
-        l.email ?? '',
-        l.phone ?? '',
-        l.instrument ?? '',
-        l.location_name ?? '',
-        STAGE_LABELS[l.stage] ?? l.stage,
-        String(l.days_since_created ?? ''),
-        l.source ?? '',
-        new Date(l.created_at).toLocaleString(),
-        (l.notes ?? '').replace(/\n/g, ' | ')
-      ])
-    })
-    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `leads-${leadView}-${new Date().toISOString().split('T')[0]}.csv`; a.click()
-    URL.revokeObjectURL(url)
-  }
+  const handleExportLeads = useCallback(() => {
+    // Defer the heavy synchronous CSV build so the click can paint immediately (INP).
+    toast('Preparing CSV…', 'success')
+    setTimeout(() => {
+      const rows = [
+        ['Student', 'Parent', 'Email', 'Phone', 'Instrument', 'Location', 'Stage', 'Days', 'Source', 'Created', 'Notes']
+      ]
+      for (const l of filteredLeads) {
+        rows.push([
+          `${l.first_name} ${l.last_name ?? ''}`.trim(),
+          l.parent_name ?? '',
+          l.email ?? '',
+          l.phone ?? '',
+          l.instrument ?? '',
+          l.location_name ?? '',
+          STAGE_LABELS[l.stage] ?? l.stage,
+          String(l.days_since_created ?? ''),
+          l.source ?? '',
+          new Date(l.created_at).toLocaleString(),
+          (l.notes ?? '').replace(/\n/g, ' | ')
+        ])
+      }
+      const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `leads-${leadView}-${new Date().toISOString().split('T')[0]}.csv`; a.click()
+      URL.revokeObjectURL(url)
+    }, 0)
+  }, [filteredLeads, leadView])
 
   // Secondary role check (primary is RouteGuard)
   if (role !== 'owner' && role !== 'admin' && !isStudioDirector) {
     return <div className="page" style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Access restricted.</div>
   }
+
+  const skeletonCount = 8
 
   return (
     <IssueContextProvider page="New Members">
@@ -497,10 +535,34 @@ export default function Leads() {
       )}
 
       {/* LIST VIEW (default) — premium lead cards with family grouping */}
-      {isLoading ? (
-        <div className="loading-screen" style={{ minHeight: 'calc(100vh - 280px)' }}><MusicLoader /></div>
-      ) : (
-      <div className="lead-cards" data-guide-id="leads-list">
+      <div className="lead-cards" data-guide-id="leads-list" aria-busy={isLoading ? 'true' : 'false'}>
+        {isLoading ? (
+          Array.from({ length: skeletonCount }).map((_, i) => (
+            <div key={`lead-skel-${i}`} className="lead-card skeleton-card" aria-hidden="true">
+              <div className="lead-card-edge" style={{ background: 'rgba(255,255,255,0.08)', boxShadow: 'none' }} />
+              <div className="lead-card-content">
+                <div className="lead-card-stage-zone">
+                  <div className="skeleton" style={{ width: 80, height: 26, borderRadius: 7 }} />
+                </div>
+                <div className="lead-card-left">
+                  <div className="lead-card-names" style={{ width: 260, maxWidth: '100%' }}>
+                    <div className="skeleton skeleton-line" style={{ width: '72%', height: 16, borderRadius: 9 }} />
+                    <div className="skeleton skeleton-line" style={{ width: '92%', height: 12, borderRadius: 9, marginTop: 6 }} />
+                  </div>
+                </div>
+                <div className="lead-card-meta">
+                  <div className="skeleton skeleton-chip" style={{ width: 110 }} />
+                  <div className="skeleton skeleton-chip" style={{ width: 110 }} />
+                  <div className="skeleton skeleton-chip" style={{ width: 110 }} />
+                </div>
+              </div>
+              <div className="lead-card-ask-star" style={{ pointerEvents: 'none' }}>
+                <MusicLoader size={14} />
+              </div>
+            </div>
+          ))
+        ) : (
+          <>
           {renderItems.map((item, itemIdx) => {
             // Location group header (owner/company_director grouped view)
             if (item.type === 'location-header') {
@@ -687,9 +749,9 @@ export default function Leads() {
           {pipelineItems.length === 0 && (
             <div className="empty-state">No leads found.</div>
           )}
-
+          </>
+        )}
       </div>
-      )}
 
       {/* Lead Detail Modal — tabbed popup */}
       {detailLead && (

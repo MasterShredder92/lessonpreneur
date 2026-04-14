@@ -39,6 +39,75 @@ CREATE INDEX IF NOT EXISTS idx_students_reactivation
 CREATE INDEX IF NOT EXISTS idx_schedule_blocks_tenant_date_loc_status
   ON public.schedule_blocks(tenant_id, block_date, location_id, status);
 
+-- leads: dashboard touches stage pipeline + stale leads + new leads today
+CREATE INDEX IF NOT EXISTS idx_leads_tenant_stage_updated
+  ON public.leads(tenant_id, stage, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_leads_tenant_created
+  ON public.leads(tenant_id, created_at DESC);
+
+-- teacher_locations: joining active teachers to locations on every dashboard load
+CREATE INDEX IF NOT EXISTS idx_teacher_locations_teacher_location
+  ON public.teacher_locations(teacher_id, location_id);
+
+-- dashboard_aggregate: SPEED alert attributes work here; add defensive indexes if table exists.
+-- This is a no-op if the table isn't present in this environment.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'dashboard_aggregate'
+  ) THEN
+    -- common filter pattern: tenant + date bounds (+ optional location)
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'dashboard_aggregate' AND column_name = 'tenant_id'
+    ) AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'dashboard_aggregate' AND column_name IN ('day', 'date', 'as_of_date')
+    ) THEN
+      -- Try a few likely date column names without hard-failing.
+      BEGIN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_dashboard_aggregate_tenant_day ON public.dashboard_aggregate(tenant_id, day)';
+      EXCEPTION WHEN undefined_column THEN
+        NULL;
+      END;
+      BEGIN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_dashboard_aggregate_tenant_date ON public.dashboard_aggregate(tenant_id, date)';
+      EXCEPTION WHEN undefined_column THEN
+        NULL;
+      END;
+      BEGIN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_dashboard_aggregate_tenant_as_of_date ON public.dashboard_aggregate(tenant_id, as_of_date)';
+      EXCEPTION WHEN undefined_column THEN
+        NULL;
+      END;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'dashboard_aggregate' AND column_name = 'location_id'
+    ) THEN
+      BEGIN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_dashboard_aggregate_tenant_loc_day ON public.dashboard_aggregate(tenant_id, location_id, day)';
+      EXCEPTION WHEN undefined_column THEN
+        NULL;
+      END;
+      BEGIN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_dashboard_aggregate_tenant_loc_date ON public.dashboard_aggregate(tenant_id, location_id, date)';
+      EXCEPTION WHEN undefined_column THEN
+        NULL;
+      END;
+      BEGIN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_dashboard_aggregate_tenant_loc_as_of_date ON public.dashboard_aggregate(tenant_id, location_id, as_of_date)';
+      EXCEPTION WHEN undefined_column THEN
+        NULL;
+      END;
+    END IF;
+  END IF;
+END $$;
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- FUNCTION: Optimized get_dashboard_snapshot
 -- ═══════════════════════════════════════════════════════════════════════════

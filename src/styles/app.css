@@ -569,6 +569,39 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 .lead-detail-body { padding: 20px; flex: 1; }
 .lead-detail-actions { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Skeletons (used to prevent CLS during async loads) */
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton {
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.08) 37%,
+    rgba(255,255,255,0.04) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeletonShimmer 1.2s ease-in-out infinite;
+}
+.skeleton-line { height: 10px; }
+.skeleton-chip { height: 22px; border-radius: 8px; }
+.lead-card.skeleton-card {
+  cursor: default;
+  transform: none !important;
+}
+.lead-card.skeleton-card:hover {
+  border-color: rgba(255,255,255,0.12);
+  transform: none;
+  box-shadow:
+    0 2px 16px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 20px -15px 50px rgba(212,34,106,0.045),
+    inset -20px 15px 50px rgba(123,44,191,0.035),
+    0 0 0 1px rgba(212,34,106,0.04);
+}
+
 /* AI PANEL */
 .ai-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 360px; background: linear-gradient(150deg, rgba(22,20,40,0.99), rgba(16,14,30,0.99)); border-left: 1px solid rgba(255,255,255,0.1); box-shadow: -8px 0 40px rgba(0,0,0,0.5); display: flex; flex-direction: column; z-index: 500; animation: slideInRight 220ms cubic-bezier(0.4,0,0.2,1); flex-shrink: 0; }
 .ai-panel-header { padding: 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; }

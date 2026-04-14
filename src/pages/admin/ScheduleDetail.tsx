@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
@@ -11,15 +11,9 @@ import { useTeacherRoomAssignmentsForDay, useSetTeacherRoomAssignment, useRemove
 import { supabase } from '../../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { qk } from '../../lib/queryKeys'
-import SeriesControlModal from '../../components/scheduling/SeriesControlModal'
-import CheckInModal from '../../components/scheduling/CheckInModal'
-import LastDayConfirmModal from '../../components/scheduling/LastDayConfirmModal'
-import FirstDayConfirmModal from '../../components/scheduling/FirstDayConfirmModal'
 import ConfirmModal from '../../components/shared/ConfirmModal'
 import { toast } from '../../components/shared/Toast'
-import TeacherCalloutWizard from '../../components/scheduling/TeacherCalloutWizard'
 import MobileSchedule from '../../components/scheduling/MobileSchedule'
-import BulkVirtualModal from '../../components/scheduling/BulkVirtualModal'
 import { type ScheduleContext } from '../../hooks/useAI'
 import { useScheduleIntelligence } from '../../hooks/useScheduleIntelligence'
 import { ChevronLeft, ChevronRight, ChevronDown, Calendar, Music, MapPin, UserPlus, GripVertical, Check, Clock, DoorOpen, RefreshCw, Plus, PhoneOff, Lock } from 'lucide-react'
@@ -32,6 +26,13 @@ import { IssueContextProvider } from '../../contexts/IssueContext'
 import { useZiroShell } from '../../contexts/ZiroContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import PageGuide, { type GuideStep } from '../../components/shared/PageGuide'
+
+const SeriesControlModal = lazy(() => import('../../components/scheduling/SeriesControlModal'))
+const CheckInModal = lazy(() => import('../../components/scheduling/CheckInModal'))
+const LastDayConfirmModal = lazy(() => import('../../components/scheduling/LastDayConfirmModal'))
+const FirstDayConfirmModal = lazy(() => import('../../components/scheduling/FirstDayConfirmModal'))
+const BulkVirtualModal = lazy(() => import('../../components/scheduling/BulkVirtualModal'))
+const TeacherCalloutWizard = lazy(() => import('../../components/scheduling/TeacherCalloutWizard'))
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -182,7 +183,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
     return raw ?? ''
   }, [isStudioDirector, studioDirectorLocationId, selectedLocation, initialLocationId, userLocIds])
 
-  const { data: gridData, isLoading } = useScheduleGrid(selectedDate, effectiveLocation || null)
+  const { data: gridData, isPending: isGridPending, isFetching: isGridFetching, isPlaceholderData: isGridPlaceholder } = useScheduleGrid(selectedDate, effectiveLocation || null)
 
   // Drag state
   const [dragBlock, setDragBlock] = useState<GridBlock | null>(null)
@@ -624,53 +625,143 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
     setDragOverTarget(null)
   }
 
-  // Data — merge grid teachers with all teachers at this location
-  const allGridTeachers = gridData?.teachers ?? []
-  const allBlocks = gridData?.blocks ?? []
-  const gridTimeSlots = gridData?.timeSlots ?? []
+  const {
+    blocks,
+    teachers,
+    allGridTeachersFull,
+    timeSlots,
+    gridLookup,
+    teacherBookedCount,
+    roomsUsedAtTime,
+    filteredStudents,
+    activeRooms,
+    availableRoomsForAssign,
+  } = useMemo(() => {
+    const allGridTeachers = gridData?.teachers ?? []
+    const blocks = gridData?.blocks ?? []
+    const gridTimeSlots = gridData?.timeSlots ?? []
 
-  // Build teacher list: teachers with availability for this day at this location
-  // PLUS any teachers who already have blocks (even if availability was removed after booking)
-  const gridTeacherIds = new Set(allGridTeachers.map(t => t.id))
-  const availTeacherIds = teacherAvailability ? new Set(teacherAvailability.keys()) : null
-  const fullTeacherList = [...allGridTeachers]
+    // Build teacher list: teachers with availability for this day at this location
+    // PLUS any teachers who already have blocks (even if availability was removed after booking)
+    const gridTeacherIds = new Set(allGridTeachers.map((t: any) => t.id))
+    const availTeacherIds = teacherAvailability ? new Set(teacherAvailability.keys()) : null
+    const fullTeacherList = [...allGridTeachers]
 
-  // Add teachers from availability who don't have blocks yet
-  if (availTeacherIds && availTeacherIds.size > 0) {
-    allTeachersList?.forEach((t: any) => {
-      if (t.is_active && availTeacherIds.has(t.id) && !gridTeacherIds.has(t.id)) {
-        fullTeacherList.push({ id: t.id, name: `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim(), photo_url: t.photo_url ?? null })
+    // Add teachers from availability who don't have blocks yet
+    if (availTeacherIds && availTeacherIds.size > 0) {
+      allTeachersList?.forEach((t: any) => {
+        if (t.is_active && availTeacherIds.has(t.id) && !gridTeacherIds.has(t.id)) {
+          fullTeacherList.push({
+            id: t.id,
+            name: `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim(),
+            photo_url: t.photo_url ?? null,
+          })
+        }
+      })
+    }
+
+    // Sort all teachers alphabetically by name
+    const allGridTeachersFull = [...fullTeacherList].sort((a, b) => a.name.localeCompare(b.name))
+
+    const showMineOnly = viewMode === 'mine' && !!teacherRecord && !isMobile
+    let visibleTeachers = allGridTeachersFull
+    if (showMineOnly) {
+      visibleTeachers = allGridTeachersFull.filter((t) => t.id === teacherRecord!.id)
+    } else if (selectedTeacherFilter) {
+      visibleTeachers = allGridTeachersFull.filter((t) => t.id === selectedTeacherFilter)
+    } else if (teacherVisibility === 'scheduled') {
+      const scheduledTeacherIds = new Set<string>()
+      const subTeacherIds = new Set<string>()
+      for (const b of blocks) {
+        if (b.block_type !== 'open_time' && b.block_type !== 'not_bookable') scheduledTeacherIds.add(b.teacher_id)
+        if (b.block_type === 'sub') subTeacherIds.add(b.teacher_id)
       }
-    })
-  }
-
-  // Remove teachers from grid who have NO availability on this day AND no booked blocks
-  // (they show up from open_time blocks but shouldn't be visible if not available)
-  const bookedTeacherIds = new Set<string>()
-  for (const b of allBlocks) {
-    if (b.student_id || b.block_type === 'teacher_training' || b.block_type === 'not_bookable') {
-      bookedTeacherIds.add(b.teacher_id)
+      visibleTeachers = allGridTeachersFull.filter((t) => scheduledTeacherIds.has(t.id) || subTeacherIds.has(t.id))
     }
-  }
 
-  // Time range from location hours, fallback 2pm-9pm
-  const isClosed = locationHours?.is_closed ?? false
-  const defaultSlots: string[] = []
-  if (!isClosed) {
-    const openH = locationHours ? parseInt(locationHours.open_time.split(':')[0]) : 14
-    const openM = locationHours ? parseInt(locationHours.open_time.split(':')[1]) : 0
-    const closeH = locationHours ? parseInt(locationHours.close_time.split(':')[0]) : 21
-    const closeM = locationHours ? parseInt(locationHours.close_time.split(':')[1]) : 0
-    const startMin = openH * 60 + openM
-    const endMin = closeH * 60 + closeM
-    for (let m = startMin; m < endMin; m += 30) {
-      const h = Math.floor(m / 60)
-      const mm = m % 60
-      defaultSlots.push(`${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`)
+    // Time range from location hours, fallback 2pm-9pm
+    const isClosed = locationHours?.is_closed ?? false
+    const defaultSlots: string[] = []
+    if (!isClosed) {
+      const openH = locationHours ? parseInt(locationHours.open_time.split(':')[0]) : 14
+      const openM = locationHours ? parseInt(locationHours.open_time.split(':')[1]) : 0
+      const closeH = locationHours ? parseInt(locationHours.close_time.split(':')[0]) : 21
+      const closeM = locationHours ? parseInt(locationHours.close_time.split(':')[1]) : 0
+      const startMin = openH * 60 + openM
+      const endMin = closeH * 60 + closeM
+      for (let m = startMin; m < endMin; m += 30) {
+        const h = Math.floor(m / 60)
+        const mm = m % 60
+        defaultSlots.push(`${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`)
+      }
     }
-  }
-  const allTimeSet = new Set([...defaultSlots, ...gridTimeSlots])
-  const timeSlots = [...allTimeSet].sort()
+    const allTimeSet = new Set([...defaultSlots, ...gridTimeSlots])
+    const timeSlots = [...allTimeSet].sort()
+
+    // Grid lookup
+    const gridLookup = new Map<string, Map<string, GridBlock>>()
+    for (const b of blocks) {
+      if (showMineOnly && teacherRecord && b.teacher_id !== teacherRecord.id) continue
+      if (!showMineOnly && selectedTeacherFilter && b.teacher_id !== selectedTeacherFilter) continue
+      if (!gridLookup.has(b.start_time)) gridLookup.set(b.start_time, new Map())
+      gridLookup.get(b.start_time)!.set(b.teacher_id, b)
+    }
+
+    // Count booked blocks per teacher (for tally — only types that count as lessons)
+    const teacherBookedCount = new Map<string, number>()
+    for (const b of blocks) {
+      if (COUNTS_AS_LESSON.has(b.block_type)) {
+        teacherBookedCount.set(b.teacher_id, (teacherBookedCount.get(b.teacher_id) ?? 0) + 1)
+      }
+    }
+
+    // Rooms used at each time slot (for availability)
+    const roomsUsedAtTime = new Map<string, Set<string>>()
+    for (const b of blocks) {
+      if (b.room && b.student_id) {
+        const key = b.start_time
+        if (!roomsUsedAtTime.has(key)) roomsUsedAtTime.set(key, new Set())
+        roomsUsedAtTime.get(key)!.add(b.room)
+      }
+    }
+
+    const filteredStudents = allStudents?.filter((s) => {
+      if (!studentSearch) return true
+      const q = studentSearch.toLowerCase()
+      return `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) || (s.family_name ?? '').toLowerCase().includes(q)
+    }) ?? []
+
+    const activeRooms = rooms?.filter((r: any) => r.is_active && r.status === 'active') ?? []
+    const takenRoomNames = assignModal ? (roomsUsedAtTime.get(assignModal.start_time) ?? new Set()) : new Set()
+    const availableRoomsForAssign = activeRooms.map((r: any) => ({ ...r, taken: takenRoomNames.has(r.name) }))
+
+    return {
+      blocks,
+      teachers: visibleTeachers,
+      allGridTeachersFull,
+      timeSlots,
+      gridLookup,
+      teacherBookedCount,
+      roomsUsedAtTime,
+      filteredStudents,
+      activeRooms,
+      availableRoomsForAssign,
+    }
+  }, [
+    gridData,
+    teacherAvailability,
+    allTeachersList,
+    viewMode,
+    teacherRecord,
+    isMobile,
+    selectedTeacherFilter,
+    teacherVisibility,
+    locationHours,
+    allStudents,
+    studentSearch,
+    rooms,
+    assignModal,
+  ])
 
   // Auto-scroll to current time indicator (must be after timeSlots declaration)
   useEffect(() => {
@@ -690,63 +781,6 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
     hasAutoScrolled.current = true
   })
 
-  const scheduledTeacherIds = new Set<string>()
-  const subTeacherIds = new Set<string>()
-  for (const b of allBlocks) {
-    if (b.block_type !== 'open_time' && b.block_type !== 'not_bookable') scheduledTeacherIds.add(b.teacher_id)
-    if (b.block_type === 'sub') subTeacherIds.add(b.teacher_id)
-  }
-
-  // Sort all teachers alphabetically by first name
-  fullTeacherList.sort((a, b) => a.name.localeCompare(b.name))
-
-  let visibleTeachers = fullTeacherList
-  const showMineOnly = viewMode === 'mine' && !!teacherRecord && !isMobile
-  if (showMineOnly) {
-    visibleTeachers = fullTeacherList.filter((t) => t.id === teacherRecord!.id)
-  } else if (selectedTeacherFilter) {
-    visibleTeachers = fullTeacherList.filter((t) => t.id === selectedTeacherFilter)
-  } else if (teacherVisibility === 'scheduled') {
-    visibleTeachers = fullTeacherList.filter((t) => scheduledTeacherIds.has(t.id) || subTeacherIds.has(t.id))
-  }
-
-  const teachers = visibleTeachers
-  const blocks = allBlocks
-  const allGridTeachersFull = fullTeacherList
-
-  // Grid lookup
-  const gridLookup = new Map<string, Map<string, GridBlock>>()
-  for (const b of blocks) {
-    if (showMineOnly && b.teacher_id !== teacherRecord!.id) continue
-    if (!showMineOnly && selectedTeacherFilter && b.teacher_id !== selectedTeacherFilter) continue
-    if (!gridLookup.has(b.start_time)) gridLookup.set(b.start_time, new Map())
-    gridLookup.get(b.start_time)!.set(b.teacher_id, b)
-  }
-
-  // Count booked blocks per teacher (for tally — only types that count as lessons)
-  const teacherBookedCount = new Map<string, number>()
-  for (const b of blocks) {
-    if (COUNTS_AS_LESSON.has(b.block_type)) {
-      teacherBookedCount.set(b.teacher_id, (teacherBookedCount.get(b.teacher_id) ?? 0) + 1)
-    }
-  }
-
-  // Rooms used at each time slot (for availability)
-  const roomsUsedAtTime = new Map<string, Set<string>>()
-  for (const b of blocks) {
-    if (b.room && b.student_id) {
-      const key = b.start_time
-      if (!roomsUsedAtTime.has(key)) roomsUsedAtTime.set(key, new Set())
-      roomsUsedAtTime.get(key)!.add(b.room)
-    }
-  }
-
-  const filteredStudents = allStudents?.filter((s) => {
-    if (!studentSearch) return true
-    const q = studentSearch.toLowerCase()
-    return `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) || (s.family_name ?? '').toLowerCase().includes(q)
-  }) ?? []
-
   const currentDate = new Date(selectedDate + 'T00:00:00')
   const isToday = toDateString(new Date()) === selectedDate
 
@@ -754,15 +788,6 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
   const currentLoc = locations?.find((l: any) => l.id === effectiveLocation)
   const locColor = (currentLoc as any)?.color ?? '#D4226A'
   const locName = currentLoc?.name?.replace(' Music Lessons', '') ?? 'Schedule'
-
-  // Available rooms for assign modal
-  // All active rooms — mark which are taken at this time
-  const allActiveRooms = rooms?.filter((r: any) => r.is_active && r.status === 'active') ?? []
-  const takenRoomNames = assignModal ? (roomsUsedAtTime.get(assignModal.start_time) ?? new Set()) : new Set()
-  const availableRoomsForAssign = allActiveRooms.map((r: any) => ({
-    ...r,
-    taken: takenRoomNames.has(r.name),
-  }))
 
   const scheduleGuideSteps: GuideStep[] = useMemo(() => ([
     {
@@ -1036,8 +1061,20 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
           teacherAvailability={teacherAvailability}
           isStudioDirector={isStudioDirector}
         />
-      ) : isLoading ? (
-        <div className="loading-screen" style={{ minHeight: 'calc(100vh - 220px)' }}><MusicLoader /></div>
+      ) : isGridPending ? (
+        <div
+          style={{
+            minHeight: 'calc(100vh - 220px)',
+            borderRadius: 16,
+            border: `1px solid ${locColor}20`,
+            background: 'rgba(12,11,22,0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <MusicLoader />
+        </div>
       ) : isClosed && timeSlots.length === 0 ? (
         <div style={{ padding: '48px 24px', textAlign: 'center' }}>
           <Calendar size={32} style={{ color: '#606088', marginBottom: 10 }} />
@@ -1053,6 +1090,31 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
         </div>
       ) : (
         <div ref={gridCallbackRef} data-guide-id="schedule-grid" style={{ overflowX: 'auto', borderRadius: 16, border: `1px solid ${locColor}20`, background: 'rgba(12,11,22,0.95)', position: 'relative' }}>
+          {/* Keep the grid mounted during refetch to prevent CLS; show a non-intrusive status chip instead. */}
+          {isGridFetching && isGridPlaceholder && (
+            <div
+              style={{
+                position: 'sticky',
+                top: 8,
+                left: 8,
+                zIndex: 30,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 10px',
+                margin: 8,
+                borderRadius: 999,
+                background: 'rgba(18,17,32,0.9)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: '#A0A0C8',
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: locColor, boxShadow: `0 0 10px ${locColor}80` }} />
+              Updating…
+            </div>
+          )}
           {/* Current time indicator line — only shows today, measures real DOM positions */}
           {isToday && timeSlots.length > 0 && gridWrapperRef.current && (() => {
             const nowParts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date())
@@ -1090,7 +1152,6 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
               const dailyAssignment = dailyRoomMap?.[t.id] ?? null
               const teacherRoom = dailyAssignment?.roomName ?? null
               const isPopoverOpen = roomPopoverTeacher === t.id
-              const activeRoomsForHeader = rooms?.filter((r: any) => r.is_active && r.status === 'active') ?? []
               // Sub = teacher does NOT have availability at this location on this day
               const hasAvailToday = teacherAvailability ? teacherAvailability.has(t.id) : true
               const isSub = !hasAvailToday
@@ -1150,7 +1211,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
                       }}
                     >
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Room for Today</div>
-                      {activeRoomsForHeader.map((r: any) => (
+                      {activeRooms.map((r: any) => (
                         <button
                           key={r.id}
                           onClick={async () => {
@@ -1935,21 +1996,23 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
 
       {/* Legacy detailModal removed — all block clicks now use CheckInModal which is fully responsive */}
 
-      {lastDayBlock && (
-        <LastDayConfirmModal block={lastDayBlock} onClose={() => setLastDayBlock(null)}
-          onComplete={(count) => { setLastDayResult(`Last Day set. ${count} future block${count !== 1 ? 's' : ''} reverted to Open Time.`); setLastDayBlock(null); setDetailModal(null); setTimeout(() => setLastDayResult(null), 6000) }} />
-      )}
-      {firstDayBlock && (
-        <FirstDayConfirmModal block={firstDayBlock} onClose={() => setFirstDayBlock(null)}
-          onComplete={(count) => { setFirstDayResult(`First Day set. ${count} prior slot${count !== 1 ? 's' : ''} locked.`); setFirstDayBlock(null); setDetailModal(null); setTimeout(() => setFirstDayResult(null), 6000) }} />
-      )}
-      {checkInBlock && <CheckInModal block={checkInBlock} onClose={() => setCheckInBlock(null)} />}
-      {seriesBlock && (
-        <SeriesControlModal blockId={seriesBlock.block.block_id} action={seriesBlock.action}
-          studentName={seriesBlock.block.student_name} teacherName={seriesBlock.block.teacher_name}
-          time={formatTime(seriesBlock.block.start_time)} dayOfWeek={new Date(seriesBlock.block.block_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}
-          onClose={() => setSeriesBlock(null)} onComplete={() => { setSeriesBlock(null); setDetailModal(null) }} />
-      )}
+      <Suspense fallback={null}>
+        {lastDayBlock && (
+          <LastDayConfirmModal block={lastDayBlock} onClose={() => setLastDayBlock(null)}
+            onComplete={(count) => { setLastDayResult(`Last Day set. ${count} future block${count !== 1 ? 's' : ''} reverted to Open Time.`); setLastDayBlock(null); setDetailModal(null); setTimeout(() => setLastDayResult(null), 6000) }} />
+        )}
+        {firstDayBlock && (
+          <FirstDayConfirmModal block={firstDayBlock} onClose={() => setFirstDayBlock(null)}
+            onComplete={(count) => { setFirstDayResult(`First Day set. ${count} prior slot${count !== 1 ? 's' : ''} locked.`); setFirstDayBlock(null); setDetailModal(null); setTimeout(() => setFirstDayResult(null), 6000) }} />
+        )}
+        {checkInBlock && <CheckInModal block={checkInBlock} onClose={() => setCheckInBlock(null)} />}
+        {seriesBlock && (
+          <SeriesControlModal blockId={seriesBlock.block.block_id} action={seriesBlock.action}
+            studentName={seriesBlock.block.student_name} teacherName={seriesBlock.block.teacher_name}
+            time={formatTime(seriesBlock.block.start_time)} dayOfWeek={new Date(seriesBlock.block.block_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}
+            onClose={() => setSeriesBlock(null)} onComplete={() => { setSeriesBlock(null); setDetailModal(null) }} />
+        )}
+      </Suspense>
       {pendingConfirm && (
         <ConfirmModal
           title={pendingConfirm.title}
@@ -1960,24 +2023,28 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
           onCancel={() => setPendingConfirm(null)}
         />
       )}
-      {showCalloutWizard && (
-        <TeacherCalloutWizard
-          date={selectedDate}
-          locationId={effectiveLocation}
-          teachers={allGridTeachersFull}
-          onClose={() => { setShowCalloutWizard(false); setCalloutPreselectedTeacherId(undefined) }}
-          preSelectedTeacherId={calloutPreselectedTeacherId}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showCalloutWizard && (
+          <TeacherCalloutWizard
+            date={selectedDate}
+            locationId={effectiveLocation}
+            teachers={allGridTeachersFull}
+            onClose={() => { setShowCalloutWizard(false); setCalloutPreselectedTeacherId(undefined) }}
+            preSelectedTeacherId={calloutPreselectedTeacherId}
+          />
+        )}
+      </Suspense>
 
-      {bulkVirtualOpen && (
-        <BulkVirtualModal
-          blocks={blocks}
-          date={selectedDate}
-          tenantId={tenantId ?? ''}
-          onClose={() => { setBulkVirtualOpen(false); qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence }) }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {bulkVirtualOpen && (
+          <BulkVirtualModal
+            blocks={blocks}
+            date={selectedDate}
+            tenantId={tenantId ?? ''}
+            onClose={() => { setBulkVirtualOpen(false); qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence }) }}
+          />
+        )}
+      </Suspense>
 
     </div>
     </IssueContextProvider>
