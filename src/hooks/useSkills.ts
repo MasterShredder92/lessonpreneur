@@ -253,7 +253,7 @@ export function useApproveProposal() {
 }
 
 export function useRejectProposal() {
-  const { userId } = useAuthContext()
+  const { user } = useAuthContext()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (proposalId: string) => {

@@ -347,6 +347,7 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
   } = useZiroBusinessChat(tenantId, businessSystemPrompt, {
     transformBusinessAssistantText,
     getClientPageContext: () => ziroShell.pageContext as Record<string, unknown>,
+    profileId: profile?.id ?? null,
   })
   ziroAiSessionRef.current = aiSessionId
 

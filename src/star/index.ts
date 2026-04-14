@@ -22,3 +22,18 @@ export {
   STUDENTS_FIRST_INSIGHT_QUESTION,
   type StudentsLightInsightInput,
 } from './studentsLightInsight'
+export {
+  orchestrateFromChat,
+  classifyIntent,
+  matchSkill,
+  createTaskRun,
+  spawnAgent,
+  markAgentRunning,
+  completeAgent,
+  failAgent,
+  heartbeatAgent,
+  type TaskRunRecord,
+  type TaskAgentRecord,
+  type OrchestrationIntent,
+  type TaskRunResult,
+} from './orchestrator'

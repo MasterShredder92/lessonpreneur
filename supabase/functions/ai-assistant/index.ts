@@ -392,7 +392,9 @@ function getDateStringInTimezone(tz: string): string {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Normalized ai_conversations + ai_messages (service role — never throws to client). */
+/** Normalized ai_conversations + ai_messages persistence.
+ *  Throws on failure so callers can return an error response instead of a
+ *  false success with missing linkage. */
 async function persistZiroExchange(
   sb: ReturnType<typeof createClient>,
   req: Request,
@@ -409,66 +411,73 @@ async function persistZiroExchange(
     errorText?: string | null;
     assistantMetadata?: Record<string, unknown>;
   },
-): Promise<{ sessionId: string | null; assistantMessageId: string | null }> {
+): Promise<{ sessionId: string; assistantMessageId: string }> {
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return { sessionId: null, assistantMessageId: null };
-  try {
-    const token = authHeader.replace("Bearer ", "");
-    const profileId = JSON.parse(atob(token.split(".")[1])).sub as string | undefined;
-    if (!profileId) return { sessionId: null, assistantMessageId: null };
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new Error("Cannot persist exchange: missing Authorization header");
+  }
 
-    const sessionId =
-      opts.aiSessionId && UUID_RE.test(String(opts.aiSessionId))
-        ? String(opts.aiSessionId)
-        : crypto.randomUUID();
+  const token = authHeader.replace("Bearer ", "");
+  const profileId = JSON.parse(atob(token.split(".")[1])).sub as string | undefined;
+  if (!profileId) {
+    throw new Error("Cannot persist exchange: no profile ID in JWT");
+  }
 
-    const nowIso = new Date().toISOString();
-    const { error: upErr } = await sb.from("ai_conversations").upsert(
-      {
-        id: sessionId,
-        tenant_id: opts.tenantId,
-        profile_id: profileId,
-        source: opts.source,
-        client_route: opts.clientRoute ?? null,
-        page_context: opts.pageContext ?? {},
-        metadata: {},
-        updated_at: nowIso,
-      },
-      { onConflict: "id" },
-    );
-    if (upErr) console.error("[ai-assistant] ai_conversations upsert:", upErr);
+  const sessionId =
+    opts.aiSessionId && UUID_RE.test(String(opts.aiSessionId))
+      ? String(opts.aiSessionId)
+      : crypto.randomUUID();
 
-    const u = {
-      conversation_id: sessionId,
+  const nowIso = new Date().toISOString();
+  const { error: upErr } = await sb.from("ai_conversations").upsert(
+    {
+      id: sessionId,
       tenant_id: opts.tenantId,
       profile_id: profileId,
-    };
-    const { error: uErr } = await sb.from("ai_messages").insert({
-      ...u,
-      role: "user",
-      content: opts.question,
-      metadata: { source: opts.source },
-      seq: 0,
-    });
-    if (uErr) console.error("[ai-assistant] ai_messages user:", uErr);
-    const { data: aRow, error: aErr } = await sb.from("ai_messages").insert({
-      ...u,
-      role: "assistant",
-      content: opts.answer,
-      error_text: opts.errorText ?? null,
-      metadata: opts.assistantMetadata ?? {},
-      model: opts.model,
-      usage: opts.usage ?? null,
-      seq: 0,
-    }).select("id").single();
-    if (aErr) console.error("[ai-assistant] ai_messages assistant:", aErr);
-
-    const assistantMessageId = (aRow as { id?: string } | null)?.id ?? null;
-    return { sessionId, assistantMessageId };
-  } catch (e) {
-    console.error("[ai-assistant] persistZiroExchange:", e);
-    return { sessionId: null, assistantMessageId: null };
+      source: opts.source,
+      client_route: opts.clientRoute ?? null,
+      page_context: opts.pageContext ?? {},
+      metadata: {},
+      updated_at: nowIso,
+    },
+    { onConflict: "id" },
+  );
+  if (upErr) {
+    throw new Error(`ai_conversations upsert failed: ${upErr.message}`);
   }
+
+  const u = {
+    conversation_id: sessionId,
+    tenant_id: opts.tenantId,
+    profile_id: profileId,
+  };
+
+  const { error: uErr } = await sb.from("ai_messages").insert({
+    ...u,
+    role: "user",
+    content: opts.question,
+    metadata: { source: opts.source },
+    seq: 0,
+  });
+  if (uErr) {
+    throw new Error(`ai_messages user insert failed: ${uErr.message}`);
+  }
+
+  const { data: aRow, error: aErr } = await sb.from("ai_messages").insert({
+    ...u,
+    role: "assistant",
+    content: opts.answer,
+    error_text: opts.errorText ?? null,
+    metadata: opts.assistantMetadata ?? {},
+    model: opts.model,
+    usage: opts.usage ?? null,
+    seq: 0,
+  }).select("id").single();
+  if (aErr || !aRow?.id) {
+    throw new Error(`ai_messages assistant insert failed: ${aErr?.message ?? "no row returned"}`);
+  }
+
+  return { sessionId, assistantMessageId: aRow.id };
 }
 
 // ═══════════════════════════════════════
@@ -573,27 +582,36 @@ Deno.serve(async (req) => {
             "Ziro timed out while generating a response. Please try again in a moment. If this keeps happening, your prompt may be very large — open Ziro from the sidebar or retry after a short wait.";
           const timeoutSessionId = ai_session_id && UUID_RE.test(String(ai_session_id)) ? String(ai_session_id) : crypto.randomUUID();
 
-          // Fire-and-forget persistence — don't block the timeout response on DB writes
-          persistZiroExchange(sb, req, {
-            tenantId: tenant_id,
-            question,
-            answer: timeoutAns,
-            usage: null,
-            source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_business",
-            aiSessionId: timeoutSessionId,
-            clientRoute: typeof client_route === "string" ? client_route : null,
-            pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
-            model: "claude-sonnet-4-6",
-            errorText: "timeout",
-          }).catch((e) => console.error("[ai-assistant] background persist (timeout) failed:", e));
-
-          return new Response(
-            JSON.stringify({
+          // Persist and include assistant_message_id — fail visibly if persistence breaks
+          try {
+            const { assistantMessageId: timeoutMsgId } = await persistZiroExchange(sb, req, {
+              tenantId: tenant_id,
+              question,
               answer: timeoutAns,
-              ai_session_id: timeoutSessionId,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
+              usage: null,
+              source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_business",
+              aiSessionId: timeoutSessionId,
+              clientRoute: typeof client_route === "string" ? client_route : null,
+              pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
+              model: "claude-sonnet-4-6",
+              errorText: "timeout",
+            });
+
+            return new Response(
+              JSON.stringify({
+                answer: timeoutAns,
+                ai_session_id: timeoutSessionId,
+                assistant_message_id: timeoutMsgId,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          } catch (persistErr) {
+            console.error("[ai-assistant] persist failed (timeout path):", persistErr);
+            return new Response(
+              JSON.stringify({ error: "Ziro responded but failed to save the conversation. Please try again." }),
+              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
         }
         throw fetchErr;
       } finally {
@@ -615,27 +633,36 @@ Deno.serve(async (req) => {
       // Pre-compute session ID so we can return it immediately
       const sessionId = ai_session_id && UUID_RE.test(String(ai_session_id)) ? String(ai_session_id) : crypto.randomUUID();
 
-      // Fire-and-forget persistence — don't block the response on DB writes
-      persistZiroExchange(sb, req, {
-        tenantId: tenant_id,
-        question,
-        answer,
-        usage: claudeData.usage,
-        source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_business",
-        aiSessionId: sessionId,
-        clientRoute: typeof client_route === "string" ? client_route : null,
-        pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
-        model: "claude-sonnet-4-6",
-      }).catch((e) => console.error("[ai-assistant] background persist failed:", e));
-
-      return new Response(
-        JSON.stringify({
+      // Persist and include assistant_message_id — fail visibly if persistence breaks
+      try {
+        const { assistantMessageId } = await persistZiroExchange(sb, req, {
+          tenantId: tenant_id,
+          question,
           answer,
           usage: claudeData.usage,
-          ai_session_id: sessionId,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+          source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_business",
+          aiSessionId: sessionId,
+          clientRoute: typeof client_route === "string" ? client_route : null,
+          pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
+          model: "claude-sonnet-4-6",
+        });
+
+        return new Response(
+          JSON.stringify({
+            answer,
+            usage: claudeData.usage,
+            ai_session_id: sessionId,
+            assistant_message_id: assistantMessageId,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      } catch (persistErr) {
+        console.error("[ai-assistant] persist failed (business path):", persistErr);
+        return new Response(
+          JSON.stringify({ error: "Ziro responded but failed to save the conversation. Please try again." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     // ─── SCHEDULING MODE: full context with tools ───
@@ -1155,29 +1182,38 @@ CANCELLATION RULES:
     // Pre-compute session ID so we can return it immediately
     const schedSessionId = ai_session_id && UUID_RE.test(String(ai_session_id)) ? String(ai_session_id) : crypto.randomUUID();
 
-    // Fire-and-forget persistence — don't block the response on DB writes
-    persistZiroExchange(sb, req, {
-      tenantId: tenant_id,
-      question,
-      answer,
-      usage: claudeData.usage,
-      source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_schedule",
-      aiSessionId: schedSessionId,
-      clientRoute: typeof client_route === "string" ? client_route : null,
-      pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
-      model: "claude-sonnet-4-6",
-      assistantMetadata: typeof proposed_action !== "undefined" && proposed_action
-        ? { proposed_action }
-        : {},
-    }).catch((e) => console.error("[ai-assistant] background persist (schedule) failed:", e));
+    // Persist and include assistant_message_id — fail visibly if persistence breaks
+    try {
+      const { assistantMessageId: schedMsgId } = await persistZiroExchange(sb, req, {
+        tenantId: tenant_id,
+        question,
+        answer,
+        usage: claudeData.usage,
+        source: typeof clientSource === "string" && clientSource ? clientSource : "ziro_schedule",
+        aiSessionId: schedSessionId,
+        clientRoute: typeof client_route === "string" ? client_route : null,
+        pageContext: client_page_context && typeof client_page_context === "object" ? client_page_context : {},
+        model: "claude-sonnet-4-6",
+        assistantMetadata: typeof proposed_action !== "undefined" && proposed_action
+          ? { proposed_action }
+          : {},
+      });
 
-    const payload: any = {
-      answer,
-      usage: claudeData.usage,
-      ai_session_id: schedSessionId,
-    };
-    if (proposed_action) payload.proposed_action = proposed_action;
-    return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const payload: any = {
+        answer,
+        usage: claudeData.usage,
+        ai_session_id: schedSessionId,
+        assistant_message_id: schedMsgId,
+      };
+      if (proposed_action) payload.proposed_action = proposed_action;
+      return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    } catch (persistErr) {
+      console.error("[ai-assistant] persist failed (schedule path):", persistErr);
+      return new Response(
+        JSON.stringify({ error: "Ziro responded but failed to save the conversation. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }

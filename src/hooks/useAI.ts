@@ -13,6 +13,8 @@ import {
 } from '../services/aiAssistantClient'
 import { cleanZiroResponseText } from '../ziro/cleanZiroResponseText'
 import { classifyQuery, enforceZiroResponsePolicy } from '../ziro/enforceZiroResponsePolicy'
+// Orchestration disabled — direct chat only until builder-agent source is identified.
+// import { orchestrateFromChat, completeAgent, failAgent } from '../star/orchestrator'
 
 export type { ScheduleContext, ProposedAction, AiAssistantJson } from '../services/aiAssistantClient'
 /** @deprecated Use `postAiAssistantBusinessOverride` from `services/aiAssistantClient`. */
@@ -30,6 +32,8 @@ export interface UseAiOptions {
   transformBusinessAssistantText?: (text: string, aiSessionId: string | null) => string
   /** Merged into ai-assistant `client_page_context` for observability (Ziro shell pageContext). */
   getClientPageContext?: () => Record<string, unknown>
+  /** Profile ID for orchestration — enables task run + agent spawning. Without this, orchestration is skipped. */
+  profileId?: string | null
 }
 
 /**
@@ -139,6 +143,11 @@ export function useAI(
         if (data.proposed_action) {
           setPendingAction(data.proposed_action as ProposedAction)
         }
+
+        // ── Orchestration handoff — DISABLED ──
+        // Disabled until builder-agent source is identified and orphan issue resolved.
+        // When re-enabled: uncomment and pass profileId via options.
+        // See: src/star/orchestrator.ts for the full pipeline.
       }
     } catch (err: unknown) {
       const e = err as { name?: string; message?: string }
