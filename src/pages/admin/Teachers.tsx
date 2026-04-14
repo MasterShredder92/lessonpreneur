@@ -561,13 +561,13 @@ function TeacherListView({
           </span>
         </div>
 
-        {/* Teacher table */}
+        {/* Teacher list */}
         {isLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {Array.from({ length: 12 }).map((_, i) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} style={{
-                height: 44, background: 'rgba(255,255,255,0.02)',
-                borderRadius: 6, marginBottom: 1,
+                height: 62, background: 'rgba(255,255,255,0.02)',
+                borderRadius: 10, border: '1px solid rgba(255,255,255,0.04)',
               }} />
             ))}
           </div>
@@ -577,27 +577,26 @@ function TeacherListView({
           <div className="empty-state">No {teacherTab} teachers found.</div>
         ) : (
           <>
-            {/* Table header */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 120px 140px 70px 70px 30px',
-                gap: 8, padding: '8px 14px',
+            {/* Column labels — hidden on mobile via CSS */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 0,
+              padding: '0 0 8px 0', marginBottom: 2,
+            }}>
+              <div style={{ width: 4, flexShrink: 0 }} />
+              <div className="teacher-row-header" style={{
                 fontSize: 10, fontWeight: 700, color: '#52526A',
                 textTransform: 'uppercase', letterSpacing: 0.5,
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-                marginBottom: 2,
-              }}
-            >
-              <span>Name</span>
-              <span>Instruments</span>
-              <span>Location</span>
-              <span style={{ textAlign: 'right' }}>Students</span>
-              <span style={{ textAlign: 'right' }}>This Wk</span>
-              <span />
+              }}>
+                <span>Teacher</span>
+                <span>Instruments</span>
+                <span>Locations</span>
+                <span style={{ textAlign: 'right' }}>Students</span>
+                <span style={{ textAlign: 'right' }}>Sessions</span>
+                <span />
+              </div>
             </div>
 
-            {/* Table rows — progressive */}
+            {/* Card rows — progressive */}
             <div data-tour-id="teachers-list">
               {visible.map((t) => (
                 <TeacherRow
@@ -651,116 +650,159 @@ function TeacherListView({
   )
 }
 
-/* ── Single table row ────────────────────────────────────── */
+/* ── Single teacher card row ─────────────────────────────── */
 
 function TeacherRow({ t, onClick }: { t: TeacherOverview; onClick: () => void }) {
   const isInactive = !t.is_active
+  const railColors = isInactive
+    ? ['#3A3A52']
+    : t.location_colors.length > 0
+      ? t.location_colors
+      : ['#52526A']
 
   return (
     <div
       onClick={onClick}
       style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 120px 140px 70px 70px 30px',
-        gap: 8, padding: '10px 14px',
-        alignItems: 'center', cursor: 'pointer',
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
-        transition: 'background 0.1s',
+        display: 'flex', alignItems: 'stretch', gap: 0,
+        background: 'rgba(255,255,255,0.025)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: 10, cursor: 'pointer',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
+        overflow: 'hidden', marginBottom: 6,
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'
+        e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.2)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+        e.currentTarget.style.boxShadow = 'none'
+      }}
     >
-      {/* Name + role */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        {t.photo_url ? (
-          <img
-            src={t.photo_url}
-            alt=""
-            style={{
-              width: 30, height: 30, borderRadius: 8,
-              objectFit: 'cover', flexShrink: 0,
-              border: '1px solid rgba(255,255,255,0.08)',
-              opacity: isInactive ? 0.45 : 1,
-            }}
-          />
-        ) : (
-          <div style={{
-            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-            background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 800,
-            color: isInactive ? '#4A4A6A' : '#8080A8',
-          }}>
-            {(t.first_name[0] ?? '').toUpperCase()}{(t.last_name[0] ?? '').toUpperCase()}
-          </div>
-        )}
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontSize: 13, fontWeight: 800, lineHeight: 1.2,
-            color: isInactive ? '#6060A8' : '#E8E8F4',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            {t.last_name}, {t.first_name}
-            {t.is_sub_available && (
-              <span style={{
-                marginLeft: 6, fontSize: 9, padding: '1px 5px', borderRadius: 4,
-                background: 'rgba(123,44,191,0.15)', color: '#A78BFA',
-                border: '1px solid rgba(123,44,191,0.25)', verticalAlign: 'middle',
-              }}>SUB</span>
-            )}
-          </div>
-          <div style={{ fontSize: 11, color: isInactive ? '#4A4A6A' : '#52526A' }}>
-            {t.teacher_role ? t.teacher_role.charAt(0).toUpperCase() + t.teacher_role.slice(1) : 'Teacher'}
+      {/* Color rail — multi-segment for multi-location teachers */}
+      <div style={{ width: 4, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        {railColors.map((c, i) => (
+          <div key={i} style={{ flex: 1, background: c, opacity: isInactive ? 0.3 : 0.85 }} />
+        ))}
+      </div>
+
+      {/* Card content */}
+      <div className="teacher-row-grid">
+        {/* Left: Avatar + name + role */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {t.photo_url ? (
+            <img
+              src={t.photo_url}
+              alt=""
+              style={{
+                width: 36, height: 36, borderRadius: 10,
+                objectFit: 'cover', flexShrink: 0,
+                border: '1px solid rgba(255,255,255,0.08)',
+                opacity: isInactive ? 0.4 : 1,
+              }}
+            />
+          ) : (
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+              background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, fontWeight: 900, letterSpacing: 0.5,
+              color: isInactive ? '#4A4A6A' : '#9090B8',
+            }}>
+              {(t.first_name[0] ?? '').toUpperCase()}{(t.last_name[0] ?? '').toUpperCase()}
+            </div>
+          )}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{
+              fontSize: 14, fontWeight: 800, lineHeight: 1.25,
+              color: isInactive ? '#6060A8' : '#F0F0FA',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              {t.first_name} {t.last_name}
+              {t.is_sub_available && (
+                <span style={{
+                  fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 700,
+                  background: 'rgba(167,139,250,0.12)', color: '#A78BFA',
+                  border: '1px solid rgba(167,139,250,0.2)', lineHeight: 1,
+                  textTransform: 'uppercase', letterSpacing: 0.3,
+                }}>Sub</span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: isInactive ? '#4A4A6A' : '#6B6B92', marginTop: 1 }}>
+              {t.teacher_role ? t.teacher_role.charAt(0).toUpperCase() + t.teacher_role.slice(1) : 'Teacher'}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Instruments — compact inline */}
-      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', minWidth: 0 }}>
-        {t.instruments.slice(0, 3).map((inst, i) => (
-          <span key={i} style={{
-            fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700,
-            background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(212,34,106,0.08)',
-            color: isInactive ? '#4A4A6A' : '#E8488A',
-          }}>
-            {inst.charAt(0).toUpperCase() + inst.slice(1)}
-          </span>
-        ))}
-        {t.instruments.length > 3 && (
-          <span style={{ fontSize: 10, color: '#52526A' }}>+{t.instruments.length - 3}</span>
-        )}
-      </div>
+        {/* Instruments */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>
+          {t.instruments.slice(0, 3).map((inst, i) => (
+            <span key={i} style={{
+              fontSize: 10, padding: '3px 8px', borderRadius: 5, fontWeight: 700,
+              background: isInactive ? 'rgba(255,255,255,0.03)' : 'rgba(212,34,106,0.08)',
+              color: isInactive ? '#4A4A6A' : '#D4689A',
+              border: `1px solid ${isInactive ? 'transparent' : 'rgba(212,34,106,0.12)'}`,
+              lineHeight: 1,
+            }}>
+              {inst.charAt(0).toUpperCase() + inst.slice(1)}
+            </span>
+          ))}
+          {t.instruments.length > 3 && (
+            <span style={{ fontSize: 10, color: '#52526A', fontWeight: 600, alignSelf: 'center' }}>
+              +{t.instruments.length - 3}
+            </span>
+          )}
+        </div>
 
-      {/* Locations — colored dots + short name */}
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>
-        {t.location_names.map((name, i) => (
-          <span key={i} style={{
-            fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700,
-            background: isInactive ? '#2A2A42' : `${t.location_colors[i] ?? '#D4226A'}20`,
-            color: isInactive ? '#4A4A6A' : (t.location_colors[i] ?? '#D4226A'),
-          }}>
-            {name}
-          </span>
-        ))}
-      </div>
+        {/* Locations — refined chips */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>
+          {t.location_names.map((name, i) => {
+            const c = t.location_colors[i] ?? '#D4226A'
+            return (
+              <span key={i} style={{
+                fontSize: 10, padding: '3px 8px', borderRadius: 5, fontWeight: 700,
+                background: isInactive ? 'rgba(255,255,255,0.03)' : `${c}12`,
+                color: isInactive ? '#4A4A6A' : c,
+                border: `1px solid ${isInactive ? 'transparent' : `${c}25`}`,
+                lineHeight: 1,
+              }}>
+                {name}
+              </span>
+            )
+          })}
+        </div>
 
-      {/* Student count */}
-      <div style={{ textAlign: 'right' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: isInactive ? '#4A4A6A' : '#D0D0EC' }}>
-          {t.student_count}
-        </span>
-      </div>
+        {/* Stats — collapse into inline row on mobile */}
+        <div className="teacher-row-stats">
+          <div style={{ textAlign: 'right' }}>
+            <span style={{
+              fontSize: 14, fontWeight: 800,
+              color: isInactive ? '#4A4A6A' : t.student_count > 0 ? '#E0E0F2' : '#52526A',
+            }}>
+              {t.student_count}
+            </span>
+            <span className="teacher-row-stats-label"> students</span>
+          </div>
 
-      {/* Blocks this week */}
-      <div style={{ textAlign: 'right' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: isInactive ? '#4A4A6A' : '#D0D0EC' }}>
-          {t.blocks_this_week}
-        </span>
-      </div>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{
+              fontSize: 14, fontWeight: 800,
+              color: isInactive ? '#4A4A6A' : t.blocks_this_week > 0 ? '#E0E0F2' : '#52526A',
+            }}>
+              {t.blocks_this_week}
+            </span>
+            <span className="teacher-row-stats-label"> this wk</span>
+          </div>
 
-      {/* Status + arrow */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-        <StatusDot status={isInactive ? 'inactive' : t.status} />
+          {/* Status indicator + chevron */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginLeft: 'auto' }}>
+            <StatusDot status={isInactive ? 'inactive' : t.status} />
+            <ChevronRight size={13} color="#52526A" />
+          </div>
+        </div>
       </div>
     </div>
   )
