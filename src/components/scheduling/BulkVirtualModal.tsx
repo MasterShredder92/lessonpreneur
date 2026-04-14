@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
-import { EDGE_FUNCTIONS } from '../../lib/config'
-import { safeFetch } from '../../lib/safeFetch'
 import { sendAppointmentNotification, buildBlockContext } from '../../lib/appointmentNotifications'
 import { toast } from '../shared/Toast'
 import { Video, Check, X, AlertTriangle } from 'lucide-react'
@@ -56,16 +54,13 @@ export default function BulkVirtualModal({ blocks, date, tenantId, onClose }: Pr
 
     for (const blockId of selected) {
       try {
-        const result = await safeFetch<{ success?: boolean; error?: string; meet_link?: string }>(
-          EDGE_FUNCTIONS.createGoogleMeet,
-          { body: { block_id: blockId, tenant_id: tenantId, user_id: user?.id } },
-        )
-        if (!result.success) throw new Error(result.error)
+        const { error: vErr } = await supabase.from('schedule_blocks').update({ is_virtual: true }).eq('id', blockId)
+        if (vErr) throw new Error(vErr.message)
 
         // Send virtual notification
         const ctx = await buildBlockContext(blockId)
         if (ctx) {
-          sendAppointmentNotification('virtual_converted', { ...ctx, meet_link: result.meet_link })
+          sendAppointmentNotification('virtual_converted', { ...ctx, meet_link: null })
         }
 
         setResults(prev => ({ ...prev, [blockId]: 'success' }))
@@ -91,13 +86,10 @@ export default function BulkVirtualModal({ blocks, date, tenantId, onClose }: Pr
     for (const blockId of failedIds) {
       setResults(prev => ({ ...prev, [blockId]: 'pending' }))
       try {
-        const result = await safeFetch<{ success?: boolean; error?: string; meet_link?: string }>(
-          EDGE_FUNCTIONS.createGoogleMeet,
-          { body: { block_id: blockId, tenant_id: tenantId, user_id: user?.id } },
-        )
-        if (!result.success) throw new Error(result.error)
+        const { error: vErr } = await supabase.from('schedule_blocks').update({ is_virtual: true }).eq('id', blockId)
+        if (vErr) throw new Error(vErr.message)
         const ctx = await buildBlockContext(blockId)
-        if (ctx) sendAppointmentNotification('virtual_converted', { ...ctx, meet_link: result.meet_link })
+        if (ctx) sendAppointmentNotification('virtual_converted', { ...ctx, meet_link: null })
         setResults(prev => ({ ...prev, [blockId]: 'success' }))
       } catch (err: any) {
         setResults(prev => ({ ...prev, [blockId]: 'error' }))

@@ -5,8 +5,6 @@ import { useCheckIn } from '../../hooks/useCheckIn'
 import { useRooms } from '../../hooks/useRooms'
 import { useChangeBlockType, useUnassignBlock, type GridBlock, type BlockType } from '../../hooks/useScheduleGrid'
 import { supabase } from '../../lib/supabase'
-import { safeFetch } from '../../lib/safeFetch'
-import { EDGE_FUNCTIONS } from '../../lib/config'
 import { sendAppointmentNotification } from '../../lib/appointmentNotifications'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '../shared/Toast'
@@ -719,13 +717,15 @@ export default function CheckInModal({ block, onClose }: Props) {
           {/* Virtual session toggle */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Virtual Session</div>
-            {block.is_virtual && block.meet_link ? (
+            {block.is_virtual ? (
               <div style={{ padding: '10px 14px', background: 'rgba(0,188,212,0.06)', border: '1px solid rgba(0,188,212,0.15)', borderRadius: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <Video size={14} style={{ color: '#00BCD4' }} />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#00BCD4' }}>Virtual — Google Meet</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#00BCD4' }}>Virtual Session</span>
                 </div>
-                <a href={block.meet_link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#38BDF8', wordBreak: 'break-all' }}>{block.meet_link}</a>
+                {block.meet_link && (
+                  <a href={block.meet_link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#38BDF8', wordBreak: 'break-all', display: 'block', marginBottom: 4 }}>{block.meet_link}</a>
+                )}
                 <button
                   onClick={() => setShowVirtualConfirm(true)}
                   style={{ marginTop: 8, width: '100%', padding: '8px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
@@ -770,12 +770,9 @@ export default function CheckInModal({ block, onClose }: Props) {
                           qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
                           toast('Converted back to in-person', 'success')
                         } else {
-                          // Convert to virtual
-                          const result = await safeFetch<{ success?: boolean; error?: string; meet_link?: string }>(
-                            EDGE_FUNCTIONS.createGoogleMeet,
-                            { body: { block_id: block.block_id, tenant_id: block.tenant_id, user_id: user?.id } },
-                          )
-                          if (!result.success) throw new Error(result.error ?? 'Google Meet creation failed')
+                          // Convert to virtual — mark in database
+                          const { error: vErr } = await supabase.from('schedule_blocks').update({ is_virtual: true }).eq('id', block.block_id)
+                          if (vErr) throw new Error(vErr.message)
 
                           // Send virtual notification
                           sendAppointmentNotification('virtual_converted', {
@@ -786,11 +783,11 @@ export default function CheckInModal({ block, onClose }: Props) {
                             location_name: block.location_name ?? 'Studio',
                             block_date: block.block_date, start_time: block.start_time,
                             family_id: null, teacher_id: block.teacher_id,
-                            meet_link: result.meet_link,
+                            meet_link: null,
                           })
 
                           qc.invalidateQueries({ queryKey: qk.schedule.all }); qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
-                          toast('Virtual session created. Link sent to teacher and parent.', 'success')
+                          toast('Session marked as virtual', 'success')
                         }
                         setShowVirtualConfirm(false)
                         onClose()
