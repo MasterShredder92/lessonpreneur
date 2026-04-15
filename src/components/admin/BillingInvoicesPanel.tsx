@@ -169,20 +169,21 @@ export default function BillingInvoicesPanel({ isStudioDirector, directorLocatio
             {expanded ? <ChevronDown size={18} color="#D4226A" /> : <ChevronRight size={18} color="#A0A0C8" />}
           </span>
           <FileText size={18} style={{ color: '#D4226A', flexShrink: 0 }} aria-hidden />
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4' }}>Invoices</div>
-            {summaryLoading ? (
-              <div style={{ fontSize: 12, color: '#606088', marginTop: 2 }} role="status">
-                Loading summary…
-              </div>
-            ) : summary ? (
-              <div style={{ fontSize: 12, color: '#A0A0C8', marginTop: 2, lineHeight: 1.4 }}>
-                Operating view {summary.monthOperating} · Paid this month {summary.paidThisMonth} · Overdue unpaid (any date){' '}
-                {summary.overdueUnpaid}
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: '#606088', marginTop: 2 }}>No invoice data</div>
-            )}
+            {/* minHeight reserves two lines so summary text does not reflow the panel when data arrives */}
+            <div style={{ marginTop: 2, minHeight: 36, lineHeight: 1.4 }} role="status">
+              {summaryLoading ? (
+                <div style={{ fontSize: 12, color: '#606088' }}>Loading summary…</div>
+              ) : summary ? (
+                <div style={{ fontSize: 12, color: '#A0A0C8' }}>
+                  Operating view {summary.monthOperating} · Paid this month {summary.paidThisMonth} · Overdue unpaid (any date){' '}
+                  {summary.overdueUnpaid}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#606088' }}>No invoice data</div>
+              )}
+            </div>
           </div>
         </div>
         <span style={{ fontSize: 11, color: '#606088', flexShrink: 0 }}>
@@ -190,7 +191,37 @@ export default function BillingInvoicesPanel({ isStudioDirector, directorLocatio
         </span>
       </button>
 
-      {!expanded && summary && summary.recent.length > 0 && (
+      {/* Skeleton + reserved height while collapsed avoids CLS when recent rows appear after summary loads */}
+      {!expanded && summaryLoading && (
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            fontSize: 11,
+            color: '#8080A8',
+            minHeight: 108,
+          }}
+        >
+          <div style={{ height: 11, width: '62%', borderRadius: 4, background: 'rgba(255,255,255,0.06)', marginBottom: 10 }} />
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                marginTop: i === 0 ? 0 : 4,
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 8,
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ height: 11, flex: 1, maxWidth: '42%', borderRadius: 4, background: 'rgba(255,255,255,0.05)' }} />
+              <div style={{ height: 11, flex: 1, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+            </div>
+          ))}
+        </div>
+      )}
+      {!expanded && !summaryLoading && summary && summary.recent.length > 0 && (
         <div
           style={{
             marginTop: 12,
@@ -402,10 +433,32 @@ export default function BillingInvoicesPanel({ isStudioDirector, directorLocatio
             <div
               role="status"
               aria-live="polite"
-              style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: 28 }}
+              style={{
+                minHeight: 320,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'stretch',
+                justifyContent: 'center',
+                gap: 12,
+                padding: '20px 0',
+              }}
             >
-              <MusicLoader size={24} />
-              <span style={srOnly}>Loading invoice list…</span>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
+                <MusicLoader size={24} />
+                <span style={srOnly}>Loading invoice list…</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 36,
+                      borderRadius: 6,
+                      background: 'rgba(255,255,255,0.04)',
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           ) : flatRows.length === 0 ? (
             <div role="status" style={{ textAlign: 'center', padding: 24, color: '#606088', fontSize: 13 }}>

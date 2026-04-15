@@ -1,23 +1,49 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import TeacherDetail from './TeacherDetail'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useTeacherOverview } from '../../hooks/useTeacherOverview'
 import type { TeacherOverview } from '../../hooks/useTeacherOverview'
 import { useLocations } from '../../hooks/useLocations'
 import { Users, Calendar, LayoutGrid, ChevronRight, AlertTriangle, MapPin, List } from 'lucide-react'
-import TeacherFormModal from '../../components/teachers/TeacherFormModal'
-import CsvImportFlow from '../../components/shared/CsvImportFlow'
 import { useImportTeachers, TEACHER_TEMPLATE } from '../../hooks/useImport'
-import TeacherSpreadsheet from '../../components/teachers/TeacherSpreadsheet'
-import W9ExportModal from '../../components/teachers/W9ExportModal'
 import { useScrollRestore } from '../../hooks/useScrollRestore'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
-import TeachersPageGuide from '../../components/admin/TeachersPageGuide'
 import { CORE_INSTRUMENTS, OTHER_INSTRUMENTS } from '../../lib/constants'
+
+/** Code-split heavy routes/modals so /admin/teachers parses less JS before first paint (FCP). */
+const TeacherDetail = lazy(() => import('./TeacherDetail'))
+const TeacherFormModal = lazy(() => import('../../components/teachers/TeacherFormModal'))
+const CsvImportFlow = lazy(() => import('../../components/shared/CsvImportFlow'))
+const TeacherSpreadsheet = lazy(() => import('../../components/teachers/TeacherSpreadsheet'))
+const W9ExportModal = lazy(() => import('../../components/teachers/W9ExportModal'))
+const TeachersPageGuide = lazy(() => import('../../components/admin/TeachersPageGuide'))
+
+function TeacherDetailFallback() {
+  return (
+    <div className="page" style={{ maxWidth: 960 }}>
+      <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ width: 72, height: 24, borderRadius: 8, background: 'rgba(255,255,255,0.06)' }} />
+        <div style={{ flex: 1, minWidth: 160, height: 28, maxWidth: 320, borderRadius: 8, background: 'rgba(255,255,255,0.07)' }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14, marginTop: 22 }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              height: 128,
+              borderRadius: 14,
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 /* ── tiny helpers ────────────────────────────────────────── */
 
@@ -149,12 +175,17 @@ function LocationTile({
 
 export default function Teachers() {
   const { role } = useAuthContext()
-  const { data: teachers, isLoading, error } = useTeacherOverview()
-  const { data: locations } = useLocations()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const detailTeacherId = searchParams.get('id')
   const view = searchParams.get('view') // null = dashboard, 'list' = full roster
+
+  // Skip roster overview + location list while viewing a teacher — detail page does its own fetches (less main-thread + network contention for FCP).
+  const { data: teachers, isLoading, error } = useTeacherOverview({ enabled: !detailTeacherId })
+  const { data: locations } = useLocations({
+    enabled: !detailTeacherId,
+    select: 'id, name, color, is_active',
+  })
   const { isStudioDirector, isAtLeast } = usePermissions()
   const canEdit = isAtLeast('studio_director')
   const { saveScroll } = useScrollRestore('teachers')
@@ -182,10 +213,12 @@ export default function Teachers() {
   /* ── detail view ───────────────────────────────────────── */
   if (detailTeacherId) {
     return (
-      <TeacherDetail
-        propId={detailTeacherId}
-        onBack={() => navigate('/admin/teachers?view=list')}
-      />
+      <Suspense fallback={<TeacherDetailFallback />}>
+        <TeacherDetail
+          propId={detailTeacherId}
+          onBack={() => navigate('/admin/teachers?view=list')}
+        />
+      </Suspense>
     )
   }
 
@@ -256,7 +289,9 @@ export default function Teachers() {
                 </button>
               </div>
             )}
-            <TeachersPageGuide />
+            <Suspense fallback={<span style={{ display: 'inline-block', width: 40, height: 32 }} aria-hidden />}>
+              <TeachersPageGuide />
+            </Suspense>
             <ReportIssueButton />
           </div>
 
@@ -396,7 +431,11 @@ export default function Teachers() {
           )}
 
           {/* Modals (add teacher available from dashboard too) */}
-          {showForm && <TeacherFormModal onClose={() => setShowForm(false)} />}
+          {showForm && (
+            <Suspense fallback={null}>
+              <TeacherFormModal onClose={() => setShowForm(false)} />
+            </Suspense>
+          )}
         </div>
       </IssueContextProvider>
     )
@@ -525,7 +564,9 @@ function TeacherListView({
               </button>
             </div>
           )}
-          <TeachersPageGuide />
+          <Suspense fallback={<span style={{ display: 'inline-block', width: 40, height: 32 }} aria-hidden />}>
+            <TeachersPageGuide />
+          </Suspense>
           <ReportIssueButton />
         </div>
 
@@ -748,28 +789,42 @@ function TeacherListView({
           </>
         )}
 
-        {/* Modals */}
-        {showForm && <TeacherFormModal onClose={() => setShowForm(false)} />}
-        {showW9Export && <W9ExportModal onClose={() => setShowW9Export(false)} />}
-        {showSpreadsheet && <TeacherSpreadsheet onClose={() => setShowSpreadsheet(false)} />}
+        {/* Modals — lazy chunks load only when opened */}
+        {showForm && (
+          <Suspense fallback={null}>
+            <TeacherFormModal onClose={() => setShowForm(false)} />
+          </Suspense>
+        )}
+        {showW9Export && (
+          <Suspense fallback={null}>
+            <W9ExportModal onClose={() => setShowW9Export(false)} />
+          </Suspense>
+        )}
+        {showSpreadsheet && (
+          <Suspense fallback={null}>
+            <TeacherSpreadsheet onClose={() => setShowSpreadsheet(false)} />
+          </Suspense>
+        )}
         {showCsvImport && (
-          <CsvImportFlow
-            title="Import Teachers"
-            templateCsv={TEACHER_TEMPLATE}
-            templateFilename="teacher_import_template.csv"
-            requiredColumns={['first_name', 'last_name']}
-            onCheck={teacherImport.check}
-            onRun={teacherImport.run}
-            onReset={teacherImport.reset}
-            status={teacherImport.status}
-            progress={teacherImport.progress}
-            preview={teacherImport.preview}
-            result={teacherImport.result}
-            onClose={() => {
-              setShowCsvImport(false)
-              teacherImport.reset()
-            }}
-          />
+          <Suspense fallback={null}>
+            <CsvImportFlow
+              title="Import Teachers"
+              templateCsv={TEACHER_TEMPLATE}
+              templateFilename="teacher_import_template.csv"
+              requiredColumns={['first_name', 'last_name']}
+              onCheck={teacherImport.check}
+              onRun={teacherImport.run}
+              onReset={teacherImport.reset}
+              status={teacherImport.status}
+              progress={teacherImport.progress}
+              preview={teacherImport.preview}
+              result={teacherImport.result}
+              onClose={() => {
+                setShowCsvImport(false)
+                teacherImport.reset()
+              }}
+            />
+          </Suspense>
         )}
       </div>
     </IssueContextProvider>

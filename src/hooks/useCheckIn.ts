@@ -14,11 +14,13 @@ export interface CheckInResult {
 export function useCheckIn() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ blockId, action, userId }: { blockId: string; action: 'check_in' | 'call_out' | 'no_show'; userId: string }): Promise<CheckInResult> => {
+    mutationFn: async ({ blockId, action }: { blockId: string; action: 'check_in' | 'call_out' | 'no_show' }): Promise<CheckInResult> => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.id) throw new Error('Not authenticated')
       const { data, error } = await supabase.rpc('check_in_block', {
         p_block_id: blockId,
         p_action: action,
-        p_user_id: userId,
+        p_user_id: user.id,
       })
       if (error) throw error
       return data as CheckInResult

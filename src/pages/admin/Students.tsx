@@ -1,7 +1,5 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import StudentDetail from './StudentDetail'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -19,23 +17,26 @@ import {
 import { useLeads } from '../../hooks/useLeads'
 import { useZiroShell } from '../../contexts/ZiroContext'
 import { useLocations } from '../../hooks/useLocations'
-import { useTeachers } from '../../hooks/useTeachers'
+import { useTeacherOverview } from '../../hooks/useTeacherOverview'
 import { Check, XCircle, X } from 'lucide-react'
 import { toast } from '../../components/shared/Toast'
-import RetentionCaptureModal from '../../components/students/RetentionCaptureModal'
-import CsvImportFlow from '../../components/shared/CsvImportFlow'
 import { useImportStudents, STUDENT_TEMPLATE } from '../../hooks/useImport'
 import { DEFAULT_RATE_PER_SESSION } from '../../lib/constants'
 import { useStudentInstruments, useSaveStudentInstruments } from '../../hooks/useStudentInstruments'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
-import AddStudentModal from '../../components/students/AddStudentModal'
-import DataGrid from '../../components/shared/DataGrid'
 import { useChurnRiskScores, RISK_TIERS, type ChurnRiskScore } from '../../hooks/useChurnRisk'
 import { useScrollRestore } from '../../hooks/useScrollRestore'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import StudentsPageGuide from '../../components/admin/StudentsPageGuide'
 import { useStudentInsights } from '../../hooks/useInsights'
+
+/** Split heavy modules out of the main roster chunk so /admin/students parses faster (FCP). */
+const StudentDetail = lazy(() => import('./StudentDetail'))
+const RetentionCaptureModal = lazy(() => import('../../components/students/RetentionCaptureModal'))
+const CsvImportFlow = lazy(() => import('../../components/shared/CsvImportFlow'))
+const AddStudentModal = lazy(() => import('../../components/students/AddStudentModal'))
+const DataGrid = lazy(() => import('../../components/shared/DataGrid'))
 
 const INSTRUMENTS = ['piano','guitar','vocals','drums','banjo','bass','brass','cello','clarinet','flute','mandolin','oboe','percussion','saxophone','strings','trombone','trumpet','ukulele','viola','violin','voice','woodwinds']
 const EXIT_REASONS = ['Schedule Conflict', 'Moving Away', 'Financial', 'Lost Interest', 'Switching Schools', 'Taking a Break', 'Other']
@@ -807,8 +808,9 @@ export default function Students() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const detailStudentId = searchParams.get('id')
-  const { data: locations } = useLocations()
-  const { data: teacherList } = useTeachers()
+  const { data: locations } = useLocations({
+    select: 'id, tenant_id, name, city, state, is_active',
+  })
   const canEdit = role === 'owner' || role === 'admin'
   const canCreate = role === 'owner' || role === 'admin' || role === 'company_director' || role === 'studio_director'
   const canExport = role === 'owner' || role === 'admin' || role === 'company_director'
@@ -832,6 +834,9 @@ export default function Students() {
   const [showMasterSheet, setShowMasterSheet] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
 
+  const needTeacherList = selectedLocationId !== null || !!editStudent
+  const { data: teacherList } = useTeacherOverview({ enabled: needTeacherList })
+
   const studentImport = useImportStudents()
   const createStudent = useCreateStudent()
   const updateStudent = useUpdateStudent()
@@ -853,13 +858,13 @@ export default function Students() {
     { enabled: false },
   )
 
-  // ── Churn risk (deferred — loads after first paint) ──
-  const [riskEnabled, setRiskEnabled] = useState(false)
+  // ── Churn risk + revenue insights (deferred — avoids competing with Tier-1 queries on first paint) ──
+  const [deferSecondaryQueries, setDeferSecondaryQueries] = useState(false)
   useEffect(() => {
-    const id = requestAnimationFrame(() => setRiskEnabled(true))
+    const id = requestAnimationFrame(() => setDeferSecondaryQueries(true))
     return () => cancelAnimationFrame(id)
   }, [])
-  const { data: riskScores } = useChurnRiskScores({ enabled: riskEnabled })
+  const { data: riskScores } = useChurnRiskScores({ enabled: deferSecondaryQueries })
   const riskMap = useMemo(
     () => new Map((riskScores ?? []).map((r) => [r.studentId, r])),
     [riskScores],
@@ -869,8 +874,8 @@ export default function Students() {
     [riskScores],
   )
 
-  // ── At-a-glance insights (lightweight COUNT queries) ──
-  const { data: studentInsights } = useStudentInsights()
+  // ── At-a-glance insights (deferred with churn — `student_effective_rate` scan can be large) ──
+  const { data: studentInsights } = useStudentInsights({ enabled: deferSecondaryQueries })
 
   // ── Ziro context ──
   const { setPageContext: setZiroPageContext } = useZiroShell()
@@ -919,10 +924,18 @@ export default function Students() {
 
   if (detailStudentId) {
     return (
-      <StudentDetail
-        propId={detailStudentId}
-        onBack={() => navigate('/admin/students')}
-      />
+      <Suspense
+        fallback={
+          <div className="page" style={{ padding: 28, color: '#8080A8', fontSize: 14 }} aria-busy>
+            Loading student…
+          </div>
+        }
+      >
+        <StudentDetail
+          propId={detailStudentId}
+          onBack={() => navigate('/admin/students')}
+        />
+      </Suspense>
     )
   }
 
@@ -1026,7 +1039,9 @@ export default function Students() {
 
       {/* Add Student modal */}
       {showAddStudent && (
-        <AddStudentModal onClose={() => setShowAddStudent(false)} />
+        <Suspense fallback={null}>
+          <AddStudentModal onClose={() => setShowAddStudent(false)} />
+        </Suspense>
       )}
 
       {/* Edit Student modal */}
@@ -1057,17 +1072,19 @@ export default function Students() {
 
       {/* Retention Capture modal */}
       {retentionTarget && (
-        <RetentionCaptureModal
-          studentId={retentionTarget.student.id}
-          studentFirstName={retentionTarget.student.first_name}
-          familyId={retentionTarget.student.family_id}
-          newStatus={retentionTarget.newStatus}
-          onComplete={() => setRetentionTarget(null)}
-          onCancel={() => {
-            toast('Status change cancelled — student remains ' + retentionTarget.student.status, 'info')
-            setRetentionTarget(null)
-          }}
-        />
+        <Suspense fallback={null}>
+          <RetentionCaptureModal
+            studentId={retentionTarget.student.id}
+            studentFirstName={retentionTarget.student.first_name}
+            familyId={retentionTarget.student.family_id}
+            newStatus={retentionTarget.newStatus}
+            onComplete={() => setRetentionTarget(null)}
+            onCancel={() => {
+              toast('Status change cancelled — student remains ' + retentionTarget.student.status, 'info')
+              setRetentionTarget(null)
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Export CSV modal */}
@@ -1154,43 +1171,47 @@ export default function Students() {
 
       {/* Import CSV modal */}
       {showImport && (
-        <CsvImportFlow
-          title="Import Students"
-          templateCsv={STUDENT_TEMPLATE}
-          templateFilename="student_import_template.csv"
-          requiredColumns={['first_name', 'last_name']}
-          onCheck={studentImport.check}
-          onRun={studentImport.run}
-          onReset={studentImport.reset}
-          status={studentImport.status}
-          progress={studentImport.progress}
-          preview={studentImport.preview}
-          result={studentImport.result}
-          onClose={() => { setShowImport(false); studentImport.reset() }}
-        />
+        <Suspense fallback={null}>
+          <CsvImportFlow
+            title="Import Students"
+            templateCsv={STUDENT_TEMPLATE}
+            templateFilename="student_import_template.csv"
+            requiredColumns={['first_name', 'last_name']}
+            onCheck={studentImport.check}
+            onRun={studentImport.run}
+            onReset={studentImport.reset}
+            status={studentImport.status}
+            progress={studentImport.progress}
+            preview={studentImport.preview}
+            result={studentImport.result}
+            onClose={() => { setShowImport(false); studentImport.reset() }}
+          />
+        </Suspense>
       )}
 
       {/* Master Sheet */}
       {showMasterSheet && (
-        <DataGrid
-          title="Master Editor — Students"
-          table="students"
-          columns={[
-            { key: 'first_name', label: 'First Name', width: 120 },
-            { key: 'last_name', label: 'Last Name', width: 120 },
-            { key: 'status', label: 'Status', width: 100, type: 'select', options: ['active', 'paused', 'inactive', 'former'] },
-            { key: 'instrument', label: 'Instrument', width: 130 },
-            { key: 'location_id', label: 'Location ID', width: 140 },
-            { key: 'teacher_id', label: 'Teacher ID', width: 140 },
-            { key: 'blocks_per_week', label: 'Blocks/Week', width: 110 },
-            { key: 'rate_per_session', label: 'Rate/Session', width: 120 },
-            { key: 'start_date', label: 'Start Date', width: 120 },
-            { key: 'notes', label: 'Notes', width: 250 },
-          ]}
-          nameRenderer={(row: any) => `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()}
-          orderBy="first_name"
-          onClose={() => setShowMasterSheet(false)}
-        />
+        <Suspense fallback={null}>
+          <DataGrid
+            title="Master Editor — Students"
+            table="students"
+            columns={[
+              { key: 'first_name', label: 'First Name', width: 120 },
+              { key: 'last_name', label: 'Last Name', width: 120 },
+              { key: 'status', label: 'Status', width: 100, type: 'select', options: ['active', 'paused', 'inactive', 'former'] },
+              { key: 'instrument', label: 'Instrument', width: 130 },
+              { key: 'location_id', label: 'Location ID', width: 140 },
+              { key: 'teacher_id', label: 'Teacher ID', width: 140 },
+              { key: 'blocks_per_week', label: 'Blocks/Week', width: 110 },
+              { key: 'rate_per_session', label: 'Rate/Session', width: 120 },
+              { key: 'start_date', label: 'Start Date', width: 120 },
+              { key: 'notes', label: 'Notes', width: 250 },
+            ]}
+            nameRenderer={(row: any) => `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()}
+            orderBy="first_name"
+            onClose={() => setShowMasterSheet(false)}
+          />
+        </Suspense>
       )}
     </div>
     </IssueContextProvider>

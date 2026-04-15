@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useAuthContext } from '../../app/AuthContext'
@@ -39,7 +39,7 @@ function teacherInitialFromName(fullName: string | null | undefined): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`
 }
 
-export default function HappeningTodayFeed({ userLocations }: HappeningTodayFeedProps) {
+function HappeningTodayFeed({ userLocations }: HappeningTodayFeedProps) {
   const { tenantId, role } = useAuthContext()
   const qc = useQueryClient()
   const [dismissing, setDismissing] = useState<Set<string>>(new Set())
@@ -243,3 +243,5 @@ export default function HappeningTodayFeed({ userLocations }: HappeningTodayFeed
     </div>
   )
 }
+
+export default memo(HappeningTodayFeed)

@@ -16,12 +16,13 @@ export interface StudentInsights {
   totalMonthlyRevenueCents: number
 }
 
-export function useStudentInsights() {
+export function useStudentInsights(opts?: { enabled?: boolean }) {
   const { tenantId } = useAuthContext()
+  const extraEnabled = opts?.enabled !== false
 
   return useQuery<StudentInsights>({
     queryKey: ['student-insights', tenantId],
-    enabled: !!tenantId,
+    enabled: !!tenantId && extraEnabled,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const monthStart = monthStartISO()

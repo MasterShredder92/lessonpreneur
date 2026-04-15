@@ -31,12 +31,13 @@ export interface TeacherOverview {
   instruments_need_review: boolean
 }
 
-export function useTeacherOverview() {
+export function useTeacherOverview(options?: { enabled?: boolean }) {
   const { tenantId } = useAuthContext()
+  const extraEnabled = options?.enabled !== false
 
   return useQuery({
     queryKey: qk.teachers.overview(tenantId),
-    enabled: !!tenantId,
+    enabled: !!tenantId && extraEnabled,
     staleTime: 2 * 60 * 1000, // 2-minute cache — teachers don't change every second
     queryFn: async () => {
       // Bounded week range for schedule query
@@ -49,16 +50,17 @@ export function useTeacherOverview() {
       const mondayStr = monday.toISOString().split('T')[0]
       const sundayStr = sunday.toISOString().split('T')[0]
 
-      // All sub-queries run in parallel — no waterfall
-      const [teachersRes, studentsRes, blocksRes, locsRpcRes, locationRes] =
+      // All sub-queries run in parallel — no waterfall.
+      // `ai_context` is excluded from the main row (can be large JSON); instrument-review flags
+      // come from a tiny id-only query so PostgREST payloads stay small.
+      const [teachersRes, studentsRes, blocksRes, locsRpcRes, locationRes, needReviewRes] =
         await Promise.all([
-          // Minimal teacher select — no bio, no compensation, no compliance fields
+          // Minimal teacher select — no bio, no compensation, no compliance, no ai_context blob
           supabase
             .from('teachers')
             .select(`
               id, first_name, last_name, photo_url, is_active, status,
-              instruments, teacher_role, is_sub_available, sub_available,
-              ai_context,
+              instruments, teacher_role, is_sub_available,
               profile:profiles!teachers_profile_id_fkey(first_name, last_name, email)
             `)
             .eq('tenant_id', tenantId!)
@@ -91,11 +93,21 @@ export function useTeacherOverview() {
             .from('locations')
             .select('id, name, color, is_active')
             .eq('tenant_id', tenantId!),
+
+          // Teachers flagged for instrument assignment (id only — avoids shipping full ai_context)
+          supabase
+            .from('teachers')
+            .select('id')
+            .eq('tenant_id', tenantId!)
+            .contains('ai_context', { instruments_need_review: true }),
         ])
 
       if (teachersRes.error) throw teachersRes.error
 
       const teachers = teachersRes.data ?? []
+      const needReviewIds = new Set(
+        (needReviewRes.error ? [] : (needReviewRes.data ?? [])).map((r: { id: string }) => r.id),
+      )
 
       // Location lookup map: id → { name, color }
       const locMap = new Map(
@@ -143,13 +155,13 @@ export function useTeacherOverview() {
           status: t.status ?? (t.is_active ? 'active' : 'inactive'),
           instruments: t.instruments ?? [],
           teacher_role: t.teacher_role ?? null,
-          is_sub_available: t.is_sub_available ?? t.sub_available ?? false,
+          is_sub_available: t.is_sub_available ?? false,
           student_count: studentCounts.get(t.id) ?? 0,
           blocks_this_week: blockCounts.get(t.id) ?? 0,
           location_ids: tLocIds,
           location_names: tLocIds.map((id) => locMap.get(id)?.name ?? 'Unknown'),
           location_colors: tLocIds.map((id) => locMap.get(id)?.color ?? '#D4226A'),
-          instruments_need_review: t.ai_context?.instruments_need_review ?? false,
+          instruments_need_review: needReviewIds.has(t.id),
         }
       })
     },

@@ -27,24 +27,11 @@ export function usePermissions() {
     enabled: !!tenantId && !!profile?.id,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     queryFn: async () => {
-      // 1. Get all permission definitions
-      const { data: defs } = await supabase
-        .from('permission_definitions')
-        .select('*')
-        .eq('tenant_id', tenantId!)
-
-      // 2. Get role-level grants
-      const { data: grants } = await supabase
-        .from('permission_set_grants')
-        .select('*')
-        .eq('tenant_id', tenantId!)
-
-      // 3. Get individual overrides for this user
-      const { data: overrides } = await supabase
-        .from('profile_permission_overrides')
-        .select('*')
-        .eq('profile_id', profile!.id)
-
+      const [{ data: defs }, { data: grants }, { data: overrides }] = await Promise.all([
+        supabase.from('permission_definitions').select('*').eq('tenant_id', tenantId!),
+        supabase.from('permission_set_grants').select('*').eq('tenant_id', tenantId!),
+        supabase.from('profile_permission_overrides').select('*').eq('profile_id', profile!.id),
+      ])
       return { defs: defs ?? [], grants: grants ?? [], overrides: overrides ?? [] }
     },
   })

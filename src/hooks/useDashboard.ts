@@ -83,7 +83,9 @@ export function useDashboard(locationIds?: string[] | null) {
       if (error) throw error
       const d = data as any
 
-      logQueryPerf(tenantId!, 'dashboard.data', performance.now() - _t0, { tableName: 'dashboard_aggregate' })
+      logQueryPerf(tenantId!, 'dashboard.data', performance.now() - _t0, {
+        tableName: 'get_dashboard_snapshot',
+      })
       return {
         activeStudents: d.activeStudents ?? 0,
         studentsByLocation: d.studentsByLocation ?? {},

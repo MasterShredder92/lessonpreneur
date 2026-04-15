@@ -205,7 +205,7 @@ export default function CheckInModal({ block, onClose }: Props) {
     if (!user) return
     setError(null)
     try {
-      const result = await checkIn.mutateAsync({ blockId: block.block_id, action: 'check_in', userId: user.id })
+      const result = await checkIn.mutateAsync({ blockId: block.block_id, action: 'check_in' })
       if (result?.payment_gated) {
         toast('⏳ Session checked in — tally held (billing inactive)', 'warning')
       } else {

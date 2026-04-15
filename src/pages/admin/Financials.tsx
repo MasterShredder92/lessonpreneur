@@ -31,7 +31,6 @@ import {
   type FinanceRecurringRule,
 } from '../../hooks/useFinancePlaid'
 import { toast } from '../../components/shared/Toast'
-import MusicLoader from '../../components/shared/MusicLoader'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import {
@@ -156,6 +155,169 @@ function MonthNav({ monthKey, onChange }: { monthKey: string; onChange: (mk: str
 const navBtnStyle: CSSProperties = {
   background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: 8, padding: 6, cursor: 'pointer', color: '#A0A0C0', display: 'flex',
+}
+
+/** Minimum tab body height so switching loading → content does not collapse layout (CLS). */
+const FIN_TAB_MIN_HEIGHT = 520
+
+function SkeletonBar({ w, h = 10 }: { w: string | number; h?: number }) {
+  return (
+    <div
+      style={{
+        width: typeof w === 'number' ? `${w}px` : w,
+        height: h,
+        borderRadius: 4,
+        background: 'rgba(255,255,255,0.06)',
+      }}
+    />
+  )
+}
+
+function AccountsTabSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: FIN_TAB_MIN_HEIGHT }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <SkeletonBar w={160} h={12} />
+        <SkeletonBar w={120} h={32} />
+      </div>
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          style={{
+            ...GLASS,
+            height: 76,
+            boxSizing: 'border-box',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.06)',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function TransactionsTabSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: FIN_TAB_MIN_HEIGHT }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <SkeletonBar w={220} h={36} />
+        <SkeletonBar w={260} h={36} />
+      </div>
+      <SkeletonBar w={140} h={11} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+          <div
+            key={i}
+            style={{
+              height: 48,
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.05)',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MonthlyTabSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: FIN_TAB_MIN_HEIGHT }}>
+      <SkeletonBar w={220} h={36} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{ ...GLASS, minHeight: 90, background: 'rgba(255,255,255,0.04)' }} />
+        ))}
+      </div>
+      <div style={{ ...GLASS, minHeight: 200 }}>
+        <SkeletonBar w={180} h={10} />
+        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} style={{ height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.03)' }} />
+          ))}
+        </div>
+      </div>
+      <div style={{ ...GLASS, minHeight: 160 }}>
+        <SkeletonBar w={160} h={10} />
+        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.03)' }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RecurringTabSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: FIN_TAB_MIN_HEIGHT }}>
+      <div style={{ ...GLASS, minHeight: 200 }}>
+        <SkeletonBar w={280} h={10} />
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ height: 52, borderRadius: 8, background: 'rgba(255,255,255,0.03)' }} />
+          ))}
+        </div>
+      </div>
+      <div style={{ ...GLASS, minHeight: 200 }}>
+        <SkeletonBar w={200} h={10} />
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ height: 52, borderRadius: 8, background: 'rgba(255,255,255,0.03)' }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UncategorizedTabSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: FIN_TAB_MIN_HEIGHT }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <SkeletonBar w={220} h={36} />
+        <SkeletonBar w={140} h={22} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            style={{
+              height: 56,
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,184,0,0.12)',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ExportsTabSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: FIN_TAB_MIN_HEIGHT }}>
+      <div style={{ ...GLASS, minHeight: 120 }}>
+        <SkeletonBar w={160} h={10} />
+        <div style={{ marginTop: 16, display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <SkeletonBar w={140} h={40} />
+          <SkeletonBar w={140} h={40} />
+          <SkeletonBar w={130} h={40} />
+        </div>
+      </div>
+      <div style={{ ...GLASS, minHeight: 220 }}>
+        <SkeletonBar w={140} h={10} />
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} style={{ height: 44, borderRadius: 8, background: 'rgba(255,255,255,0.03)' }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ═══════════════════════════════════════════════
@@ -286,7 +448,7 @@ function UncategorizedBadge({ monthKey }: { monthKey: string }) {
 
 function OverviewTab({ monthKey, setMonthKey }: { monthKey: string; setMonthKey: (mk: string) => void }) {
   const { data: accounts, isLoading: loadingAccounts } = useFinanceAccounts()
-  const { data: balances } = useLatestBalances()
+  const { data: balances, isPending: balancesPending } = useLatestBalances()
   const { data: summary, isLoading: loadingSummary } = useMonthlySummary(monthKey)
   const { data: plaidItems } = usePlaidItems()
   const { data: syncRuns } = useSyncRuns()
@@ -295,11 +457,10 @@ function OverviewTab({ monthKey, setMonthKey }: { monthKey: string; setMonthKey:
   const totalBalance = balances?.reduce((s, b) => s + (b.current_balance ?? 0), 0) ?? 0
   const lastSync = syncRuns?.[0]
 
-  if (!hasAccounts) return <ConnectBankPrompt />
-
+  // While accounts/summary are loading, do not flash "Connect bank" (empty array) — major CLS.
   if (loadingAccounts || loadingSummary) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: 520 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: FIN_TAB_MIN_HEIGHT }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           {[0, 1, 2].map((i) => (
             <div
@@ -331,8 +492,10 @@ function OverviewTab({ monthKey, setMonthKey }: { monthKey: string; setMonthKey:
     )
   }
 
+  if (!hasAccounts) return <ConnectBankPrompt />
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: FIN_TAB_MIN_HEIGHT }}>
       {/* Balance + sync status */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
         <StatCard
@@ -387,35 +550,49 @@ function OverviewTab({ monthKey, setMonthKey }: { monthKey: string; setMonthKey:
         </div>
       </div>
 
-      {/* Account balances */}
+      {/* Account balances — reserve height while snapshots load */}
       <div style={GLASS}>
         <div style={{ ...LABEL, fontSize: 12, marginBottom: 12 }}>Account Balances</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {balances?.map(b => (
-            <div key={b.id} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#E8E8FC' }}>{b.account_name}</div>
-                <div style={{ fontSize: 11, color: '#707090' }}>{b.mask ? `····${b.mask}` : ''}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 120 }}>
+          {balancesPending && (!balances || balances.length === 0) ? (
+            [0, 1, 2].map((i) => (
+              <div
+                key={i}
+                style={{
+                  height: 52,
+                  borderRadius: 10,
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                }}
+              />
+            ))
+          ) : (
+            balances?.map(b => (
+              <div key={b.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+              }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#E8E8FC' }}>{b.account_name}</div>
+                  <div style={{ fontSize: 11, color: '#707090' }}>{b.mask ? `····${b.mask}` : ''}</div>
+                </div>
+                <div style={{ ...MONO, fontSize: 16, fontWeight: 800, color: (b.current_balance ?? 0) >= 0 ? '#22C55E' : '#EF4444' }}>
+                  {dollars(b.current_balance ?? 0)}
+                </div>
               </div>
-              <div style={{ ...MONO, fontSize: 16, fontWeight: 800, color: (b.current_balance ?? 0) >= 0 ? '#22C55E' : '#EF4444' }}>
-                {dollars(b.current_balance ?? 0)}
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
-      {/* Top expenses by category */}
-      {summary && summary.byCategory.length > 0 && (
-        <div style={GLASS}>
-          <div style={{ ...LABEL, fontSize: 12, marginBottom: 12 }}>Spend by Category</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {summary.byCategory
-              .filter(c => c.total > 0) // outflows only
+      {/* Top expenses by category — always mount shell so block does not pop in (CLS) */}
+      <div style={{ ...GLASS, minHeight: summary && summary.byCategory.some(c => c.total > 0) ? undefined : 140 }}>
+        <div style={{ ...LABEL, fontSize: 12, marginBottom: 12 }}>Spend by Category</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 48 }}>
+          {summary && summary.byCategory.filter(c => c.total > 0).length > 0 ? (
+            summary.byCategory
+              .filter(c => c.total > 0)
               .slice(0, 8)
               .map(c => {
                 const pct = summary.totalExpenses > 0 ? (c.total / summary.totalExpenses) * 100 : 0
@@ -430,10 +607,14 @@ function OverviewTab({ monthKey, setMonthKey }: { monthKey: string; setMonthKey:
                     </div>
                   </div>
                 )
-              })}
-          </div>
+              })
+          ) : (
+            <div style={{ padding: 16, textAlign: 'center', color: '#707090', fontSize: 13 }}>
+              {summary ? 'No outflow categories this month.' : '—'}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -570,10 +751,10 @@ function AccountsTab() {
     }
   }, [exchangeToken])
 
-  if (isLoading) return <MusicLoader />
+  if (isLoading) return <AccountsTabSkeleton />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: FIN_TAB_MIN_HEIGHT }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ ...LABEL, fontSize: 12 }}>{accounts?.length ?? 0} Linked Accounts</div>
         {!linkToken ? (
@@ -650,10 +831,10 @@ function TransactionsTab({ monthKey, setMonthKey }: { monthKey: string; setMonth
     )
   }, [transactions, search])
 
-  if (isLoading) return <MusicLoader />
+  if (isLoading) return <TransactionsTabSkeleton />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: FIN_TAB_MIN_HEIGHT }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <MonthNav monthKey={monthKey} onChange={setMonthKey} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '6px 12px', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -795,11 +976,11 @@ function TransactionRow({ tx }: { tx: FinanceTransaction }) {
 function MonthlyTab({ monthKey, setMonthKey }: { monthKey: string; setMonthKey: (mk: string) => void }) {
   const { data: summary, isLoading } = useMonthlySummary(monthKey)
 
-  if (isLoading) return <MusicLoader />
-  if (!summary) return <div style={{ color: '#707090', padding: 40 }}>No data available.</div>
+  if (isLoading) return <MonthlyTabSkeleton />
+  if (!summary) return <div style={{ color: '#707090', padding: 40, minHeight: FIN_TAB_MIN_HEIGHT }}>No data available.</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: FIN_TAB_MIN_HEIGHT }}>
       <MonthNav monthKey={monthKey} onChange={setMonthKey} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
@@ -868,10 +1049,10 @@ function RecurringTab() {
     [transactions],
   )
 
-  if (isLoading) return <MusicLoader />
+  if (isLoading) return <RecurringTabSkeleton />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: FIN_TAB_MIN_HEIGHT }}>
       {/* Recurring transactions this month */}
       <div style={GLASS}>
         <div style={{ ...LABEL, fontSize: 12, marginBottom: 12 }}>
@@ -952,10 +1133,10 @@ function UncategorizedTab({ monthKey, setMonthKey }: { monthKey: string; setMont
   const { data: categories } = useFinanceCategories()
   const assignCategory = useAssignCategory()
 
-  if (isLoading) return <MusicLoader />
+  if (isLoading) return <UncategorizedTabSkeleton />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: FIN_TAB_MIN_HEIGHT }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <MonthNav monthKey={monthKey} onChange={setMonthKey} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1041,10 +1222,10 @@ function ExportsTab() {
     }
   }
 
-  if (isLoading) return <MusicLoader />
+  if (isLoading) return <ExportsTabSkeleton />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minHeight: FIN_TAB_MIN_HEIGHT }}>
       {/* New export */}
       <div style={GLASS}>
         <div style={{ ...LABEL, fontSize: 12, marginBottom: 12 }}>Export Transactions</div>

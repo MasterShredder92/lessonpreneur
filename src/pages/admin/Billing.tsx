@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { useAuthContext } from '../../app/AuthContext'
-import MusicLoader from '../../components/shared/MusicLoader'
 import { useLocations } from '../../hooks/useLocations'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
@@ -181,7 +180,7 @@ function LocationSnapshotCard({ locationId, name, color, onSelect }: {
       <div onClick={onSelect} style={{ cursor: 'pointer' }} aria-busy={isPending}>
         <div
           style={{
-            minHeight: 168,
+            minHeight: 248,
             borderRadius: 16,
             padding: 16,
             border: '1px solid rgba(255,255,255,0.06)',
@@ -189,6 +188,7 @@ function LocationSnapshotCard({ locationId, name, color, onSelect }: {
             display: 'flex',
             flexDirection: 'column',
             gap: 10,
+            boxSizing: 'border-box',
           }}
         >
           <div style={{ height: 12, width: '45%', borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
@@ -222,8 +222,44 @@ function LocationSnapshotCard({ locationId, name, color, onSelect }: {
 const SQUARE_SYNC_STORAGE_OK = 'lp_square_sync_last_ok'
 const SQUARE_SYNC_STORAGE_ERR = 'lp_square_sync_last_err'
 
+/** Reserved height for async billing tab content to avoid CLS when lists replace spinners. */
+function BillingSectionSkeleton({ label }: { label?: string }) {
+  return (
+    <div
+      role="status"
+      aria-busy
+      aria-label={label ?? 'Loading billing data'}
+      style={{ minHeight: 300, padding: '8px 0 16px' }}
+    >
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 200px', height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.05)' }} />
+        <div style={{ width: 140, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.05)' }} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            style={{
+              ...glass,
+              minHeight: 92,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              justifyContent: 'center',
+            }}
+          >
+            <div style={{ height: 14, width: '55%', borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
+            <div style={{ height: 10, width: '35%', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }} />
+            <div style={{ height: 10, width: '80%', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function BillingInner() {
-  const { data: locations } = useLocations()
+  const { data: locations, isPending: locationsPending } = useLocations()
   const { isStudioDirector, locationIds } = usePermissions()
   const { role } = useAuthContext()
   const canSquareSync = role === 'owner' || role === 'admin' || role === 'company_director'
@@ -322,63 +358,86 @@ function BillingInner() {
         </div>
       </div>
 
-      {/* LOCATION FILTER — Desktop pills */}
+      {/* LOCATION FILTER — Desktop pills (skeleton reserves space until locations load) */}
       {!isStudioDirector && <div className="billing-loc-pills" style={{
-        display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16,
+        display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, minHeight: 40, alignItems: 'center',
       }}>
-        <button
-          onClick={() => setLocationFilter('')}
-          style={{
-            padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-            border: `1px solid ${!locationFilter ? '#D4226A' : 'rgba(255,255,255,0.1)'}`,
-            background: !locationFilter ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.03)',
-            color: !locationFilter ? '#D4226A' : '#A0A0C8',
-            cursor: 'pointer', whiteSpace: 'nowrap', minHeight: 32,
-          }}
-        >
-          All Locations
-        </button>
-        {activeLocations.map((loc: any) => {
-          const c = loc.color || '#D4226A'
-          const active = locationFilter === loc.id
-          return (
+        {locationsPending ? (
+          <>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                style={{
+                  height: 32,
+                  width: i === 0 ? 112 : 88 + (i % 3) * 16,
+                  borderRadius: 20,
+                  background: 'rgba(255,255,255,0.06)',
+                  flexShrink: 0,
+                }}
+              />
+            ))}
+          </>
+        ) : (
+          <>
             <button
-              key={loc.id}
-              onClick={() => setLocationFilter(active ? '' : loc.id)}
+              onClick={() => setLocationFilter('')}
               style={{
                 padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                border: `1px solid ${active ? c : 'rgba(255,255,255,0.1)'}`,
-                background: active ? `${c}22` : 'rgba(255,255,255,0.03)',
-                color: active ? c : '#A0A0C8',
+                border: `1px solid ${!locationFilter ? '#D4226A' : 'rgba(255,255,255,0.1)'}`,
+                background: !locationFilter ? 'rgba(212,34,106,0.15)' : 'rgba(255,255,255,0.03)',
+                color: !locationFilter ? '#D4226A' : '#A0A0C8',
                 cursor: 'pointer', whiteSpace: 'nowrap', minHeight: 32,
               }}
             >
-              {loc.name}
+              All Locations
             </button>
-          )
-        })}
+            {activeLocations.map((loc: any) => {
+              const c = loc.color || '#D4226A'
+              const active = locationFilter === loc.id
+              return (
+                <button
+                  key={loc.id}
+                  onClick={() => setLocationFilter(active ? '' : loc.id)}
+                  style={{
+                    padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    border: `1px solid ${active ? c : 'rgba(255,255,255,0.1)'}`,
+                    background: active ? `${c}22` : 'rgba(255,255,255,0.03)',
+                    color: active ? c : '#A0A0C8',
+                    cursor: 'pointer', whiteSpace: 'nowrap', minHeight: 32,
+                  }}
+                >
+                  {loc.name}
+                </button>
+              )
+            })}
+          </>
+        )}
       </div>}
 
       {/* LOCATION FILTER — Mobile dropdown */}
-      {!isStudioDirector && <div className="billing-loc-dropdown" style={{ display: 'none', marginBottom: 16 }}>
-        <div style={{ position: 'relative' }}>
-          <select
-            value={locationFilter}
-            onChange={e => setLocationFilter(e.target.value)}
-            style={{
-              width: '100%', appearance: 'none' as const,
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 10, color: '#E0E0F4', fontSize: 13, fontWeight: 600,
-              padding: '10px 36px 10px 14px', cursor: 'pointer', minHeight: 40,
-            }}
-          >
-            <option value="">All Locations</option>
-            {activeLocations.map((loc: any) => (
-              <option key={loc.id} value={loc.id}>{loc.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#606088', pointerEvents: 'none' as const }} />
-        </div>
+      {!isStudioDirector && <div className="billing-loc-dropdown" style={{ display: 'none', marginBottom: 16, minHeight: 40 }}>
+        {locationsPending ? (
+          <div style={{ width: '100%', height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.06)' }} aria-hidden />
+        ) : (
+          <div style={{ position: 'relative' }}>
+            <select
+              value={locationFilter}
+              onChange={e => setLocationFilter(e.target.value)}
+              style={{
+                width: '100%', appearance: 'none' as const,
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 10, color: '#E0E0F4', fontSize: 13, fontWeight: 600,
+                padding: '10px 36px 10px 14px', cursor: 'pointer', minHeight: 40,
+              }}
+            >
+              <option value="">All Locations</option>
+              {activeLocations.map((loc: any) => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#606088', pointerEvents: 'none' as const }} />
+          </div>
+        )}
       </div>}
 
       {/* BILLING SNAPSHOT CARDS — role-scoped */}
@@ -387,7 +446,7 @@ function BillingInner() {
           data-tour-id="billing-hero-cards"
           style={{
             marginBottom: 16,
-            minHeight: 200,
+            minHeight: 304,
             borderRadius: 16,
             padding: 20,
             border: '1px solid rgba(255,255,255,0.06)',
@@ -398,18 +457,22 @@ function BillingInner() {
           }}
         >
           <div style={{ height: 14, width: 160, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} style={{ height: 64, borderRadius: 12, background: 'rgba(255,255,255,0.04)' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} style={{ height: 34, borderRadius: 8, background: 'rgba(255,255,255,0.04)' }} />
             ))}
           </div>
         </div>
       ) : isStudioDirector ? (
         /* Studio Director: only their location */
-        <div data-tour-id="billing-hero-cards" style={{ marginBottom: 16, minHeight: directorSnapshotPending && !snapshotDirectorLoc ? 200 : undefined }}>
+        <div
+          data-tour-id="billing-hero-cards"
+          style={{ marginBottom: 16, minHeight: directorSnapshotPending && !snapshotDirectorLoc ? 304 : undefined }}
+        >
           {directorSnapshotPending && !snapshotDirectorLoc ? (
             <div
               style={{
+                minHeight: 304,
                 borderRadius: 16,
                 padding: 20,
                 border: '1px solid rgba(255,255,255,0.06)',
@@ -420,9 +483,9 @@ function BillingInner() {
               }}
             >
               <div style={{ height: 14, width: 200, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} style={{ height: 72, borderRadius: 12, background: 'rgba(255,255,255,0.04)' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} style={{ height: 34, borderRadius: 8, background: 'rgba(255,255,255,0.04)' }} />
                 ))}
               </div>
             </div>
@@ -452,8 +515,39 @@ function BillingInner() {
               else if (metric === 'scheduled') setLocationFilter('')
             }}
           />
-          {/* Per-location breakdown */}
-          {perLocationSnapshots.length > 0 && (
+          {/* Per-location breakdown — skeleton grid while locations load so aggregate is not pushed by a late grid */}
+          {locationsPending && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 10,
+                marginTop: 12,
+              }}
+              aria-hidden
+            >
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    minHeight: 220,
+                    borderRadius: 16,
+                    padding: 16,
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+                  }}
+                >
+                  <div style={{ height: 12, width: '50%', borderRadius: 6, background: 'rgba(255,255,255,0.06)', marginBottom: 12 }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {[0, 1, 2, 3].map((j) => (
+                      <div key={j} style={{ height: 52, borderRadius: 10, background: 'rgba(255,255,255,0.04)' }} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!locationsPending && perLocationSnapshots.length > 0 && (
             <div style={{
               display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
               gap: 10, marginTop: 12,
@@ -618,7 +712,7 @@ function SectionInvoices({
   families: any[]; loading: boolean; search: string; setSearch: (s: string) => void;
   sortBy: string; setSortBy: (s: string) => void; locColorMap: Record<string, string>;
 }) {
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  if (loading) return <BillingSectionSkeleton label="Loading families" />
 
   return (
     <div>
@@ -739,7 +833,7 @@ function SectionNextCycle({
   const [creditAmt, setCreditAmt] = useState('')
   const [creditReason, setCreditReason] = useState('')
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  if (loading) return <BillingSectionSkeleton label="Loading next cycle" />
   if (!data) return null
 
   const { families: fams, totalCents, totalSessions } = data
@@ -881,7 +975,7 @@ function SectionNextCycle({
 // ══════════════════════════════════════════
 
 function SectionRemaining({ data, loading }: { data: any; loading: boolean }) {
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  if (loading) return <BillingSectionSkeleton label="Loading remaining balances" />
   const list = data ?? []
   const total = list.reduce((s: number, f: any) => s + f.remainingCents, 0)
 
@@ -929,7 +1023,7 @@ function SectionRemaining({ data, loading }: { data: any; loading: boolean }) {
 // ══════════════════════════════════════════
 
 function SectionOverdue({ data, loading }: { data: any; loading: boolean }) {
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  if (loading) return <BillingSectionSkeleton label="Loading overdue accounts" />
   const list = data ?? []
   const total = list.reduce((s: number, f: any) => s + f.overdueCents, 0)
 
@@ -1001,7 +1095,7 @@ function SectionOverdue({ data, loading }: { data: any; loading: boolean }) {
 // ══════════════════════════════════════════
 
 function SectionPaid({ data, loading }: { data: any; loading: boolean }) {
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><MusicLoader size={24} /></div>
+  if (loading) return <BillingSectionSkeleton label="Loading payments" />
   const payments = data?.payments ?? []
   const total = data?.totalCents ?? 0
 

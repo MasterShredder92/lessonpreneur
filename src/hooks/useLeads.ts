@@ -67,7 +67,8 @@ export function useLeads(
         p_tenant_id: tenantId!,
         p_location_id: filters?.locationId ?? null,
         p_instrument: filters?.instrument ?? null,
-        p_limit: 500,
+        // Cap payload for UI pipeline (RPC still allows up to 500 server-side)
+        p_limit: 300,
       })
       if (error) throw error
       const rows = (bundle as { leads?: LeadRow[] } | null)?.leads

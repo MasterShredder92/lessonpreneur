@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Profile, Teacher, AuthState } from '../lib/types'
 
@@ -100,12 +100,12 @@ export function useAuth(): AuthState & {
     if (session?.user) await loadProfile(session.user.id)
   }, [session, loadProfile])
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
-  }
+  }, [])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut()
     if (error) {
       console.error('Sign out failed:', error)
@@ -142,16 +142,24 @@ export function useAuth(): AuthState & {
 
     // Hard redirect to /login — resets all in-memory React state
     window.location.href = '/login'
-  }
+  }, [])
 
-  return {
-    user: session?.user ? { id: session.user.id, email: session.user.email ?? '' } : null,
-    profile,
-    teacherRecord,
-    locationIds,
-    isLoading,
-    signIn,
-    signOut,
-    refreshProfile,
-  }
+  const user = useMemo(
+    () => (session?.user ? { id: session.user.id, email: session.user.email ?? '' } : null),
+    [session?.user?.id, session?.user?.email],
+  )
+
+  return useMemo(
+    () => ({
+      user,
+      profile,
+      teacherRecord,
+      locationIds,
+      isLoading,
+      signIn,
+      signOut,
+      refreshProfile,
+    }),
+    [user, profile, teacherRecord, locationIds, isLoading, signIn, signOut, refreshProfile],
+  )
 }

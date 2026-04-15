@@ -51,7 +51,6 @@ function PageLoader() {
 // ── Lazy-loaded pages (code-split per route) ──
 // Routes removed — orphaned. Component files preserved for future use.
 const LandingPageV2 = lazy(() => import('../pages/LandingPage'))
-const Login = lazy(() => import('../pages/Login'))
 const Intake = lazy(() => import('../pages/Intake'))
 const PayInvoice = lazy(() => import('../pages/PayInvoice'))
 const AdkinsLanding = lazy(() => import('../pages/AdkinsLanding'))
@@ -84,6 +83,7 @@ import ParentShell from '../components/layout/ParentShell'
 // StudentShell removed — students access practice through parent portal
 import PreviewBanner from '../components/shared/PreviewBanner'
 import InstallPrompt from '../components/shared/InstallPrompt'
+import LoginPage from '../pages/Login'
 
 // Admin pages (lazy)
 const Dashboard = lazy(() => import('../pages/admin/Dashboard'))
@@ -249,7 +249,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<HomepageRouter />} />
             {/* Routes removed — orphaned. Component files preserved for future use. */}
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route path="/intake/:slug" element={<Intake />} />
             <Route path="/pay/:token" element={<PayInvoice />} />
             {/* Public funnel — no auth required */}

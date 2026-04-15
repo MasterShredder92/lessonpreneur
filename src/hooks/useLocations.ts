@@ -3,13 +3,16 @@ import { supabase } from '../lib/supabase'
 import type { Location } from '../lib/types'
 import { qk } from '../lib/queryKeys'
 
-export function useLocations() {
+/** @param opts.select PostgREST select list; default `*` (full row). Narrow selects use a separate cache key. */
+export function useLocations(opts?: { select?: string; enabled?: boolean }) {
+  const select = opts?.select ?? '*'
   return useQuery({
-    queryKey: qk.locations.all,
+    queryKey: select === '*' ? qk.locations.all : ([...qk.locations.all, 'pick', select] as const),
+    enabled: opts?.enabled !== false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('locations')
-        .select('*')
+        .select(select)
         .order('name')
       if (error) throw error
       return data as Location[]

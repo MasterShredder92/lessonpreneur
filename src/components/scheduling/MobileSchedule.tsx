@@ -160,9 +160,8 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
   const dateObj = new Date(selectedDate + 'T00:00:00')
   const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-  const teacherCount = teachers.length
-  // Fill available phone height but cap at 52px so rows stay compact
-  const baseRowHeight = Math.min(52, Math.max(36, Math.floor((window.innerHeight - 120) / Math.max(teacherCount, 1))))
+  // Fixed row height avoids CLS when teacher count changes (e.g. availability merges after grid RPC)
+  const baseRowHeight = 44
 
   // ── Focus Mode ──
   if (focusedTeacher !== null) {
@@ -444,9 +443,9 @@ export default function MobileSchedule({ teachers, blocks, timeSlots, formatTime
             >
               <div style={{ width: 8, height: 8, borderRadius: 3, background: locColor, flexShrink: 0 }} />
               <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentLocationName}</span>
-              {openCountMap.has(selectedLocation) && (
-                <span style={{ fontSize: 10, color: '#8080A8', fontWeight: 500, flexShrink: 0 }}>{openCountMap.get(selectedLocation)} open</span>
-              )}
+              <span style={{ fontSize: 10, color: '#8080A8', fontWeight: 500, flexShrink: 0, minWidth: 56, textAlign: 'right', visibility: openCountMap.has(selectedLocation) ? 'visible' : 'hidden' }} aria-hidden={!openCountMap.has(selectedLocation)}>
+                {openCountMap.has(selectedLocation) ? `${openCountMap.get(selectedLocation)} open` : '0 open'}
+              </span>
               <ChevronDown size={12} style={{ color: '#8080A8', flexShrink: 0 }} />
             </button>
 

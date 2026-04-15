@@ -81,6 +81,8 @@ export function useToggleTeacherLocation() {
       qc.invalidateQueries({ queryKey: qk.teachers.locations })
       qc.invalidateQueries({ queryKey: ['teachers-at-location'] })
       qc.invalidateQueries({ queryKey: qk.teachers.all })
+      qc.invalidateQueries({ queryKey: ['teachers-overview'] })
+      qc.invalidateQueries({ queryKey: ['teachers', 'schedule-roster'] })
     },
   })
 }
@@ -99,6 +101,8 @@ export function useToggleSubAvailable() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.teachers.all })
       qc.invalidateQueries({ queryKey: ['teachers-at-location'] })
+      qc.invalidateQueries({ queryKey: ['teachers-overview'] })
+      qc.invalidateQueries({ queryKey: ['teachers', 'schedule-roster'] })
     },
   })
 }

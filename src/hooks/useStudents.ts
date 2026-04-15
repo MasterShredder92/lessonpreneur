@@ -67,9 +67,9 @@ export function useStudentTabCounts() {
     staleTime: 60_000,
     queryFn: async () => {
       const [activeResult, formerResult, allResult] = await Promise.all([
-        supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!).eq('status', 'active'),
-        supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!).in('status', ['former', 'inactive']),
-        supabase.from('students').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId!),
+        supabase.from('students').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId!).eq('status', 'active'),
+        supabase.from('students').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId!).in('status', ['former', 'inactive']),
+        supabase.from('students').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId!),
       ])
       return {
         active: activeResult.count ?? 0,
@@ -364,7 +364,7 @@ export function useStudentCountsByLocation(locationIds: string[]) {
         locationIds.map((id) =>
           supabase
             .from('students')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq('tenant_id', tenantId!)
             .eq('location_id', id)
             .eq('status', 'active'),

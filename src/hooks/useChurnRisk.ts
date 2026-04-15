@@ -190,12 +190,13 @@ async function computeChurnScoresForStudents(
 
 // ─── Calculate risk for all active students ──────────
 
-export function useChurnRiskScores() {
+export function useChurnRiskScores(opts?: { enabled?: boolean }) {
   const { tenantId } = useAuthContext()
+  const extraEnabled = opts?.enabled !== false
 
   return useQuery<ChurnRiskScore[]>({
     queryKey: [...qk.retention.churnRisk, tenantId],
-    enabled: !!tenantId,
+    enabled: !!tenantId && extraEnabled,
     staleTime: 2 * 60_000,
     queryFn: async () => {
       const { data: students } = await supabase

@@ -6,6 +6,52 @@ import { useAuthContext } from '../app/AuthContext'
 import { qk } from '../lib/queryKeys'
 import { logQueryPerf } from '../lib/performance/metrics'
 
+/** Narrow row for schedule grid + “add teacher” — avoids `get_teachers_list_bundle` on every schedule visit */
+export interface TeacherScheduleRosterRow {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  photo_url: string | null
+  is_active: boolean | null
+  status: string | null
+  profile: { first_name?: string | null; last_name?: string | null } | null
+}
+
+export function useTeacherScheduleRoster(options?: { enabled?: boolean }) {
+  const { tenantId } = useAuthContext()
+  const enabled = !!tenantId && (options?.enabled !== false)
+  return useQuery({
+    queryKey: qk.teachers.scheduleRoster(tenantId),
+    enabled,
+    staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      const _t0 = performance.now()
+      const { data, error } = await supabase
+        .from('teachers')
+        .select(
+          `id, first_name, last_name, photo_url, is_active, status,
+           profile:profiles!teachers_profile_id_fkey(first_name, last_name)`,
+        )
+        .eq('tenant_id', tenantId!)
+        .order('last_name')
+        .order('first_name')
+      if (error) throw error
+      logQueryPerf(tenantId!, 'teachers.schedule_roster', performance.now() - _t0, {
+        tableName: 'teachers',
+        rowCount: (data ?? []).length,
+      })
+      return (data ?? []) as TeacherScheduleRosterRow[]
+    },
+  })
+}
+
+/**
+ * Full teacher roster + aggregates (RPC `get_teachers_list_bundle`).
+ * The /admin/teachers **dashboard** (default view) uses `useTeacherOverview` instead — smaller
+ * payload and parallel queries — so FCP on that route is not blocked by this hook unless the user
+ * opens list view (`?view=list`) or another page imports `useTeachers`.
+ */
+
 // Columns that studio directors must never see
 const COMPENSATION_FIELDS = ['pay_rate_per_half_hour', 'rate_per_block', 'needs_1099'] as const
 
@@ -17,12 +63,13 @@ function stripCompensation(teacher: any): any {
   return stripped
 }
 
-export function useTeachers() {
+export function useTeachers(opts?: { enabled?: boolean }) {
   const { canViewTeacherCompensation, canViewTeacherDocuments } = usePermissions()
   const { tenantId } = useAuthContext()
+  const extraEnabled = opts?.enabled !== false
   return useQuery({
     queryKey: qk.teachers.list(tenantId, canViewTeacherCompensation),
-    enabled: !!tenantId,
+    enabled: !!tenantId && extraEnabled,
     staleTime: 2 * 60 * 1000, // 2-minute cache — teachers don't change every second
     queryFn: async () => {
       const _t0 = performance.now()
@@ -259,6 +306,7 @@ export function useCreateTeacher() {
       qc.invalidateQueries({ queryKey: qk.teachers.all })
       qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet })
       qc.invalidateQueries({ queryKey: qk.teachers.locations })
+      qc.invalidateQueries({ queryKey: ['teachers-overview'] })
     },
   })
 }
@@ -335,6 +383,7 @@ export function useUpdateTeacher() {
       qc.invalidateQueries({ queryKey: qk.teachers.record })
       qc.invalidateQueries({ queryKey: qk.teachers.spreadsheet })
       qc.invalidateQueries({ queryKey: qk.payroll.entries })
+      qc.invalidateQueries({ queryKey: ['teachers-overview'] })
     },
   })
 }

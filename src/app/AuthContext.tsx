@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { startPerformanceMonitoring } from '../lib/performance/monitor'
 import type { Profile, Teacher, UserRole } from '../lib/types'
@@ -31,17 +31,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [auth.profile?.tenant_id])
 
-  return (
-    <AuthContext.Provider
-      value={{
-        ...auth,
-        role: auth.profile?.role ?? null,
-        tenantId: auth.profile?.tenant_id ?? null,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      ...auth,
+      role: auth.profile?.role ?? null,
+      tenantId: auth.profile?.tenant_id ?? null,
+    }),
+    [auth],
   )
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuthContext() {

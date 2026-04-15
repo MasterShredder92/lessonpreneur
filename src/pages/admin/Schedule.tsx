@@ -1,4 +1,4 @@
-import { useMemo, useEffect, lazy, Suspense } from 'react'
+import { useMemo, useEffect, lazy, Suspense, type ReactNode } from 'react'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { useUserLocations } from '../../hooks/useUserLocations'
 import ScheduleOverview from '../../components/scheduling/ScheduleOverview'
@@ -56,21 +56,20 @@ export default function Schedule() {
     setParam('location', '')
   }
 
+  /** One stable vertical slot for overview / lazy detail / scope load — cuts CLS when mode switches */
+  const schedulePageShell = (inner: ReactNode) => (
+    <div className="page" style={{ maxWidth: 'none', padding: '24px 20px', minHeight: 'min(92vh, calc(100vh - 120px))' }}>
+      {inner}
+    </div>
+  )
+
   if (scopeLoading) {
-    return (
-      <div className="page" style={{ maxWidth: 'none', padding: '24px 20px' }}>
-        <ScheduleLoadingSkeleton />
-      </div>
-    )
+    return schedulePageShell(<ScheduleLoadingSkeleton />)
   }
 
   if (detailLocationId) {
     return (
-      <Suspense fallback={
-        <div className="page" style={{ maxWidth: 'none' }}>
-          <ScheduleLoadingSkeleton />
-        </div>
-      }>
+      <Suspense fallback={schedulePageShell(<ScheduleLoadingSkeleton />)}>
         <ScheduleDetail
           initialLocationId={detailLocationId}
           onBack={handleBack}
@@ -79,11 +78,7 @@ export default function Schedule() {
     )
   }
 
-  return (
-    <div className="page" style={{ maxWidth: 'none', padding: '24px 20px' }}>
-      <ScheduleOverview onSelectLocation={handleSelectLocation} />
-    </div>
-  )
+  return schedulePageShell(<ScheduleOverview onSelectLocation={handleSelectLocation} />)
 }
 
 function ScheduleLoadingSkeleton() {

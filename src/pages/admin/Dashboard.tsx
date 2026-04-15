@@ -1,6 +1,5 @@
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useTransition, useMemo, useCallback, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MusicLoader from '../../components/shared/MusicLoader'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -25,6 +24,298 @@ import DashboardPageGuide from '../../components/admin/DashboardPageGuide'
 import { useDashboardRealtime } from '../../hooks/useDashboardRealtime'
 import { qk } from '../../lib/queryKeys'
 
+const EMPTY_LOCATION_ID_SET = new Set<string>()
+
+const TaskCenterMemo = memo(TaskCenter)
+
+type LocationSummaryRow = {
+  name: string
+  locationId: string
+  students: number
+  openSlotsToday: number
+  teachersToday: number
+  subsAvailable: number
+}
+
+const LocationSummaryGrid = memo(function LocationSummaryGrid({
+  locations,
+  isStudioDirector,
+  allowedLocationIdSet,
+  navigate,
+  startNavTransition,
+}: {
+  locations: LocationSummaryRow[]
+  isStudioDirector: boolean
+  allowedLocationIdSet: Set<string>
+  navigate: ReturnType<typeof useNavigate>
+  startNavTransition: (fn: () => void) => void
+}) {
+  const firstOwnIdx = useMemo(
+    () =>
+      locations.findIndex(
+        (l) => !isStudioDirector || (!!l.locationId && allowedLocationIdSet.has(l.locationId)),
+      ),
+    [locations, isStudioDirector, allowedLocationIdSet],
+  )
+
+  return (
+    <div className="location-grid" data-tour-id="dash-location-grid">
+      {locations.map((loc, locIdx) => {
+        const c = getLocationColor(loc.locationId)
+        const locked = isStudioDirector && !!loc.locationId && !allowedLocationIdSet.has(loc.locationId)
+        const tagOwn = locIdx === firstOwnIdx
+        return (
+          <div
+            key={loc.locationId || loc.name}
+            className={locked ? 'location-card' : 'location-card card-hover'}
+            style={{
+              borderColor: `${c}30`,
+              opacity: locked ? 0.4 : 1,
+              cursor: locked ? 'default' : 'pointer',
+              pointerEvents: locked ? 'none' : 'auto',
+            }}
+            onClick={() => {
+              if (locked) return
+              startNavTransition(() => {
+                if (loc.locationId) navigate(`/admin/students?location=${loc.locationId}`)
+                else navigate('/admin/schedule')
+              })
+            }}
+          >
+            <div
+              className="loc-card-edge"
+              style={{ background: `linear-gradient(180deg, ${c}, ${c}CC)`, boxShadow: `0 0 18px ${c}80` }}
+            />
+            <div className="loc-card-glow" style={{ background: `radial-gradient(circle, ${c}18 0%, transparent 70%)` }} />
+            <div className="location-card-header">
+              <span className="location-name">{loc.name}</span>
+            </div>
+            <div className="location-metrics">
+              <div className="location-metric-row" data-tour-id={tagOwn ? 'active-students-metric' : undefined}>
+                <span className="location-metric-key">Active Students</span>
+                <span className="location-metric-value">{loc.students}</span>
+              </div>
+              <div className="location-divider" />
+              <div className="location-metric-row" data-tour-id={tagOwn ? 'schedule-utilization' : undefined}>
+                <span className="location-metric-key">Teachers Scheduled</span>
+                <span className="location-metric-value">{loc.teachersToday}</span>
+              </div>
+              <div className="location-metric-row" data-tour-id={tagOwn ? 'open-slots' : undefined}>
+                <span className="location-metric-key">Open Slots</span>
+                <span className="location-metric-value">{loc.openSlotsToday}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+})
+
+const DashboardOpsSection = memo(function DashboardOpsSection({
+  activeStudents,
+  studentsByLocation,
+  openSlotsThisWeek,
+  slotsByLocation,
+  leadsInPipeline,
+  leadsByStage,
+  enrolledThisMonth,
+  lostThisMonth,
+  navigate,
+  startNavTransition,
+}: {
+  activeStudents: number
+  studentsByLocation: Record<string, number>
+  openSlotsThisWeek: number
+  slotsByLocation: Record<string, number>
+  leadsInPipeline: number
+  leadsByStage: Record<string, number>
+  enrolledThisMonth: number
+  lostThisMonth: number
+  navigate: ReturnType<typeof useNavigate>
+  startNavTransition: (fn: () => void) => void
+}) {
+  const pipelineStageSpans = useMemo(() => {
+    return Object.entries(leadsByStage)
+      .filter(([s]) => !['enrolled', 'lost'].includes(s))
+      .map(([stage, n]) => (
+        <span key={stage}>
+          {stage}: {n}{' '}
+        </span>
+      ))
+  }, [leadsByStage])
+
+  const studentsLocSpans = useMemo(
+    () =>
+      Object.entries(studentsByLocation).map(([loc, n]) => (
+        <span key={loc}>
+          {loc}: {n}{' '}
+        </span>
+      )),
+    [studentsByLocation],
+  )
+
+  const slotsLocSpans = useMemo(
+    () =>
+      Object.entries(slotsByLocation).map(([loc, n]) => (
+        <span key={loc}>
+          {loc}: {n}{' '}
+        </span>
+      )),
+    [slotsByLocation],
+  )
+
+  return (
+    <div className="ops-grid">
+      <div
+        className="ops-widget"
+        style={{ borderColor: 'rgba(212,34,106,0.2)' }}
+        onClick={() => startNavTransition(() => navigate('/admin/students'))}
+      >
+        <div
+          className="ops-widget-edge"
+          style={{ background: 'linear-gradient(180deg, #D4226A, #FF5500)', boxShadow: '0 0 18px rgba(212,34,106,0.52)' }}
+        />
+        <div
+          className="ops-widget-glow"
+          style={{ background: 'radial-gradient(circle, rgba(212,34,106,0.1) 0%, transparent 70%)' }}
+        />
+        <div className="ops-widget-label">Active Students</div>
+        <div className="ops-widget-value">{activeStudents}</div>
+        <div className="ops-widget-sub">{studentsLocSpans}</div>
+      </div>
+      <div
+        className="ops-widget"
+        style={{ borderColor: 'rgba(255,120,0,0.18)' }}
+        onClick={() => startNavTransition(() => navigate('/admin/schedule'))}
+      >
+        <div
+          className="ops-widget-edge"
+          style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 18px rgba(255,85,0,0.48)' }}
+        />
+        <div
+          className="ops-widget-glow"
+          style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.09) 0%, transparent 70%)' }}
+        />
+        <div className="ops-widget-label">Open Slots This Week</div>
+        <div className="ops-widget-value">{openSlotsThisWeek}</div>
+        <div className="ops-widget-sub">{slotsLocSpans}</div>
+      </div>
+      <div
+        className="ops-widget"
+        style={{ borderColor: 'rgba(232,72,144,0.18)' }}
+        onClick={() => startNavTransition(() => navigate('/admin/leads'))}
+      >
+        <div
+          className="ops-widget-edge"
+          style={{ background: 'linear-gradient(180deg, #BE185D, #E8488A)', boxShadow: '0 0 18px rgba(232,72,144,0.44)' }}
+        />
+        <div
+          className="ops-widget-glow"
+          style={{ background: 'radial-gradient(circle, rgba(232,72,144,0.09) 0%, transparent 70%)' }}
+        />
+        <div className="ops-widget-label">Leads in Pipeline</div>
+        <div className="ops-widget-value">{leadsInPipeline}</div>
+        <div className="ops-widget-sub">{pipelineStageSpans}</div>
+      </div>
+      <div
+        className="ops-widget"
+        style={{ borderColor: 'rgba(255,184,0,0.18)' }}
+        onClick={() => startNavTransition(() => navigate('/admin/leads'))}
+      >
+        <div
+          className="ops-widget-edge"
+          style={{ background: 'linear-gradient(180deg, #D97706, #FFB800)', boxShadow: '0 0 18px rgba(255,184,0,0.4)' }}
+        />
+        <div
+          className="ops-widget-glow"
+          style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.09) 0%, transparent 70%)' }}
+        />
+        <div className="ops-widget-label">Enrolled This Month</div>
+        <div className="ops-widget-value">{enrolledThisMonth}</div>
+        <div className="ops-widget-sub">Leads converted to students</div>
+      </div>
+      <div
+        className="ops-widget"
+        style={{ borderColor: 'rgba(167,60,150,0.18)' }}
+        onClick={() => startNavTransition(() => navigate('/admin/retention?tab=win-back'))}
+      >
+        <div
+          className="ops-widget-edge"
+          style={{ background: 'linear-gradient(180deg, #A73C96, #C060B0)', boxShadow: '0 0 18px rgba(167,60,150,0.4)' }}
+        />
+        <div
+          className="ops-widget-glow"
+          style={{ background: 'radial-gradient(circle, rgba(167,60,150,0.09) 0%, transparent 70%)' }}
+        />
+        <div className="ops-widget-label">Lost This Month</div>
+        <div className="ops-widget-value">{lostThisMonth}</div>
+        <div className="ops-widget-sub">Leads marked as lost</div>
+      </div>
+    </div>
+  )
+})
+
+/** Layout-aligned shell so first dashboard paint matches loaded chrome (CLS / FCP). */
+function DashboardLoadingShell() {
+  return (
+    <div className="page">
+      <IssueContextProvider page="Studio Overview">
+        <div className="dash-business-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 52 }}>
+            <div className="dash-business-logo-placeholder" style={{ opacity: 0.45 }} aria-hidden />
+            <div>
+              <div style={{ height: 22, width: 200, maxWidth: '55vw', borderRadius: 8, background: 'rgba(255,255,255,0.06)' }} />
+              <div style={{ height: 12, width: 160, maxWidth: '45vw', borderRadius: 6, background: 'rgba(255,255,255,0.04)', marginTop: 8 }} />
+            </div>
+          </div>
+        </div>
+        <div
+          style={{
+            minHeight: 100, borderRadius: 14, marginBottom: 16,
+            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+          }}
+          aria-busy
+          aria-label="Loading dashboard feed"
+        />
+        <div className="section-header" style={{ marginBottom: 8 }}>
+          <span className="section-label">{"Today's Snapshot"}</span>
+          <div className="section-line" />
+        </div>
+        <div className="location-grid" style={{ marginBottom: 16 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="location-card" style={{ minHeight: 148, pointerEvents: 'none', opacity: 0.72 }}>
+              <div style={{ height: 14, width: '48%', marginBottom: 14, borderRadius: 6, background: 'rgba(255,255,255,0.05)' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ height: 10, width: '88%', borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+                <div style={{ height: 10, width: '76%', borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+                <div style={{ height: 10, width: '64%', borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="section-header" style={{ marginBottom: 8 }}>
+          <span className="section-label">Billing Snapshot</span>
+          <div className="section-line" />
+        </div>
+        <div style={{ minHeight: 200, borderRadius: 16, marginBottom: 16, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }} />
+        <div className="section-header" style={{ marginBottom: 8 }}>
+          <span className="section-label">Operations</span>
+          <div className="section-line" />
+        </div>
+        <div className="ops-grid" style={{ pointerEvents: 'none', opacity: 0.7 }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="ops-widget" style={{ minHeight: 122 }}>
+              <div style={{ height: 12, width: '55%', borderRadius: 6, background: 'rgba(255,255,255,0.06)', marginBottom: 14 }} />
+              <div style={{ height: 30, width: 56, borderRadius: 8, background: 'rgba(255,255,255,0.07)' }} />
+            </div>
+          ))}
+        </div>
+      </IssueContextProvider>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { tenantId } = useAuthContext()
   const [, startNavTransition] = useTransition()
@@ -34,9 +325,19 @@ export default function Dashboard() {
   }, [setPageContext])
   useDashboardRealtime()
   const { isStudioDirector, locationIds: allowedLocationIds } = usePermissions()
+  const allowedLocationSignature = !allowedLocationIds?.length
+    ? ''
+    : [...allowedLocationIds].sort().join('\0')
+  const allowedLocationIdSet = useMemo(() => {
+    if (!allowedLocationSignature) return EMPTY_LOCATION_ID_SET
+    return new Set(allowedLocationSignature.split('\0'))
+  }, [allowedLocationSignature])
   const { data: userLocations } = useUserLocations()
   const { data, isLoading } = useDashboard(userLocations)
   const navigate = useNavigate()
+  const goBilling = useCallback(() => {
+    startNavTransition(() => navigate('/admin/billing'))
+  }, [navigate, startNavTransition])
   const { data: heroStats } = useBillingHeroStats()
   const { data: agreementStats } = useFamilyFilesStats()
 
@@ -130,8 +431,8 @@ export default function Dashboard() {
     staleTime: 1000 * 60 * 5,
   })
 
-  // Onboarding insight modal
-  const [insightModal, setInsightModal] = useState<{ id: string; content: string } | null>(null)
+  // Onboarding insight modal (metadata stored so dismiss is one write — no read-before-update)
+  const [insightModal, setInsightModal] = useState<{ id: string; content: string; metadata?: Record<string, unknown> } | null>(null)
   const { profile } = useAuthContext()
 
   useEffect(() => {
@@ -150,7 +451,7 @@ export default function Dashboard() {
         if (cancelled) return
         if (error) return
         const insight = rows?.find((r: any) => r.metadata?.type === 'onboarding_insight' && !r.metadata?.shown)
-        if (insight) setInsightModal({ id: insight.id, content: insight.content })
+        if (insight) setInsightModal({ id: insight.id, content: insight.content, metadata: insight.metadata ?? {} })
       } catch { /* silent */ }
     }
     checkInsight()
@@ -159,23 +460,19 @@ export default function Dashboard() {
     }
   }, [profile?.id, tenantId])
 
-  const dismissInsight = async () => {
-    if (insightModal) {
-      try {
-        const { data: row } = await supabase.from('ai_legacy_message_log').select('metadata').eq('id', insightModal.id).single()
-        await supabase.from('ai_legacy_message_log').update({ metadata: { ...row?.metadata, shown: true } }).eq('id', insightModal.id)
-      } catch { /* silent */ }
-    }
+  const dismissInsight = useCallback(() => {
+    const snapshot = insightModal
     setInsightModal(null)
-  }
+    if (!snapshot) return
+    void supabase
+      .from('ai_legacy_message_log')
+      .update({ metadata: { ...(snapshot.metadata ?? {}), shown: true } })
+      .eq('id', snapshot.id)
+      .then(() => { /* persisted */ }, () => { /* silent */ })
+  }, [insightModal])
 
   if (isLoading || !data) {
-    return (
-      <div className="page">
-        <div className="page-header"><h1>Dashboard</h1></div>
-        <div className="loading-screen" style={{ height: 300 }}><MusicLoader /></div>
-      </div>
-    )
+    return <DashboardLoadingShell />
   }
 
   // Enrolled + lost counts for ops widgets
@@ -222,53 +519,13 @@ export default function Dashboard() {
           <span className="section-label">Today's Snapshot</span>
           <div className="section-line" />
         </div>
-        <div className="location-grid" data-tour-id="dash-location-grid">
-          {(() => {
-            const firstOwnIdx = data.locationSummary.findIndex(
-              (l) => !isStudioDirector || (!!l.locationId && allowedLocationIds.includes(l.locationId))
-            )
-            return data.locationSummary.map((loc, locIdx) => {
-            const c = getLocationColor(loc.locationId)
-            const locked = isStudioDirector && !!loc.locationId && !allowedLocationIds.includes(loc.locationId)
-            const tagOwn = locIdx === firstOwnIdx
-            return (
-            <div
-              key={loc.name}
-              className={locked ? 'location-card' : 'location-card card-hover'}
-              style={{ borderColor: `${c}30`, opacity: locked ? 0.4 : 1, cursor: locked ? 'default' : 'pointer', pointerEvents: locked ? 'none' : 'auto' }}
-              onClick={() => {
-                if (locked) return
-                startNavTransition(() => {
-                  if (loc.locationId) navigate(`/admin/students?location=${loc.locationId}`)
-                  else navigate('/admin/schedule')
-                })
-              }}
-            >
-              <div className="loc-card-edge" style={{ background: `linear-gradient(180deg, ${c}, ${c}CC)`, boxShadow: `0 0 18px ${c}80` }} />
-              <div className="loc-card-glow" style={{ background: `radial-gradient(circle, ${c}18 0%, transparent 70%)` }} />
-              <div className="location-card-header">
-                <span className="location-name">{loc.name}</span>
-              </div>
-              <div className="location-metrics">
-                <div className="location-metric-row" data-tour-id={tagOwn ? 'active-students-metric' : undefined}>
-                  <span className="location-metric-key">Active Students</span>
-                  <span className="location-metric-value">{loc.students}</span>
-                </div>
-                <div className="location-divider" />
-                <div className="location-metric-row" data-tour-id={tagOwn ? 'schedule-utilization' : undefined}>
-                  <span className="location-metric-key">Teachers Scheduled</span>
-                  <span className="location-metric-value">{loc.teachersToday}</span>
-                </div>
-                <div className="location-metric-row" data-tour-id={tagOwn ? 'open-slots' : undefined}>
-                  <span className="location-metric-key">Open Slots</span>
-                  <span className="location-metric-value">{loc.openSlotsToday}</span>
-                </div>
-              </div>
-            </div>
-            )
-            })
-          })()}
-        </div>
+        <LocationSummaryGrid
+          locations={data.locationSummary}
+          isStudioDirector={isStudioDirector}
+          allowedLocationIdSet={allowedLocationIdSet}
+          navigate={navigate}
+          startNavTransition={startNavTransition}
+        />
       </div>
 
       {/* 3. Billing Snapshot — role-scoped cards (reserve space while snapshot queries resolve — reduces CLS) */}
@@ -330,7 +587,7 @@ export default function Dashboard() {
                 accentColor="#D4226A"
                 variant="full"
                 clickable={true}
-                onMetricClick={() => startNavTransition(() => navigate('/admin/billing'))}
+                onMetricClick={goBilling}
               />
             )
           )}
@@ -344,55 +601,18 @@ export default function Dashboard() {
           <span className="section-label">Operations</span>
           <div className="section-line" />
         </div>
-        <div className="ops-grid">
-          <div className="ops-widget" style={{ borderColor: 'rgba(212,34,106,0.2)' }} onClick={() => startNavTransition(() => navigate('/admin/students'))}>
-            <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #D4226A, #FF5500)', boxShadow: '0 0 18px rgba(212,34,106,0.52)' }} />
-            <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(212,34,106,0.1) 0%, transparent 70%)' }} />
-            <div className="ops-widget-label">Active Students</div>
-            <div className="ops-widget-value">{data.activeStudents}</div>
-            <div className="ops-widget-sub">
-              {Object.entries(data.studentsByLocation).map(([loc, n]) => (
-                <span key={loc}>{loc}: {n}  </span>
-              ))}
-            </div>
-          </div>
-          <div className="ops-widget" style={{ borderColor: 'rgba(255,120,0,0.18)' }} onClick={() => startNavTransition(() => navigate('/admin/schedule'))}>
-            <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #FF5500, #FF8C00)', boxShadow: '0 0 18px rgba(255,85,0,0.48)' }} />
-            <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(255,85,0,0.09) 0%, transparent 70%)' }} />
-            <div className="ops-widget-label">Open Slots This Week</div>
-            <div className="ops-widget-value">{data.openSlotsThisWeek}</div>
-            <div className="ops-widget-sub">
-              {Object.entries(data.slotsByLocation).map(([loc, n]) => (
-                <span key={loc}>{loc}: {n}  </span>
-              ))}
-            </div>
-          </div>
-          <div className="ops-widget" style={{ borderColor: 'rgba(232,72,144,0.18)' }} onClick={() => startNavTransition(() => navigate('/admin/leads'))}>
-            <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #BE185D, #E8488A)', boxShadow: '0 0 18px rgba(232,72,144,0.44)' }} />
-            <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(232,72,144,0.09) 0%, transparent 70%)' }} />
-            <div className="ops-widget-label">Leads in Pipeline</div>
-            <div className="ops-widget-value">{data.leadsInPipeline}</div>
-            <div className="ops-widget-sub">
-              {Object.entries(data.leadsByStage).filter(([s]) => !['enrolled', 'lost'].includes(s)).map(([stage, n]) => (
-                <span key={stage}>{stage}: {n}  </span>
-              ))}
-            </div>
-          </div>
-          <div className="ops-widget" style={{ borderColor: 'rgba(255,184,0,0.18)' }} onClick={() => startNavTransition(() => navigate('/admin/leads'))}>
-            <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #D97706, #FFB800)', boxShadow: '0 0 18px rgba(255,184,0,0.4)' }} />
-            <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.09) 0%, transparent 70%)' }} />
-            <div className="ops-widget-label">Enrolled This Month</div>
-            <div className="ops-widget-value">{enrolledThisMonth}</div>
-            <div className="ops-widget-sub">Leads converted to students</div>
-          </div>
-          <div className="ops-widget" style={{ borderColor: 'rgba(167,60,150,0.18)' }} onClick={() => startNavTransition(() => navigate('/admin/retention?tab=win-back'))}>
-            <div className="ops-widget-edge" style={{ background: 'linear-gradient(180deg, #A73C96, #C060B0)', boxShadow: '0 0 18px rgba(167,60,150,0.4)' }} />
-            <div className="ops-widget-glow" style={{ background: 'radial-gradient(circle, rgba(167,60,150,0.09) 0%, transparent 70%)' }} />
-            <div className="ops-widget-label">Lost This Month</div>
-            <div className="ops-widget-value">{lostThisMonth}</div>
-            <div className="ops-widget-sub">Leads marked as lost</div>
-          </div>
-        </div>
+        <DashboardOpsSection
+          activeStudents={data.activeStudents}
+          studentsByLocation={data.studentsByLocation}
+          openSlotsThisWeek={data.openSlotsThisWeek}
+          slotsByLocation={data.slotsByLocation}
+          leadsInPipeline={data.leadsInPipeline}
+          leadsByStage={data.leadsByStage}
+          enrolledThisMonth={enrolledThisMonth}
+          lostThisMonth={lostThisMonth}
+          navigate={navigate}
+          startNavTransition={startNavTransition}
+        />
       </div>
 
       {/* Missing Enrollment Agreements Warning */}
@@ -460,7 +680,7 @@ export default function Dashboard() {
       )}
 
       {/* 5. Tasks — 2 tasks max on dashboard */}
-      <TaskCenter compact limit={2} />
+      <TaskCenterMemo compact limit={2} />
 
       {/* Director End of Day — only studio_director sees this */}
       <DirectorCloseoutSection />

@@ -316,9 +316,19 @@ export function useGenerateWinBack() {
       const { data: student } = await supabase.from('students').select('first_name, last_name, instrument, teacher_id, deactivated_at, pause_reason').eq('tenant_id', tenantId!).eq('id', campaign.student_id).single()
       if (!student) throw new Error('Student not found')
 
-      const teacherName = student.teacher_id
-        ? await supabase.from('teachers').select('first_name, last_name').eq('tenant_id', tenantId!).eq('id', student.teacher_id).single().then(r => r.data ? `${r.data.first_name} ${r.data.last_name}`.trim() : 'your teacher')
-        : 'your teacher'
+      let teacherName = 'your teacher'
+      if (student.teacher_id) {
+        const { data: teacherRow } = await supabase
+          .from('teachers')
+          .select('first_name, last_name')
+          .eq('tenant_id', tenantId!)
+          .eq('id', student.teacher_id)
+          .maybeSingle()
+        if (teacherRow) {
+          const n = `${teacherRow.first_name} ${teacherRow.last_name}`.trim()
+          if (n) teacherName = n
+        }
+      }
 
       // Get last session data
       const { data: lastLogs } = await supabase.from('session_log').select('worked_on, progress_indicator, block_date').eq('tenant_id', tenantId!).eq('student_id', campaign.student_id).order('block_date', { ascending: false }).limit(3)

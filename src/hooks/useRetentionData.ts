@@ -136,16 +136,16 @@ export function useGenerateValueCard() {
         ...(tsNotes ?? []).filter((n: any) => n.ai_enhanced_note || n.raw_note).map((n: any) => n.ai_enhanced_note || n.raw_note),
       ]
 
-      // FIX 3: Get teacher name from students.teacher_id → teachers table (has first_name directly)
+      // FIX 3: Get teacher name from students.teacher_id → teachers.id (maybeSingle avoids 406 when 0 or missing row)
       let teacherName = 'your teacher'
       if (student.teacher_id) {
         const { data: teacher } = await supabase
           .from('teachers')
           .select('first_name, last_name')
           .eq('tenant_id', TENANT_ID)
-          .eq('profile_id', student.teacher_id)
-          .single()
-        if (teacher) teacherName = teacher.first_name
+          .eq('id', student.teacher_id)
+          .maybeSingle()
+        if (teacher?.first_name) teacherName = teacher.first_name
       }
 
       // Get instrument — prefer students.instrument, fallback to session_log instrument

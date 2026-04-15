@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { qk } from '../lib/queryKeys'
 
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000099'
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
 const INTERVAL_MS = 60_000
 
@@ -63,6 +62,9 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
         if (selStr !== ct.dateStr) return
         const nowMinutes = ct.hours * 60 + ct.minutes
 
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user?.id) return
+
         // Fetch unchecked blocks — double-filter: DB-side AND client-side
         const { data: blocks } = await supabase
           .from('schedule_blocks')
@@ -92,7 +94,7 @@ export function useAutoCheckIn(locationId: string, selectedDate: Date) {
             const { data } = await supabase.rpc('check_in_block', {
               p_block_id: block.id,
               p_action: 'check_in',
-              p_user_id: SYSTEM_USER_ID,
+              p_user_id: user.id,
             })
             if (data?.ok) checked++
           } catch {

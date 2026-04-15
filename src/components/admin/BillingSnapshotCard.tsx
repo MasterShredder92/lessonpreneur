@@ -75,6 +75,9 @@ export default function BillingSnapshotCard({
     )
   }
 
+  // Match `LocationSnapshotCard` skeleton minHeight (220) + typical metric stack — reduces billing CLS
+  const layoutMinHeight = !isSummary && size === 'default' ? 248 : !isSummary && isLarge ? 280 : undefined
+
   return (
     <div style={{
       position: 'relative',
@@ -83,6 +86,8 @@ export default function BillingSnapshotCard({
       background: 'rgba(255,255,255,0.03)',
       border: '1px solid rgba(255,255,255,0.06)',
       padding: isLarge ? '20px 22px' : '16px 18px',
+      minHeight: layoutMinHeight,
+      boxSizing: 'border-box',
     }}>
       {/* Left accent edge */}
       <div style={{
