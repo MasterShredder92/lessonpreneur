@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Bot, ChevronRight, MessageSquare, SlidersHorizontal, AlertTriangle } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
-import { useAgents, useAgentSkills } from '../../hooks/useAgents'
+import { useAgents } from '../../hooks/useAgents'
 import { usePageIntelligenceBindings, useResolvedPageIntelligence } from '../../hooks/usePageIntelligence'
 import { useZiroShell } from '../../contexts/ZiroContext'
 import AgentWorkspace from './AgentWorkspace'
@@ -22,9 +22,6 @@ export default function PageIntelligenceStrip() {
   const { data: bindings } = usePageIntelligenceBindings(tenantId)
   const resolved = useResolvedPageIntelligence(pathname, tenantId, agents, bindings)
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
-
-  const skillAgentId = resolved?.assignedAgent?.id ?? resolved?.suggestedAgent?.id ?? null
-  const { data: skills } = useAgentSkills(workspaceOpen ? skillAgentId : null)
 
   useEffect(() => {
     if (!resolved) return
@@ -169,7 +166,7 @@ export default function PageIntelligenceStrip() {
       </div>
 
       {workspaceOpen && (
-        <AgentWorkspace open={workspaceOpen} onClose={() => setWorkspaceOpen(false)} resolved={resolved} skills={skills ?? []} />
+        <AgentWorkspace open={workspaceOpen} onClose={() => setWorkspaceOpen(false)} resolved={resolved} tenantId={tenantId} />
       )}
     </>
   )
