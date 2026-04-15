@@ -53,15 +53,25 @@ function scoreAgentForSurface(agent: ZiroAgent, hints: string[]): number {
   return score
 }
 
-export type PageIntelligenceResolution = 'tenant_binding' | 'heuristic' | 'orchestrator_only'
+/** `tenant_binding` = ziro_page_intelligence_bindings.primary_agent_id resolves to an agent. No heuristic fallback for page assignment. */
+export type PageIntelligenceResolution =
+  | 'tenant_binding'
+  | 'unassigned'
+  | 'binding_stale'
+  | 'heuristic_suggestion'
 
 export interface ResolvedPageIntelligence {
   surfaceKey: ZiroOperatingSurfaceKey
   surfaceTitle: string
   intelligenceSummary: string
   seedPrompt: string
-  primaryAgent: ZiroAgent | null
-  /** Agents that scored > 0 for this surface (excluding primary), max 3 */
+  /** Page owner agent — only from tenant DB binding (exactly one or none). */
+  assignedAgent: ZiroAgent | null
+  /** Optional keyword match when no binding exists (workspace hint only, not the page agent). */
+  suggestedAgent: ZiroAgent | null
+  /** Binding row for this surface, if any */
+  pageBinding: ZiroPageIntelligenceBindingRow | null
+  /** Agents that scored > 0 for this surface (excluding assigned), max 3 */
   supportingAgents: ZiroAgent[]
   resolution: PageIntelligenceResolution
 }
@@ -75,16 +85,15 @@ export function useResolvedPageIntelligence(
   return useMemo(() => {
     const surface = resolveOperatingSurface(pathname)
     const list = agents ?? []
-    const bind = (bindings ?? []).find(b => b.page_key === surface.key)
-    let primary: ZiroAgent | null = null
-    let resolution: PageIntelligenceResolution = 'orchestrator_only'
+    const bind = (bindings ?? []).find(b => b.page_key === surface.key) ?? null
 
+    let assigned: ZiroAgent | null = null
     if (bind?.primary_agent_id) {
-      primary = list.find(a => a.id === bind.primary_agent_id) ?? null
-      if (primary) resolution = 'tenant_binding'
+      assigned = list.find(a => a.id === bind.primary_agent_id) ?? null
     }
 
-    if (!primary && list.length > 0 && surface.agentMatchHints.length > 0) {
+    let suggested: ZiroAgent | null = null
+    if (!assigned && list.length > 0 && surface.agentMatchHints.length > 0) {
       let best: ZiroAgent | null = null
       let bestScore = 0
       for (const a of list) {
@@ -94,16 +103,20 @@ export function useResolvedPageIntelligence(
           best = a
         }
       }
-      if (best && bestScore >= 2) {
-        primary = best
-        resolution = 'heuristic'
-      }
+      if (best && bestScore >= 2) suggested = best
     }
 
+    let resolution: PageIntelligenceResolution
+    if (bind?.primary_agent_id && !assigned) resolution = 'binding_stale'
+    else if (assigned) resolution = 'tenant_binding'
+    else if (suggested) resolution = 'heuristic_suggestion'
+    else resolution = 'unassigned'
+
+    const anchor = assigned ?? suggested
     const supporting: ZiroAgent[] = []
-    if (primary && surface.agentMatchHints.length > 0) {
+    if (anchor && surface.agentMatchHints.length > 0) {
       for (const a of list) {
-        if (a.id === primary.id) continue
+        if (a.id === anchor.id) continue
         const s = scoreAgentForSurface(a, surface.agentMatchHints)
         if (s >= 2) supporting.push(a)
       }
@@ -115,7 +128,9 @@ export function useResolvedPageIntelligence(
       surfaceTitle: surface.title,
       intelligenceSummary: surface.intelligenceSummary,
       seedPrompt: surface.seedPromptTemplate,
-      primaryAgent: primary,
+      assignedAgent: assigned,
+      suggestedAgent: suggested,
+      pageBinding: bind,
       supportingAgents: supporting.slice(0, 3),
       resolution,
     }
