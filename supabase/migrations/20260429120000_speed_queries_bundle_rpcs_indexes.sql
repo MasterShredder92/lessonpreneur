@@ -1,4 +1,4 @@
-﻿-- =============================================================================
+-- =============================================================================
 -- SPEED slow-query remediation (server-side only)
 --
 -- Targets (reported averages before deploy â€” verify on SPEED after):
@@ -113,7 +113,7 @@ AS $function$
       l.family_id,
       l.compatibility_score,
       l.matched_teacher_id,
-      l.referral_source,
+      NULL::text AS referral_source,
       l.secondary_location_ids,
       l.intake_submission_id,
       l.created_at,
