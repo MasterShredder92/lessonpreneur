@@ -1,8 +1,8 @@
 /**
- * Star OS layer — page identifiers for composed business prompts.
+ * Ziro Work — page identifiers for composed business prompts.
  * Scheduling/tools mode (Schedule page) stays on `useScheduleStarChat` + `ScheduleContext`; see `useAI.ts`.
  */
-export type StarPageId =
+export type ZiroPageId =
   | 'global_modal'
   | 'dashboard'
   | 'students'
@@ -14,8 +14,8 @@ export type StarPageId =
   | 'lessons'
 
 /** Page-specific block appended after the global live snapshot prompt. */
-export interface StarPageAttach {
-  pageId: StarPageId
+export interface ZiroPageAttach {
+  pageId: ZiroPageId
   displayName: string
   body: string
 }

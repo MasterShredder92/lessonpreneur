@@ -16,6 +16,7 @@ const ZiroPanel = lazy(() => import('../ziro/ZiroPanel'))
 import { OnboardingProvider } from '../../contexts/OnboardingContext'
 import { ZiroShellProvider, useZiroShell } from '../../contexts/ZiroContext'
 import StudioDirectorIssueButton from '../shared/StudioDirectorIssueButton'
+import PageIntelligenceStrip from '../ziro/PageIntelligenceStrip'
 
 const NAV_ICONS: Record<string, ReactNode> = {
   'dashboard': <LayoutDashboard size={18} />,
@@ -25,11 +26,12 @@ const NAV_ICONS: Record<string, ReactNode> = {
   'shield': <ShieldCheck size={18} />,
   'guitar': <Guitar size={18} />,
   'book': <BookOpen size={18} />,
+  'zap': <Zap size={18} />,
 }
 
 function AdminShellInner() {
   const navigate = useNavigate()
-  const { profile, tenantId, signOut } = useAuthContext()
+  const { profile, tenantId, signOut, role: authRole } = useAuthContext()
   const { isStudioDirector, isCompanyDirector, isOwner, canUseZiro, role: effectiveRole } = usePermissions()
   const showZiroInsights = isOwner || isCompanyDirector
   const { preview } = usePreviewMode()
@@ -143,7 +145,7 @@ function AdminShellInner() {
           {sidebarOpen && (
             <div className="sidebar-brand-text">
               <div className="sidebar-brand-name">{theme.studioName}</div>
-              <div className="sidebar-brand-sub">powered by ZiroWork</div>
+              <div className="sidebar-brand-sub">Ziro Work</div>
             </div>
           )}
         </div>
@@ -152,6 +154,7 @@ function AdminShellInner() {
         <nav className="sidebar-nav">
           {ADMIN_NAV_ITEMS.filter(item => {
             // Role-based nav filtering — uses effectiveRole from usePermissions (respects preview mode)
+            if (item.path === '/admin/zirowork' && !(authRole === 'owner' || authRole === 'admin')) return false
             const HIDDEN_FOR_STUDIO_DIR = ['/admin/financials', '/admin/recruitment', '/admin/payroll', '/admin/integrations']
             const HIDDEN_FOR_COMPANY_DIR = ['/admin/financials'] // hide owner take-home from co. directors
             if (isStudioDirector) {
@@ -264,18 +267,6 @@ function AdminShellInner() {
             </NavLink>
           )}
 
-          {(isOwner || effectiveRole === 'admin') && (
-            <NavLink
-              to="/admin/zirowork"
-              title={!sidebarOpen ? 'ZiroWork' : undefined}
-              onClick={(e) => e.stopPropagation()}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <Zap size={15} />
-              <span className="nav-label">ZiroWork</span>
-            </NavLink>
-          )}
-
           <NavLink to="/admin/integrations" title={!sidebarOpen ? 'Integrations' : undefined} onClick={(e) => e.stopPropagation()} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={isStudioDirector ? { display: 'none' } : undefined}>
             <Plug size={15} />
             <span className="nav-label">Integrations</span>
@@ -310,10 +301,11 @@ function AdminShellInner() {
         </div>
       </aside>
 
-      <main className="admin-main">
+        <main className="admin-main">
         <div style={{ padding: '8px 16px 0', maxWidth: '100%' }}>
           <TopViewTabs />
         </div>
+        <PageIntelligenceStrip />
         <PageTransition><Outlet /></PageTransition>
       </main>
 

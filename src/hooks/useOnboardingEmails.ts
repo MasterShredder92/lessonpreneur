@@ -22,7 +22,7 @@ const ONBOARDING_SEQUENCE: OnboardingEmail[] = [
     key: 'welcome',
     day: 0,
     subject: 'Welcome to Lessonpreneur! Here\'s how to get started.',
-    body: `Welcome to Lessonpreneur! We're excited to help you run your music school smarter.\n\nHere's your 3-step quick start:\n\n1. Add your first teacher — go to Teachers and click "+ Add Teacher"\n2. Import your students — go to Students and use "Import CSV" or add them one by one\n3. Set up your schedule — go to Schedule to see your weekly grid\n\nMost schools are fully set up in under an hour. If you need help, Star (our AI assistant) is always available in the sidebar.\n\nYou have 60 days to explore everything — no rush. Let's make this the best decision you've made for your school.`,
+    body: `Welcome to Lessonpreneur! We're excited to help you run your music school smarter.\n\nHere's your 3-step quick start:\n\n1. Add your first teacher — go to Teachers and click "+ Add Teacher"\n2. Import your students — go to Students and use "Import CSV" or add them one by one\n3. Set up your schedule — go to Schedule to see your weekly grid\n\nMost schools are fully set up in under an hour. If you need help, Ziro (our AI assistant) is always available in the sidebar.\n\nYou have 60 days to explore everything — no rush. Let's make this the best decision you've made for your school.`,
   },
   {
     key: 'import_students',
@@ -34,19 +34,19 @@ const ONBOARDING_SEQUENCE: OnboardingEmail[] = [
     key: 'first_insight',
     day: 7,
     subject: 'Your first AI insight is waiting',
-    body: `Have your teachers logged a few sessions yet?\n\nHere's what happens when they do:\n1. Teacher opens their schedule, taps a student, logs the session in 45 seconds\n2. AI generates a warm, personalized progress update for the family\n3. Parents receive it automatically — in the app and via email\n4. You see everything in your dashboard: who's engaged, who's at risk\n\nThe more sessions logged, the smarter Lessonpreneur gets. Start today and watch the insights roll in.\n\nOpen Star in your sidebar and ask "How are we doing?" — it'll tell you.`,
+    body: `Have your teachers logged a few sessions yet?\n\nHere's what happens when they do:\n1. Teacher opens their schedule, taps a student, logs the session in 45 seconds\n2. AI generates a warm, personalized progress update for the family\n3. Parents receive it automatically — in the app and via email\n4. You see everything in your dashboard: who's engaged, who's at risk\n\nThe more sessions logged, the smarter Lessonpreneur gets. Start today and watch the insights roll in.\n\nOpen Ziro in your sidebar and ask "How are we doing?" — it'll tell you.`,
   },
   {
     key: 'halfway_checkin',
     day: 30,
     subject: 'How\'s it going? Here\'s what you might have missed.',
-    body: `You're 30 days into your Lessonpreneur trial — how's it going?\n\nHere are a few things you might not have tried yet:\n\n- Star AI Assistant: Open the sidebar and ask Star anything about your business\n- Retention Campaigns: Launch a summer retention wave from your dashboard\n- Financial Dashboard: See your real take-home in Financials\n- Parent Sharing: Parents can share 1080x1080 progress cards on social media\n- Practice Lab: Your students have interactive instruments to practice between sessions\n\nYou still have 30 days left. If you need help getting something set up, we're here.`,
+    body: `You're 30 days into your Lessonpreneur trial — how's it going?\n\nHere are a few things you might not have tried yet:\n\n- Ziro AI Assistant: Open the sidebar and ask Ziro anything about your business\n- Retention Campaigns: Launch a summer retention wave from your dashboard\n- Financial Dashboard: See your real take-home in Financials\n- Parent Sharing: Parents can share 1080x1080 progress cards on social media\n- Practice Lab: Your students have interactive instruments to practice between sessions\n\nYou still have 30 days left. If you need help getting something set up, we're here.`,
   },
   {
     key: 'trial_warning',
     day: 50,
     subject: '10 days left — here\'s what you\'ll lose',
-    body: `Your Lessonpreneur trial ends in 10 days.\n\nIf you don't subscribe, you'll lose access to:\n- AI progress updates for parents\n- Churn risk scoring and retention campaigns\n- Your financial dashboard and P&L tracking\n- Star AI assistant\n- Email notifications and session reminders\n- Everything you've set up\n\nThe good news: subscribing takes 30 seconds and your data stays exactly where it is.\n\nNo contracts. Cancel anytime.\n\nSubscribe now in Settings > Billing to keep your momentum going.`,
+    body: `Your Lessonpreneur trial ends in 10 days.\n\nIf you don't subscribe, you'll lose access to:\n- AI progress updates for parents\n- Churn risk scoring and retention campaigns\n- Your financial dashboard and P&L tracking\n- Ziro AI assistant\n- Email notifications and session reminders\n- Everything you've set up\n\nThe good news: subscribing takes 30 seconds and your data stays exactly where it is.\n\nNo contracts. Cancel anytime.\n\nSubscribe now in Settings > Billing to keep your momentum going.`,
   },
   {
     key: 'final_reminder',

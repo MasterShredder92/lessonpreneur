@@ -27,6 +27,7 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     { label: 'Billing', path: '/admin/billing' },
     { label: 'Financials', path: '/admin/financials' },
   ]},
+  { label: 'Ziro Work', path: '/admin/zirowork', icon: 'zap' },
 ]
 
 export const LESSON_LOOKBACK_DAYS = 28

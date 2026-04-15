@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { X, Send, Sparkles, Star } from 'lucide-react'
+import { X, Send, Sparkles } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import { useScheduleStarChat, type ScheduleContext } from '../../hooks/useAI'
 import { qk } from '../../lib/queryKeys'
@@ -132,7 +132,7 @@ export function ZiroScheduleAssistantPane({
               flexShrink: 0,
             }}
           >
-            <Star size={16} color="#fff" />
+            <Sparkles size={16} color="#fff" />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -243,7 +243,7 @@ export function ZiroScheduleAssistantPane({
                     gap: 4,
                   }}
                 >
-                  {msg.role === 'assistant' && <Star size={9} />}
+                  {msg.role === 'assistant' && <Sparkles size={9} />}
                   {msg.role === 'user' ? 'You' : 'Ziro'}
                 </div>
                 <div style={{ fontSize: 13, color: '#E0E0F4', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{msg.content}</div>

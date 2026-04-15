@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, useTransition } from 'react'
+import { useState, useRef, useCallback, useMemo, useTransition, useDeferredValue, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
@@ -7,18 +7,19 @@ import { useLeads, useUpdateLeadStage, useUpdateLead, useUpdateLeadsInFamily, us
 import { useLocations } from '../../hooks/useLocations'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAIMatch, type TeacherMatch } from '../../hooks/useAIMatch'
-import { Star, Clock, MapPin, Music, UserPlus, X, ChevronLeft } from 'lucide-react'
-import ConvertLeadModal from '../../components/leads/ConvertLeadModal'
-import DataGrid from '../../components/shared/DataGrid'
+import { Sparkles, Clock, MapPin, Music, UserPlus, X, ChevronLeft } from 'lucide-react'
 import { CORE_INSTRUMENTS, OTHER_INSTRUMENTS } from '../../lib/constants'
 import { toast } from '../../components/shared/Toast'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import ReportIssueButton from '../../components/shared/ReportIssueButton'
 import LeadsPageGuide from '../../components/admin/LeadsPageGuide'
-import DuplicateStudentReviewPanel from '../../components/admin/DuplicateStudentReviewPanel'
 import { OriginalIntakePanel } from '../../components/leads/OriginalIntakePanel'
 import { useUrlFilters } from '../../hooks/useUrlFilters'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
+
+const ConvertLeadModal = lazy(() => import('../../components/leads/ConvertLeadModal'))
+const DataGrid = lazy(() => import('../../components/shared/DataGrid'))
+const DuplicateStudentReviewPanel = lazy(() => import('../../components/admin/DuplicateStudentReviewPanel'))
 
 const STAGES = ['inquiry', 'contacted', 'scheduled', 'enrolled', 'lost'] as const
 
@@ -193,6 +194,13 @@ export default function Leads() {
   const updateLead = useUpdateLead()
   const updateLeadsInFamily = useUpdateLeadsInFamily()
 
+  const detailSiblingLeads = useMemo(() => {
+    if (!detailLead?.family_id) return []
+    const fid = detailLead.family_id
+    const selfId = detailLead.id
+    return (leads ?? []).filter((l) => l.family_id === fid && l.id !== selfId)
+  }, [leads, detailLead?.family_id, detailLead?.id])
+
   const instruments = useMemo(
     () => [...new Set(leads?.map((l) => l.instrument).filter(Boolean) ?? [])],
     [leads],
@@ -278,9 +286,12 @@ export default function Leads() {
       ...items,
     ])
   }, [isGroupedByLocation, pipelineItems])
+  const deferredRenderItems = useDeferredValue(renderItems)
+  const pipelineTransitioning = deferredRenderItems !== renderItems
+
   const firstCardRenderIdx = useMemo(
-    () => renderItems.findIndex(i => i.type !== 'location-header'),
-    [renderItems],
+    () => deferredRenderItems.findIndex(i => i.type !== 'location-header'),
+    [deferredRenderItems],
   )
 
   // Family-aware counts for tabs
@@ -293,79 +304,94 @@ export default function Leads() {
     return { activeCount, enrolledCount, lostCount }
   }, [leads])
 
-  const handleAdvance = async (lead: LeadRow) => {
+  const handleAdvance = (lead: LeadRow) => {
     const next = NEXT_STAGE[lead.stage]; if (!next) return
-    try {
-      await updateStage.mutateAsync({ id: lead.id, stage: next, familyId: lead.family_id })
-      if (isStudioDirector && tenantId && profile?.id) {
-        logAudit({
-          tenantId, performedBy: profile.id,
-          userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
-          userRole: 'studio_director',
-          action: 'LEAD_STAGE_UPDATE',
-          tableName: 'leads', recordId: lead.id,
-          entityName: `${lead.first_name ?? ''} ${lead.last_name ?? ''}`.trim() || null,
-          locationId: lead.location_id ?? null,
-          oldValue: { stage: lead.stage }, newValue: { stage: next },
-        })
-      }
-      setDetailLead({ ...lead, stage: next as any })
-      toast(`Stage updated to ${STAGE_LABELS[next] ?? next}`, 'success')
-    } catch (err: any) {
-      toast(err.message ?? 'Failed to advance stage', 'error')
-    }
+    updateStage.mutate(
+      { id: lead.id, stage: next, familyId: lead.family_id },
+      {
+        onSuccess: () => {
+          if (isStudioDirector && tenantId && profile?.id) {
+            logAudit({
+              tenantId, performedBy: profile.id,
+              userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
+              userRole: 'studio_director',
+              action: 'LEAD_STAGE_UPDATE',
+              tableName: 'leads', recordId: lead.id,
+              entityName: `${lead.first_name ?? ''} ${lead.last_name ?? ''}`.trim() || null,
+              locationId: lead.location_id ?? null,
+              oldValue: { stage: lead.stage }, newValue: { stage: next },
+            })
+          }
+          setDetailLead({ ...lead, stage: next as any })
+          toast(`Stage updated to ${STAGE_LABELS[next] ?? next}`, 'success')
+        },
+        onError: (err: any) => toast(err.message ?? 'Failed to advance stage', 'error'),
+      },
+    )
   }
 
-  const handleMarkLost = async (lead: LeadRow) => {
+  const handleMarkLost = (lead: LeadRow) => {
     setLostCategoryLead(lead)
     setLostCategory('')
     setLostReason('')
   }
 
-  const confirmMarkLost = async () => {
+  const confirmMarkLost = () => {
     if (!lostCategoryLead) return
     const leadToUpdate = lostCategoryLead
-    // Close quickly so the click paints immediately (INP) while we do network work.
+    const category = lostCategory
+    const reason = lostReason || null
+    // Close quickly so the click can paint (INP); mutations run without blocking the handler.
     setLostCategoryLead(null)
     setDetailLead(null)
-    try {
-      await updateStage.mutateAsync({ id: leadToUpdate.id, stage: 'lost', familyId: leadToUpdate.family_id })
-      if (isStudioDirector && tenantId && profile?.id) {
-        logAudit({
-          tenantId, performedBy: profile.id,
-          userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
-          userRole: 'studio_director', action: 'LEAD_MARK_LOST',
-          tableName: 'leads', recordId: leadToUpdate.id,
-          entityName: `${leadToUpdate.first_name ?? ''} ${leadToUpdate.last_name ?? ''}`.trim() || null,
-          locationId: leadToUpdate.location_id ?? null,
-          newValue: { stage: 'lost', lost_category: lostCategory, lost_reason: lostReason || null },
-        })
-      }
-      if (lostCategory) {
-        // Batch update lost category on the family in one query.
-        if (leadToUpdate.family_id) {
-          await updateLeadsInFamily.mutateAsync({
-            familyId: leadToUpdate.family_id,
-            updates: { lost_category: lostCategory, lost_reason: lostReason || null },
-          })
-        } else {
-          await updateLead.mutateAsync({ id: leadToUpdate.id, lost_category: lostCategory, lost_reason: lostReason || null })
-        }
-      }
-    } catch (err: any) {
-      toast(err.message ?? 'Failed to mark lead as lost', 'error')
-    }
+    updateStage.mutate(
+      { id: leadToUpdate.id, stage: 'lost', familyId: leadToUpdate.family_id },
+      {
+        onSuccess: () => {
+          if (isStudioDirector && tenantId && profile?.id) {
+            logAudit({
+              tenantId, performedBy: profile.id,
+              userName: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Studio Director',
+              userRole: 'studio_director', action: 'LEAD_MARK_LOST',
+              tableName: 'leads', recordId: leadToUpdate.id,
+              entityName: `${leadToUpdate.first_name ?? ''} ${leadToUpdate.last_name ?? ''}`.trim() || null,
+              locationId: leadToUpdate.location_id ?? null,
+              newValue: { stage: 'lost', lost_category: category, lost_reason: reason },
+            })
+          }
+          if (category) {
+            if (leadToUpdate.family_id) {
+              updateLeadsInFamily.mutate(
+                { familyId: leadToUpdate.family_id, updates: { lost_category: category, lost_reason: reason } },
+                { onError: (err: any) => toast(err.message ?? 'Failed to save lost reason', 'error') },
+              )
+            } else {
+              updateLead.mutate(
+                { id: leadToUpdate.id, lost_category: category, lost_reason: reason },
+                { onError: (err: any) => toast(err.message ?? 'Failed to save lost reason', 'error') },
+              )
+            }
+          }
+        },
+        onError: (err: any) => toast(err.message ?? 'Failed to mark lead as lost', 'error'),
+      },
+    )
   }
 
-  const handleSaveNextAction = async () => {
+  const handleSaveNextAction = () => {
     if (!detailLead) return
-    try {
-      await updateLead.mutateAsync({ id: detailLead.id, next_action: nextActionDraft })
-      setDetailLead({ ...detailLead, next_action: nextActionDraft } as any)
-      setEditingNextAction(false)
-    } catch (err: any) {
-      toast(err.message ?? 'Failed to save next action', 'error')
-    }
+    const id = detailLead.id
+    const draft = nextActionDraft
+    updateLead.mutate(
+      { id, next_action: draft },
+      {
+        onSuccess: () => {
+          setDetailLead((prev) => (prev && prev.id === id ? { ...prev, next_action: draft } as any : prev))
+          setEditingNextAction(false)
+        },
+        onError: (err: any) => toast(err.message ?? 'Failed to save next action', 'error'),
+      },
+    )
   }
 
   const handleExportLeads = useCallback(() => {
@@ -433,7 +459,7 @@ export default function Leads() {
           {canEdit && (
             <button
               data-guide-id="lead-add-new"
-              onClick={() => setShowAddLead(true)}
+              onClick={() => startTransition(() => setShowAddLead(true))}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px',
                 borderRadius: 10, border: 'none', background: '#D4226A', color: '#fff',
@@ -447,7 +473,7 @@ export default function Leads() {
           {role === 'owner' && (
             <button
               className="btn-ghost"
-              onClick={() => setShowMasterSheet(true)}
+              onClick={() => startTransition(() => setShowMasterSheet(true))}
               style={{ fontSize: 11, padding: '5px 12px', color: '#FFB800', borderColor: 'rgba(255,184,0,0.25)' }}
             >
               Master Sheet
@@ -476,7 +502,11 @@ export default function Leads() {
         </button>
       </div>
 
-      {canEdit && <DuplicateStudentReviewPanel variant="full" />}
+      {canEdit && (
+        <Suspense fallback={null}>
+          <DuplicateStudentReviewPanel variant="full" />
+        </Suspense>
+      )}
 
       {/* Filters — only on active tab */}
       {leadView === 'active' && <div className="schedule-filters" style={{ marginBottom: '16px' }}>
@@ -503,7 +533,7 @@ export default function Leads() {
           </select>
           <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
             <button
-              onClick={() => setSortOrder('newest')}
+              onClick={() => startTransition(() => setSortOrder('newest'))}
               style={{
                 padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none',
                 background: sortOrder === 'newest' ? 'rgba(212,34,106,0.18)' : 'transparent',
@@ -512,7 +542,7 @@ export default function Leads() {
               }}
             >Newest</button>
             <button
-              onClick={() => setSortOrder('oldest')}
+              onClick={() => startTransition(() => setSortOrder('oldest'))}
               style={{
                 padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
                 background: sortOrder === 'oldest' ? 'rgba(212,34,106,0.18)' : 'transparent',
@@ -535,7 +565,12 @@ export default function Leads() {
       )}
 
       {/* LIST VIEW (default) — premium lead cards with family grouping */}
-      <div className="lead-cards" data-guide-id="leads-list" aria-busy={isLoading ? 'true' : 'false'}>
+      <div
+        className="lead-cards"
+        data-guide-id="leads-list"
+        aria-busy={isLoading ? 'true' : 'false'}
+        style={pipelineTransitioning ? { opacity: 0.88, transition: 'opacity 120ms ease' } : undefined}
+      >
         {isLoading ? (
           Array.from({ length: skeletonCount }).map((_, i) => (
             <div key={`lead-skel-${i}`} className="lead-card skeleton-card" aria-hidden="true">
@@ -563,7 +598,7 @@ export default function Leads() {
           ))
         ) : (
           <>
-          {renderItems.map((item, itemIdx) => {
+          {deferredRenderItems.map((item, itemIdx) => {
             // Location group header (owner/company_director grouped view)
             if (item.type === 'location-header') {
               return (
@@ -606,7 +641,13 @@ export default function Leads() {
                           value={fg.stage}
                           style={{ color: stageColor, borderColor: `${stageColor}35`, background: `${stageColor}10` }}
                           onClick={(e) => e.stopPropagation()}
-                          onChange={async (e) => { e.stopPropagation(); try { await updateStage.mutateAsync({ id: primaryLead.id, stage: e.target.value, familyId: fg.familyId }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
+                          onChange={(e) => {
+                            e.stopPropagation()
+                            updateStage.mutate(
+                              { id: primaryLead.id, stage: e.target.value, familyId: fg.familyId },
+                              { onError: (err: any) => toast(err.message ?? 'Failed to update stage', 'error') },
+                            )
+                          }}
                         >
                           {(['inquiry', 'contacted', 'scheduled', 'enrolled'] as const)
                             .filter((s) => { const order = ['inquiry', 'contacted', 'scheduled', 'enrolled']; return order.indexOf(s) >= order.indexOf(fg.stage) })
@@ -643,7 +684,12 @@ export default function Leads() {
                       })()}
                     </div>
                   </div>
-                  <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); startTransition(() => { setDetailLead(primaryLead); void aiMatch.runMatch(primaryLead.id, tenantId!) }) }}>
+                  <button className="lead-card-ask-star" onClick={(e) => {
+                    e.stopPropagation()
+                    startTransition(() => { setDetailLead(primaryLead) })
+                    setTimeout(() => { void aiMatch.runMatch(primaryLead.id, tenantId!) }, 0)
+                  }}
+                  >
                     <UserPlus size={13} /><span>{fg.stage === 'lost' ? 'Get Them Back' : 'Find best teacher'}</span>
                   </button>
                 </div>
@@ -679,7 +725,13 @@ export default function Leads() {
                         value={lead.stage}
                         style={{ color: '#22C55E', borderColor: 'rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.1)' }}
                         onClick={(e) => e.stopPropagation()}
-                        onChange={async (e) => { e.stopPropagation(); try { await updateStage.mutateAsync({ id: lead.id, stage: e.target.value }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
+                        onChange={(e) => {
+                          e.stopPropagation()
+                          updateStage.mutate(
+                            { id: lead.id, stage: e.target.value },
+                            { onError: (err: any) => toast(err.message ?? 'Failed to update stage', 'error') },
+                          )
+                        }}
                       >
                         <option value="enrolled">Enrolled</option>
                         <option value="inquiry">New Lead</option>
@@ -692,7 +744,13 @@ export default function Leads() {
                         value={lead.stage}
                         style={{ color: stageColor, borderColor: `${stageColor}35`, background: `${stageColor}10` }}
                         onClick={(e) => e.stopPropagation()}
-                        onChange={async (e) => { e.stopPropagation(); try { await updateStage.mutateAsync({ id: lead.id, stage: e.target.value }) } catch (err: any) { toast(err.message ?? 'Failed to update stage', 'error') } }}
+                        onChange={(e) => {
+                          e.stopPropagation()
+                          updateStage.mutate(
+                            { id: lead.id, stage: e.target.value },
+                            { onError: (err: any) => toast(err.message ?? 'Failed to update stage', 'error') },
+                          )
+                        }}
                       >
                         {(['inquiry', 'contacted', 'scheduled', 'enrolled'] as const)
                           .filter((s) => { const order = ['inquiry', 'contacted', 'scheduled', 'enrolled']; return order.indexOf(s) >= order.indexOf(lead.stage) })
@@ -740,7 +798,12 @@ export default function Leads() {
                     })()}
                   </div>
                 </div>
-                <button className="lead-card-ask-star" onClick={(e) => { e.stopPropagation(); startTransition(() => { setDetailLead(lead); void aiMatch.runMatch(lead.id, tenantId!) }) }}>
+                <button className="lead-card-ask-star" onClick={(e) => {
+                  e.stopPropagation()
+                  startTransition(() => { setDetailLead(lead) })
+                  setTimeout(() => { void aiMatch.runMatch(lead.id, tenantId!) }, 0)
+                }}
+                >
                   <UserPlus size={13} /><span>{lead.stage === 'lost' ? 'Get Them Back' : 'Find best teacher'}</span>
                 </button>
               </div>
@@ -757,7 +820,7 @@ export default function Leads() {
       {detailLead && (
         <LeadDetailModal
           lead={detailLead}
-          siblingLeads={detailLead.family_id ? (leads ?? []).filter(l => l.family_id === detailLead.family_id && l.id !== detailLead.id) : []}
+          siblingLeads={detailSiblingLeads}
           stageColors={STAGE_COLORS}
           stageLabels={STAGE_LABELS}
           nextStage={NEXT_STAGE}
@@ -776,7 +839,9 @@ export default function Leads() {
       )}
 
       {convertLead && (
-        <ConvertLeadModal lead={convertLead} onClose={() => setConvertLead(null)} onConverted={() => { setConvertLead(null); setDetailLead(null) }} />
+        <Suspense fallback={null}>
+          <ConvertLeadModal lead={convertLead} onClose={() => setConvertLead(null)} onConverted={() => { setConvertLead(null); setDetailLead(null) }} />
+        </Suspense>
       )}
 
       {/* Lost Category Modal */}
@@ -833,25 +898,33 @@ export default function Leads() {
         />
       )}
 
-      {/* Master Sheet */}
+      {/* Master Sheet — lazy chunk so opening it does not block main-thread INP */}
       {showMasterSheet && (
-        <DataGrid
-          title="Master Editor — Leads"
-          table="leads"
-          columns={[
-            { key: 'student_name', label: 'Student Name', width: 150 },
-            { key: 'parent_name', label: 'Parent Name', width: 150 },
-            { key: 'stage', label: 'Stage', width: 110, type: 'select', options: ['inquiry', 'contacted', 'scheduled', 'enrolled', 'lost'] },
-            { key: 'source', label: 'Source', width: 120 },
-            { key: 'instrument', label: 'Instrument', width: 130 },
-            { key: 'preferred_days', label: 'Preferred Days', width: 150 },
-            { key: 'notes', label: 'Notes', width: 250 },
-          ]}
-          nameField="student_name"
-          nameRenderer={(row: any) => row.student_name || row.parent_name || 'Unknown'}
-          orderBy="created_at"
-          onClose={() => setShowMasterSheet(false)}
-        />
+        <Suspense
+          fallback={(
+            <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <MusicLoader size={28} />
+            </div>
+          )}
+        >
+          <DataGrid
+            title="Master Editor — Leads"
+            table="leads"
+            columns={[
+              { key: 'student_name', label: 'Student Name', width: 150 },
+              { key: 'parent_name', label: 'Parent Name', width: 150 },
+              { key: 'stage', label: 'Stage', width: 110, type: 'select', options: ['inquiry', 'contacted', 'scheduled', 'enrolled', 'lost'] },
+              { key: 'source', label: 'Source', width: 120 },
+              { key: 'instrument', label: 'Instrument', width: 130 },
+              { key: 'preferred_days', label: 'Preferred Days', width: 150 },
+              { key: 'notes', label: 'Notes', width: 250 },
+            ]}
+            nameField="student_name"
+            nameRenderer={(row: any) => row.student_name || row.parent_name || 'Unknown'}
+            orderBy="created_at"
+            onClose={() => setShowMasterSheet(false)}
+          />
+        </Suspense>
       )}
     </div>
     </IssueContextProvider>
@@ -905,18 +978,17 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
   const personalityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savePersonality = useCallback((value: string) => {
     if (personalityTimer.current) clearTimeout(personalityTimer.current)
-    personalityTimer.current = setTimeout(async () => {
+    personalityTimer.current = setTimeout(() => {
       // Optimistic: update parent state immediately
       onLeadUpdated((prev) => prev ? { ...prev, personality_notes: value || null } : prev)
-      try {
-        await updateLead.mutateAsync({ id: lead.id, personality_notes: value || null })
-      } catch (err: any) {
-        toast(err.message ?? 'Failed to save personality notes', 'error')
-      }
+      updateLead.mutate(
+        { id: lead.id, personality_notes: value || null },
+        { onError: (err: any) => toast(err.message ?? 'Failed to save personality notes', 'error') },
+      )
     }, 800)
   }, [lead.id, updateLead])
 
-  const handleAddNote = async () => {
+  const handleAddNote = () => {
     if (!noteDraft.trim()) return
     const existingNotes = lead.notes ?? ''
     const userName = profile?.first_name ?? 'Unknown'
@@ -928,26 +1000,31 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
     onLeadUpdated((prev) => prev ? { ...prev, notes: updated } : prev)
     setNoteDraft('')
     setShowNoteInput(false)
-    try {
-      await updateLead.mutateAsync({ id: lead.id, notes: updated })
-    } catch (err: any) {
-      onLeadUpdated((prev) => prev ? { ...prev, notes: rollback } : prev)
-      toast(err.message ?? 'Failed to save note', 'error')
-    }
+    updateLead.mutate(
+      { id: lead.id, notes: updated },
+      {
+        onError: (err: any) => {
+          onLeadUpdated((prev) => prev ? { ...prev, notes: rollback } : prev)
+          toast(err.message ?? 'Failed to save note', 'error')
+        },
+      },
+    )
   }
 
   const handleExportLead = () => {
-    const studentName = `${lead.first_name} ${lead.last_name ?? ''}`.trim()
-    const rows = [
-      ['Student Name', 'Parent', 'Email', 'Phone', 'Instrument', 'Location', 'Stage', 'Age', 'Experience', 'Source', 'Created', 'Notes'],
-      [studentName, lead.parent_name ?? '', lead.email ?? '', lead.phone ?? '', lead.instrument ?? '', lead.location_name ?? '', lead.stage, lead.age ?? '', (lead as any).experience ?? '', lead.source ?? '', new Date(lead.created_at).toLocaleString(), (lead.notes ?? '').replace(/\n/g, ' | ')]
-    ]
-    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `lead-${studentName.replace(/\s/g, '-').toLowerCase()}.csv`; a.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => {
+      const studentName = `${lead.first_name} ${lead.last_name ?? ''}`.trim()
+      const rows = [
+        ['Student Name', 'Parent', 'Email', 'Phone', 'Instrument', 'Location', 'Stage', 'Age', 'Experience', 'Source', 'Created', 'Notes'],
+        [studentName, lead.parent_name ?? '', lead.email ?? '', lead.phone ?? '', lead.instrument ?? '', lead.location_name ?? '', lead.stage, lead.age ?? '', (lead as any).experience ?? '', lead.source ?? '', new Date(lead.created_at).toLocaleString(), (lead.notes ?? '').replace(/\n/g, ' | ')]
+      ]
+      const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `lead-${studentName.replace(/\s/g, '-').toLowerCase()}.csv`; a.click()
+      URL.revokeObjectURL(url)
+    }, 0)
   }
 
   return (
@@ -1025,10 +1102,10 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
           {/* Ziro's recommendation — inside scroll container so it doesn't steal fixed space */}
           {canEdit && lead.stage !== 'enrolled' && (
             <div style={{ marginBottom: 16 }}>
-                <div className="lead-star-section" style={lead.stage === 'lost' ? { background: 'rgba(239,68,68,0.03)', borderColor: 'rgba(239,68,68,0.12)' } : undefined}>
+                <div className="lead-ziro-section" style={lead.stage === 'lost' ? { background: 'rgba(239,68,68,0.03)', borderColor: 'rgba(239,68,68,0.12)' } : undefined}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div className="lead-star-icon" style={lead.stage === 'lost' ? { background: 'linear-gradient(135deg, #EF4444, #FF7730)' } : undefined}><Star size={13} /></div>
+                      <div className="lead-ziro-icon" style={lead.stage === 'lost' ? { background: 'linear-gradient(135deg, #EF4444, #FF7730)' } : undefined}><Sparkles size={13} /></div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: lead.stage === 'lost' ? '#EF4444' : '#FFB800' }}>
                         {lead.stage === 'lost' ? "Here's How We Get Them Back" : "Ziro's Recommendation"}
                       </span>
@@ -1046,9 +1123,9 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                   {aiMatch.result && (aiMatch.result.recommendations?.length ?? 0) > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {aiMatch.result.recommendations.map((rec: TeacherMatch, i: number) => (
-                        <div key={rec.teacher_id} className="lead-star-match">
+                        <div key={rec.teacher_id} className="lead-ziro-match">
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                            <span className="lead-star-rank">#{i + 1}</span>
+                            <span className="lead-ziro-rank">#{i + 1}</span>
                             <span style={{ fontSize: 14, fontWeight: 700, color: '#FFFFFF' }}>{rec.teacher_name}</span>
                             <span className={rec.match_score >= 80 ? 'badge-green' : rec.match_score >= 65 ? 'badge-gold' : 'badge-red'} style={{ fontSize: 10 }}>{rec.match_score}%</span>
                           </div>
@@ -1056,7 +1133,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                           {(rec.suggested_slots?.length ?? 0) > 0 && (
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {rec.suggested_slots.slice(0, 3).map((slot: any) => (
-                                <button key={slot.block_id} className="lead-star-slot" onClick={onConvert}>
+                                <button key={slot.block_id} className="lead-ziro-slot" onClick={onConvert}>
                                   {new Date(slot.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                                   {' '}
                                   {(() => { const [h,m] = slot.start.split(':'); const hr = parseInt(h); return `${hr > 12 ? hr-12 : hr}:${m}${hr >= 12 ? 'pm' : 'am'}` })()}
@@ -1075,7 +1152,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                   {aiMatch.result?.recovery_analysis && (
                     <div style={{ marginTop: 12, padding: 14, background: lead.stage === 'lost' ? 'rgba(239,68,68,0.04)' : 'rgba(255,184,0,0.03)', border: `1px solid ${lead.stage === 'lost' ? 'rgba(239,68,68,0.12)' : 'rgba(255,184,0,0.1)'}`, borderRadius: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                        <Star size={11} style={{ color: lead.stage === 'lost' ? '#EF4444' : '#FFB800' }} />
+                        <Sparkles size={11} style={{ color: lead.stage === 'lost' ? '#EF4444' : '#FFB800' }} />
                         <span style={{ fontSize: 11, fontWeight: 700, color: lead.stage === 'lost' ? '#EF4444' : '#FFB800', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                           {lead.stage === 'lost' ? 'Recovery Analysis' : "Ziro's Analysis"}
                         </span>
@@ -1131,7 +1208,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                           disabled={aiMatch.isLoading}
                           style={{ fontSize: 10, padding: '4px 12px' }}
                         >
-                          <Star size={10} /> Find Best Teacher for {sl.first_name}
+                          <Sparkles size={10} /> Find Best Teacher for {sl.first_name}
                         </button>
                       </div>
                     </div>
@@ -1150,7 +1227,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       <span
                         key={day}
                         className={`lead-preferred-day${isSelected ? ' selected' : ''}`}
-                        onClick={async () => {
+                        onClick={() => {
                           if (!canEdit) return
                           const rollback = lead.preferred_days
                           let updated: string[]
@@ -1161,13 +1238,15 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                           }
                           // Optimistic: update UI immediately
                           onLeadUpdated((prev) => prev ? { ...prev, preferred_days: updated } : prev)
-                          try {
-                            await updateLead.mutateAsync({ id: lead.id, preferred_days: updated })
-                          } catch (err: any) {
-                            // Revert on real failure
-                            onLeadUpdated((prev) => prev ? { ...prev, preferred_days: rollback } : prev)
-                            toast(err.message ?? 'Failed to update preferred days', 'error')
-                          }
+                          updateLead.mutate(
+                            { id: lead.id, preferred_days: updated },
+                            {
+                              onError: (err: any) => {
+                                onLeadUpdated((prev) => prev ? { ...prev, preferred_days: rollback } : prev)
+                                toast(err.message ?? 'Failed to update preferred days', 'error')
+                              },
+                            },
+                          )
                         }}
                         style={{ cursor: canEdit ? 'pointer' : 'default' }}
                       >
@@ -1179,9 +1258,9 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
               </div>}
 
               {/* Personality, Learning Style & Goals — editable textarea (solo leads only) */}
-              {!isFamily && <div className="lead-star-section" style={{ background: 'rgba(255,184,0,0.03)' }}>
+              {!isFamily && <div className="lead-ziro-section" style={{ background: 'rgba(255,184,0,0.03)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <Star size={12} style={{ color: '#FFB800' }} />
+                  <Sparkles size={12} style={{ color: '#FFB800' }} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#FFB800', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Personality, Learning Style & Goals</span>
                 </div>
                 {canEdit ? (
@@ -1213,18 +1292,21 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     className="lead-modal-chip-edit"
                     value={lead.instrument ?? ''}
                     autoFocus
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const val = e.target.value
                       const rollback = lead.instrument
                       // Optimistic: update UI immediately
                       onLeadUpdated((prev) => prev ? { ...prev, instrument: val } : prev)
                       setEditInstrument(false)
-                      try {
-                        await updateLead.mutateAsync({ id: lead.id, instrument: val })
-                      } catch (err: any) {
-                        onLeadUpdated((prev) => prev ? { ...prev, instrument: rollback } : prev)
-                        toast(err.message ?? 'Failed to update instrument', 'error')
-                      }
+                      updateLead.mutate(
+                        { id: lead.id, instrument: val },
+                        {
+                          onError: (err: any) => {
+                            onLeadUpdated((prev) => prev ? { ...prev, instrument: rollback } : prev)
+                            toast(err.message ?? 'Failed to update instrument', 'error')
+                          },
+                        },
+                      )
                     }}
                     onBlur={() => setEditInstrument(false)}
                   >
@@ -1245,7 +1327,7 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     className="lead-modal-chip-edit"
                     value={lead.location_id ?? ''}
                     autoFocus
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const val = e.target.value
                       const loc = locations?.find((l) => l.id === val)
                       const rollbackId = lead.location_id
@@ -1253,12 +1335,15 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                       // Optimistic: update UI immediately
                       onLeadUpdated((prev) => prev ? { ...prev, location_id: val, location_name: loc?.name ?? prev.location_name } : prev)
                       setEditLocation(false)
-                      try {
-                        await updateLead.mutateAsync({ id: lead.id, location_id: val })
-                      } catch (err: any) {
-                        onLeadUpdated((prev) => prev ? { ...prev, location_id: rollbackId, location_name: rollbackName } : prev)
-                        toast(err.message ?? 'Failed to update location', 'error')
-                      }
+                      updateLead.mutate(
+                        { id: lead.id, location_id: val },
+                        {
+                          onError: (err: any) => {
+                            onLeadUpdated((prev) => prev ? { ...prev, location_id: rollbackId, location_name: rollbackName } : prev)
+                            toast(err.message ?? 'Failed to update location', 'error')
+                          },
+                        },
+                      )
                     }}
                     onBlur={() => setEditLocation(false)}
                   >
@@ -1355,7 +1440,20 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                     <>
                       <div className="lead-section-label">Recovery</div>
                       <button
-                        onClick={async () => { const rollback = lead.stage; onLeadUpdated((prev) => prev ? { ...prev, stage: 'inquiry' } : prev); try { await updateStage.mutateAsync({ id: lead.id, stage: 'inquiry', familyId: lead.family_id }); toast('Moved back to Active Leads', 'success') } catch (err: any) { onLeadUpdated((prev) => prev ? { ...prev, stage: rollback } : prev); toast(err.message ?? 'Failed to update stage', 'error') } }}
+                        onClick={() => {
+                          const rollback = lead.stage
+                          onLeadUpdated((prev) => prev ? { ...prev, stage: 'inquiry' } : prev)
+                          updateStage.mutate(
+                            { id: lead.id, stage: 'inquiry', familyId: lead.family_id },
+                            {
+                              onSuccess: () => toast('Moved back to Active Leads', 'success'),
+                              onError: (err: any) => {
+                                onLeadUpdated((prev) => prev ? { ...prev, stage: rollback } : prev)
+                                toast(err.message ?? 'Failed to update stage', 'error')
+                              },
+                            },
+                          )
+                        }}
                         disabled={updateStage.isPending}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E', fontSize: 15, fontWeight: 700, cursor: 'pointer', transition: 'all 140ms ease', fontFamily: 'var(--font-body)' }}
                       >
@@ -1379,7 +1477,20 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
                             {forwardStages.map((s) => {
                               const c = stageButtonColors[s]
                               return (
-                                <button key={s} className="lead-stage-btn" onClick={async () => { const rollback = lead.stage; onLeadUpdated((prev) => prev ? { ...prev, stage: s } : prev); try { await updateStage.mutateAsync({ id: lead.id, stage: s, familyId: lead.family_id }); toast(`Stage updated to ${stageLabels[s] ?? s}`, 'success') } catch (err: any) { onLeadUpdated((prev) => prev ? { ...prev, stage: rollback } : prev); toast(err.message ?? 'Failed to update stage', 'error') } }} disabled={updateStage.isPending}
+                                <button key={s} className="lead-stage-btn" onClick={() => {
+                                  const rollback = lead.stage
+                                  onLeadUpdated((prev) => prev ? { ...prev, stage: s } : prev)
+                                  updateStage.mutate(
+                                    { id: lead.id, stage: s, familyId: lead.family_id },
+                                    {
+                                      onSuccess: () => toast(`Stage updated to ${stageLabels[s] ?? s}`, 'success'),
+                                      onError: (err: any) => {
+                                        onLeadUpdated((prev) => prev ? { ...prev, stage: rollback } : prev)
+                                        toast(err.message ?? 'Failed to update stage', 'error')
+                                      },
+                                    },
+                                  )
+                                }} disabled={updateStage.isPending}
                                   style={{ flex: 1, color: c.color, background: c.bg, borderColor: c.border }}>
                                   {stageLabels[s]}{isFamily ? ' Family' : ''}
                                 </button>
@@ -1479,9 +1590,9 @@ function LeadDetailModal({ lead, siblingLeads = [], stageColors, stageLabels, ne
               )}
 
               {/* Personality & Goals — synced with Overview tab via personalityDraft */}
-              <div className="lead-star-section" style={{ background: 'rgba(255,184,0,0.03)' }}>
+              <div className="lead-ziro-section" style={{ background: 'rgba(255,184,0,0.03)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <Star size={12} style={{ color: '#FFB800' }} />
+                  <Sparkles size={12} style={{ color: '#FFB800' }} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#FFB800', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Personality, Learning Style & Goals</span>
                 </div>
                 {canEdit ? (
@@ -1586,40 +1697,53 @@ function AddLeadModal({ tenantId, locations, forcedLocationId, onClose }: { tena
 
   const canSave = firstName.trim().length > 0 && instrument !== ''
 
-  async function handleSave() {
+  function handleSave() {
     if (!canSave) return
-    try {
-      const shared = {
-        tenant_id: tenantId,
-        parent_name: parentName.trim() || undefined,
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-        location_id: locationId || undefined,
-        stage,
-        source,
-        notes: notes.trim() || undefined,
-        is_military: isMilitary,
-      }
-      await createLead.mutateAsync({
+    const shared = {
+      tenant_id: tenantId,
+      parent_name: parentName.trim() || undefined,
+      email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      location_id: locationId || undefined,
+      stage,
+      source,
+      notes: notes.trim() || undefined,
+      is_military: isMilitary,
+    }
+    const secondStudent = hasSecondStudent && firstName2.trim()
+    createLead.mutate(
+      {
         ...shared,
         first_name: firstName.trim(),
         last_name: lastName.trim() || undefined,
         instrument: instrument || undefined,
-      })
-      // Create second student lead under same family info
-      if (hasSecondStudent && firstName2.trim()) {
-        await createLead.mutateAsync({
-          ...shared,
-          first_name: firstName2.trim(),
-          last_name: lastName2.trim() || lastName.trim() || undefined,
-          instrument: instrument2 || undefined,
-        })
-      }
-      toast(hasSecondStudent && firstName2.trim() ? '2 leads added' : 'Lead added', 'success')
-      onClose()
-    } catch {
-      toast('Failed to create lead', 'error')
-    }
+      },
+      {
+        onSuccess: () => {
+          if (secondStudent) {
+            createLead.mutate(
+              {
+                ...shared,
+                first_name: firstName2.trim(),
+                last_name: lastName2.trim() || lastName.trim() || undefined,
+                instrument: instrument2 || undefined,
+              },
+              {
+                onSuccess: () => {
+                  toast('2 leads added', 'success')
+                  onClose()
+                },
+                onError: () => toast('Failed to create lead', 'error'),
+              },
+            )
+          } else {
+            toast('Lead added', 'success')
+            onClose()
+          }
+        },
+        onError: () => toast('Failed to create lead', 'error'),
+      },
+    )
   }
 
   const labelStyle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#A0A0C0', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4 }

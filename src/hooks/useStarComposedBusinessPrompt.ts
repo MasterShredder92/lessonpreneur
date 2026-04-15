@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
-import { appendPageContextToStarPrompt, starPageDisplayName, type StarPageId } from '../star'
+import { appendPageContextToZiroPrompt, ziroPageDisplayName, type ZiroPageId } from '../star'
 import { useZiroGlobalContext, type ZiroGlobalSnapshot } from './useZiroGlobalContext'
 
 const ZIRO_BUSINESS_LOADING_PROMPT =
   '[ZIRO INTERNAL] School snapshot is still loading. Do not use scheduling tools or invent metrics. If the user sends a message, reply only: "School data is still loading — please wait a moment."'
 
-export interface UseStarComposedBusinessPromptOptions {
-  pageId: StarPageId
+export interface UseZiroComposedBusinessPromptOptions {
+  pageId: ZiroPageId
   pageBody?: string | null
   pageDisplayName?: string
   overridePrompt?: string | null
@@ -16,7 +16,10 @@ export interface UseStarComposedBusinessPromptOptions {
   enableGlobalSnapshot?: boolean
 }
 
-export interface StarComposedBusinessPrompt {
+/** @deprecated Use UseZiroComposedBusinessPromptOptions */
+export type UseStarComposedBusinessPromptOptions = UseZiroComposedBusinessPromptOptions
+
+export interface ZiroComposedBusinessPrompt {
   systemPrompt: string
   raw: ZiroGlobalSnapshot['raw']
   billingSnapshot: ZiroGlobalSnapshot['billingSnapshot']
@@ -24,12 +27,15 @@ export interface StarComposedBusinessPrompt {
   globalFetching: boolean
 }
 
+/** @deprecated Use ZiroComposedBusinessPrompt */
+export type StarComposedBusinessPrompt = ZiroComposedBusinessPrompt
+
 /**
  * Layer 1 (global live snapshot) + optional layer 2 (page adapter).
  */
-export function useStarComposedBusinessPrompt(
-  options: UseStarComposedBusinessPromptOptions,
-): StarComposedBusinessPrompt {
+export function useZiroComposedBusinessPrompt(
+  options: UseZiroComposedBusinessPromptOptions,
+): ZiroComposedBusinessPrompt {
   const global = useZiroGlobalContext({ enabled: options.enableGlobalSnapshot ?? true })
 
   return useMemo(() => {
@@ -43,7 +49,6 @@ export function useStarComposedBusinessPrompt(
       }
     }
 
-    // Only gate on initial load — background refetches should not block the prompt.
     if (global.isLoading && !global.data) {
       return {
         systemPrompt: ZIRO_BUSINESS_LOADING_PROMPT,
@@ -58,11 +63,11 @@ export function useStarComposedBusinessPrompt(
       global.data?.summary?.trim() ||
       'Business context unavailable — answer only from what the user tells you.'
 
-    const displayName = options.pageDisplayName ?? starPageDisplayName(options.pageId)
+    const displayName = options.pageDisplayName ?? ziroPageDisplayName(options.pageId)
     const pageBody = options.pageBody?.trim()
     const systemPrompt =
       pageBody && pageBody.length > 0
-        ? appendPageContextToStarPrompt(base, {
+        ? appendPageContextToZiroPrompt(base, {
             pageId: options.pageId,
             displayName,
             body: pageBody,
@@ -87,3 +92,6 @@ export function useStarComposedBusinessPrompt(
     options.enableGlobalSnapshot,
   ])
 }
+
+/** @deprecated Use useZiroComposedBusinessPrompt */
+export const useStarComposedBusinessPrompt = useZiroComposedBusinessPrompt

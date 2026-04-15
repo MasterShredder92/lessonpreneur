@@ -1234,7 +1234,7 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
               <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 24, height: 24, borderRadius: 7, background: 'linear-gradient(135deg, #FFB800, #FF8C00)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 2px 8px rgba(255,184,0,0.3)' }}><Star size={11} /></div>
-                  <span style={{ fontSize: 12, color: '#A0A0C8' }}>{student.bio ? 'Want Star to update this bio?' : 'Want Star to create a bio for this student?'}</span>
+                  <span style={{ fontSize: 12, color: '#A0A0C8' }}>{student.bio ? 'Want Ziro to update this bio?' : 'Want Ziro to create a bio for this student?'}</span>
                 </div>
                 <button
                   className="btn-outline"

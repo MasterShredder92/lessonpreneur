@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { postAiAssistantBusinessOverride, pickAiAssistantAnswerText } from '../../services/aiAssistantClient'
-import { Star, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Sparkles, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────
 
@@ -32,7 +32,7 @@ interface Props {
   heroStats: any
 }
 
-export default function WhatsImportantNow({ data, heroStats }: Props) {
+function WhatsImportantNow({ data, heroStats }: Props) {
   const { tenantId } = useAuthContext()
   const navigate = useNavigate()
   const [insights, setInsights] = useState<Insight[]>([])
@@ -171,7 +171,7 @@ Rules:
           display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
           padding: '0 2px',
         }}>
-          <Star size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <Sparkles size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
           <span style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             What Matters Right Now
           </span>
@@ -208,7 +208,7 @@ Rules:
               gap: 8,
             }}
           >
-            <Star size={16} />
+            <Sparkles size={16} />
             Load Ziro analytics
           </button>
         </div>
@@ -248,8 +248,15 @@ Rules:
   }
   if (!loading && insights.length === 0) return null
 
-  const criticalCount = insights.filter(i => i.priority === 'critical').length
-  const warningCount = insights.filter(i => i.priority === 'warning').length
+  const { criticalCount, warningCount } = useMemo(() => {
+    let critical = 0
+    let warning = 0
+    for (const i of insights) {
+      if (i.priority === 'critical') critical++
+      else if (i.priority === 'warning') warning++
+    }
+    return { criticalCount: critical, warningCount: warning }
+  }, [insights])
   const current = insights[activeIndex]
   const currentConfig = current ? priorityConfig[current.priority] : priorityConfig.info
 
@@ -272,7 +279,7 @@ Rules:
         display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
         padding: '0 2px',
       }}>
-        <Star size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+        <Sparkles size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
         <span style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           What Matters Right Now
         </span>
@@ -332,7 +339,7 @@ Rules:
             animation: 'pulse 1.5s ease-in-out infinite',
           }}>
             <div style={{ textAlign: 'center' }}>
-              <Star size={20} style={{ color: '#f59e0b', marginBottom: 8, opacity: 0.5 }} />
+              <Sparkles size={20} style={{ color: '#f59e0b', marginBottom: 8, opacity: 0.5 }} />
               <div style={{ fontSize: 13, color: '#8080A8' }}>Analyzing your business...</div>
             </div>
           </div>
@@ -443,3 +450,5 @@ Rules:
     </div>
   )
 }
+
+export default memo(WhatsImportantNow)

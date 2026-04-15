@@ -8,7 +8,7 @@
  * Priority waterfall (strict order, never skip):
  *   1. DIRECT    — simple answer, no task run needed
  *   2. SKILL     — repeatable workflow handled by an active skill
- *   3. AGENT     — existing persistent agent attached to Star
+ *   3. AGENT     — existing persistent agent attached to Ziro (orchestrator)
  *   4. TEMP_AGENT — one-off specialist, created only when explicitly necessary
  *
  * Product rules (locked):
@@ -248,7 +248,7 @@ export function classifyIntent(
  *
  * 1. Direct — simple answer, no task run
  * 2. Skill — existing active skill matches
- * 3. Agent — existing Star-attached agent with matching skill
+ * 3. Agent — existing Ziro-attached agent with matching skill
  * 4. Temp Agent — create one-off specialist, retire after
  */
 export async function routeTask(
@@ -262,8 +262,8 @@ export async function routeTask(
       skill: null,
       agent: null,
       explanation: intent.classification === 'skill_proposal'
-        ? 'Handled by Star — skill proposal submitted for review.'
-        : 'Handled by Star — direct response, no delegation needed.',
+        ? 'Handled by Ziro — skill proposal submitted for review.'
+        : 'Handled by Ziro — direct response, no delegation needed.',
       createdTempAgent: false,
     }
   }
@@ -274,7 +274,7 @@ export async function routeTask(
     : null
 
   if (skill) {
-    // Tier 3: Check if a Star-attached agent already owns this skill
+    // Tier 3: Check if a Ziro-attached agent already owns this skill
     const attachedAgent = await findStarAgentForSkill(tenantId, skill.id)
 
     if (attachedAgent) {
@@ -293,7 +293,7 @@ export async function routeTask(
       }
     }
 
-    // No attached agent — use skill directly via Star (Policy P1: skill-first)
+    // No attached agent — use skill directly via Ziro (Policy P1: skill-first)
     return {
       route: 'skill',
       skill,
@@ -325,7 +325,7 @@ export async function routeTask(
     route: 'direct',
     skill: null,
     agent: null,
-    explanation: 'Handled by Star — no matching skill or agent.',
+    explanation: 'Handled by Ziro — no matching skill or agent.',
     createdTempAgent: false,
   }
 }
@@ -353,7 +353,7 @@ export async function matchSkill(
 // ── Agent Lookup ────────────────────────────────────────
 
 /**
- * Find a Star-attached agent that has the given skill attached.
+ * Find a Ziro-attached agent that has the given skill attached.
  *
  * Edge case handling:
  * - Filters out non-active agents (retired/idle won't match)
@@ -410,7 +410,7 @@ async function findStarAgentForSkill(
 }
 
 /**
- * Find a Star-attached agent whose invocation_rules keywords match the intent.
+ * Find a Ziro-attached agent whose invocation_rules keywords match the intent.
  *
  * Edge case handling:
  * - Multiple agents with similar keywords: picks the one with the most keyword matches
@@ -550,7 +550,7 @@ export async function createTempAgent(
     })
   }
 
-  // Attach to Star
+  // Attach to Ziro orchestrator roster (ziro_star_agents)
   await supabase.from('ziro_star_agents').insert({
     tenant_id: tenantId,
     agent_id: agent.id,
@@ -568,7 +568,7 @@ export async function retireTempAgent(tenantId: string, agentId: string): Promis
       .eq('id', agentId)
       .eq('tenant_id', tenantId)
       .eq('lifecycle_type', 'temporary'),
-    // Clean up Star attachment to prevent ghost references
+    // Clean up orchestrator attachment to prevent ghost references
     supabase.from('ziro_star_agents')
       .delete()
       .eq('agent_id', agentId)
@@ -804,8 +804,8 @@ export async function orchestrateFromChat(params: {
         skill: null,
         agent: null,
         explanation: intent.classification === 'skill_proposal'
-          ? 'Handled by Star — skill proposal submitted for review.'
-          : 'Handled by Star — direct response, no delegation needed.',
+          ? 'Handled by Ziro — skill proposal submitted for review.'
+          : 'Handled by Ziro — direct response, no delegation needed.',
         createdTempAgent: false,
       },
     }

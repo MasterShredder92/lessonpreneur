@@ -47,7 +47,7 @@ export const PRICING_TIERS: PricingTier[] = [
       'Financial dashboard',
       'Retention campaigns',
       'Teacher recruitment pipeline',
-      'Star AI assistant',
+      'Ziro AI assistant',
     ],
   },
   {

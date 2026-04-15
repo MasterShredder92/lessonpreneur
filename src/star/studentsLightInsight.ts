@@ -1,5 +1,5 @@
 /**
- * First-click Students Star: minimal PAGE CONTEXT so the edge `system_override` path stays small.
+ * First-click Students (Ziro): minimal PAGE CONTEXT so the edge `system_override` path stays small.
  * Full roster export belongs in follow-up flows, not blocking the initial insight call.
  *
  * Tab counts from `useStudentTabCounts` are tenant-wide; roster sample reflects current filters / director scope.

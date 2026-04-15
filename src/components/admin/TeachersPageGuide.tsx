@@ -42,8 +42,8 @@ const STEPS: GuideStep[] = [
   {
     page: 'detail',
     selector: '[data-tour-id="star-ai-profile"]',
-    title: 'Star AI Profile',
-    body: "This is what Star AI knows about this teacher. It powers the compatibility matching and helps Star recommend the right teacher for each new student inquiry. You can view this to understand how the AI thinks about teacher-student fit. You cannot edit it — Star builds it from real data over time.",
+    title: 'Ziro AI Profile',
+    body: "This is what Ziro knows about this teacher. It powers the compatibility matching and helps Ziro recommend the right teacher for each new student inquiry. You can view this to understand how the AI thinks about teacher-student fit. You cannot edit it — Ziro builds it from real data over time.",
   },
   {
     page: 'detail',

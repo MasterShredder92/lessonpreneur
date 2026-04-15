@@ -1,14 +1,14 @@
 /**
- * Single place for Star user scope: tenant, effective role, and billing location alignment with Dashboard.
+ * Single place for Ziro user scope: tenant, effective role, and billing location alignment with Dashboard.
  */
-export interface StarUserScopeInput {
+export interface ZiroUserScopeInput {
   tenantId: string | null
   effectiveRole: string | null
   isStudioDirector: boolean
   allowedLocationIds: string[]
 }
 
-export interface StarUserScope {
+export interface ZiroUserScope {
   tenantId: string
   effectiveRole: string | null
   allowedLocationIds: string[]
@@ -16,19 +16,19 @@ export interface StarUserScope {
   billingLocationId: string | undefined
 }
 
-export function resolveStarBillingLocationId(
+export function resolveZiroBillingLocationId(
   isStudioDirector: boolean,
   allowedLocationIds: string[],
 ): string | undefined {
   return isStudioDirector && allowedLocationIds.length > 0 ? allowedLocationIds[0] : undefined
 }
 
-export function buildStarUserScope(input: StarUserScopeInput): StarUserScope | null {
+export function buildZiroUserScope(input: ZiroUserScopeInput): ZiroUserScope | null {
   if (!input.tenantId) return null
   return {
     tenantId: input.tenantId,
     effectiveRole: input.effectiveRole,
     allowedLocationIds: input.allowedLocationIds ?? [],
-    billingLocationId: resolveStarBillingLocationId(input.isStudioDirector, input.allowedLocationIds ?? []),
+    billingLocationId: resolveZiroBillingLocationId(input.isStudioDirector, input.allowedLocationIds ?? []),
   }
 }

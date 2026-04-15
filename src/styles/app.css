@@ -292,6 +292,10 @@
   margin-bottom: 6px;
 }
 .login-subtitle { font-size: 13px; color: #A0A0C8; margin-bottom: 28px; }
+.login-brand-logo { width: 72px; height: 72px; border-radius: 16px; display: block; margin: 0 auto 8px; }
+.login-brand-stack { text-align: center; margin-bottom: 12px; }
+.login-brand-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: #64748b; text-transform: uppercase; }
+.login-brand-title { font-size: 15px; font-weight: 800; color: #f1f5f9; margin-top: 4px; }
 .login-form { display: flex; flex-direction: column; gap: 16px; }
 .login-btn { width: 100%; justify-content: center; padding: 11px; font-size: 14px; margin-top: 8px; }
 .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1552,7 +1556,7 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 }
 
 /* Star section */
-.lead-star-section {
+.lead-ziro-section {
   padding: 18px;
   background: rgba(255,184,0,0.03);
   border: 1px solid rgba(255,184,0,0.1);
@@ -1571,7 +1575,7 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 .star-recommendation-scroll::-webkit-scrollbar-thumb { background: rgba(255,184,0,0.15); border-radius: 4px; }
 .star-recommendation-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,184,0,0.3); }
 
-.lead-star-section::before {
+.lead-ziro-section::before {
   content: '';
   position: absolute;
   inset: -1px;
@@ -1586,7 +1590,7 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   padding: 1px;
 }
 
-.lead-star-icon {
+.lead-ziro-icon {
   width: 26px; height: 26px;
   border-radius: 8px;
   background: linear-gradient(135deg, #FFB800, #FF8C00);
@@ -1595,20 +1599,20 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   box-shadow: 0 3px 10px rgba(255,184,0,0.3);
 }
 
-.lead-star-match {
+.lead-ziro-match {
   padding: 14px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 12px;
 }
 
-.lead-star-rank {
+.lead-ziro-rank {
   font-size: 11px;
   font-weight: 700;
   color: #A0A0C8;
 }
 
-.lead-star-slot {
+.lead-ziro-slot {
   padding: 6px 14px;
   border-radius: 9px;
   font-size: 11.5px;
@@ -1620,7 +1624,7 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   transition: all 140ms ease;
 }
 
-.lead-star-slot:hover {
+.lead-ziro-slot:hover {
   background: rgba(34,197,94,0.15);
   transform: translateY(-1px);
 }
@@ -2745,7 +2749,7 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
     -webkit-overflow-scrolling: touch !important;
   }
   /* star-recommendation-scroll moved inside lead-detail-scroll — no separate overrides needed */
-  .lead-star-section {
+  .lead-ziro-section {
     padding: 12px !important;
   }
   .lead-modal-chips {

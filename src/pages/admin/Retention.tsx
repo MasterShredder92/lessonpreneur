@@ -12,7 +12,7 @@ import {
 } from '../../hooks/useRetentionData'
 import { toast } from '../../components/shared/Toast'
 import {
-  Shield, Star, AlertTriangle, Send, X, Heart, Sparkles,
+  Shield, AlertTriangle, Send, X, Heart, Sparkles,
   ArrowRight, TrendingUp, Check, Loader2, Activity, RefreshCw, Zap,
 } from 'lucide-react'
 import { getInstrumentEmoji, instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
@@ -52,10 +52,11 @@ function LocBadge({ name }: { name: string }) {
 function MetricCard({ label, value, color = '#E0E0F4', sub }: { label: string; value: string | number; color?: string; sub?: string }) {
   return (
     <div style={{
-      flex: 1, minWidth: 130, padding: '16px 18px', borderRadius: 14,
+      flex: 1, minWidth: 130, minHeight: 92, padding: '16px 18px', borderRadius: 14,
       background: 'rgba(255,255,255,0.025)',
       border: '1px solid rgba(255,255,255,0.06)',
       position: 'relative', overflow: 'hidden',
+      boxSizing: 'border-box',
     }}>
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 2,
@@ -201,18 +202,18 @@ function RetentionOverview({ locationIds, onEnter }: { locationIds?: string[] | 
           </div>
         </div>
 
-        {/* Metrics preview — stable height vs loaded cards (MetricCard can include subtext) */}
+        {/* Metrics preview — fixed row height so skeleton ↔ data swap does not shift layout */}
         {metrics && !metricsPending ? (
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 32, minHeight: 96 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 32, minHeight: 108 }}>
             <MetricCard label="Active Students" value={metrics.activeStudents} color="#22C55E" />
             <MetricCard label="At-Risk" value={atRiskPending ? '…' : (atRisk?.length ?? 0)} color="#EF4444" />
             <MetricCard label="Avg Months Enrolled" value={metrics.avgMonthsEnrolled} color="#FFB800" sub="per student" />
             <MetricCard label="Cards This Month" value={metrics.valueCardsSentThisMonth} color="#38BDF8" />
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 10, marginBottom: 32, minHeight: 96 }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 32, minHeight: 108 }}>
             {[0, 1, 2, 3].map(i => (
-              <div key={i} style={{ flex: 1, minWidth: 130, minHeight: 92, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }} />
+              <div key={i} style={{ flex: 1, minWidth: 130, height: 92, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', boxSizing: 'border-box' }} />
             ))}
           </div>
         )}
@@ -259,7 +260,7 @@ export default function Retention() {
   const activeTab = (getParam('tab') || 'active') as TabKey
   const setActiveTab = (v: TabKey) => setParam('tab', v === 'active' ? '' : v)
   const { data: userLocations } = useUserLocations()
-  const { role } = useAuthContext()
+  const { role, isLoading: authLoading } = useAuthContext()
   const [guideOpen, setGuideOpen] = useState(false)
   const [entered, setEntered] = useState(false)
   const isStudioDirector = role === 'studio_director'
@@ -271,35 +272,45 @@ export default function Retention() {
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Shield size={20} /> Retention
           </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {entered && (
-              <button
-                onClick={() => setEntered(false)}
-                style={{
-                  padding: '6px 12px', borderRadius: 8, background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#5858A0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  minHeight: 36, whiteSpace: 'nowrap',
-                }}
-              >
-                ← Overview
-              </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, flexShrink: 0 }}>
+            {authLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-hidden>
+                <div style={{ width: 118, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }} />
+                <div style={{ width: 92, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }} />
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }} />
+              </div>
+            ) : (
+              <>
+                {entered && (
+                  <button
+                    onClick={() => setEntered(false)}
+                    style={{
+                      padding: '6px 12px', borderRadius: 8, background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      color: '#5858A0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      minHeight: 36, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ← Overview
+                  </button>
+                )}
+                {isStudioDirector && (
+                  <button
+                    onClick={() => setGuideOpen(true)}
+                    style={{
+                      padding: '6px 12px', borderRadius: 8,
+                      background: 'rgba(255,184,0,0.07)',
+                      border: '1px solid rgba(255,184,0,0.18)',
+                      color: '#FFB800', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      minHeight: 36, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    📖 Guide
+                  </button>
+                )}
+                <ReportIssueButton />
+              </>
             )}
-            {isStudioDirector && (
-              <button
-                onClick={() => setGuideOpen(true)}
-                style={{
-                  padding: '6px 12px', borderRadius: 8,
-                  background: 'rgba(255,184,0,0.07)',
-                  border: '1px solid rgba(255,184,0,0.18)',
-                  color: '#FFB800', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  minHeight: 36, whiteSpace: 'nowrap',
-                }}
-              >
-                📖 Guide
-              </button>
-            )}
-            <ReportIssueButton />
           </div>
         </div>
 
@@ -377,7 +388,7 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
   const { data: valueQueue, isPending: queuePending } = useValueCardQueue(locationIds)
   const generateCard = useGenerateValueCard()
   const sendCard = useSendValueCard()
-  const { data: reviewQueue } = useReviewQueue(locationIds)
+  const { data: reviewQueue, isPending: reviewQueuePending } = useReviewQueue(locationIds)
   const [generatingFor, setGeneratingFor] = useState<string | null>(null)
   const [reviewModalData, setReviewModalData] = useState<{
     familyId: string; familyName: string; parentName: string; locationId: string
@@ -434,17 +445,18 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
           <MetricCard label="Reviews Received" value={metrics.reviewsReceivedThisMonth} color="#A333FF" sub="this month" />
         </div>
       ) : metricsPending ? (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28, minHeight: 78 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28, minHeight: 92 }}>
           {[0, 1, 2, 3, 4].map((i) => (
             <div
               key={i}
               style={{
                 flex: 1,
                 minWidth: 130,
-                height: 78,
+                height: 92,
                 borderRadius: 14,
                 background: 'rgba(255,255,255,0.02)',
                 border: '1px solid rgba(255,255,255,0.04)',
+                boxSizing: 'border-box',
               }}
             />
           ))}
@@ -583,9 +595,21 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
 
       {/* B) Google Review Requests */}
       <div style={{ marginBottom: 32 }}>
-        <SectionHeader title="Ask for a Google Review" count={reviewQueue?.length ?? 0} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(reviewQueue ?? []).slice(0, 10).map((f, idx) => (
+        <SectionHeader title="Ask for a Google Review" count={reviewQueuePending ? undefined : (reviewQueue?.length ?? 0)} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: reviewQueuePending ? 320 : 200 }}>
+          {reviewQueuePending && [0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={`rq-sk-${i}`}
+              style={{
+                height: 72,
+                borderRadius: 14,
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.04)',
+                boxSizing: 'border-box',
+              }}
+            />
+          ))}
+          {!reviewQueuePending && (reviewQueue ?? []).slice(0, 10).map((f, idx) => (
             <div
               key={f.id}
               style={{
@@ -637,13 +661,13 @@ function ActiveRetentionTab({ locationIds }: { locationIds?: string[] | null }) 
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}
               >
-                <Star size={11} />
+                <Sparkles size={11} />
                 {loadingReviewFor === f.id ? 'Loading…' : 'Request Review'}
               </button>
             </div>
           ))}
-          {(reviewQueue ?? []).length === 0 && (
-            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#5050A0', fontSize: 13, background: 'rgba(255,255,255,0.012)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.06)' }}>
+          {!reviewQueuePending && (reviewQueue ?? []).length === 0 && (
+            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#5050A0', fontSize: 13, background: 'rgba(255,255,255,0.012)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.06)', minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
               No families eligible right now.
             </div>
           )}
@@ -884,24 +908,57 @@ function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28, minHeight: 92 }}>
-        <MetricCard label="Total At-Risk" value={atRiskListPending ? '…' : (students?.length ?? 0)} color="#EF4444" />
-        {!atRiskListPending && Object.entries(byLocation).map(([loc, count]) => (
-          <MetricCard key={loc} label={loc} value={count} color={LOC_COLORS[loc] ?? '#8080A8'} />
-        ))}
-        {atRiskListPending && [0, 1, 2].map((i) => (
-          <div key={`sk-${i}`} style={{ flex: 1, minWidth: 130, minHeight: 92, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }} />
-        ))}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 10, maxWidth: 240 }}>
+          <MetricCard label="Total At-Risk" value={atRiskListPending ? '…' : (students?.length ?? 0)} color="#EF4444" />
+        </div>
+        {/* Reserve two rows of metric tiles so location breakdown can wrap without shifting the list below */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 10,
+          minHeight: 204,
+          alignContent: 'flex-start',
+        }}
+        >
+          {atRiskListPending ? (
+            [0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={`sk-${i}`}
+                style={{
+                  flex: '1 1 130px',
+                  maxWidth: 220,
+                  minWidth: 130,
+                  height: 92,
+                  borderRadius: 14,
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.04)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            ))
+          ) : (
+            Object.entries(byLocation).map(([loc, count]) => (
+              <MetricCard key={loc} label={loc} value={count} color={LOC_COLORS[loc] ?? '#8080A8'} />
+            ))
+          )}
+        </div>
       </div>
 
-      {allReasons.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
-          <FilterPill label="All" active={reasonFilter === null} onClick={() => setReasonFilter(null)} color="#EF4444" />
-          {allReasons.map(r => (
-            <FilterPill key={r} label={r} active={reasonFilter === r} onClick={() => setReasonFilter(reasonFilter === r ? null : r)} color="#EF4444" />
-          ))}
-        </div>
-      )}
+      <div style={{ minHeight: 38, marginBottom: allReasons.length > 0 || atRiskListPending ? 20 : 0 }}>
+        {atRiskListPending ? (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={`fp-sk-${i}`} style={{ width: 72, height: 26, borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }} />
+            ))}
+          </div>
+        ) : allReasons.length > 0 ? (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <FilterPill label="All" active={reasonFilter === null} onClick={() => setReasonFilter(null)} color="#EF4444" />
+            {allReasons.map(r => (
+              <FilterPill key={r} label={r} active={reasonFilter === r} onClick={() => setReasonFilter(reasonFilter === r ? null : r)} color="#EF4444" />
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: atRiskListPending ? 200 : undefined }}>
         {atRiskListPending && [0, 1, 2, 3].map((i) => (
@@ -988,8 +1045,8 @@ function AtRiskTab({ locationIds }: { locationIds?: string[] | null }) {
 function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
   const [subTab, setSubTab] = useState<'former' | 'leads'>('former')
   const { data: metrics, isPending: winBackMetricsPending } = useWinBackMetrics(locationIds)
-  const { data: formerStudents } = useFormerStudents(locationIds)
-  const { data: lostLeads } = useLostLeads(locationIds)
+  const { data: formerStudents, isPending: formerStudentsPending } = useFormerStudents(locationIds)
+  const { data: lostLeads, isPending: lostLeadsPending } = useLostLeads(locationIds)
   const navigate = useNavigate()
   const [exitFilter, setExitFilter] = useState<string | null>(null)
 
@@ -1048,16 +1105,36 @@ function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
 
       {subTab === 'former' && (
         <div>
-          {allExitCategories.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-              <FilterPill label="All" active={exitFilter === null} onClick={() => setExitFilter(null)} color="#A333FF" />
-              {allExitCategories.map(cat => (
-                <FilterPill key={cat} label={EXIT_LABELS[cat] ?? cat} active={exitFilter === cat} onClick={() => setExitFilter(exitFilter === cat ? null : cat)} color="#A333FF" />
-              ))}
-            </div>
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filteredFormer.map(s => {
+          <div style={{ minHeight: 38, marginBottom: allExitCategories.length > 0 || formerStudentsPending ? 16 : 0 }}>
+            {formerStudentsPending ? (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={`ex-sk-${i}`} style={{ width: 88, height: 26, borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }} />
+                ))}
+              </div>
+            ) : allExitCategories.length > 0 ? (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <FilterPill label="All" active={exitFilter === null} onClick={() => setExitFilter(null)} color="#A333FF" />
+                {allExitCategories.map(cat => (
+                  <FilterPill key={cat} label={EXIT_LABELS[cat] ?? cat} active={exitFilter === cat} onClick={() => setExitFilter(exitFilter === cat ? null : cat)} color="#A333FF" />
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: formerStudentsPending ? 360 : undefined }}>
+            {formerStudentsPending && [0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={`fs-sk-${i}`}
+                style={{
+                  height: 76,
+                  borderRadius: 14,
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.04)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            ))}
+            {!formerStudentsPending && filteredFormer.map(s => {
               const isTransferred = !!s.transferredTo
               const isDue = s.reactivationDate && new Date(s.reactivationDate) <= new Date()
               return (
@@ -1110,8 +1187,8 @@ function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
                 </div>
               )
             })}
-            {filteredFormer.length === 0 && (
-              <div style={{ padding: '40px 24px', textAlign: 'center', color: '#5050A0', fontSize: 13, background: 'rgba(255,255,255,0.012)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.06)' }}>
+            {!formerStudentsPending && filteredFormer.length === 0 && (
+              <div style={{ padding: '40px 24px', textAlign: 'center', color: '#5050A0', fontSize: 13, background: 'rgba(255,255,255,0.012)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.06)', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
                 {exitFilter ? 'No students match this filter.' : 'No former students.'}
               </div>
             )}
@@ -1120,8 +1197,20 @@ function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
       )}
 
       {subTab === 'leads' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(lostLeads ?? []).map(l => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: lostLeadsPending ? 320 : undefined }}>
+          {lostLeadsPending && [0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={`ll-sk-${i}`}
+              style={{
+                height: 72,
+                borderRadius: 14,
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.04)',
+                boxSizing: 'border-box',
+              }}
+            />
+          ))}
+          {!lostLeadsPending && (lostLeads ?? []).map(l => (
             <div key={l.id} style={{
               padding: '14px 18px', borderRadius: 14,
               background: 'rgba(255,255,255,0.018)',
@@ -1152,8 +1241,8 @@ function WinBackTab({ locationIds }: { locationIds?: string[] | null }) {
               )}
             </div>
           ))}
-          {(lostLeads ?? []).length === 0 && (
-            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#5050A0', fontSize: 13, background: 'rgba(255,255,255,0.012)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.06)' }}>
+          {!lostLeadsPending && (lostLeads ?? []).length === 0 && (
+            <div style={{ padding: '40px 24px', textAlign: 'center', color: '#5050A0', fontSize: 13, background: 'rgba(255,255,255,0.012)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.06)', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
               No lost leads.
             </div>
           )}

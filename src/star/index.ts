@@ -1,23 +1,23 @@
 /**
- * Ziro / Star — unified business AI context layer (Lessonpreneur OS). User-facing name: Ziro.
+ * Ziro Work — unified business AI context layer (Lessonpreneur OS).
  *
- * - **Global context:** `loadStarGlobalContext` + `formatStarPrompt` (live RPC + billing snapshot for role/location scope).
- * - **Page context:** `appendPageContextToStarPrompt` — thin adapters; no duplicate metric definitions here.
- * - **Scope:** `buildStarUserScope` — same rules as Dashboard billing location + `usePermissions` effective role.
+ * - **Global context:** `loadZiroGlobalContext` + `formatZiroPrompt` (live RPC + billing snapshot for role/location scope).
+ * - **Page context:** `appendPageContextToZiroPrompt` — thin adapters; no duplicate metric definitions here.
+ * - **Scope:** `buildZiroUserScope` — same rules as Dashboard billing location + `usePermissions` effective role.
  * - **Routing:** `routeTask` — 4-tier waterfall: direct > skill > agent > temp_agent.
  *
- * **Scheduling Star** (grid + tools) is intentionally separate: `useScheduleStarChat` / `postAiAssistantInteractive`.
+ * **Scheduling tools** (grid + tools) are intentionally separate: `useScheduleStarChat` / `postAiAssistantInteractive`.
  */
-export type { StarPageAttach, StarPageId } from './types'
-export type { StarUserScope, StarUserScopeInput } from './resolveScope'
-export type { StarGlobalContext } from './loadGlobalContext'
+export type { ZiroPageAttach, ZiroPageId } from './types'
+export type { ZiroUserScope, ZiroUserScopeInput } from './resolveScope'
+export type { ZiroGlobalContext } from './loadGlobalContext'
 export {
-  buildStarUserScope,
-  resolveStarBillingLocationId,
+  buildZiroUserScope,
+  resolveZiroBillingLocationId,
 } from './resolveScope'
-export { loadStarGlobalContext } from './loadGlobalContext'
-export { appendPageContextToStarPrompt, starPageDisplayName } from './composePrompt'
-export { buildStudentsPageStarSystemPrompt, buildStarSystemPromptWithPageBody } from './pagePrompts'
+export { loadZiroGlobalContext } from './loadGlobalContext'
+export { appendPageContextToZiroPrompt, ziroPageDisplayName } from './composePrompt'
+export { buildStudentsPageZiroSystemPrompt, buildZiroSystemPromptWithPageBody } from './pagePrompts'
 export {
   buildStudentsLightInsightPageBody,
   STUDENTS_FIRST_INSIGHT_QUESTION,

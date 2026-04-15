@@ -21,6 +21,13 @@ export interface ZiroPageContext {
   scheduleContext?: ScheduleContext | null
   familyId?: string | null
   familyOperatorSummary?: string | null
+  /** Operating surface key from `pageSurfaceRegistry` — set by PageIntelligenceStrip */
+  intelligenceSurfaceKey?: string
+  intelligenceSurfaceTitle?: string
+  intelligenceSummary?: string
+  primaryAgentId?: string | null
+  primaryAgentName?: string | null
+  intelligenceResolution?: 'tenant_binding' | 'heuristic' | 'orchestrator_only'
   [key: string]: unknown
 }
 

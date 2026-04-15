@@ -1,5 +1,5 @@
 /**
- * Hooks for Ziro Agent CRUD, lifecycle management, and Star attachment.
+ * Hooks for Ziro Agent CRUD, lifecycle management, and orchestrator (Ziro) attachment.
  *
  * Agent = focused specialist with a clear purpose and attached skills.
  * Agents are the exception layer — skills are the default reusable unit.
@@ -107,7 +107,7 @@ export function useAgentSkills(agentId: string | null) {
   })
 }
 
-/** Agents attached to Star for this tenant. */
+/** Agents attached to Ziro (orchestrator roster) for this tenant. */
 export function useStarAgents(tenantId: string | null) {
   return useQuery({
     queryKey: qk.agents.starAttached(tenantId),
@@ -220,7 +220,7 @@ export function useRetireAgent() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (agentId: string) => {
-      // Retire agent AND detach from Star to prevent ghost attachments
+      // Retire agent AND detach from orchestrator roster to prevent ghost attachments
       const [retireResult, detachResult] = await Promise.all([
         supabase.from('ziro_agents').update({ status: 'retired', retired_at: new Date().toISOString() }).eq('id', agentId),
         supabase.from('ziro_star_agents').delete().eq('agent_id', agentId),
@@ -342,7 +342,7 @@ export function useDetachSkillFromAgent() {
   })
 }
 
-// ── Star attachment ─────────────────────────────────────
+// ── Orchestrator (Ziro) attachment ──────────────────────
 
 export function useAttachAgentToStar(tenantId: string | null) {
   const qc = useQueryClient()
@@ -437,7 +437,7 @@ export function useCloneAgent(tenantId: string | null) {
   })
 }
 
-// ── Star config ─────────────────────────────────────────
+// ── Ziro orchestrator config ────────────────────────────
 
 export function useStarConfig(tenantId: string | null) {
   return useQuery({

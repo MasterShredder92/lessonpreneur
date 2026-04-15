@@ -1,6 +1,6 @@
 /**
  * Hook for paginated task run history with routing metadata.
- * Shows what Star did: direct, skill, agent, or temp_agent routing.
+ * Shows what Ziro did: direct, skill, agent, or temp_agent routing.
  */
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'

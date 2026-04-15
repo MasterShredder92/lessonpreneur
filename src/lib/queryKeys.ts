@@ -76,6 +76,8 @@ export const qk = {
     all: ['teachers'] as const,
     list: (tenantId: string | null, compensation?: boolean) => ['teachers', tenantId, compensation] as const,
     overview: (tenantId: string | null) => ['teachers-overview', tenantId] as const,
+    /** Minimal id/name roster for schedule — one small query vs full `teachers.list` bundle */
+    scheduleRoster: (tenantId: string | null) => ['teachers', 'schedule-roster', tenantId] as const,
     detail: (id: string) => ['teachers', 'detail', id] as const,
     record: (id: string) => ['teacher_record', id] as const,
     atLocation: (locationId: string) => ['teachers-at-location', locationId] as const,
@@ -180,6 +182,7 @@ export const qk = {
   ziro: {
     context: (tenantId: string | null, role?: string, locationKey?: string, billingKey?: string) =>
       ['ziro-context', tenantId, role ?? 'unknown', locationKey ?? 'none', billingKey ?? 'all'] as const,
+    pageIntelBindings: (tenantId: string | null) => ['ziro-page-intelligence-bindings', tenantId] as const,
   },
   /** @deprecated Use qk.ziro.context — kept for one-off cache reads during migration */
   star: {

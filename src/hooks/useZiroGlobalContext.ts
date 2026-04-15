@@ -2,9 +2,9 @@ import { useMemo } from 'react'
 import { useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query'
 import { useAuthContext } from '../app/AuthContext'
 import { usePermissions } from './usePermissions'
-import { formatStarPrompt, type StarPromptContext } from '../services/starContext'
+import { formatZiroPrompt, type StarPromptContext } from '../services/starContext'
 import type { BillingSnapshotData } from '../services/billingSnapshotQuery'
-import { buildStarUserScope, loadStarGlobalContext, type StarUserScope } from '../star'
+import { buildZiroUserScope, loadZiroGlobalContext, type ZiroUserScope } from '../star'
 import { qk } from '../lib/queryKeys'
 
 /** Global CRM snapshot for Ziro (`get_star_context` RPC + billing merge). */
@@ -36,7 +36,7 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
 
   const scope = useMemo(
     () =>
-      buildStarUserScope({
+      buildZiroUserScope({
         tenantId,
         effectiveRole,
         isStudioDirector,
@@ -65,7 +65,7 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
       }
       try {
         const raw = await Promise.race([
-          loadStarGlobalContext(scope),
+          loadZiroGlobalContext(scope),
           new Promise<null>((_, reject) =>
             setTimeout(() => reject(new Error('Ziro snapshot timed out')), 12_000),
           ),
@@ -73,7 +73,7 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
         if (!raw) {
           return FALLBACK_SNAPSHOT
         }
-        const base = formatStarPrompt(raw, scope.effectiveRole)
+        const base = formatZiroPrompt(raw, scope.effectiveRole)
         const summary = raw.skillsBlock ? `${base}\n\n${raw.skillsBlock}` : base
         return {
           summary,
@@ -91,7 +91,7 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
 /** Prefetch snapshot for explicit user actions without enabling the global hook on mount. */
 export async function ensureZiroGlobalSnapshot(
   qc: ReturnType<typeof useQueryClient>,
-  scope: StarUserScope | null,
+  scope: ZiroUserScope | null,
   queryKey: readonly unknown[],
 ): Promise<ZiroGlobalSnapshot> {
   return qc.fetchQuery({
@@ -100,7 +100,7 @@ export async function ensureZiroGlobalSnapshot(
 }
 
 export function ziroSnapshotQueryOptions(
-  scope: StarUserScope | null,
+  scope: ZiroUserScope | null,
   queryKey: readonly unknown[],
 ): Pick<UseQueryOptions<ZiroGlobalSnapshot>, 'queryKey' | 'queryFn' | 'staleTime'> {
   return {
@@ -110,13 +110,13 @@ export function ziroSnapshotQueryOptions(
       if (!scope) return FALLBACK_SNAPSHOT
       try {
         const raw = await Promise.race([
-          loadStarGlobalContext(scope),
+          loadZiroGlobalContext(scope),
           new Promise<null>((_, reject) =>
             setTimeout(() => reject(new Error('Ziro snapshot timed out')), 12_000),
           ),
         ])
         if (!raw) return FALLBACK_SNAPSHOT
-        const base = formatStarPrompt(raw, scope.effectiveRole)
+        const base = formatZiroPrompt(raw, scope.effectiveRole)
         const summary = raw.skillsBlock ? `${base}\n\n${raw.skillsBlock}` : base
         return {
           summary,

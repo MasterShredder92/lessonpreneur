@@ -60,7 +60,7 @@ export const CASCADE_MAP: Record<string, CascadeSection> = {
     'Stats Cards': ['Revenue card', 'Students card', 'Sessions card', 'Retention card'],
     'Schedule Preview': ["Today's sessions", 'Upcoming sessions'],
     'Alerts': ['Billing alerts', 'Retention alerts', 'Lead alerts'],
-    'AI Insights': ['Star recommendations'],
+    'AI Insights': ['Ziro recommendations'],
   },
   'New Members (Leads)': {
     'Lead List': ['Search/filter bar', 'Lead cards', 'Sort controls'],

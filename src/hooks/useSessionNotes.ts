@@ -130,8 +130,8 @@ export function useUpdateSessionNote() {
   })
 }
 
-// Polish note with Star AI
-export async function polishNoteWithStar(params: {
+// Polish note with Ziro (business assistant)
+export async function polishNoteWithZiro(params: {
   tenantId: string
   studentName: string
   instrument: string | null
@@ -140,7 +140,7 @@ export async function polishNoteWithStar(params: {
   skillsProgressing: string[]
   rawNote: string
 }): Promise<string> {
-  const systemPrompt = `You are Star, the AI assistant for a music school. A teacher just wrote a session note about a student's lesson. Your job is to polish this into a warm, professional, parent-friendly summary. Keep the teacher's key points but make it read like a thoughtful progress update a parent would love to receive.
+  const systemPrompt = `You are Ziro, the AI assistant for a music school. A teacher just wrote a session note about a student's lesson. Your job is to polish this into a warm, professional, parent-friendly summary. Keep the teacher's key points but make it read like a thoughtful progress update a parent would love to receive.
 
 Include:
 - What was worked on (from topics if provided)

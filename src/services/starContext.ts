@@ -4,15 +4,15 @@ import { fetchBillingSnapshotData, type BillingSnapshotData } from './billingSna
 export type { BillingSnapshotData }
 
 /**
- * Low-level RPC + billing merge. Prefer the Star OS entrypoints in `app/src/star/` (`loadStarGlobalContext`,
- * `buildStarUserScope`, `appendPageContextToStarPrompt`) so scope and page layers stay consistent.
+ * Low-level RPC + billing merge. Prefer the Ziro entrypoints in `app/src/star/` (`loadZiroGlobalContext`,
+ * `buildZiroUserScope`, `appendPageContextToZiroPrompt`) so scope and page layers stay consistent.
  *
  * Raw context data from `get_star_context()` RPC — used by StarModal charts (non-billing sections).
  *
  * SECURITY / TRUTH — read before changing callers:
  * - Server-side RPC (`get_star_context`) now enforces auth, role verification, location scoping,
  *   and field zeroing (teacher/director restrictions). Client-side masking below is defense-in-depth.
- * - Billing dollar amounts for Star **must** come from `billing_snapshot` (same queries as dashboard Billing Snapshot).
+ * - Billing dollar amounts for Ziro **must** come from `billing_snapshot` (same queries as dashboard Billing Snapshot).
  * - Backend checklist: `app/docs/STAR_BACKEND_HANDOFF.md`
  */
 export interface StarContextData {
@@ -86,9 +86,9 @@ function formatMoney(cents: number): string {
 }
 
 /**
- * Formats Star prompt context into a system prompt string for the AI.
+ * Formats live business snapshot context into a system prompt string for Ziro.
  */
-export function formatStarPrompt(ctx: StarPromptContext, role?: string | null): string {
+export function formatZiroPrompt(ctx: StarPromptContext, role?: string | null): string {
   const ts = ctx.generated_at ? new Date(ctx.generated_at).toLocaleString() : new Date().toLocaleString()
 
   const roleRestrictions: Record<string, string> = {
@@ -203,5 +203,5 @@ REMINDER: Keep it short. Answer the question, then offer to go deeper — do not
 export async function getStarContext(tenantId: string, role?: string | null): Promise<string> {
   const ctx = await fetchStarContext(tenantId, role)
   if (!ctx) return 'Business context unavailable — answer only from what the user tells you.'
-  return formatStarPrompt(ctx, role)
+  return formatZiroPrompt(ctx, role)
 }

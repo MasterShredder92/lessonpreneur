@@ -16,10 +16,10 @@ interface AttachedAgentSummary {
 }
 
 /**
- * Loads active skills AND Star-attached agents for the tenant, formats them
+ * Loads active skills AND orchestrator-attached agents for the tenant, formats them
  * into a context block appended to Ziro's system prompt.
  *
- * Star uses this to know:
+ * Ziro uses this to know:
  * - What skills it can invoke directly
  * - What agents are attached and what skills they own
  * - Governance rules for execution routing
@@ -76,7 +76,7 @@ SKILL GOVERNANCE:
     })
 
     parts.push(`== ATTACHED AGENTS ==
-${agents.length} agent(s) are attached to Star. When a task matches an agent's specialty, delegate to it.
+${agents.length} agent(s) are attached to you (Ziro) for delegation. When a task matches an agent's specialty, delegate to it.
 Do NOT create new agents unless the user explicitly requests a temporary specialist.
 
 ${agentLines.join('\n')}
@@ -91,7 +91,7 @@ AGENT ROUTING:
   return '\n' + parts.join('\n\n')
 }
 
-/** Load Star-attached agents with their skill names. */
+/** Load orchestrator-attached agents with their skill names. */
 async function loadAttachedAgents(tenantId: string): Promise<AttachedAgentSummary[]> {
   const { data: starAgents, error } = await supabase
     .from('ziro_star_agents')

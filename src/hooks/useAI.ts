@@ -267,7 +267,7 @@ export const useZiroBusinessChat = useStarBusinessChat
 
 /**
  * Schedule page adapter: Star in **scheduling/tools** mode (grid + proposed actions).
- * For school-wide business Q&A, use `useStarGlobalContext` + `useStarComposedBusinessPrompt` or `useStarBusinessChat` with composed prompt.
+ * For school-wide business Q&A, use `useZiroGlobalContext` + `useZiroComposedBusinessPrompt` or `useZiroBusinessChat` with composed prompt.
  */
 export function useScheduleStarChat(
   tenantId: string | null,

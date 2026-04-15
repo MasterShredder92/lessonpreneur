@@ -1,4 +1,5 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import {
@@ -41,7 +42,7 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronUp,
-  Star,
+  Sparkles,
   X,
   Shield,
   Clock,
@@ -51,7 +52,7 @@ import {
   Copy,
 } from 'lucide-react'
 
-type MainTab = 'skills' | 'agents' | 'history' | 'analytics' | 'star'
+type MainTab = 'skills' | 'agents' | 'history' | 'analytics' | 'ziro'
 
 const STATUS_COLORS: Record<string, string> = {
   active: '#22C55E',
@@ -67,7 +68,7 @@ const ROUTE_COLORS: Record<string, string> = {
 }
 
 const ROUTE_LABELS: Record<string, string> = {
-  direct: 'Handled by Star',
+  direct: 'Handled by Ziro',
   skill: 'Used Skill',
   agent: 'Used Agent',
   temp_agent: 'Created Temporary Agent',
@@ -160,7 +161,17 @@ export default function ZiroWorkPage() {
   const { role, tenantId } = useAuthContext()
   const { isOwner } = usePermissions()
   const isAdmin = role === 'owner' || role === 'admin'
-  const [mainTab, setMainTab] = useState<MainTab>('skills')
+  const [searchParams] = useSearchParams()
+  const [mainTab, setMainTab] = useState<MainTab>(() => {
+    const t = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('zwtab') : null
+    if (t === 'skills' || t === 'agents' || t === 'ziro' || t === 'history' || t === 'analytics') return t
+    return 'skills'
+  })
+
+  useEffect(() => {
+    const t = searchParams.get('zwtab')
+    if (t === 'skills' || t === 'agents' || t === 'ziro' || t === 'history' || t === 'analytics') setMainTab(t)
+  }, [searchParams])
 
   if (!isAdmin) {
     return (
@@ -193,7 +204,7 @@ export default function ZiroWorkPage() {
               <span style={{ color: '#22C55E' }}>WORK</span>
             </h1>
             <p style={{ fontSize: 14, color: '#8080A8', marginTop: 6, lineHeight: 1.5 }}>
-              Skills, agents, and task routing — Star's orchestration layer.
+              Skills, agents, and task routing — Ziro orchestration for Ziro Work.
             </p>
           </div>
           <ReportIssueButton />
@@ -204,7 +215,7 @@ export default function ZiroWorkPage() {
           {([
             { key: 'skills', label: 'Skills', icon: <Zap size={15} /> },
             { key: 'agents', label: 'Agents', icon: <Bot size={15} /> },
-            { key: 'star', label: 'Star', icon: <Star size={15} /> },
+            { key: 'ziro', label: 'Ziro Control', icon: <Sparkles size={15} /> },
             { key: 'history', label: 'Task History', icon: <History size={15} /> },
             { key: 'analytics', label: 'Route Analytics', icon: <BarChart3 size={15} /> },
           ] as const).map(t => (
@@ -230,7 +241,7 @@ export default function ZiroWorkPage() {
 
         {mainTab === 'skills' && <SkillsManager embedded />}
         {mainTab === 'agents' && <AgentsTab tenantId={tenantId} isOwner={isOwner} />}
-        {mainTab === 'star' && <StarConfigTab tenantId={tenantId} />}
+        {mainTab === 'ziro' && <ZiroOrchestratorConfigTab tenantId={tenantId} />}
         {mainTab === 'history' && <TaskHistoryTab tenantId={tenantId} />}
         {mainTab === 'analytics' && <RouteAnalyticsTab tenantId={tenantId} />}
       </div>
@@ -239,10 +250,10 @@ export default function ZiroWorkPage() {
 }
 
 // ═══════════════════════════════════════════════════════
-// STAR CONFIG TAB
+// ZIRO ORCHESTRATOR (control center) TAB
 // ═══════════════════════════════════════════════════════
 
-function StarConfigTab({ tenantId }: { tenantId: string | null }) {
+function ZiroOrchestratorConfigTab({ tenantId }: { tenantId: string | null }) {
   const { data: config, isLoading } = useStarConfig(tenantId)
   const upsert = useUpsertStarConfig(tenantId)
   const [instructions, setInstructions] = useState('')
@@ -256,7 +267,7 @@ function StarConfigTab({ tenantId }: { tenantId: string | null }) {
 
   const handleSave = () => {
     upsert.mutate({ instructions: instructions.trim() || null }, {
-      onSuccess: () => { toast('Star config saved', 'success'); setDirty(false) },
+      onSuccess: () => { toast('Ziro configuration saved', 'success'); setDirty(false) },
       onError: (e: any) => toast(e.message, 'error'),
     })
   }
@@ -272,12 +283,12 @@ function StarConfigTab({ tenantId }: { tenantId: string | null }) {
           border: '1px solid rgba(255,184,0,0.2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
-          <Star size={20} style={{ color: '#FFB800' }} />
+          <Sparkles size={20} style={{ color: '#FFB800' }} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4', lineHeight: 1.3 }}>Star Configuration</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4', lineHeight: 1.3 }}>Ziro Control Center</div>
           <div style={{ fontSize: 14, color: '#8080A8', marginTop: 4, lineHeight: 1.5 }}>
-            Global instructions and persona for Star's AI orchestration layer.
+            Global instructions and persona for Ziro — the central orchestrator inside Ziro Work.
           </div>
         </div>
         {dirty && (
@@ -298,11 +309,11 @@ function StarConfigTab({ tenantId }: { tenantId: string | null }) {
           <textarea
             value={instructions}
             onChange={e => { setInstructions(e.target.value); setDirty(true) }}
-            placeholder="Custom instructions appended to Star's system prompt. Guide Star's personality, priorities, and boundaries..."
+            placeholder="Custom instructions appended to Ziro's system prompt. Guide Ziro's personality, priorities, and boundaries..."
             style={{ ...inputStyle, minHeight: 180, resize: 'vertical' }}
           />
           <div style={{ fontSize: 13, color: '#606088', marginTop: 8, lineHeight: 1.5 }}>
-            These instructions are injected into Star's context on every interaction.
+            These instructions are injected into Ziro's context on every interaction.
           </div>
         </div>
 
@@ -333,13 +344,13 @@ function StarConfigTab({ tenantId }: { tenantId: string | null }) {
 
 function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: boolean }) {
   const { data: agents, isLoading } = useAgents(tenantId)
-  const { data: starAgents } = useStarAgents(tenantId)
+  const { data: orchestratorAgents } = useStarAgents(tenantId)
   const { data: skills } = useSkills()
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [editingAgent, setEditingAgent] = useState<ZiroAgent | null>(null)
 
-  const starAgentIds = new Set((starAgents ?? []).map(sa => sa.agent_id))
+  const orchestratorAgentIds = new Set((orchestratorAgents ?? []).map(sa => sa.agent_id))
 
   const activeAgents = (agents ?? []).filter(a => a.status === 'active')
   const idleAgents = (agents ?? []).filter(a => a.status === 'idle')
@@ -387,7 +398,7 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
               key={agent.id}
               agent={agent}
               tenantId={tenantId}
-              isStarAttached={starAgentIds.has(agent.id)}
+              isOrchestratorAttached={orchestratorAgentIds.has(agent.id)}
               isExpanded={expanded === agent.id}
               onToggle={() => setExpanded(expanded === agent.id ? null : agent.id)}
               onEdit={() => setEditingAgent(agent)}
@@ -407,10 +418,10 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
   )
 }
 
-function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEdit, skills }: {
+function AgentCard({ agent, tenantId, isOrchestratorAttached, isExpanded, onToggle, onEdit, skills }: {
   agent: ZiroAgent
   tenantId: string | null
-  isStarAttached: boolean
+  isOrchestratorAttached: boolean
   isExpanded: boolean
   onToggle: () => void
   onEdit: () => void
@@ -461,9 +472,9 @@ function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEd
             <span style={pillStyle(agent.owner_type === 'user' ? '#D4226A' : '#8080A8')}>
               {agent.owner_type === 'user' ? 'USER' : 'SYSTEM'}
             </span>
-            {isStarAttached && (
+            {isOrchestratorAttached && (
               <span style={{ ...pillStyle('#FFB800'), display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                <Star size={9} /> STAR
+                <Sparkles size={9} /> ZIRO
               </span>
             )}
             <span style={pillStyle(agent.auto_use_by_star ? '#22C55E' : '#8080A8')}>
@@ -602,12 +613,12 @@ function AgentCard({ agent, tenantId, isStarAttached, isExpanded, onToggle, onEd
             <ActionBtn icon={<Copy size={13} />} label="Clone" color="#3b82f6"
               onClick={() => cloneAgent.mutate(agent.id, { onSuccess: () => toast('Agent cloned', 'success'), onError: (e: any) => toast(e.message, 'error') })} />
 
-            {isStarAttached ? (
-              <ActionBtn icon={<Unlink size={13} />} label="Detach from Star" color="#FF5500"
-                onClick={() => detachFromStar.mutate(agent.id, { onSuccess: () => toast('Detached from Star', 'success') })} />
+            {isOrchestratorAttached ? (
+              <ActionBtn icon={<Unlink size={13} />} label="Detach from Ziro" color="#FF5500"
+                onClick={() => detachFromStar.mutate(agent.id, { onSuccess: () => toast('Detached from Ziro', 'success') })} />
             ) : agent.status === 'active' ? (
-              <ActionBtn icon={<Star size={13} />} label="Attach to Star" color="#FFB800"
-                onClick={() => attachToStar.mutate(agent.id, { onSuccess: () => toast('Attached to Star', 'success') })} />
+              <ActionBtn icon={<Sparkles size={13} />} label="Attach to Ziro" color="#FFB800"
+                onClick={() => attachToStar.mutate(agent.id, { onSuccess: () => toast('Attached to Ziro', 'success') })} />
             ) : null}
 
             {agent.status === 'active' && (
@@ -813,10 +824,10 @@ function AgentFormModal({ tenantId, agent, onClose }: { tenantId: string | null;
           </div>
 
           <div>
-            <label style={labelStyle}>Star Delegation Mode</label>
+            <label style={labelStyle}>Ziro delegation mode</label>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setAutoUse(true)} style={segBtn(autoUse, '#22C55E')}>
-                Auto — Star delegates automatically
+                Auto — Ziro delegates automatically
               </button>
               <button onClick={() => setAutoUse(false)} style={segBtn(!autoUse, '#8080A8')}>
                 Explicit — User must invoke
@@ -899,7 +910,7 @@ function TaskHistoryTab({ tenantId }: { tenantId: string | null }) {
         <div style={{ textAlign: 'center', padding: 56, color: '#606088' }}>
           <History size={40} style={{ marginBottom: 16, opacity: 0.3 }} />
           <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.4 }}>No task runs yet</div>
-          <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>Task history appears when Star routes actionable work.</div>
+          <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>Task history appears when Ziro routes actionable work.</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -976,7 +987,7 @@ function RouteAnalyticsTab({ tenantId }: { tenantId: string | null }) {
       <div style={{ textAlign: 'center', padding: 56, color: '#606088' }}>
         <BarChart3 size={40} style={{ marginBottom: 16, opacity: 0.3 }} />
         <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.4 }}>No routing data yet</div>
-        <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>Analytics appear after Star routes actionable tasks.</div>
+        <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>Analytics appear after Ziro routes actionable tasks.</div>
       </div>
     )
   }
@@ -991,7 +1002,7 @@ function RouteAnalyticsTab({ tenantId }: { tenantId: string | null }) {
         Route Distribution <span style={{ fontWeight: 400, color: '#606088' }}>(last 90 days, {totalRuns} runs)</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 32 }}>
-        <RouteMetricCard label="Handled by Star" value={distribution.direct} pct={pct(distribution.direct)} color="#8080A8" />
+        <RouteMetricCard label="Handled by Ziro" value={distribution.direct} pct={pct(distribution.direct)} color="#8080A8" />
         <RouteMetricCard label="Used Skill" value={distribution.skill} pct={pct(distribution.skill)} color="#22C55E" />
         <RouteMetricCard label="Used Agent" value={distribution.agent} pct={pct(distribution.agent)} color="#3b82f6" />
         <RouteMetricCard label="Temp Agent" value={distribution.temp_agent} pct={pct(distribution.temp_agent)} color="#FF5500" />

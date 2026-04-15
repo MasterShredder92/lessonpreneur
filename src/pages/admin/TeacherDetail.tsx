@@ -463,14 +463,14 @@ export default function TeacherDetail({ propId, onBack }: { propId?: string; onB
         </div>
       </div>
 
-      {/* Star AI Profile + Quick Actions — side by side (desktop) / stacked (mobile overview) */}
+      {/* Ziro AI Profile + Quick Actions — side by side (desktop) / stacked (mobile overview) */}
       <div className={`td-section td-star-actions-grid td-tab-overview${mobileTab !== 'overview' ? ' td-tab-hidden' : ''}`} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 14 }}>
         <div className="location-card" data-tour-id="star-ai-profile" style={{ padding: 18, cursor: 'default' }}>
           <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #FFB800, #FF8C00)', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={sectionLabelStyle}>Star AI Profile</span>
+              <span style={sectionLabelStyle}>Ziro AI Profile</span>
               <button onClick={() => setShowAiContext(!showAiContext)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#FFB800', fontWeight: 600 }}>{showAiContext ? 'Collapse' : 'View Full Profile →'}</button>
             </div>
             {showAiContext && ai && (

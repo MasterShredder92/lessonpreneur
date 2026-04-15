@@ -60,7 +60,7 @@ export function useUpdateOnboardingProgress() {
 }
 
 /**
- * Generate the Star system prompt for onboarding mode.
+ * Generate the Ziro system prompt for onboarding mode.
  * This replaces the normal business context when the tenant is new.
  */
 export function getOnboardingSystemPrompt(tenantName: string, progress: OnboardingProgress, studentCount: number, teacherCount: number): string {
@@ -75,7 +75,7 @@ export function getOnboardingSystemPrompt(tenantName: string, progress: Onboardi
     `Current step: ${step}`,
   ].join('\n')
 
-  return `You are Star, the AI onboarding assistant for Lessonpreneur. A new music school just signed up and you're helping them get set up. Be warm, encouraging, and practical. Guide them step by step.
+  return `You are Ziro, the AI onboarding assistant for Lessonpreneur. A new music school just signed up and you're helping them get set up. Be warm, encouraging, and practical. Guide them step by step.
 
 Current setup status:
 ${statusLines}

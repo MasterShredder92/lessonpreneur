@@ -1,6 +1,6 @@
-import type { StarPageAttach, StarPageId } from './types'
+import type { ZiroPageAttach, ZiroPageId } from './types'
 
-const PAGE_TITLES: Record<StarPageId, string> = {
+const PAGE_TITLES: Record<ZiroPageId, string> = {
   global_modal: 'Global (Ziro panel)',
   dashboard: 'Dashboard',
   students: 'Students',
@@ -12,15 +12,14 @@ const PAGE_TITLES: Record<StarPageId, string> = {
   lessons: 'Lessons / sessions',
 }
 
-export function starPageDisplayName(pageId: StarPageId): string {
+export function ziroPageDisplayName(pageId: ZiroPageId): string {
   return PAGE_TITLES[pageId] ?? pageId
 }
 
 /**
- * Layer 2: page context after layer 1 global snapshot (`formatStarPrompt` output).
- * Keeps one framing rule for every page-specific Star entrypoint.
+ * Layer 2: page context after layer 1 global snapshot (`formatZiroPrompt` output).
  */
-export function appendPageContextToStarPrompt(globalPrompt: string, page: StarPageAttach): string {
+export function appendPageContextToZiroPrompt(globalPrompt: string, page: ZiroPageAttach): string {
   const body = page.body.trim()
   if (!body) return globalPrompt
 

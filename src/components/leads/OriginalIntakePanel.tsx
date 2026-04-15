@@ -204,7 +204,7 @@ export function OriginalIntakePanel({
 
   return (
     <div
-      className="lead-star-section"
+      className="lead-ziro-section"
       style={{
         background: 'rgba(255,184,0,0.04)',
         border: '1px solid rgba(255,184,0,0.12)',

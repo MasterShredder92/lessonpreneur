@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { X, Sparkles, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
-import { useSaveSessionNote, useUpdateSessionNote, polishNoteWithStar } from '../../hooks/useSessionNotes'
+import { useSaveSessionNote, useUpdateSessionNote, polishNoteWithZiro } from '../../hooks/useSessionNotes'
 import { WORKED_ON_OPTIONS } from '../../hooks/useTeacherSchedule'
 import { toast } from '../shared/Toast'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
@@ -135,7 +135,7 @@ export default function SessionNoteModal({
     if (!rawNote.trim() || !tenantId) return
     setIsPolishing(true)
     try {
-      const result = await polishNoteWithStar({
+      const result = await polishNoteWithZiro({
         tenantId,
         studentName,
         instrument,
@@ -147,7 +147,7 @@ export default function SessionNoteModal({
       setAiEnhancedNote(result)
       setShowAiPreview(true)
     } catch (err: any) {
-      toast(err.message ?? 'Star could not polish the recap', 'error')
+      toast(err.message ?? 'Ziro could not polish the recap', 'error')
     } finally {
       setIsPolishing(false)
     }
@@ -414,7 +414,7 @@ export default function SessionNoteModal({
           <div style={{ fontSize: 10, color: '#606088', textAlign: 'right', marginTop: 4 }}>{rawNote.length}/1000</div>
         </div>
 
-        {/* Star Polish Button */}
+        {/* Ziro polish button */}
         {rawNote.trim().length > 0 && !showAiPreview && (
           <button
             onClick={handlePolish}
@@ -441,12 +441,12 @@ export default function SessionNoteModal({
             {isPolishing ? (
               <>
                 <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                Star is writing...
+                Ziro is writing...
               </>
             ) : (
               <>
                 <Sparkles size={16} />
-                Polish with Star
+                Polish with Ziro
               </>
             )}
           </button>
@@ -520,7 +520,7 @@ export default function SessionNoteModal({
           }}>
             <Sparkles size={12} style={{ color: '#22C55E' }} />
             <span style={{ fontSize: 11, fontWeight: 600, color: '#22C55E' }}>
-              Star-polished version will be sent to parents
+              Ziro-polished version will be sent to parents
             </span>
           </div>
         )}
