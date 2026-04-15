@@ -10,6 +10,56 @@ import { qk } from '../lib/queryKeys'
 import { VAGUE_AGENT_NAMES, findOverlappingAgent } from '../star/orchestrator'
 import { MUSIC_SCHOOL_ZIRO_AGENT_CATALOG } from '../lib/ziro/musicSchoolAgentCatalog'
 
+type MusicSchoolCatalogRow = (typeof MUSIC_SCHOOL_ZIRO_AGENT_CATALOG)[number]
+
+/** Shared DB fields for catalog agents (install + repair). */
+function catalogAgentDefaults(row: MusicSchoolCatalogRow) {
+  return {
+    name: row.name,
+    purpose: row.purpose,
+    role: row.role,
+    instructions: row.instructions,
+    profile_summary: row.profile_summary,
+    usage_triggers: [...row.usage_triggers],
+    auto_use_by_star: row.auto_use_by_star,
+    invocation_rules: { catalog_slug: row.catalog_slug },
+    is_visible_in_ui: true,
+    is_archived: false,
+    business_context: 'music_school' as const,
+  }
+}
+
+/** Idempotent: attach primary catalog skill if missing (`ziro_agent_skills` unique on agent_id, skill_id). */
+async function ensureMusicSchoolCatalogPrimarySkill(
+  tenantId: string,
+  agentId: string,
+  skillKey: string,
+): Promise<void> {
+  const { data: skill, error: skErr } = await supabase
+    .from('ziro_skills')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('key', skillKey)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (skErr) throw skErr
+  if (!skill) {
+    throw new Error(
+      `Missing active skill "${skillKey}" for this tenant — provision system skills before installing catalog agents.`,
+    )
+  }
+  const { error: upErr } = await supabase.from('ziro_agent_skills').upsert(
+    {
+      tenant_id: tenantId,
+      agent_id: agentId,
+      skill_id: skill.id,
+      is_primary: true,
+    },
+    { onConflict: 'agent_id,skill_id', ignoreDuplicates: true },
+  )
+  if (upErr) throw upErr
+}
+
 // ── Types ───────────────────────────────────────────────
 
 export interface ZiroAgent {
@@ -114,12 +164,31 @@ export function useMusicSchoolZiroAgents(tenantId: string | null) {
   })
 }
 
-/** Insert catalog specialists for this tenant if missing (idempotent on invocation_rules.catalog_slug). */
+/**
+ * Insert catalog specialists for this tenant if missing (idempotent on `catalog_slug`),
+ * and ensure each has a primary row in `ziro_agent_skills` (idempotent upsert on agent_id, skill_id).
+ */
 export function useSeedMusicSchoolCatalogAgents(tenantId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
       if (!tenantId) throw new Error('Missing tenant')
+      const requiredKeys = [...new Set(MUSIC_SCHOOL_ZIRO_AGENT_CATALOG.map(r => r.primary_skill_key))]
+      const { data: skillRows, error: preErr } = await supabase
+        .from('ziro_skills')
+        .select('key')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .in('key', requiredKeys)
+      if (preErr) throw preErr
+      const found = new Set((skillRows ?? []).map(s => s.key))
+      const missing = requiredKeys.filter(k => !found.has(k))
+      if (missing.length > 0) {
+        throw new Error(
+          `Cannot install catalog agents: missing active skills: ${missing.join(', ')}. Provision system skills first.`,
+        )
+      }
+
       for (const row of MUSIC_SCHOOL_ZIRO_AGENT_CATALOG) {
         const { data: existing } = await supabase
           .from('ziro_agents')
@@ -127,26 +196,40 @@ export function useSeedMusicSchoolCatalogAgents(tenantId: string | null) {
           .eq('tenant_id', tenantId)
           .contains('invocation_rules', { catalog_slug: row.catalog_slug })
           .maybeSingle()
-        if (existing) continue
-        const { error } = await supabase.from('ziro_agents').insert({
-          tenant_id: tenantId,
-          name: row.name,
-          purpose: row.purpose,
-          status: 'active',
-          owner_type: 'system',
-          lifecycle_type: 'persistent',
-          invocation_rules: { catalog_slug: row.catalog_slug },
-          usage_triggers: [...row.usage_triggers],
-          auto_use_by_star: true,
-          is_visible_in_ui: true,
-          is_archived: false,
-          business_context: 'music_school',
-        })
-        if (error) throw error
+
+        const defaults = catalogAgentDefaults(row)
+        let agentId: string
+        if (existing?.id) {
+          agentId = existing.id
+          const { error: patchErr } = await supabase.from('ziro_agents').update(defaults).eq('id', agentId)
+          if (patchErr) throw patchErr
+        } else {
+          const { data: inserted, error: insErr } = await supabase
+            .from('ziro_agents')
+            .insert({
+              tenant_id: tenantId,
+              status: 'active',
+              owner_type: 'system',
+              lifecycle_type: 'persistent',
+              created_by: null,
+              ...defaults,
+            })
+            .select('id')
+            .single()
+          if (insErr) throw insErr
+          if (!inserted?.id) throw new Error('Catalog agent insert returned no id')
+          agentId = inserted.id
+        }
+
+        await ensureMusicSchoolCatalogPrimarySkill(tenantId, agentId, row.primary_skill_key)
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.agents.all })
+      qc.invalidateQueries({ queryKey: ['ziro-agent-skills'] })
+      if (tenantId) {
+        qc.invalidateQueries({ queryKey: [...qk.agents.list(tenantId), 'music_school_catalog'] })
+      }
     },
   })
 }
@@ -156,6 +239,8 @@ export function useAgentSkills(agentId: string | null) {
   return useQuery({
     queryKey: qk.agents.skills(agentId ?? ''),
     enabled: !!agentId,
+    refetchOnMount: 'always',
+    staleTime: 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ziro_agent_skills')
@@ -391,11 +476,14 @@ export function useAttachSkillToAgent() {
           skill_id: input.skillId,
           is_primary: input.isPrimary ?? false,
         })
+        .select('id')
+        .maybeSingle()
       if (error) throw error
     },
-    onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: qk.agents.skills(v.agentId) })
-      qc.invalidateQueries({ queryKey: qk.agents.all })
+    onSuccess: async (_d, v) => {
+      await qc.invalidateQueries({ queryKey: qk.agents.skills(v.agentId) })
+      await qc.invalidateQueries({ queryKey: qk.agents.all })
+      await qc.refetchQueries({ queryKey: qk.agents.skills(v.agentId) })
     },
   })
 }
@@ -411,9 +499,10 @@ export function useDetachSkillFromAgent() {
         .eq('skill_id', input.skillId)
       if (error) throw error
     },
-    onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: qk.agents.skills(v.agentId) })
-      qc.invalidateQueries({ queryKey: qk.agents.all })
+    onSuccess: async (_d, v) => {
+      await qc.invalidateQueries({ queryKey: qk.agents.skills(v.agentId) })
+      await qc.invalidateQueries({ queryKey: qk.agents.all })
+      await qc.refetchQueries({ queryKey: qk.agents.skills(v.agentId) })
     },
   })
 }

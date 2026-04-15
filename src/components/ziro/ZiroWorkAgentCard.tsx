@@ -286,15 +286,19 @@ export function ZiroWorkAgentCard({
             )}
 
             {showSkillPicker ? (
-              <div style={{ marginTop: 10 }}>
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
                 <select
                   autoFocus
+                  defaultValue=""
                   onChange={e => {
-                    if (!e.target.value || !tenantId) return
+                    const skillId = e.target.value
+                    const el = e.target
+                    if (!skillId || !tenantId) return
                     attachSkill.mutate(
-                      { tenantId, agentId: agent.id, skillId: e.target.value },
+                      { tenantId, agentId: agent.id, skillId },
                       {
                         onSuccess: () => {
+                          el.value = ''
                           toast('Skill attached', 'success')
                           setShowSkillPicker(false)
                         },
@@ -302,8 +306,7 @@ export function ZiroWorkAgentCard({
                       },
                     )
                   }}
-                  onBlur={() => setShowSkillPicker(false)}
-                  style={{ ...inputStyle, fontSize: 13 }}
+                  style={{ ...inputStyle, fontSize: 13, flex: '1 1 220px', minWidth: 0 }}
                 >
                   <option value="">Select a skill...</option>
                   {availableSkills.map(s => (
@@ -312,6 +315,22 @@ export function ZiroWorkAgentCard({
                     </option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  onClick={() => setShowSkillPicker(false)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#A0A0C8',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
             ) : (
               <button
