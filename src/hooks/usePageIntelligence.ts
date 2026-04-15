@@ -1,8 +1,13 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { qk } from '../lib/queryKeys'
-import { resolveOperatingSurface, type ZiroOperatingSurfaceKey } from '../lib/ziro/pageSurfaceRegistry'
+import {
+  CRM_PAGE_INTEL_BINDING_KEYS,
+  getSurfaceByKey,
+  resolveOperatingSurface,
+  type ZiroOperatingSurfaceKey,
+} from '../lib/ziro/pageSurfaceRegistry'
 import type { ZiroAgent } from './useAgents'
 
 export interface ZiroPageIntelligenceBindingRow {
@@ -41,7 +46,7 @@ function tokenizeAgent(agent: ZiroAgent): string {
   return parts.join(' ').toLowerCase()
 }
 
-function scoreAgentForSurface(agent: ZiroAgent, hints: string[]): number {
+export function scoreAgentForSurface(agent: ZiroAgent, hints: string[]): number {
   if (hints.length === 0) return 0
   const blob = tokenizeAgent(agent)
   let score = 0
@@ -51,6 +56,45 @@ function scoreAgentForSurface(agent: ZiroAgent, hints: string[]): number {
   }
   if (agent.status !== 'active') score -= 5
   return score
+}
+
+/**
+ * Pick one active agent per CRM surface using registry match hints; prefers spreading
+ * agents across pages when scores tie. Falls back to round-robin if all scores are 0.
+ */
+export function suggestCrmPageBindingAssignments(agents: ZiroAgent[]): { page_key: string; primary_agent_id: string }[] {
+  const active = agents.filter(a => a.status === 'active')
+  if (active.length === 0) return []
+
+  const assignments: { page_key: string; primary_agent_id: string }[] = []
+  const usageCount = new Map<string, number>()
+
+  for (let i = 0; i < CRM_PAGE_INTEL_BINDING_KEYS.length; i++) {
+    const pageKey = CRM_PAGE_INTEL_BINDING_KEYS[i]
+    const surface = getSurfaceByKey(pageKey)
+    const hints = surface?.agentMatchHints ?? []
+
+    let best: ZiroAgent | null = null
+    let bestScore = -Infinity
+    for (const a of active) {
+      const base = scoreAgentForSurface(a, hints)
+      const used = usageCount.get(a.id) ?? 0
+      const adjusted = base - used * 0.5
+      if (adjusted > bestScore) {
+        bestScore = adjusted
+        best = a
+      }
+    }
+
+    const chosen =
+      best ??
+      active[i % active.length]!
+
+    usageCount.set(chosen.id, (usageCount.get(chosen.id) ?? 0) + 1)
+    assignments.push({ page_key: pageKey, primary_agent_id: chosen.id })
+  }
+
+  return assignments
 }
 
 /** `tenant_binding` = ziro_page_intelligence_bindings.primary_agent_id resolves to an agent. No heuristic fallback for page assignment. */
@@ -135,4 +179,33 @@ export function useResolvedPageIntelligence(
       resolution,
     }
   }, [pathname, agents, bindings])
+}
+
+type UpsertBindingRow = { tenant_id: string; page_key: string; primary_agent_id: string }
+
+/** Upsert CRM page ↔ primary agent rows (tenant RLS). */
+export function useUpsertPageIntelligenceBindings(tenantId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (rows: UpsertBindingRow[]) => {
+      if (!tenantId) throw new Error('Missing tenant')
+      if (rows.length === 0) throw new Error('No binding rows')
+      const { error } = await supabase.from('ziro_page_intelligence_bindings').upsert(rows, {
+        onConflict: 'tenant_id,page_key',
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.ziro.pageIntelBindings(tenantId) })
+    },
+  })
+}
+
+/** Build upsert payload from live agents (see suggestCrmPageBindingAssignments). */
+export function buildCrmPageBindingUpsertRows(tenantId: string, agents: ZiroAgent[]): UpsertBindingRow[] {
+  return suggestCrmPageBindingAssignments(agents).map(r => ({
+    tenant_id: tenantId,
+    page_key: r.page_key,
+    primary_agent_id: r.primary_agent_id,
+  }))
 }

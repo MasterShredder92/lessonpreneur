@@ -26,6 +26,22 @@ export type ZiroOperatingSurfaceKey =
   | 'skills_standalone'
   | 'unknown'
 
+/** CRM surfaces that get `ziro_page_intelligence_bindings.page_key` rows (must match router paths via resolveOperatingSurface). */
+export const CRM_PAGE_INTEL_BINDING_KEYS = [
+  'dashboard',
+  'students',
+  'leads',
+  'schedule',
+  'teachers',
+  'billing',
+] as const satisfies readonly ZiroOperatingSurfaceKey[]
+
+export type CrmPageIntelBindingKey = (typeof CRM_PAGE_INTEL_BINDING_KEYS)[number]
+
+export function getSurfaceByKey(key: ZiroOperatingSurfaceKey): ZiroOperatingSurface | undefined {
+  return SURFACES.find(s => s.key === key)
+}
+
 export type ZiroOperatingSurface = {
   key: ZiroOperatingSurfaceKey
   /** Short label for chrome */

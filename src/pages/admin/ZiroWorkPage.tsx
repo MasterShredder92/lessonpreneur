@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, useMemo, type CSSProperties } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import {
   useAgents,
+  useMusicSchoolZiroAgents,
+  useSeedMusicSchoolCatalogAgents,
   useStarAgents,
   useCreateAgent,
   useUpdateAgent,
@@ -12,6 +14,13 @@ import {
   type ZiroAgent,
 } from '../../hooks/useAgents'
 import { useSkills, type ZiroSkill } from '../../hooks/useSkills'
+import {
+  usePageIntelligenceBindings,
+  buildCrmPageBindingUpsertRows,
+  useUpsertPageIntelligenceBindings,
+} from '../../hooks/usePageIntelligence'
+import { CRM_PAGE_INTEL_BINDING_KEYS, getSurfaceByKey } from '../../lib/ziro/pageSurfaceRegistry'
+import { MUSIC_SCHOOL_ZIRO_AGENT_CATALOG } from '../../lib/ziro/musicSchoolAgentCatalog'
 import { useTaskHistory, type TaskHistoryRow } from '../../hooks/useTaskHistory'
 import { useRouteAnalytics } from '../../hooks/useRouteAnalytics'
 import { toast } from '../../components/shared/Toast'
@@ -160,91 +169,352 @@ export default function ZiroWorkPage() {
 }
 
 // ═══════════════════════════════════════════════════════
-// ZIRO ORCHESTRATOR (control center) TAB
+// ZIRO CONTROL TAB — CRM bindings first; optional global instructions after
 // ═══════════════════════════════════════════════════════
 
 function ZiroOrchestratorConfigTab({ tenantId }: { tenantId: string | null }) {
-  const { data: config, isLoading } = useStarConfig(tenantId)
-  const upsert = useUpsertStarConfig(tenantId)
-  const [instructions, setInstructions] = useState('')
-  const [dirty, setDirty] = useState(false)
-  const [initialized, setInitialized] = useState(false)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <ZiroControlCrmPageAgentSection tenantId={tenantId} />
+      <ZiroControlGlobalOrchestratorInstructions tenantId={tenantId} />
+    </div>
+  )
+}
 
-  if (config && !initialized) {
-    setInstructions(config.instructions ?? '')
-    setInitialized(true)
-  }
+/** Section 1 — CRM page ↔ primary agent (`ziro_page_intelligence_bindings`). */
+function ZiroControlCrmPageAgentSection({ tenantId }: { tenantId: string | null }) {
+  const { data: agents, isLoading: agentsLoading } = useAgents(tenantId)
+  const { data: catalogAgents, isLoading: catalogLoading } = useMusicSchoolZiroAgents(tenantId)
+  const { data: bindings, isLoading: bindingsLoading } = usePageIntelligenceBindings(tenantId)
+  const upsertBindings = useUpsertPageIntelligenceBindings(tenantId)
+  const seedCatalog = useSeedMusicSchoolCatalogAgents(tenantId)
 
-  const handleSave = () => {
-    upsert.mutate({ instructions: instructions.trim() || null }, {
-      onSuccess: () => { toast('Ziro configuration saved', 'success'); setDirty(false) },
-      onError: (e: any) => toast(e.message, 'error'),
+  const activeCatalog = (catalogAgents ?? []).filter(a => a.status === 'active')
+
+  const bindingRows = useMemo(() => {
+    const byKey = new Map((bindings ?? []).map(b => [b.page_key, b]))
+    return CRM_PAGE_INTEL_BINDING_KEYS.map(page_key => {
+      const b = byKey.get(page_key)
+      const agent = agents?.find(a => a.id === b?.primary_agent_id)
+      const surface = getSurfaceByKey(page_key)
+      return {
+        page_key,
+        surfaceTitle: surface?.title ?? page_key,
+        agentName: agent?.name ?? null,
+        hasBinding: !!b?.primary_agent_id,
+      }
+    })
+  }, [bindings, agents])
+
+  const handleInstallCatalog = () => {
+    seedCatalog.mutate(undefined, {
+      onSuccess: () =>
+        toast(
+          `Installed ${MUSIC_SCHOOL_ZIRO_AGENT_CATALOG.length} music-school specialists (if any were missing).`,
+          'success',
+        ),
+      onError: (e: Error) =>
+        toast(e.message ?? 'Install failed — apply DB migration if columns are missing.', 'error'),
     })
   }
 
-  if (isLoading) return <MusicLoader />
+  const handleAssignFromAgents = () => {
+    if (!tenantId) return
+    if (activeCatalog.length === 0) {
+      toast('Install music-school catalog agents first, or activate at least one visible catalog agent.', 'error')
+      return
+    }
+    const payload = buildCrmPageBindingUpsertRows(tenantId, activeCatalog)
+    upsertBindings.mutate(payload, {
+      onSuccess: () => toast('CRM pages linked to catalog agents.', 'success'),
+      onError: (e: Error) => toast(e.message ?? 'Could not save bindings', 'error'),
+    })
+  }
+
+  const loading = agentsLoading || bindingsLoading || catalogLoading
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 12,
-          background: 'linear-gradient(135deg, rgba(255,184,0,0.15), rgba(255,184,0,0.05))',
-          border: '1px solid rgba(255,184,0,0.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <Sparkles size={20} style={{ color: '#FFB800' }} />
+    <section style={{ ...CARD, padding: '22px 24px' }}>
+      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#E0E0F4', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
+        CRM Page Agent Control
+      </h2>
+      <p style={{ margin: '8px 0 0', fontSize: 13, color: '#8080A8', lineHeight: 1.5, maxWidth: 720 }}>
+        Bind each core CRM surface to a primary catalog agent. Data lives in{' '}
+        <code style={{ fontSize: 12, color: '#A0A0C8' }}>ziro_page_intelligence_bindings</code>.
+      </p>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 18 }}>
+        <button
+          type="button"
+          onClick={handleInstallCatalog}
+          disabled={loading || seedCatalog.isPending}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '10px 18px',
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 700,
+            background: 'rgba(34,197,94,0.12)',
+            color: '#86EFAC',
+            border: '1px solid rgba(34,197,94,0.3)',
+            cursor: loading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {seedCatalog.isPending ? 'Installing…' : 'Install music-school specialists'}
+        </button>
+        <button
+          type="button"
+          onClick={handleAssignFromAgents}
+          disabled={loading || upsertBindings.isPending || activeCatalog.length === 0}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '10px 18px',
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 700,
+            background: 'rgba(59,130,246,0.14)',
+            color: '#93C5FD',
+            border: '1px solid rgba(59,130,246,0.35)',
+            cursor: activeCatalog.length === 0 || loading ? 'not-allowed' : 'pointer',
+            opacity: activeCatalog.length === 0 ? 0.5 : 1,
+          }}
+        >
+          {upsertBindings.isPending ? 'Saving…' : 'Assign catalog agents to CRM pages'}
+        </button>
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#606088', letterSpacing: '0.06em', marginBottom: 8 }}>
+          MUSIC-SCHOOL SPECIALIST AGENT CATALOG
         </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4', lineHeight: 1.3 }}>Ziro Control Center</div>
-          <div style={{ fontSize: 14, color: '#8080A8', marginTop: 4, lineHeight: 1.5 }}>
-            Global instructions and persona for Ziro — the central orchestrator inside Ziro Work.
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {loading ? (
+            <span style={{ fontSize: 13, color: '#8080A8' }}>Loading catalog…</span>
+          ) : (catalogAgents ?? []).length === 0 ? (
+            <span style={{ fontSize: 13, color: '#F87171' }}>
+              None loaded — apply the latest Supabase migration, then use Install.
+            </span>
+          ) : (
+            (catalogAgents ?? []).map(a => (
+              <span
+                key={a.id}
+                style={{
+                  ...pillStyle(a.status === 'active' ? '#22C55E' : '#FBBF24'),
+                  border: `1px solid ${a.status === 'active' ? 'rgba(34,197,94,0.35)' : 'rgba(251,191,36,0.35)'}`,
+                }}
+              >
+                {a.name}
+              </span>
+            ))
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: '#606088', marginTop: 6 }}>
+          {catalogAgents?.length ?? 0} of {MUSIC_SCHOOL_ZIRO_AGENT_CATALOG.length} roles in tenant
+        </div>
+      </div>
+
+      <div style={{ marginTop: 22, overflowX: 'auto' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#606088', letterSpacing: '0.06em', marginBottom: 8 }}>
+          CORE CRM PAGES — PRIMARY AGENT
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ color: '#606088', textAlign: 'left' }}>
+              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Core page</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>page_key</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Primary agent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bindingRows.map(r => (
+              <tr key={r.page_key} style={{ color: '#E0E0F4' }}>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{r.surfaceTitle}</td>
+                <td
+                  style={{
+                    padding: '8px 10px',
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    fontFamily: 'ui-monospace, monospace',
+                    fontSize: 12,
+                  }}
+                >
+                  {r.page_key}
+                </td>
+                <td
+                  style={{
+                    padding: '8px 10px',
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    color: r.hasBinding ? '#86EFAC' : '#F87171',
+                  }}
+                >
+                  {r.agentName ?? '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {activeCatalog.length === 0 && !loading && (
+        <div style={{ fontSize: 13, color: '#F87171', marginTop: 14 }}>
+          No <strong style={{ color: '#FDE68A' }}>active</strong> catalog agents — run Install after migration, or activate agents in the Agents tab.
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** Section 2 — optional Ziro star global instructions (collapsed by default). */
+function ZiroControlGlobalOrchestratorInstructions({ tenantId }: { tenantId: string | null }) {
+  const { data: config, isLoading } = useStarConfig(tenantId)
+  const upsert = useUpsertStarConfig(tenantId)
+  const [open, setOpen] = useState(false)
+  const [instructions, setInstructions] = useState('')
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    if (!config || dirty) return
+    setInstructions(config.instructions ?? '')
+  }, [config, dirty])
+
+  const handleSave = () => {
+    upsert.mutate(
+      { instructions: instructions.trim() || null },
+      {
+        onSuccess: () => {
+          toast('Ziro configuration saved', 'success')
+          setDirty(false)
+        },
+        onError: (e: any) => toast(e.message, 'error'),
+      },
+    )
+  }
+
+  const instructionsSummary = dirty
+    ? 'Unsaved changes — expand to edit or save.'
+    : (instructions?.trim()?.length ?? 0) > 0
+      ? 'Saved instructions on file. Expand to edit.'
+      : 'Optional. Expand to add global orchestrator text.'
+
+  return (
+    <section style={{ ...CARD, padding: 0, overflow: 'hidden' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '16px 20px',
+          background: 'rgba(255,255,255,0.02)',
+          borderBottom: open ? '1px solid rgba(255,255,255,0.06)' : 'none',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'block',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#A0A0C8', letterSpacing: '0.06em' }}>
+            Global orchestrator instructions
           </div>
-        </div>
-        {dirty && (
-          <button onClick={handleSave} disabled={upsert.isPending} style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-            background: 'rgba(34,197,94,0.12)', color: '#22C55E',
-            border: '1px solid rgba(34,197,94,0.25)', cursor: 'pointer',
-          }}>
-            {upsert.isPending ? 'Saving...' : 'Save Changes'}
+          <div style={{ fontSize: 13, color: '#606088', marginTop: 4, lineHeight: 1.45 }}>{instructionsSummary}</div>
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {dirty && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={upsert.isPending}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 10,
+                fontSize: 12,
+                fontWeight: 700,
+                background: 'rgba(34,197,94,0.12)',
+                color: '#22C55E',
+                border: '1px solid rgba(34,197,94,0.3)',
+                cursor: upsert.isPending ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {upsert.isPending ? 'Saving…' : 'Save'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen(o => !o)}
+            aria-expanded={open}
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 10,
+              padding: 8,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#8080A8',
+            }}
+          >
+            {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ ...CARD, padding: '20px 24px' }}>
-          <label style={labelStyle}>Global Instructions</label>
-          <textarea
-            value={instructions}
-            onChange={e => { setInstructions(e.target.value); setDirty(true) }}
-            placeholder="Custom instructions appended to Ziro's system prompt. Guide Ziro's personality, priorities, and boundaries..."
-            style={{ ...inputStyle, minHeight: 180, resize: 'vertical' }}
-          />
-          <div style={{ fontSize: 13, color: '#606088', marginTop: 8, lineHeight: 1.5 }}>
-            These instructions are injected into Ziro's context on every interaction.
-          </div>
         </div>
-
-        {config && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div style={{ ...CARD, padding: '18px 22px' }}>
-              <div style={{ ...sectionLabel, marginBottom: 10 }}>Routing Rules</div>
-              <pre style={{ fontSize: 13, color: '#A0A0C8', margin: 0, overflow: 'auto', maxHeight: 120, lineHeight: 1.6 }}>
-                {Object.keys(config.routing_rules).length > 0 ? JSON.stringify(config.routing_rules, null, 2) : 'Default (direct > skill > agent > temp_agent)'}
-              </pre>
-            </div>
-            <div style={{ ...CARD, padding: '18px 22px' }}>
-              <div style={{ ...sectionLabel, marginBottom: 10 }}>Default Skills</div>
-              <div style={{ fontSize: 14, color: '#A0A0C8', lineHeight: 1.5 }}>
-                {config.default_skill_ids.length > 0 ? `${config.default_skill_ids.length} skill(s) pinned` : 'None pinned'}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-    </div>
+
+      {open && (
+        <div style={{ padding: '16px 20px 20px' }}>
+          {isLoading ? (
+            <MusicLoader />
+          ) : (
+            <>
+              <label style={labelStyle}>Global Instructions</label>
+              <textarea
+                value={instructions}
+                onChange={e => {
+                  setInstructions(e.target.value)
+                  setDirty(true)
+                }}
+                placeholder="Custom instructions appended to Ziro's system prompt. Guide Ziro's personality, priorities, and boundaries..."
+                style={{ ...inputStyle, minHeight: 160, resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 12 }}>
+                <div style={{ fontSize: 13, color: '#606088', lineHeight: 1.5 }}>
+                  Injected into Ziro&apos;s context on every interaction.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!dirty || upsert.isPending}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: dirty ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)',
+                    color: dirty ? '#22C55E' : '#606088',
+                    border: dirty ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                    cursor: dirty && !upsert.isPending ? 'pointer' : 'default',
+                  }}
+                >
+                  {upsert.isPending ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </section>
   )
 }
 

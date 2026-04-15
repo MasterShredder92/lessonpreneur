@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { qk } from '../lib/queryKeys'
 import { VAGUE_AGENT_NAMES, findOverlappingAgent } from '../star/orchestrator'
+import { MUSIC_SCHOOL_ZIRO_AGENT_CATALOG } from '../lib/ziro/musicSchoolAgentCatalog'
 
 // ── Types ───────────────────────────────────────────────
 
@@ -30,6 +31,11 @@ export interface ZiroAgent {
   auto_use_by_star: boolean
   profile_summary: string | null
   updated_at: string
+  /** When false, hidden from Ziro Control catalog / CRM binding pickers (e.g. temp agents). */
+  is_visible_in_ui?: boolean
+  is_archived?: boolean
+  /** music_school = catalog specialists; ephemeral = runtime temp agents. */
+  business_context?: string | null
 }
 
 export interface ZiroStarConfig {
@@ -72,11 +78,75 @@ export function useAgents(tenantId: string | null) {
         .from('ziro_agents')
         .select('*')
         .eq('tenant_id', tenantId!)
+        .eq('is_archived', false)
         .order('status')
         .order('name')
         .limit(100)
       if (error) throw error
       return (data ?? []) as ZiroAgent[]
+    },
+  })
+}
+
+/**
+ * Music-school specialist catalog for Ziro Control + CRM page bindings (not ephemeral temp agents).
+ * Requires columns from migration `20260416140000_ziro_agents_visibility_music_school.sql`.
+ */
+export function useMusicSchoolZiroAgents(tenantId: string | null) {
+  return useQuery({
+    queryKey: [...qk.agents.list(tenantId), 'music_school_catalog'],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ziro_agents')
+        .select('*')
+        .eq('tenant_id', tenantId!)
+        .eq('is_visible_in_ui', true)
+        .eq('is_archived', false)
+        .eq('business_context', 'music_school')
+        .in('status', ['active', 'idle'])
+        .order('status')
+        .order('name')
+        .limit(100)
+      if (error) throw error
+      return (data ?? []) as ZiroAgent[]
+    },
+  })
+}
+
+/** Insert catalog specialists for this tenant if missing (idempotent on invocation_rules.catalog_slug). */
+export function useSeedMusicSchoolCatalogAgents(tenantId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error('Missing tenant')
+      for (const row of MUSIC_SCHOOL_ZIRO_AGENT_CATALOG) {
+        const { data: existing } = await supabase
+          .from('ziro_agents')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .contains('invocation_rules', { catalog_slug: row.catalog_slug })
+          .maybeSingle()
+        if (existing) continue
+        const { error } = await supabase.from('ziro_agents').insert({
+          tenant_id: tenantId,
+          name: row.name,
+          purpose: row.purpose,
+          status: 'active',
+          owner_type: 'system',
+          lifecycle_type: 'persistent',
+          invocation_rules: { catalog_slug: row.catalog_slug },
+          usage_triggers: [...row.usage_triggers],
+          auto_use_by_star: true,
+          is_visible_in_ui: true,
+          is_archived: false,
+          business_context: 'music_school',
+        })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.agents.all })
     },
   })
 }
@@ -176,6 +246,9 @@ export function useCreateAgent(tenantId: string | null) {
           usage_triggers: input.usage_triggers ?? [],
           auto_use_by_star: input.auto_use_by_star ?? true,
           profile_summary: input.profile_summary ?? null,
+          is_visible_in_ui: true,
+          is_archived: false,
+          business_context: 'music_school',
         })
         .select()
         .single()
@@ -202,6 +275,9 @@ export function useUpdateAgent() {
       usage_triggers?: string[]
       auto_use_by_star?: boolean
       profile_summary?: string | null
+      is_visible_in_ui?: boolean
+      is_archived?: boolean
+      business_context?: string | null
     }) => {
       const { id, ...updates } = input
       const { error } = await supabase
@@ -390,6 +466,11 @@ export function useCloneAgent(tenantId: string | null) {
         .single()
       if (fetchErr || !source) throw fetchErr ?? new Error('Agent not found')
 
+      const invRaw = (typeof source.invocation_rules === 'object' && source.invocation_rules
+        ? { ...source.invocation_rules }
+        : {}) as Record<string, unknown>
+      delete invRaw.catalog_slug
+
       // Insert clone
       const { data: clone, error: insertErr } = await supabase
         .from('ziro_agents')
@@ -400,12 +481,15 @@ export function useCloneAgent(tenantId: string | null) {
           status: 'active',
           owner_type: 'user',
           lifecycle_type: 'persistent',
-          invocation_rules: source.invocation_rules ?? {},
+          invocation_rules: invRaw,
           role: source.role,
           instructions: source.instructions,
           usage_triggers: source.usage_triggers ?? [],
           auto_use_by_star: source.auto_use_by_star ?? true,
           profile_summary: source.profile_summary,
+          is_visible_in_ui: true,
+          is_archived: false,
+          business_context: 'music_school',
         })
         .select()
         .single()
