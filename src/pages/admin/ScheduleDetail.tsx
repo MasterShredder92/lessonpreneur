@@ -4,7 +4,7 @@ import MusicLoader from '../../components/shared/MusicLoader'
 import { useAuthContext } from '../../app/AuthContext'
 import { useUserLocations } from '../../hooks/useUserLocations'
 import { useLocations } from '../../hooks/useLocations'
-import { useTeacherScheduleRoster } from '../../hooks/useTeachers'
+import { useTeachers } from '../../hooks/useTeachers'
 import { useScheduleGrid, useAssignStudent, useUnassignBlock, useChangeBlockType, useStudentsForAssignment, type GridBlock, type BlockType } from '../../hooks/useScheduleGrid'
 import { useRooms } from '../../hooks/useRooms'
 import { useTeacherRoomAssignmentsForDay, useSetTeacherRoomAssignment, useRemoveTeacherRoomAssignment } from '../../hooks/useTeacherRoomAssignments'
@@ -51,37 +51,6 @@ function toDateString(d: Date) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
-}
-
-/** Matches desktop grid + skeleton min height so first paint → loaded grid does not jump vertically */
-const SCHEDULE_GRID_MIN_HEIGHT = 'calc(100vh - 220px)'
-
-/** Mobile: same outer shell as `MobileSchedule` while RPC is in flight (avoids 0-row → N-row layout jump) */
-function MobileScheduleLoadingShell({ accentColor }: { accentColor: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', flexShrink: 0, gap: 8 }}>
-        <div style={{ flex: 1, height: 34, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: `1px solid ${accentColor}25` }} />
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px 6px', flexShrink: 0, borderBottom: `1px solid ${accentColor}20` }}>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 8 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(255,255,255,0.06)' }} />
-          <div style={{ width: 52, height: 18, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
-          <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(255,255,255,0.06)' }} />
-        </div>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.05)' }} />
-      </div>
-      <div style={{ display: 'flex', gap: 4, overflow: 'hidden', padding: '2px 10px', flexShrink: 0 }}>
-        <div style={{ width: 28, height: 18, borderRadius: 10, background: `${accentColor}40` }} />
-        {[0, 1, 2, 3, 4].map(i => (
-          <div key={i} style={{ width: 44, height: 18, borderRadius: 10, background: 'rgba(255,255,255,0.05)' }} />
-        ))}
-      </div>
-      <div style={{ flex: 1, margin: '6px 10px 12px', borderRadius: 12, border: `1px solid ${accentColor}22`, background: 'rgba(12,11,22,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <MusicLoader />
-      </div>
-    </div>
-  )
 }
 
 const EDGE_COLORS: Record<string, { bg: string; shadow: string; glow: string }> = {
@@ -132,7 +101,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  /** "My sessions" grid filter — must live in component scope (also used in JSX below the grid useMemo). */
+  /** "My sessions" grid filter — component scope (also referenced in JSX outside the grid useMemo). */
   const showMineOnly = viewMode === 'mine' && !!teacherRecord && !isMobile
 
   const { data: locations } = useLocations()
@@ -141,7 +110,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
     if (!userLocIds || userLocIds.length === 0) return raw
     return raw.filter((l: { id: string }) => userLocIds.includes(l.id))
   }, [locations, userLocIds])
-  const { data: allTeachersList } = useTeacherScheduleRoster()
+  const { data: allTeachersList } = useTeachers()
   const { getParam, setParam } = useUrlFilters()
 
   const selectedDate = getParam('date') || toDateString(new Date())
@@ -888,7 +857,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
 
   return (
     <IssueContextProvider page="Schedule">
-    <div className="page" style={{ maxWidth: 'none', minHeight: 'min(92vh, calc(100vh - 120px))' }}>
+    <div className="page" style={{ maxWidth: 'none' }}>
       {/* Unified toolbar — locations | date nav | actions (desktop only) */}
       {!isMobile && <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${locColor}25`, borderRadius: 12, marginBottom: 8, position: 'relative', overflow: 'visible', zIndex: 50, gap: 8, flexWrap: 'wrap' }}>
         {/* Back to overview */}
@@ -1005,36 +974,12 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
         </div>
       </div>}
 
-      {lastDayResult && (
-        <div
-          role="status"
-          style={{
-            position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 999998,
-            maxWidth: 'min(560px, 92vw)', padding: '10px 16px', boxSizing: 'border-box',
-            background: 'rgba(26,24,48,0.98)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12,
-            fontSize: 11, color: '#EF4444', fontWeight: 600, boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
-          }}
-        >
-          {lastDayResult}
-        </div>
-      )}
-      {firstDayResult && (
-        <div
-          role="status"
-          style={{
-            position: 'fixed', bottom: lastDayResult ? 88 : 20, left: '50%', transform: 'translateX(-50%)', zIndex: 999998,
-            maxWidth: 'min(560px, 92vw)', padding: '10px 16px', boxSizing: 'border-box',
-            background: 'rgba(26,24,48,0.98)', border: '1px solid rgba(59,130,246,0.28)', borderRadius: 12,
-            fontSize: 11, color: '#3B82F6', fontWeight: 600, boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
-          }}
-        >
-          {firstDayResult}
-        </div>
-      )}
+      {lastDayResult && <div style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#EF4444' }}>{lastDayResult}</div>}
+      {firstDayResult && <div style={{ padding: '8px 14px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 10, marginBottom: 8, fontSize: 11, color: '#3B82F6' }}>{firstDayResult}</div>}
       {showMineOnly && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6, paddingLeft: 4 }}>Showing your sessions only</div>}
 
-      {/* Schedule Intelligence — utilization bar (desktop only); reserve height for wrapped chips + insights */}
-      <div style={{ minHeight: !isMobile ? 96 : 0 }}>
+      {/* Schedule Intelligence — utilization bar (desktop only); reserve height to avoid CLS */}
+      <div style={{ minHeight: !isMobile ? 30 : 0 }}>
       {!isMobile && scheduleIntel && scheduleIntel.utilization.length > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {scheduleIntel.utilization.map(loc => (
@@ -1060,9 +1005,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
       </div>
 
       {/* Schedule Grid — Premium Column Layout */}
-      {isMobile && isGridPending && !isGridPlaceholder ? (
-        <MobileScheduleLoadingShell accentColor={locColor} />
-      ) : isMobile ? (
+      {isMobile ? (
         <MobileSchedule
           teachers={teachers}
           blocks={blocks}
@@ -1124,7 +1067,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
       ) : isGridPending ? (
         <div
           style={{
-            minHeight: SCHEDULE_GRID_MIN_HEIGHT,
+            minHeight: 'calc(100vh - 220px)',
             borderRadius: 16,
             border: `1px solid ${locColor}20`,
             background: 'rgba(12,11,22,0.95)',
@@ -1169,7 +1112,7 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
           <p style={{ fontSize: 12, color: '#606088', marginTop: 4 }}>Add teachers in Settings to see them here.</p>
         </div>
       ) : (
-        <div ref={gridCallbackRef} data-guide-id="schedule-grid" style={{ overflowX: 'auto', borderRadius: 16, border: `1px solid ${locColor}20`, background: 'rgba(12,11,22,0.95)', position: 'relative', minHeight: SCHEDULE_GRID_MIN_HEIGHT }}>
+        <div ref={gridCallbackRef} data-guide-id="schedule-grid" style={{ overflowX: 'auto', borderRadius: 16, border: `1px solid ${locColor}20`, background: 'rgba(12,11,22,0.95)', position: 'relative' }}>
           {/* Keep the grid mounted during refetch to prevent CLS; show a non-intrusive status chip instead. */}
           {isGridFetching && isGridPlaceholder && (
             <div
@@ -1242,11 +1185,9 @@ export default function ScheduleDetail({ initialLocationId, onBack }: ScheduleDe
                     title={`Mark ${t.name} called out`}
                     style={{ fontSize: 13, fontWeight: 700, color: isSub ? '#22C55E' : '#E0E0F4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}
                   >{t.name}</div>
-                  <div style={{ width: 28, height: 28, marginTop: 4, marginLeft: 'auto', marginRight: 'auto', borderRadius: '50%', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }}>
-                    {(t as any).photo_url ? (
-                      <img src={(t as any).photo_url} alt="" width={28} height={28} loading="lazy" decoding="async" style={{ width: 28, height: 28, display: 'block', objectFit: 'cover' }} />
-                    ) : null}
-                  </div>
+                  {(t as any).photo_url && (
+                    <img src={(t as any).photo_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)', marginTop: 4, display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 2 }}>
                     {isSub && <span style={{ fontSize: 8, padding: '1px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.15)', color: '#22C55E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sub</span>}
                     {/* Room badge — shows daily assignment or "+ Assign Room" tap target */}
