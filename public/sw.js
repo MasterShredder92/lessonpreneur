@@ -1,8 +1,8 @@
-// Lessonpreneur Service Worker v5
+// Lessonpreneur Service Worker v6
 // Network-first. Only cache static assets (JS/CSS/images) as offline fallback.
 // NEVER cache index.html, API calls, or landing page assets.
 
-const CACHE_NAME = 'lessonpreneur-v5'
+const CACHE_NAME = 'lessonpreneur-v6'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
