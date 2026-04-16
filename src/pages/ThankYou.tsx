@@ -12,6 +12,11 @@ import './piano.css'
 import './guitar.css'
 import './vocals.css'
 
+// NOTE: Route-level tracking (page_view) is already handled by useLocationTracking.
+// If we add lead/goal tracking here later, use a dedicated event name like:
+// window.gtag?.('event', 'lead_thankyou_view', { ... });
+// and ensure it's only fired once per successful submission.
+
 // ── After-hours check (Central Time) ──
 function isAfterHoursCST(): boolean {
   const now = new Date()

@@ -10,6 +10,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function jsonError(message: string, code: string, status: number): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: message, code }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
 // ═══════════════════════════════════════
 // ZIRO ACCESS CONTROL — HARD SECURITY BOUNDARY
 // ═══════════════════════════════════════
@@ -42,10 +49,7 @@ async function authorizeZiroCaller(
 ): Promise<ZiroCallerIdentity> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new Response(
-      JSON.stringify({ error: "Authentication required." }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Authentication required.", "auth_required", 401);
   }
 
   // CRITICAL: validate the JWT signature via Supabase auth.getUser().
@@ -53,10 +57,7 @@ async function authorizeZiroCaller(
   const token = authHeader.replace("Bearer ", "");
   const { data: userData, error: userErr } = await sb.auth.getUser(token);
   if (userErr || !userData?.user?.id) {
-    throw new Response(
-      JSON.stringify({ error: "Invalid authentication token." }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Invalid authentication token.", "auth_invalid", 401);
   }
   const profileId = userData.user.id;
 
@@ -68,35 +69,23 @@ async function authorizeZiroCaller(
     .maybeSingle();
 
   if (profErr || !profile) {
-    throw new Response(
-      JSON.stringify({ error: "Profile not found. Access denied." }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Profile not found. Access denied.", "profile_not_found", 403);
   }
 
   const role = String(profile.role ?? "").toLowerCase().trim();
 
   // Hard block forbidden roles BEFORE any data access
   if (ZIRO_FORBIDDEN_ROLES.has(role)) {
-    throw new Response(
-      JSON.stringify({ error: "Ziro is not available for your role." }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Ziro is not available for your role.", "forbidden_role", 403);
   }
 
   if (!ZIRO_ALLOWED_ROLES.has(role)) {
-    throw new Response(
-      JSON.stringify({ error: "Ziro access denied for this role." }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Ziro access denied for this role.", "forbidden_role", 403);
   }
 
   // Verify the requested tenant matches the caller's tenant
   if (requestedTenantId && profile.tenant_id !== requestedTenantId) {
-    throw new Response(
-      JSON.stringify({ error: "Tenant mismatch. Access denied." }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Tenant mismatch. Access denied.", "tenant_mismatch", 403);
   }
 
   // For studio_director, load assigned locations and verify at least one exists
@@ -110,10 +99,7 @@ async function authorizeZiroCaller(
     allowedLocationIds = (locs ?? []).map((l: any) => l.location_id);
     isLocationScoped = true;
     if (allowedLocationIds.length === 0) {
-      throw new Response(
-        JSON.stringify({ error: "Studio director has no assigned locations." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      throw jsonError("Studio director has no assigned locations.", "no_assigned_locations", 403);
     }
   }
 
@@ -129,7 +115,7 @@ async function authorizeZiroCaller(
 // ═══════════════════════════════════════
 // SERVER-SIDE BUSINESS PROMPT BUILDER
 // ═══════════════════════════════════════
-// Mirrors `formatStarPrompt()` from src/services/starContext.ts but runs
+// Mirrors `formatZiroPrompt()` from src/services/ziroContext.ts but runs
 // in the edge function with TRUSTED data fetched server-side via the
 // caller's JWT. The client's `system_override` is IGNORED for sensitive
 // business data — only the server-built prompt is sent to Claude.
@@ -489,7 +475,7 @@ Deno.serve(async (req) => {
 
   try {
     if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonError("ANTHROPIC_API_KEY not configured", "config_missing", 500);
     }
 
     const body = await req.json();
@@ -506,7 +492,7 @@ Deno.serve(async (req) => {
       client_page_context,
     } = body;
     if (!question || !tenant_id) {
-      return new Response(JSON.stringify({ error: "question and tenant_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonError("question and tenant_id required", "bad_request", 400);
     }
 
     const tz = timezone || "America/Chicago";
@@ -536,7 +522,7 @@ Deno.serve(async (req) => {
 
     // ─── BUSINESS PATH: server-side prompt rebuild ──────────
     // The client may send `system_override` but it is IGNORED for sensitive
-    // business data. We rebuild the prompt server-side using `get_star_context`
+    // business data. We rebuild the prompt server-side using `get_ziro_context`
     // called with the user's JWT (RPC enforces role/location filtering).
     if (system_override) {
       // Server-side fetch of business context using the caller's JWT
@@ -545,12 +531,12 @@ Deno.serve(async (req) => {
         global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
       });
 
-      const { data: rpcData, error: rpcErr } = await userScopedSb.rpc("get_star_context", {
+      const { data: rpcData, error: rpcErr } = await userScopedSb.rpc("get_ziro_context", {
         p_tenant_id: caller.tenantId,
       });
 
       if (rpcErr) {
-        console.error("[ai-assistant] get_star_context failed:", rpcErr);
+        console.error("[ai-assistant] get_ziro_context failed:", rpcErr);
         return new Response(
           JSON.stringify({ error: "Failed to load business context. Access may be restricted for your role." }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -626,7 +612,7 @@ Deno.serve(async (req) => {
 
       if (!claudeRes.ok) {
         const errText = await claudeRes.text();
-        return new Response(JSON.stringify({ error: "AI service error — please try again." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return jsonError("AI service error — please try again.", "ai_service_error", 500);
       }
 
       const claudeData = await claudeRes.json();
@@ -804,7 +790,7 @@ ${sibInfo.length > 0 ? `SIBLINGS: ${sibInfo.join("; ")}` : ""}`;
 
     // Slim system prompt — no leads, no stats, just what Star needs for scheduling
     const ctxDate = schedule_context?.date ?? todayStr;
-    const systemPrompt = `You are Star, scheduling assistant for ${tenant?.name ?? "this music school"}. Today is ${today} (${todayStr}). Timezone: ${tz}.
+    const systemPrompt = `You are Ziro, scheduling assistant for ${tenant?.name ?? "this music school"}. Today is ${today} (${todayStr}). Timezone: ${tz}.
 
 Locations: ${locations?.map((l: any) => locMap[l.id]).join(", ")}
 Teachers: ${activeTeachers.map((t: any) => teacherMap[t.id]).join(", ")}
@@ -981,7 +967,7 @@ CANCELLATION RULES:
 
     if (!claudeRes.ok) {
       const errText = await claudeRes.text();
-      return new Response(JSON.stringify({ error: "Claude API error: " + errText }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonError("Claude API error: " + errText, "provider_error", 500);
     }
 
     const claudeData = await claudeRes.json();
@@ -1234,6 +1220,8 @@ CANCELLATION RULES:
       return new Response(JSON.stringify(degradedPayload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const message = err instanceof Error ? err.message : "Internal server error";
+    console.error("[ai-assistant] Unhandled error:", err);
+    return jsonError(message, "internal_error", 500);
   }
 });

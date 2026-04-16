@@ -73,9 +73,20 @@ export async function serverModerateContent(
   try {
     return await safeFetch<{ approved: boolean; severity?: string; reason?: string; word?: string }>(
       EDGE_FUNCTIONS.moderateContent,
-      { body: { content, type } },
+      { body: { content, type }, timeoutMs: 5_000 },
     )
   } catch {
-    return { approved: true } // fail open
+    // Server unavailable — fall back to client-side check (better than no check)
+    const clientCheck = type === 'filename' ? checkFilename(content) : checkNoteText(content)
+    if (!clientCheck.ok) {
+      return {
+        approved: false,
+        severity: 'block',
+        reason: clientCheck.reason,
+        word: (clientCheck as any).word,
+      }
+    }
+    console.warn('[ContentModeration] Server check failed, using client-side fallback')
+    return { approved: true }
   }
 }

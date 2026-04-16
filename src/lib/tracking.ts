@@ -13,10 +13,37 @@ declare global {
     fbq?: (...args: any[]) => void
     ttq?: any
     dataLayer?: any[]
+    __gtagInitedFor?: Set<string>
+    __fbqInitedFor?: Set<string>
+    __ttqLoadedFor?: Set<string>
   }
 }
 
 let currentLocKey: LocKey | null = null
+
+function initGtagOnce(gaId: string) {
+  if (!window.gtag || !gaId) return
+  if (!window.__gtagInitedFor) window.__gtagInitedFor = new Set()
+  if (window.__gtagInitedFor.has(gaId)) return
+  window.__gtagInitedFor.add(gaId)
+  window.gtag('config', gaId, { send_page_view: false })
+}
+
+function initFbqOnce(pixelId: string) {
+  if (!window.fbq || !pixelId) return
+  if (!window.__fbqInitedFor) window.__fbqInitedFor = new Set()
+  if (window.__fbqInitedFor.has(pixelId)) return
+  window.__fbqInitedFor.add(pixelId)
+  window.fbq('init', pixelId)
+}
+
+function loadTtqOnce(pixelId: string) {
+  if (!window.ttq || !pixelId) return
+  if (!window.__ttqLoadedFor) window.__ttqLoadedFor = new Set()
+  if (window.__ttqLoadedFor.has(pixelId)) return
+  window.__ttqLoadedFor.add(pixelId)
+  window.ttq.load(pixelId)
+}
 
 /**
  * Initialize (or re-initialize) all tracking pixels for a given location.
@@ -27,25 +54,9 @@ export function initTracking(locKey: LocKey) {
   currentLocKey = locKey
   const loc = LOCATIONS[locKey]
 
-  // GA4 — re-config with new measurement ID
-  if (window.gtag) {
-    window.gtag('config', loc.ga4, {
-      page_path: window.location.pathname,
-      page_title: loc.fullName,
-    })
-  }
-
-  // Meta Pixel — re-init with new pixel ID
-  if (window.fbq) {
-    window.fbq('init', loc.metaPixel)
-    window.fbq('track', 'PageView')
-  }
-
-  // TikTok Pixel — load with new pixel ID
-  if (window.ttq) {
-    window.ttq.load(loc.tiktokPixel)
-    window.ttq.page()
-  }
+  initGtagOnce(loc.ga4)
+  initFbqOnce(loc.metaPixel)
+  loadTtqOnce(loc.tiktokPixel)
 }
 
 /**
@@ -55,19 +66,21 @@ export function initTracking(locKey: LocKey) {
 export function trackPageView() {
   if (!currentLocKey) return
   const loc = LOCATIONS[currentLocKey]
+  const path = window.location.pathname
+  const title = loc.fullName
 
-  if (window.gtag) {
+  if (window.gtag && loc.ga4) {
     window.gtag('event', 'page_view', {
-      page_path: window.location.pathname,
-      page_title: document.title,
+      page_path: path,
+      page_title: title,
     })
   }
 
-  if (window.fbq) {
+  if (window.fbq && loc.metaPixel) {
     window.fbq('track', 'PageView')
   }
 
-  if (window.ttq) {
+  if (window.ttq && loc.tiktokPixel) {
     window.ttq.page()
   }
 }

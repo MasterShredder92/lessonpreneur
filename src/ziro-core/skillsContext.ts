@@ -94,7 +94,7 @@ AGENT ROUTING:
 /** Load orchestrator-attached agents with their skill names. */
 async function loadAttachedAgents(tenantId: string): Promise<AttachedAgentSummary[]> {
   const { data: starAgents, error } = await supabase
-    .from('ziro_star_agents')
+    .from('ziro_agents')
     .select('agent_id')
     .eq('tenant_id', tenantId)
 

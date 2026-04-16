@@ -103,7 +103,7 @@ async function invokeAiAssistantEdge(
 /**
  * Business path: sends `system_override` → edge uses Claude without scheduling tools.
  * TODO(deploy): Repo has two `ai-assistant` sources; production must match `app/supabase/functions/ai-assistant`.
- * TODO(sql): Snapshot-heavy prompts still assume tenant-wide `get_star_context` until RPC is scoped.
+ * TODO(sql): Snapshot-heavy prompts still assume tenant-wide `get_ziro_context` until RPC is scoped.
  */
 export async function postAiAssistantBusinessOverride(params: {
   tenantId: string

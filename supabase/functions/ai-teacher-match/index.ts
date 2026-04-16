@@ -9,6 +9,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function jsonError(message: string, code: string, status: number): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: message, code }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -16,16 +23,12 @@ Deno.serve(async (req) => {
 
   try {
     if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError("ANTHROPIC_API_KEY not configured", "config_missing", 500);
     }
 
     const { lead_id, tenant_id } = await req.json();
     if (!lead_id || !tenant_id) {
-      return new Response(JSON.stringify({ error: "lead_id and tenant_id required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError("lead_id and tenant_id required", "bad_request", 400);
     }
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -33,9 +36,7 @@ Deno.serve(async (req) => {
     // Get lead data
     const { data: lead, error: leadErr } = await sb.from("leads").select("*").eq("id", lead_id).single();
     if (leadErr || !lead) {
-      return new Response(JSON.stringify({ error: "Lead not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError("Lead not found", "not_found", 404);
     }
 
     // Get all active teachers
@@ -168,9 +169,7 @@ Deno.serve(async (req) => {
 
     if (!claudeRes.ok) {
       const errText = await claudeRes.text();
-      return new Response(JSON.stringify({ error: "Claude API error: " + errText }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError("Claude API error: " + errText, "provider_error", 500);
     }
 
     const claudeData = await claudeRes.json();
@@ -208,8 +207,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const message = err instanceof Error ? err.message : "Internal server error";
+    console.error("[ai-teacher-match] Unhandled error:", err);
+    return jsonError(message, "internal_error", 500);
   }
 });

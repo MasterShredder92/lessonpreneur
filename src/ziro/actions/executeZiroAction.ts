@@ -4,6 +4,8 @@ import { logZiroStructuredAction } from '../../services/aiObservability'
 
 import type { UserRole } from '../../lib/types'
 
+import { supabase } from '../../lib/supabase'
+
 import { executeZiroReassignStudents } from './reassignStudents'
 
 import { executeZiroScheduleMoveSessions } from './scheduleMoveSessions'
@@ -62,7 +64,20 @@ export type ZiroActionResult =
 
 const DEDUPE = new Map<string, number>()
 
-const DEDUPE_MS = 4000
+const DEDUPE_MS = 8_000
+const DEDUPE_CLEANUP_INTERVAL = 60_000
+
+let lastCleanup = Date.now()
+function cleanupDedupe() {
+  const now = Date.now()
+  if (now - lastCleanup < DEDUPE_CLEANUP_INTERVAL) return
+  lastCleanup = now
+  for (const [key, timestamp] of DEDUPE) {
+    if (now - timestamp > DEDUPE_MS * 3) {
+      DEDUPE.delete(key)
+    }
+  }
+}
 
 
 
@@ -89,6 +104,7 @@ export async function executeZiroAction(
   ctx: ZiroActionContext,
 
 ): Promise<ZiroActionResult> {
+  cleanupDedupe()
 
   const key = dedupeKey(input.actionId, input.payload)
 
@@ -122,6 +138,38 @@ export async function executeZiroAction(
   }
 
   DEDUPE.set(key, now)
+
+  // Server-side idempotency (multi-tab / refresh safe)
+  try {
+    const { data: existing } = await supabase
+      .from('ziro_idempotency_keys')
+      .select('id')
+      .eq('key', key)
+      .eq('tenant_id', ctx.tenantId)
+      .maybeSingle()
+
+    if (existing) {
+      const duplicate: ZiroActionResult = {
+        ok: false,
+        code: 'duplicate',
+        message: 'This action was already processed.',
+      }
+
+      void logZiroStructuredAction({
+        ctx,
+        actionId: input.actionId,
+        payload: input.payload,
+        result: duplicate,
+        idempotencyKey: key,
+        conversationId: ctx.conversationId,
+      })
+
+      return duplicate
+    }
+  } catch (e) {
+    // If idempotency table is unavailable due to RLS or transient issues, fall back to in-memory dedupe.
+    console.warn('[executeZiroAction] idempotency check failed, proceeding:', e)
+  }
 
 
 
@@ -235,6 +283,19 @@ export async function executeZiroAction(
     idempotencyKey: key,
     conversationId: ctx.conversationId,
   })
+
+  if (result.ok) {
+    try {
+      await supabase.from('ziro_idempotency_keys').insert({
+        key,
+        tenant_id: ctx.tenantId,
+        action_id: input.actionId,
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.warn('[executeZiroAction] idempotency record insert failed:', e)
+    }
+  }
 
   return result
 

@@ -4,18 +4,18 @@ import { fetchBillingSnapshotData, type BillingSnapshotData } from './billingSna
 export type { BillingSnapshotData }
 
 /**
- * Low-level RPC + billing merge. Prefer the Ziro entrypoints in `app/src/star/` (`loadZiroGlobalContext`,
+ * Low-level RPC + billing merge. Prefer the Ziro entrypoints in `app/src/ziro-core/` (`loadZiroGlobalContext`,
  * `buildZiroUserScope`, `appendPageContextToZiroPrompt`) so scope and page layers stay consistent.
  *
- * Raw context data from `get_star_context()` RPC — used by StarModal charts (non-billing sections).
+ * Raw context data from `get_ziro_context()` RPC — used by Ziro modal/charts (non-billing sections).
  *
  * SECURITY / TRUTH — read before changing callers:
- * - Server-side RPC (`get_star_context`) now enforces auth, role verification, location scoping,
+ * - Server-side RPC (`get_ziro_context`) now enforces auth, role verification, location scoping,
  *   and field zeroing (teacher/director restrictions). Client-side masking below is defense-in-depth.
  * - Billing dollar amounts for Ziro **must** come from `billing_snapshot` (same queries as dashboard Billing Snapshot).
- * - Backend checklist: `app/docs/STAR_BACKEND_HANDOFF.md`
+ * - Backend checklist: `app/docs/ZIRO_BACKEND_HANDOFF.md`
  */
-export interface StarContextData {
+export interface ZiroContextData {
   generated_at: string
   students: { active: number; paused: number; inactive: number; by_location: { location: string; count: number }[]; by_instrument: { instrument: string; count: number }[] }
   families: { total: number; total_overdue_cents: number; families_overdue: number; with_card_on_file: number; no_card_on_file: number; autopay_enabled: number }
@@ -30,24 +30,24 @@ export interface StarContextData {
 }
 
 /** RPC payload + dashboard-parity billing snapshot (not from RPC). */
-export type StarPromptContext = StarContextData & {
+export type ZiroPromptContext = ZiroContextData & {
   billing_snapshot: BillingSnapshotData | null
 }
 
-export interface FetchStarContextOptions {
+export interface FetchZiroContextOptions {
   /** When set (e.g. studio director’s first assigned location), matches `useBillingSnapshot(locationId)`. Omit for all-location aggregate. */
   billingLocationId?: string
 }
 
 /**
- * Fetches the raw JSONB from get_star_context() RPC and merges Billing Snapshot data (same path as dashboard).
+ * Fetches the raw JSONB from get_ziro_context() RPC and merges Billing Snapshot data (same path as dashboard).
  */
-export async function fetchStarContext(
+export async function fetchZiroContext(
   tenantId: string,
   role?: string | null,
-  options?: FetchStarContextOptions,
-): Promise<StarPromptContext | null> {
-  const { data, error } = await supabase.rpc('get_star_context', {
+  options?: FetchZiroContextOptions,
+): Promise<ZiroPromptContext | null> {
+  const { data, error } = await supabase.rpc('get_ziro_context', {
     p_tenant_id: tenantId,
   })
 
@@ -56,7 +56,7 @@ export async function fetchStarContext(
     return null
   }
 
-  const ctx = data as StarContextData
+  const ctx = data as ZiroContextData
 
   const canSeeBilling =
     role !== 'teacher' && role !== 'parent' && role !== 'student'
@@ -88,7 +88,7 @@ function formatMoney(cents: number): string {
 /**
  * Formats live business snapshot context into a system prompt string for Ziro.
  */
-export function formatZiroPrompt(ctx: StarPromptContext, role?: string | null): string {
+export function formatZiroPrompt(ctx: ZiroPromptContext, role?: string | null): string {
   const ts = ctx.generated_at ? new Date(ctx.generated_at).toLocaleString() : new Date().toLocaleString()
 
   const roleRestrictions: Record<string, string> = {
@@ -200,8 +200,8 @@ REMINDER: Keep it short. Answer the question, then offer to go deeper — do not
 }
 
 // Legacy compat — used by old callers
-export async function getStarContext(tenantId: string, role?: string | null): Promise<string> {
-  const ctx = await fetchStarContext(tenantId, role)
+export async function getZiroContext(tenantId: string, role?: string | null): Promise<string> {
+  const ctx = await fetchZiroContext(tenantId, role)
   if (!ctx) return 'Business context unavailable — answer only from what the user tells you.'
   return formatZiroPrompt(ctx, role)
 }

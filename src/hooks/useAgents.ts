@@ -7,7 +7,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { qk } from '../lib/queryKeys'
-import { VAGUE_AGENT_NAMES, findOverlappingAgent } from '../star/orchestrator'
+import { VAGUE_AGENT_NAMES, findOverlappingAgent } from '../ziro-core/orchestrator'
 import { MUSIC_SCHOOL_ZIRO_AGENT_CATALOG } from '../lib/ziro/musicSchoolAgentCatalog'
 
 type MusicSchoolCatalogRow = (typeof MUSIC_SCHOOL_ZIRO_AGENT_CATALOG)[number]
@@ -269,7 +269,7 @@ export function useStarAgents(tenantId: string | null) {
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('ziro_star_agents')
+        .from('ziro_agents')
         .select('id, tenant_id, agent_id, attached_at')
         .eq('tenant_id', tenantId!)
         .limit(50)
@@ -384,7 +384,7 @@ export function useRetireAgent() {
       // Retire agent AND detach from orchestrator roster to prevent ghost attachments
       const [retireResult, detachResult] = await Promise.all([
         supabase.from('ziro_agents').update({ status: 'retired', retired_at: new Date().toISOString() }).eq('id', agentId),
-        supabase.from('ziro_star_agents').delete().eq('agent_id', agentId),
+        supabase.from('ziro_agents').delete().eq('agent_id', agentId),
       ])
       if (retireResult.error) throw retireResult.error
       // detach failure is non-fatal (agent may not be attached)
@@ -449,7 +449,7 @@ export function useDeleteAgent() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (agentId: string) => {
-      // Cascade handles agent_skills and star_agents
+      // Cascade handles agent_skills and ziro_agents
       const { error } = await supabase
         .from('ziro_agents')
         .delete()
@@ -514,7 +514,7 @@ export function useAttachAgentToStar(tenantId: string | null) {
   return useMutation({
     mutationFn: async (agentId: string) => {
       const { error } = await supabase
-        .from('ziro_star_agents')
+        .from('ziro_agents')
         .insert({ tenant_id: tenantId!, agent_id: agentId })
       if (error) throw error
     },
@@ -529,7 +529,7 @@ export function useDetachAgentFromStar(tenantId: string | null) {
   return useMutation({
     mutationFn: async (agentId: string) => {
       const { error } = await supabase
-        .from('ziro_star_agents')
+        .from('ziro_agents')
         .delete()
         .eq('tenant_id', tenantId!)
         .eq('agent_id', agentId)
@@ -618,7 +618,7 @@ export function useStarConfig(tenantId: string | null) {
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('ziro_star_config')
+        .from('ziro_config')
         .select('*')
         .eq('tenant_id', tenantId!)
         .maybeSingle()
@@ -637,7 +637,7 @@ export function useUpsertStarConfig(tenantId: string | null) {
       delegation_rules?: unknown[]
     }) => {
       const { error } = await supabase
-        .from('ziro_star_config')
+        .from('ziro_config')
         .upsert({
           tenant_id: tenantId!,
           instructions: input.instructions ?? null,

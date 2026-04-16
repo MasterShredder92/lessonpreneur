@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { appendPageContextToZiroPrompt, ziroPageDisplayName, type ZiroPageId } from '../star'
+import { appendPageContextToZiroPrompt, ziroPageDisplayName, type ZiroPageId } from '../ziro-core'
 import { useZiroGlobalContext, type ZiroGlobalSnapshot } from './useZiroGlobalContext'
 
 const ZIRO_BUSINESS_LOADING_PROMPT =
@@ -11,13 +11,10 @@ export interface UseZiroComposedBusinessPromptOptions {
   pageDisplayName?: string
   overridePrompt?: string | null
   /**
-   * When false, do not prefetch `get_star_context` until needed (e.g. family modal before "Ask Ziro" is opened).
+   * When false, do not prefetch `get_ziro_context` until needed (e.g. family modal before "Ask Ziro" is opened).
    */
   enableGlobalSnapshot?: boolean
 }
-
-/** @deprecated Use UseZiroComposedBusinessPromptOptions */
-export type UseStarComposedBusinessPromptOptions = UseZiroComposedBusinessPromptOptions
 
 export interface ZiroComposedBusinessPrompt {
   systemPrompt: string
@@ -26,9 +23,6 @@ export interface ZiroComposedBusinessPrompt {
   globalLoading: boolean
   globalFetching: boolean
 }
-
-/** @deprecated Use ZiroComposedBusinessPrompt */
-export type StarComposedBusinessPrompt = ZiroComposedBusinessPrompt
 
 /**
  * Layer 1 (global live snapshot) + optional layer 2 (page adapter).
@@ -65,7 +59,7 @@ export function useZiroComposedBusinessPrompt(
 
     const displayName = options.pageDisplayName ?? ziroPageDisplayName(options.pageId)
     const pageBody = options.pageBody?.trim()
-    const systemPrompt =
+    let systemPrompt =
       pageBody && pageBody.length > 0
         ? appendPageContextToZiroPrompt(base, {
             pageId: options.pageId,
@@ -73,6 +67,12 @@ export function useZiroComposedBusinessPrompt(
             body: pageBody,
           })
         : base
+
+    if (global.data?.isStale) {
+      const staleWarning =
+        '[ZIRO INTERNAL] Business snapshot may be outdated — some recent changes may not be reflected. Acknowledge this if the user asks about very recent changes.'
+      systemPrompt = staleWarning + '\n\n' + systemPrompt
+    }
 
     return {
       systemPrompt,
@@ -92,6 +92,3 @@ export function useZiroComposedBusinessPrompt(
     options.enableGlobalSnapshot,
   ])
 }
-
-/** @deprecated Use useZiroComposedBusinessPrompt */
-export const useStarComposedBusinessPrompt = useZiroComposedBusinessPrompt

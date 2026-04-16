@@ -1,4 +1,4 @@
-import { formatZiroPrompt } from '../services/starContext'
+import { formatZiroPrompt } from '../services/ziroContext'
 import { appendPageContextToZiroPrompt, ziroPageDisplayName } from './composePrompt'
 import { loadZiroGlobalContext } from './loadGlobalContext'
 import type { ZiroUserScope } from './resolveScope'

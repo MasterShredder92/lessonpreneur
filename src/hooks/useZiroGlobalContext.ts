@@ -2,16 +2,20 @@ import { useMemo } from 'react'
 import { useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query'
 import { useAuthContext } from '../app/AuthContext'
 import { usePermissions } from './usePermissions'
-import { formatZiroPrompt, type StarPromptContext } from '../services/starContext'
+import { formatZiroPrompt, type ZiroPromptContext } from '../services/ziroContext'
 import type { BillingSnapshotData } from '../services/billingSnapshotQuery'
-import { buildZiroUserScope, loadZiroGlobalContext, type ZiroUserScope } from '../star'
+import { buildZiroUserScope, loadZiroGlobalContext, type ZiroUserScope } from '../ziro-core'
 import { qk } from '../lib/queryKeys'
 
-/** Global CRM snapshot for Ziro (`get_star_context` RPC + billing merge). */
+/** Global CRM snapshot for Ziro (`get_ziro_context` RPC + billing merge). */
 export interface ZiroGlobalSnapshot {
   summary: string
-  raw: StarPromptContext | null
+  raw: ZiroPromptContext | null
   billingSnapshot: BillingSnapshotData | null
+  /** True when snapshot is a fallback due to load failure or timeout */
+  isStale: boolean
+  /** Timestamp when snapshot was loaded */
+  loadedAt: number
 }
 
 /** @deprecated Use ZiroGlobalSnapshot */
@@ -21,6 +25,8 @@ const FALLBACK_SNAPSHOT: ZiroGlobalSnapshot = {
   summary: 'Business context unavailable — answer only from what the user tells you.',
   raw: null,
   billingSnapshot: null,
+  isStale: true,
+  loadedAt: 0,
 }
 
 /**
@@ -58,10 +64,11 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
     queryKey,
     enabled: enabledFlag && !!scope,
     staleTime: 2 * 60_000,
-    retry: false,
+    retry: 1,
+    retryDelay: 3000,
     queryFn: async () => {
       if (!scope) {
-        return FALLBACK_SNAPSHOT
+        return { ...FALLBACK_SNAPSHOT, loadedAt: Date.now(), isStale: true }
       }
       try {
         const raw = await Promise.race([
@@ -71,7 +78,7 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
           ),
         ])
         if (!raw) {
-          return FALLBACK_SNAPSHOT
+          return { ...FALLBACK_SNAPSHOT, loadedAt: Date.now(), isStale: true }
         }
         const base = formatZiroPrompt(raw, scope.effectiveRole)
         const summary = raw.skillsBlock ? `${base}\n\n${raw.skillsBlock}` : base
@@ -79,10 +86,12 @@ export function useZiroGlobalContext(options?: { enabled?: boolean }) {
           summary,
           raw,
           billingSnapshot: raw.billing_snapshot,
+          isStale: false,
+          loadedAt: Date.now(),
         }
       } catch (e) {
         console.warn('[Ziro] Snapshot load failed, degrading gracefully:', e)
-        return FALLBACK_SNAPSHOT
+        return { ...FALLBACK_SNAPSHOT, loadedAt: Date.now(), isStale: true }
       }
     },
   })
@@ -107,7 +116,7 @@ export function ziroSnapshotQueryOptions(
     queryKey,
     staleTime: 2 * 60_000,
     queryFn: async () => {
-      if (!scope) return FALLBACK_SNAPSHOT
+      if (!scope) return { ...FALLBACK_SNAPSHOT, loadedAt: Date.now(), isStale: true }
       try {
         const raw = await Promise.race([
           loadZiroGlobalContext(scope),
@@ -115,17 +124,19 @@ export function ziroSnapshotQueryOptions(
             setTimeout(() => reject(new Error('Ziro snapshot timed out')), 12_000),
           ),
         ])
-        if (!raw) return FALLBACK_SNAPSHOT
+        if (!raw) return { ...FALLBACK_SNAPSHOT, loadedAt: Date.now(), isStale: true }
         const base = formatZiroPrompt(raw, scope.effectiveRole)
         const summary = raw.skillsBlock ? `${base}\n\n${raw.skillsBlock}` : base
         return {
           summary,
           raw,
           billingSnapshot: raw.billing_snapshot,
+          isStale: false,
+          loadedAt: Date.now(),
         }
       } catch (e) {
         console.warn('[Ziro] Snapshot load failed:', e)
-        return FALLBACK_SNAPSHOT
+        return { ...FALLBACK_SNAPSHOT, loadedAt: Date.now(), isStale: true }
       }
     },
   }

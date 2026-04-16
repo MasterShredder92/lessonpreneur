@@ -372,13 +372,13 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
 
       {/* === COMPRESSED STUDENT PROFILE === */}
       <div className="location-card" style={{ padding: '24px 28px', marginBottom: 14, cursor: 'default' }}>
-        <div className="loc-card-edge" style={{ background: student.status === 'active' ? 'linear-gradient(180deg, #22C55E, #16A34A)' : 'linear-gradient(180deg, #EF4444, #B91C1C)', boxShadow: student.status === 'active' ? '0 0 14px rgba(34,197,94,0.5)' : '0 0 14px rgba(239,68,68,0.5)' }} />
+        <div className="loc-card-edge" style={{ background: student.status === 'active' ? 'linear-gradient(180deg, var(--color-success), #16A34A)' : 'linear-gradient(180deg, var(--color-error), #B91C1C)', boxShadow: student.status === 'active' ? '0 0 14px rgba(34,197,94,0.5)' : '0 0 14px rgba(239,68,68,0.5)' }} />
         <div className="loc-card-glow" style={{ background: student.status === 'active' ? 'radial-gradient(circle, rgba(34,197,94,0.08) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(239,68,68,0.06) 0%, transparent 70%)' }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
           {/* ── Student Name Row ── */}
           <div data-tour-id="student-header" style={{ marginBottom: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', padding: '3px 12px', borderRadius: 8, border: '1px solid', flexShrink: 0, color: student.status === 'active' ? '#22C55E' : '#EF4444', borderColor: student.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)', background: student.status === 'active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', padding: '3px 12px', borderRadius: 8, border: '1px solid', flexShrink: 0, color: student.status === 'active' ? 'var(--color-success)' : 'var(--color-error)', borderColor: student.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)', background: student.status === 'active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }}>
                 {student.status}
               </span>
               {churnRisk && churnRisk.tier !== 'low' && (() => {
@@ -395,9 +395,9 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
                     data-tour-id="student-edit-btn"
                     onClick={() => setShowEditModal(true)}
                     title="Edit Student"
-                    style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8080A8', transition: 'all 140ms ease', flexShrink: 0 }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = '#E8488A'; e.currentTarget.style.borderColor = 'rgba(212,34,106,0.3)'; e.currentTarget.style.background = 'rgba(212,34,106,0.08)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = '#8080A8'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+                    style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--color-surface-4)', border: '1px solid var(--color-surface-7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-muted)', transition: 'all 140ms ease', flexShrink: 0 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-primary-light)'; e.currentTarget.style.borderColor = 'var(--color-primary-muted-strong)'; e.currentTarget.style.background = 'var(--color-primary-muted-light)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.borderColor = 'var(--color-surface-7)'; e.currentTarget.style.background = 'var(--color-surface-4)' }}
                   >
                     <Pencil size={14} />
                   </button>
@@ -413,8 +413,8 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
                 <span style={{
                   fontSize: 11, fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
                   padding: '3px 8px', borderRadius: 6,
-                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#8080A8', letterSpacing: '0.02em', opacity: 0.85,
+                  background: 'var(--color-surface-3)', border: '1px solid var(--color-surface-6)',
+                  color: 'var(--color-text-muted)', letterSpacing: '0.02em', opacity: 0.85,
                 }}>
                   {(student as any).student_display_id}
                 </span>
@@ -423,32 +423,32 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
           </div>
 
           {/* ── Student Details ── */}
-          <div style={{ fontSize: 13, color: '#A0A0C8' }}>Age {student.age ?? '—'}</div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-soft)' }}>Age {student.age ?? '—'}</div>
           <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><MapPin size={13} /> {student.location_name ?? '—'}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}><DollarSign size={13} /> ${monthlyTotal}/mo</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--color-text-medium)' }}><MapPin size={13} /> {student.location_name ?? '—'}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--color-text-medium)' }}><DollarSign size={13} /> ${monthlyTotal}/mo</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
             {studentInstruments && studentInstruments.length > 1 ? (
               studentInstruments.map((si) => {
                 const teacherName = si.teacher_id ? (() => { const t = allTeachers?.find((t: any) => t.id === si.teacher_id); return t ? `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim() : null })() : null
                 return (
-                  <div key={si.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#C0C0E0', flexWrap: 'wrap' }}>
+                  <div key={si.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-text-medium)', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 15 }}>{getInstrumentEmoji(si.instrument)}</span>
                     <span style={{ fontWeight: 600 }}>{si.instrument ? si.instrument.charAt(0).toUpperCase() + si.instrument.slice(1) : 'Unknown'}</span>
-                    {teacherName && <span style={{ color: '#8080A8' }}>with <strong style={{ color: '#A0A0C8' }}>{teacherName}</strong></span>}
-                    {si.is_primary && studentInstruments.length > 1 && <span style={{ fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 3, background: 'rgba(212,34,106,0.12)', color: '#D4226A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>primary</span>}
+                    {teacherName && <span style={{ color: 'var(--color-text-muted)' }}>with <strong style={{ color: 'var(--color-text-soft)' }}>{teacherName}</strong></span>}
+                    {si.is_primary && studentInstruments.length > 1 && <span style={{ fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 3, background: 'var(--color-primary-muted-mid)', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>primary</span>}
                   </div>
                 )
               })
             ) : (
               <>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#C0C0E0' }}>{instrumentWithEmojiTitle(student.instrument)}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--color-text-medium)' }}>{instrumentWithEmojiTitle(student.instrument)}</span>
                 {student.teacher_name && student.teacher_name !== '—' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 12, color: '#A0A0C8' }}>Teacher: <strong style={{ color: '#C0C0E0' }}>{student.teacher_name}</strong></span>
+                    <span style={{ fontSize: 12, color: 'var(--color-text-soft)' }}>Teacher: <strong style={{ color: 'var(--color-text-medium)' }}>{student.teacher_name}</strong></span>
                     {student.first_teacher_display && (
-                      <span style={{ fontSize: 11, color: '#606088' }}>· Started with {student.first_teacher_display}</span>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-dim)' }}>· Started with {student.first_teacher_display}</span>
                     )}
                   </div>
                 )}
@@ -457,8 +457,8 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
           </div>
 
           {/* ── Family Section ── */}
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', width: '100%' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 8 }}>Family</div>
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--color-border-subtle)', width: '100%' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 8 }}>Family</div>
 
             {/* Family name + edit pencil */}
             {editingFamilyName ? (
@@ -481,13 +481,13 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
                 }}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingFamilyName(false) }}
                 autoFocus
-                style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', background: 'transparent', border: 'none', borderBottom: '2px solid #D4226A', outline: 'none', width: '100%', maxWidth: 300, padding: 0, display: 'block' }}
+                style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-light)', background: 'transparent', border: 'none', borderBottom: '2px solid var(--color-primary)', outline: 'none', width: '100%', maxWidth: 300, padding: 0, display: 'block' }}
               />
             ) : (
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span
                   onClick={() => { if (canEdit) { setFamilyNameValue(student.family_name ?? ''); setEditingFamilyName(true) } }}
-                  style={{ fontSize: 15, fontWeight: 700, color: '#E0E0F4', cursor: canEdit ? 'pointer' : 'default' }}
+                  style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-light)', cursor: canEdit ? 'pointer' : 'default' }}
                 >
                   {student.family_name?.replace(/\s+family$/i, '') ?? '—'}
                 </span>
@@ -495,9 +495,9 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
                   <button
                     onClick={() => { setFamilyNameValue(student.family_name ?? ''); setEditingFamilyName(true) }}
                     title="Edit Family"
-                    style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#606088', transition: 'all 140ms ease', flexShrink: 0 }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = '#E8488A'; e.currentTarget.style.borderColor = 'rgba(212,34,106,0.3)'; e.currentTarget.style.background = 'rgba(212,34,106,0.08)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = '#606088'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+                    style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--color-surface-4)', border: '1px solid var(--color-surface-7)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-dim)', transition: 'all 140ms ease', flexShrink: 0 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-primary-light)'; e.currentTarget.style.borderColor = 'var(--color-primary-muted-strong)'; e.currentTarget.style.background = 'var(--color-primary-muted-light)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-dim)'; e.currentTarget.style.borderColor = 'var(--color-surface-7)'; e.currentTarget.style.background = 'var(--color-surface-4)' }}
                   >
                     <Pencil size={12} />
                   </button>
@@ -506,11 +506,11 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
             )}
 
             {/* Contact + family name */}
-            <div style={{ fontSize: 12, color: '#A0A0C8', marginTop: 6, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_contact ?? '—'}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-soft)', marginTop: 6, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{student.family_contact ?? '—'}</div>
             {/* Phone */}
             {editingPhone ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                <Phone size={11} style={{ flexShrink: 0, color: '#A0A0C8' }} />
+                <Phone size={11} style={{ flexShrink: 0, color: 'var(--color-text-soft)' }} />
                 <input value={phoneValue} onChange={(e) => setPhoneValue(e.target.value)}
                   onBlur={async () => {
                     if (phoneValue !== (student.family_phone ?? '')) {
@@ -530,13 +530,13 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
                   }}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingPhone(false) }}
                   autoFocus placeholder="Phone number"
-                  style={{ fontSize: 12, color: '#E0E0F4', background: 'transparent', border: 'none', borderBottom: '2px solid #D4226A', outline: 'none', width: '100%', maxWidth: 200, padding: 0 }}
+                  style={{ fontSize: 12, color: 'var(--color-text-light)', background: 'transparent', border: 'none', borderBottom: '2px solid var(--color-primary)', outline: 'none', width: '100%', maxWidth: 200, padding: 0 }}
                 />
               </div>
             ) : (
               <div
                 onClick={() => { if (canEdit) { setPhoneValue(student.family_phone ?? ''); setEditingPhone(true) } }}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#A0A0C8', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word', cursor: canEdit ? 'pointer' : 'default' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--color-text-soft)', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word', cursor: canEdit ? 'pointer' : 'default' }}
                 title={canEdit ? 'Tap to edit phone' : undefined}
               >
                 <Phone size={11} style={{ flexShrink: 0 }} /> {student.family_phone ?? '—'}
@@ -545,7 +545,7 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
             {/* Email */}
             {editingEmail ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                <Mail size={11} style={{ flexShrink: 0, color: '#8080A8' }} />
+                <Mail size={11} style={{ flexShrink: 0, color: 'var(--color-text-muted)' }} />
                 <input value={emailValue} onChange={(e) => setEmailValue(e.target.value)}
                   onBlur={async () => {
                     if (emailValue !== (student.family_email ?? '')) {
@@ -565,13 +565,13 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
                   }}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingEmail(false) }}
                   autoFocus placeholder="Email address"
-                  style={{ fontSize: 12, color: '#E0E0F4', background: 'transparent', border: 'none', borderBottom: '2px solid #D4226A', outline: 'none', width: '100%', maxWidth: 240, padding: 0 }}
+                  style={{ fontSize: 12, color: 'var(--color-text-light)', background: 'transparent', border: 'none', borderBottom: '2px solid var(--color-primary)', outline: 'none', width: '100%', maxWidth: 240, padding: 0 }}
                 />
               </div>
             ) : (
               <div
                 onClick={() => { if (canEdit) { setEmailValue(student.family_email ?? ''); setEditingEmail(true) } }}
-                style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 11, color: '#8080A8', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word', cursor: canEdit ? 'pointer' : 'default' }}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word', cursor: canEdit ? 'pointer' : 'default' }}
                 title={canEdit ? 'Tap to edit email' : undefined}
               >
                 <Mail size={11} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -581,12 +581,12 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
 
             {/* Siblings */}
             {student.siblings && student.siblings.length > 0 && (
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 6 }}>Siblings</div>
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border-subtle)' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--color-text-dim)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 6 }}>Siblings</div>
                 {student.siblings.map((sib: any) => (
-                  <div key={sib.id} onClick={() => navigate(`/admin/students?id=${sib.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#A0A0C8', cursor: 'pointer', padding: '3px 0' }}>
-                    <span style={{ fontWeight: 600, color: '#C0C0E0' }}>{sib.first_name}</span>
-                    <span style={{ color: '#8080A8' }}>{instrumentWithEmojiTitle(sib.instrument)}</span>
+                  <div key={sib.id} onClick={() => navigate(`/admin/students?id=${sib.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-text-soft)', cursor: 'pointer', padding: '3px 0' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--color-text-medium)' }}>{sib.first_name}</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>{instrumentWithEmojiTitle(sib.instrument)}</span>
                   </div>
                 ))}
               </div>
@@ -598,29 +598,29 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
       {/* Row 1: Billing + Family + Lesson Stats — 3 cards */}
       <div className="sd-row-3">
         <div className="location-card" style={{ padding: 18, cursor: 'default' }}>
-          <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, #D97706, #FFB800)', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
+          <div className="loc-card-edge" style={{ background: 'linear-gradient(180deg, var(--color-warning), var(--color-gold))', boxShadow: '0 0 12px rgba(255,184,0,0.4)' }} />
           <div className="loc-card-glow" style={{ background: 'radial-gradient(circle, rgba(255,184,0,0.07) 0%, transparent 70%)' }} />
           <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#8080A8', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Billing</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>Billing</span>
 
             {/* Family name */}
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4', marginBottom: 6 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-light)', marginBottom: 6 }}>
               {student.family_name?.replace(/\s+family$/i, '') ?? '—'}
             </div>
 
             {/* Monthly total — big, bold, gold */}
-            <div style={{ fontSize: 28, fontWeight: 800, color: '#FFB800', lineHeight: 1, marginBottom: 8 }}>
-              ${monthlyTotal}<span style={{ fontSize: 13, fontWeight: 600, color: '#8080A8' }}>/mo</span>
+            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-gold)', lineHeight: 1, marginBottom: 8 }}>
+              ${monthlyTotal}<span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)' }}>/mo</span>
             </div>
 
             {/* Payment status badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               {overdue > 0 ? (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.12)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.25)' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'var(--color-error-muted-mid)', color: 'var(--color-error)', border: '1px solid rgba(239,68,68,0.25)' }}>
                   Overdue ${overdue}
                 </span>
               ) : (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'var(--color-success-muted-mid)', color: 'var(--color-success)', border: '1px solid rgba(34,197,94,0.25)' }}>
                   Current
                 </span>
               )}
@@ -636,9 +636,9 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
             {/* Details toggle */}
             <button onClick={() => setShowBillingDetails(!showBillingDetails)} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, width: '100%',
-              marginTop: 10, padding: '6px 0', fontSize: 11, fontWeight: 600, color: '#8080A8',
+              marginTop: 10, padding: '6px 0', fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)',
               background: 'none', border: 'none', cursor: 'pointer',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
+              borderTop: '1px solid var(--color-border-subtle)',
             }}>
               {showBillingDetails ? 'Hide Details \u25B4' : 'View Details \u25BE'}
             </button>
@@ -648,27 +648,27 @@ export default function StudentDetail({ propId, onBack }: { propId?: string; onB
               <div style={{ paddingTop: 8 }}>
                 <div className="sd-inner-3" style={{ marginBottom: 10 }}>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Overdue</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: overdue > 0 ? '#B45555' : '#22C55E' }}>{overdue > 0 ? `$${overdue}` : '$0'}</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--color-text-dim)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Overdue</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: overdue > 0 ? '#B45555' : 'var(--color-success)' }}>{overdue > 0 ? `$${overdue}` : '$0'}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Lifetime</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#A0A0C8' }}>${student.total_paid ?? 0}</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--color-text-dim)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Lifetime</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-soft)' }}>${student.total_paid ?? 0}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: '#606088', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Sessions/mo</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#C0C0E0' }}>{student.sessions_per_month ?? student.blocks_per_week * 4}</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--color-text-dim)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2 }}>Sessions/mo</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-medium)' }}>{student.sessions_per_month ?? student.blocks_per_week * 4}</div>
                   </div>
                 </div>
 
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, marginBottom: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8', marginBottom: 3 }}>
+                <div style={{ borderTop: '1px solid var(--color-border-subtle)', paddingTop: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-soft)', marginBottom: 3 }}>
                     <span>Rate/session</span>
-                    <span style={{ fontWeight: 700, color: '#C0C0E0' }}>${effectiveRate.toFixed(2)}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--color-text-medium)' }}>${effectiveRate.toFixed(2)}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A0A0C8' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-soft)' }}>
                     <span>Monthly est.</span>
-                    <span style={{ fontWeight: 700, color: '#FFB800' }}>${((student.sessions_per_month ?? student.blocks_per_week * 4) * effectiveRate).toFixed(2)}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--color-gold)' }}>${((student.sessions_per_month ?? student.blocks_per_week * 4) * effectiveRate).toFixed(2)}</span>
                   </div>
                 </div>
 

@@ -33,7 +33,7 @@ const ZiroScheduleAssistantPane = lazy(async () => {
 
 // ─── Constants ──────────────────────────────────
 
-/** Non-empty `system_override` while `get_star_context` is loading — keeps business path; never scheduling mode. */
+/** Non-empty `system_override` while `get_ziro_context` is loading — keeps business path; never scheduling mode. */
 const ZIRO_BUSINESS_LOADING_PROMPT =
   '[ZIRO INTERNAL] School snapshot is still loading. Do not use scheduling tools or invent metrics. If the user sends a message, reply only: "School data is still loading — please wait a moment."'
 

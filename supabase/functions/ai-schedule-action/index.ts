@@ -8,6 +8,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function jsonError(message: string, code: string, status: number): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: message, code }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
 // ═══════════════════════════════════════
 // ZIRO ACCESS CONTROL — HARD SECURITY BOUNDARY
 // ═══════════════════════════════════════
@@ -33,10 +40,7 @@ async function authorizeZiroCaller(
 ): Promise<ZiroCallerIdentity> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new Response(
-      JSON.stringify({ error: "Authentication required." }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Authentication required.", "auth_required", 401);
   }
 
   // CRITICAL: validate the JWT signature via Supabase auth.getUser().
@@ -44,10 +48,7 @@ async function authorizeZiroCaller(
   const token = authHeader.replace("Bearer ", "");
   const { data: userData, error: userErr } = await sb.auth.getUser(token);
   if (userErr || !userData?.user?.id) {
-    throw new Response(
-      JSON.stringify({ error: "Invalid authentication token." }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Invalid authentication token.", "auth_invalid", 401);
   }
   const profileId = userData.user.id;
 
@@ -58,33 +59,21 @@ async function authorizeZiroCaller(
     .maybeSingle();
 
   if (profErr || !profile) {
-    throw new Response(
-      JSON.stringify({ error: "Profile not found. Access denied." }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Profile not found. Access denied.", "profile_not_found", 403);
   }
 
   const role = String(profile.role ?? "").toLowerCase().trim();
 
   if (ZIRO_FORBIDDEN_ROLES.has(role)) {
-    throw new Response(
-      JSON.stringify({ error: "Schedule actions are not available for your role." }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Schedule actions are not available for your role.", "forbidden_role", 403);
   }
 
   if (!ZIRO_ALLOWED_ROLES.has(role)) {
-    throw new Response(
-      JSON.stringify({ error: "Access denied for this role." }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Access denied for this role.", "forbidden_role", 403);
   }
 
   if (requestedTenantId && profile.tenant_id !== requestedTenantId) {
-    throw new Response(
-      JSON.stringify({ error: "Tenant mismatch. Access denied." }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw jsonError("Tenant mismatch. Access denied.", "tenant_mismatch", 403);
   }
 
   let allowedLocationIds: string[] | null = null;
@@ -97,10 +86,7 @@ async function authorizeZiroCaller(
     allowedLocationIds = (locs ?? []).map((l: any) => l.location_id);
     isLocationScoped = true;
     if (allowedLocationIds.length === 0) {
-      throw new Response(
-        JSON.stringify({ error: "Studio director has no assigned locations." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      throw jsonError("Studio director has no assigned locations.", "no_assigned_locations", 403);
     }
   }
 
@@ -898,9 +884,7 @@ Deno.serve(async (req) => {
   try {
     const { action, tenant_id, params } = await req.json();
     if (!action || !tenant_id) {
-      return new Response(JSON.stringify({ error: "action and tenant_id required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError("action and tenant_id required", "bad_request", 400);
     }
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -951,9 +935,10 @@ Deno.serve(async (req) => {
           break;
       }
     } catch (scopeErr: any) {
-      return new Response(
-        JSON.stringify({ error: scopeErr.message || "Access denied: out of scope." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      return jsonError(
+        scopeErr?.message || "Access denied: out of scope.",
+        "scope_forbidden",
+        403,
       );
     }
 
@@ -979,17 +964,15 @@ Deno.serve(async (req) => {
         message = await batchCancelLessons(sb, caller.tenantId, params, userId);
         break;
       default:
-        return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonError(`Unknown action: ${action}`, "unknown_action", 400);
     }
 
-    return new Response(JSON.stringify({ message }), {
+    return new Response(JSON.stringify({ ok: true, message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal server error";
+    console.error("[ai-schedule-action] Unhandled error:", err);
+    return jsonError(message, "internal_error", 500);
   }
 });

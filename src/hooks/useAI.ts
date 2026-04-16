@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { EDGE_FUNCTIONS } from '../lib/config'
-import { safeFetch } from '../lib/safeFetch'
+import { SafeFetchError, safeFetch } from '../lib/safeFetch'
 import {
   type ScheduleContext,
   type ProposedAction,
@@ -13,8 +13,8 @@ import {
 } from '../services/aiAssistantClient'
 import { cleanZiroResponseText } from '../ziro/cleanZiroResponseText'
 import { classifyQuery, enforceZiroResponsePolicy } from '../ziro/enforceZiroResponsePolicy'
-import { orchestrateFromChat } from '../star/orchestrator'
-import type { RouteType } from '../star/orchestrator'
+import { orchestrateFromChat } from '../ziro-core/orchestrator'
+import type { RouteType } from '../ziro-core/orchestrator'
 
 export type { ScheduleContext, ProposedAction, AiAssistantJson } from '../services/aiAssistantClient'
 /** @deprecated Use `postAiAssistantBusinessOverride` from `services/aiAssistantClient`. */
@@ -38,6 +38,12 @@ export interface UseAiOptions {
   getClientPageContext?: () => Record<string, unknown>
   /** Profile ID for orchestration — enables task run routing + tracking. */
   profileId?: string | null
+}
+
+function isValidAiResponse(data: unknown): data is AiAssistantJson {
+  if (!data || typeof data !== 'object') return false
+  const d = data as Record<string, unknown>
+  return typeof d.answer === 'string' || typeof d.response === 'string' || typeof d.error === 'string'
 }
 
 /**
@@ -108,15 +114,58 @@ export function useAI(
         clientPageContext: options?.getClientPageContext?.() ?? null,
       }
 
-      const data: AiAssistantJson = await postAiAssistantInteractive({
-        tenantId,
-        question: question.trim(),
-        conversationHistory: messagesRef.current.slice(-10),
-        scheduleContext: ctx,
-        businessContext: biz,
-        timeoutMs: 30_000,
-        telemetry,
-      })
+      // Edge function call (critical path)
+      let data: AiAssistantJson
+      try {
+        const raw = await postAiAssistantInteractive({
+          tenantId,
+          question: question.trim(),
+          conversationHistory: messagesRef.current.slice(-10),
+          scheduleContext: ctx,
+          businessContext: biz,
+          timeoutMs: 30_000,
+          telemetry,
+        })
+
+        if (!isValidAiResponse(raw)) {
+          console.error('[useAI] Invalid response shape:', raw)
+          setError('Received an unexpected response from Ziro. Please try again.')
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: 'Received an unexpected response from Ziro. Please try again.' },
+          ])
+          return
+        }
+
+        data = raw
+      } catch (edgeErr) {
+        if (edgeErr instanceof SafeFetchError) {
+          if (edgeErr.status === 429) {
+            setError('Ziro is getting too many requests right now. Please wait a moment and try again.')
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', content: 'Ziro is getting too many requests right now. Please wait a moment and try again.' },
+            ])
+            return
+          }
+          if (edgeErr.status >= 500) {
+            setError('Ziro is having trouble connecting. Please try again in a moment.')
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', content: 'Ziro is having trouble connecting. Please try again in a moment.' },
+            ])
+            return
+          }
+          setError(edgeErr.message)
+          setMessages((prev) => [...prev, { role: 'assistant', content: edgeErr.message }])
+          return
+        }
+
+        const msg = edgeErr instanceof Error ? edgeErr.message : 'Failed to reach Ziro. Check your connection and try again.'
+        setError(msg)
+        setMessages((prev) => [...prev, { role: 'assistant', content: msg }])
+        return
+      }
 
       if (data.ai_session_id) syncAiSessionId(data.ai_session_id)
 
@@ -246,7 +295,7 @@ export function useAI(
 }
 
 /** Internal business-only prompt if caller passes empty string (must never reach edge as empty `system_override`). */
-const STAR_BUSINESS_GUARD_EMPTY =
+const ZIRO_BUSINESS_GUARD_EMPTY =
   '[ZIRO INTERNAL] Configuration error: empty business context. Reply only: "Ziro is misconfigured — please refresh." Do not use scheduling tools.'
 
 /** Business snapshot / Ziro panel path — `system_override` only. Pass a non-empty string; loading states should use an explicit loading prompt, not null. */
@@ -255,7 +304,7 @@ export function useStarBusinessChat(
   businessContext: string,
   options?: UseAiOptions,
 ) {
-  const safe = businessContext.trim() ? businessContext : STAR_BUSINESS_GUARD_EMPTY
+  const safe = businessContext.trim() ? businessContext : ZIRO_BUSINESS_GUARD_EMPTY
   if (import.meta.env.DEV && !businessContext.trim()) {
     console.error('[useStarBusinessChat] Empty businessContext — using guard string to avoid scheduling-mode fallback')
   }

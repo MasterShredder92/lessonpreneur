@@ -79,43 +79,30 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
 
-    <!-- GA4 + Meta Pixel — domain-aware per-location tracking -->
+    <!-- Analytics libraries (SPA-driven init/config). -->
+    <!-- GA4 library -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-0KT89GHX52"></script>
     <script>
-      (function(){
-        var m = {
-          'omahaguitarandmusiclessons.com': { ga: 'G-0KT89GHX52', fb: '426901091077909' },
-          'musiclessonsbellevue.com':       { ga: 'G-Q5C7W68SC9', fb: '216419921006041' },
-          'elkhornlessons.com':             { ga: 'G-KNEM7VHEC1', fb: '873626412816671' },
-          'gretnamusiclessons.com':         { ga: 'G-FBMP7Y8M2X', fb: '696662488386167' }
-        };
-        var h = window.location.hostname.replace(/^www\./, '');
-        var t = m[h] || { ga: 'G-PQWBNEDH0L', fb: '1121184396815192' };
-
-        // GA4
-        var s = document.createElement('script');
-        s.async = true;
-        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + t.ga;
-        document.head.appendChild(s);
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        window.gtag = gtag;
-        gtag('js', new Date());
-        gtag('config', t.ga);
-
-        // Meta Pixel
-        !function(f,b,e,v,n,t2,s2)
-        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-        n.queue=[];t2=b.createElement(e);t2.async=!0;
-        t2.src=v;s2=b.getElementsByTagName(e)[0];
-        s2.parentNode.insertBefore(t2,s2)}(window, document,'script',
-        'https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', t.fb);
-        fbq('track', 'PageView');
-      })();
+      // Provide gtag() without configuring IDs here.
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      window.gtag = gtag;
+      gtag('js', new Date());
     </script>
-    <!-- TikTok Pixel — domain-aware per-location tracking -->
+
+    <!-- Meta Pixel base (no init/track here; SPA does it) -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+    </script>
+
+    <!-- TikTok Pixel base (no load/page here; SPA does it) -->
     <script>
       !function (w, d, t) {
         w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
@@ -134,18 +121,6 @@
         n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];
         e.parentNode.insertBefore(n,e)};
       }(window, document, 'ttq');
-      (function(){
-        var m = {
-          'omahaguitarandmusiclessons.com': 'D768H23C77UD6SV8PU40',
-          'musiclessonsbellevue.com':       'D768ITRC77UD6SV8PU80',
-          'elkhornlessons.com':             'D768JBRC77U03P65153G',
-          'gretnamusiclessons.com':         'D768IC3C77UD6SV8PU60'
-        };
-        var h = window.location.hostname.replace(/^www\./, '');
-        var tid = m[h] || 'D768H23C77UD6SV8PU40';
-        ttq.load(tid);
-        ttq.page();
-      })();
     </script>
 
     <!-- Microsoft Clarity -->

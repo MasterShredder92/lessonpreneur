@@ -7,9 +7,8 @@ import { initTracking, trackPageView } from '../lib/tracking'
  * Fires the correct GA4 config, Meta Pixel PageView, and TikTok page()
  * for a given location.
  *
- * The index.html script handles domain-based detection on initial load.
- * This hook handles SPA navigation between location routes (e.g. /omaha -> /bellevue)
- * by re-firing config/PageView with the correct IDs when the location changes.
+ * Tracking libraries are loaded in index.html, but initialization and PageView events
+ * are handled here (SPA-driven) so there is a single source of truth.
  */
 export function useLocationTracking(location: LocationConfig) {
   const prevKey = useRef<string | null>(null)
