@@ -15,6 +15,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import type { ScheduleContext } from '../hooks/useAI'
 import type { UserRole } from '../lib/types'
 import type { OpenZiroAssistantOptions } from '../ziro/openZiroAssistant'
+import { defer } from '../lib/defer'
 
 /** Extensible page-provided context (filters, selected ids, schedule grid). No DOM scraping. */
 export interface ZiroPageContext {
@@ -66,13 +67,13 @@ export function ZiroShellProvider({ children }: { children: ReactNode }) {
   const [pendingSeedMessage, setPendingSeedMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    queueMicrotask(() => setPageState({}))
+    defer(() => setPageState({}))
   }, [pathname, search])
 
   // Hard gate: if a forbidden role somehow has panel state set true (e.g.,
   // from a stale render or prior session), force it closed.
   useEffect(() => {
-    if (!canUseZiro && panelOpen) queueMicrotask(() => setPanelOpen(false))
+    if (!canUseZiro && panelOpen) defer(() => setPanelOpen(false))
   }, [canUseZiro, panelOpen])
 
   const clearPendingSeed = useCallback(() => setPendingSeedMessage(null), [])

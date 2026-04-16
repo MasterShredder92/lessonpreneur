@@ -188,7 +188,18 @@ export default function PageIntelligenceStrip() {
                 suggestedId: safeSuggested?.id ?? null,
               },
             })
-            setWorkspaceOpen(true)
+            try {
+              setWorkspaceOpen(true)
+              agentFlowDebug({
+                action: 'workspace_open_state',
+                agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
+                source: 'page_chip',
+                meta: { open: true, surfaceKey: resolved.surfaceKey },
+              })
+            } catch (err: unknown) {
+              console.error('[PageIntelligenceStrip] Failed to open workspace', err)
+              throw err
+            }
           }}
           style={{
             display: 'inline-flex',

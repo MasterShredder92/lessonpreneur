@@ -27,6 +27,7 @@ import {
   assertValidAgent,
   navigateToZiroWorkAgentEditor,
 } from '../../lib/ziro/agentSafe'
+import { defer } from '../../lib/defer'
 import { MUSIC_SCHOOL_ZIRO_AGENT_CATALOG } from '../../lib/ziro/musicSchoolAgentCatalog'
 import { useTaskHistory, type TaskHistoryRow } from '../../hooks/useTaskHistory'
 import { useRouteAnalytics } from '../../hooks/useRouteAnalytics'
@@ -95,7 +96,7 @@ export default function ZiroWorkPage() {
 
   useEffect(() => {
     const t = searchParams.get('zwtab')
-    queueMicrotask(() => {
+    defer(() => {
       if (t === 'skills' || t === 'agents' || t === 'ziro' || t === 'history' || t === 'analytics') setMainTab(t)
       else if (searchParams.get('agentId')) setMainTab('agents')
     })
@@ -486,7 +487,7 @@ function ZiroControlGlobalOrchestratorInstructions({ tenantId }: { tenantId: str
 
   useEffect(() => {
     if (!config || dirty) return
-    queueMicrotask(() => setInstructions(config.instructions ?? ''))
+    defer(() => setInstructions(config.instructions ?? ''))
   }, [config, dirty])
 
   const handleSave = () => {
@@ -686,7 +687,7 @@ function AgentsTab({ tenantId }: { tenantId: string | null }) {
     if (deepLinkHandledRef.current === id) return
     deepLinkHandledRef.current = id
     agentFlowDebug({ action: 'deeplink_expand', agentId: id, source: 'agents_tab', meta: {} })
-    queueMicrotask(() => setExpanded(id))
+    defer(() => setExpanded(id))
     const scrollT = window.setTimeout(() => {
       document.getElementById(`ziro-agent-card-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 100)

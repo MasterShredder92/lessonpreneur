@@ -10,6 +10,7 @@ import { ZiroWorkAgentCard } from './ZiroWorkAgentCard'
 import { AgentFallback } from './AgentFallback'
 import { toast } from '../shared/Toast'
 import type { ZiroAgent } from '../../hooks/useAgents'
+import { defer } from '../../lib/defer'
 import {
   resolveSafeAgent,
   agentFlowDebug,
@@ -60,7 +61,7 @@ export default function AgentWorkspace({
       safeAssigned?.id ?? safeSuggested?.id ?? resolved.pageBinding?.primary_agent_id ?? ''
     const fromDb = new Set(resolved.pageBinding?.supporting_agent_ids ?? [])
     if (initialPrimary) fromDb.delete(initialPrimary)
-    queueMicrotask(() => {
+    defer(() => {
       setPrimaryPick(initialPrimary)
       setSupportingPick(fromDb)
     })

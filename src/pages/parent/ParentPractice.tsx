@@ -6,6 +6,7 @@ import MusicLoader from '../../components/shared/MusicLoader'
 import { toast } from '../../components/shared/Toast'
 import { Music, Plus, X, Mic, Square, Play } from 'lucide-react'
 import DrumsWidget from '../../components/instruments/DrumsWidget'
+import { defer } from '../../lib/defer'
 
 const audioCache = new Map<string, HTMLAudioElement>()
 function playSound(src: string) {
@@ -25,10 +26,10 @@ export default function ParentPractice() {
   useEffect(() => {
     if (students.length === 0) return
     if (initialStudent && students.some(s => s.id === initialStudent)) {
-      queueMicrotask(() => setSelectedStudent(initialStudent))
+      defer(() => setSelectedStudent(initialStudent))
       return
     }
-    if (!selectedStudent) queueMicrotask(() => setSelectedStudent(students[0].id))
+    if (!selectedStudent) defer(() => setSelectedStudent(students[0].id))
   }, [students, selectedStudent, initialStudent])
 
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center' }}><MusicLoader /></div>
