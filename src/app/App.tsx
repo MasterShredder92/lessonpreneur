@@ -63,6 +63,7 @@ const ViolinLessonsLanding = lazy(() => import('../pages/ViolinLessonsLanding'))
 const FluteLessonsLanding = lazy(() => import('../pages/FluteLessonsLanding'))
 const SignupLanding = lazy(() => import('../pages/SignupLanding'))
 const ThankYou = lazy(() => import('../pages/ThankYou'))
+const LessonpreneurLanding = lazy(() => import('../pages/LessonpreneurLanding'))
 const KidsLessonsPage = lazy(() => import('../pages/KidsLessonsPage'))
 const AdultLessonsPage = lazy(() => import('../pages/AdultLessonsPage'))
 const BeginnerLessonsPage = lazy(() => import('../pages/BeginnerLessonsPage'))
@@ -256,6 +257,7 @@ export default function App() {
             <Route path="/start" element={<VSLPage />} />
             <Route path="/get-started" element={<LeadCaptureFormPage />} />
             <Route path="/trial" element={<CardCapturePage />} />
+            <Route path="/lessonpreneur" element={<LessonpreneurLanding />} />
             {/* ── Supporting SEO pages ── */}
             <Route path="/about" element={<AboutPage />} />
             <Route path="/locations" element={<LocationsPage />} />
@@ -295,7 +297,6 @@ export default function App() {
             <Route path="/guitar" element={<Navigate to="/omaha/guitar" replace />} />
             <Route path="/piano" element={<Navigate to="/omaha/piano" replace />} />
             <Route path="/vocals" element={<Navigate to="/omaha/vocals" replace />} />
-            <Route path="/lessonpreneur" element={<Navigate to="/" replace />} />
             <Route path="/thank-you" element={<ThankYou />} />
 
             {/* Admin routes — owner + admin */}
