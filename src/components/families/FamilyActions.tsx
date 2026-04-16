@@ -15,14 +15,33 @@ export function FamilyActions({
   onExportCsv: () => void
 }) {
   return (
-    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div
+      style={{
+        marginLeft: 'auto',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-sm)',
+      }}
+    >
       {canCreate && (
-        <button className="btn-primary" onClick={onAddFamily} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '8px 14px' }}>
+        <button
+          className="btn-primary"
+          onClick={onAddFamily}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-sm)',
+            fontSize: 'var(--font-size-md)',
+            padding: 'var(--space-sm) var(--space-lg)',
+          }}
+        >
           <Plus size={14} /> Add New Family
         </button>
       )}
       {canExport && (
-        <button className="btn-ghost" onClick={onExportCsv} style={{ fontSize: 11 }}>Export CSV</button>
+        <button className="btn-ghost" onClick={onExportCsv} style={{ fontSize: 'var(--font-size-sm)' }}>
+          Export CSV
+        </button>
       )}
       <FamiliesPageGuide />
       <ReportIssueButton />

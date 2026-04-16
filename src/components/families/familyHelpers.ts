@@ -23,9 +23,9 @@ export function formatDollars(cents: number | null | undefined): string {
 }
 
 const RATE_EDGE_COLORS: Record<number, { solid: string; bg: string }> = {
-  4500: { solid: '#22C55E', bg: 'rgba(34,197,94,0.15)' }, // Full price — green
-  4000: { solid: '#FFB800', bg: 'rgba(255,184,0,0.15)' }, // Discount — yellow
-  3750: { solid: '#EF4444', bg: 'rgba(239,68,68,0.15)' }, // Deep discount — red
+  4500: { solid: 'var(--color-success)', bg: 'var(--success-15)' }, // Full price — green
+  4000: { solid: 'var(--color-warning)', bg: 'var(--warning-15)' }, // Discount — yellow
+  3750: { solid: 'var(--color-danger)', bg: 'var(--danger-15)' }, // Deep discount — red
 }
 
 export function getRateEdge(rateTier: number) {
@@ -33,28 +33,28 @@ export function getRateEdge(rateTier: number) {
 }
 
 export const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: '#A0A0C8',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-bold)',
+  color: 'var(--text-muted)',
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
 }
 
 export const valueStyle: React.CSSProperties = {
-  marginTop: 3,
-  fontSize: 14,
-  color: '#D0D0E8',
+  marginTop: 'var(--space-3xs)',
+  fontSize: 'var(--font-size-lg)',
+  color: 'var(--text-secondary)',
 }
 
 export const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: '#6060A0',
+  fontSize: 'var(--font-size-md)',
+  fontWeight: 'var(--font-weight-bold)',
+  color: 'var(--text-ghost)',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
   marginBottom: 10,
-  paddingBottom: 6,
-  borderBottom: '1px solid rgba(255,255,255,0.06)',
+  paddingBottom: 'var(--space-md)',
+  borderBottom: '1px solid var(--white-6)',
 }
 
 /** Text block for Ziro: single-family facts from loaded family detail (authoritative for this modal). */

@@ -8,12 +8,12 @@ export function FamilyStats({
   countTotal: number
 }) {
   return (
-    <span style={{ fontSize: 13, color: '#94A3B8' }}>
-      <strong style={{ color: '#E0E0F4' }}>{countActive}</strong> Active
-      <span style={{ margin: '0 6px', color: '#363656' }}>&middot;</span>
-      <strong style={{ color: '#E0E0F4' }}>{countInactive}</strong> Inactive
-      <span style={{ margin: '0 6px', color: '#363656' }}>&middot;</span>
-      <strong style={{ color: '#E0E0F4' }}>{countTotal}</strong> Total
+    <span style={{ fontSize: 'var(--font-size-md)', color: 'var(--color-secondary)' }}>
+      <strong style={{ color: 'var(--text-secondary)' }}>{countActive}</strong> Active
+      <span style={{ margin: '0 var(--space-sm)', color: 'var(--text-ghost)' }}>&middot;</span>
+      <strong style={{ color: 'var(--text-secondary)' }}>{countInactive}</strong> Inactive
+      <span style={{ margin: '0 var(--space-sm)', color: 'var(--text-ghost)' }}>&middot;</span>
+      <strong style={{ color: 'var(--text-secondary)' }}>{countTotal}</strong> Total
     </span>
   )
 }

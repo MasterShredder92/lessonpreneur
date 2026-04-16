@@ -1,6 +1,52 @@
 :root {
   --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+
+  /* Semantic aliases (used by newer UI work; map onto existing palette tokens) */
+  --color-primary: var(--pink);
+  --color-secondary: var(--text-muted);
+  --color-accent: var(--orange);
+  --color-success: var(--green);
+  --color-warning: var(--gold);
+  --color-danger: var(--red);
+  --border-color: var(--border);
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xs: 2px;
+  --space-3xs: 3px;
+  --space-5xs: 1px;
+  --space-2xl: 20px;
+  --space-3xl: 28px;
+  --space-4xl: 32px;
+  --space-5xl: 40px;
+  --space-6xl: 44px;
+  --space-10: 10px;
+  --space-18: 18px;
+  --space-6: 6px;
+
+  --font-size-sm: 11px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 18px;
+  --font-size-2xs: 9px;
+  --font-size-xs: 10px;
+  --font-size-2xl: 16px;
+  --font-size-3xl: 20px;
+  --font-size-4xl: 22px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shadow-md: var(--shadow-card);
+  --shadow-lg: var(--shadow-modal);
+
   --bg-base: #020209;
   --bg-surface: rgba(22,20,40,0.97);
   --bg-surface-deep: rgba(16,14,30,0.99);
@@ -24,6 +70,12 @@
   --text-muted: #A0A0C8;
   --text-dim: #8888B0;
   --text-ghost: #6868A0;
+  /* Fine-grained text tones used in dense admin UIs */
+  --text-caption: #606088;
+  --text-placard: #8080a8;
+  --text-subtle: #c0c0e0;
+  --text-row: #c0c0d8;
+  --text-empty: #363656;
   --grad-brand: linear-gradient(135deg, #D4226A 0%, #FF5500 55%, #FFB800 100%);
   --grad-primary: linear-gradient(135deg, #D4226A, #FF5500);
   --grad-sidebar-edge: linear-gradient(180deg, transparent 5%, rgba(212,34,106,0.22) 32%, rgba(123,44,191,0.16) 68%, transparent 95%);
@@ -40,4 +92,115 @@
   --fast: 140ms ease;
   --smooth: 220ms cubic-bezier(0.4,0,0.2,1);
   --sidebar: 320ms cubic-bezier(0.4,0,0.2,1);
+
+  /* Extra radii (finer control than --radius-sm/md/lg) */
+  --radius-2xs: 4px;
+  --radius-xs: 6px;
+  --radius-2xl: 20px;
+
+  /* Surfaces / overlays */
+  --surface-modal: #141224;
+  --surface-raised: #1A1830;
+  --overlay-scrim-70: rgba(0, 0, 0, 0.7);
+  --overlay-scrim-50: rgba(0, 0, 0, 0.5);
+
+  /* Extra brand hues used in UI accents */
+  --color-indigo: #6366f1;
+  --color-sky: #38bdf8;
+  --color-suspended: #ff7800;
+
+  /* Translucent layers (prefer color-mix over hard-coded rgba) */
+  --white-3: color-mix(in srgb, #ffffff 3%, transparent);
+  --white-4: color-mix(in srgb, #ffffff 4%, transparent);
+  --white-6: color-mix(in srgb, #ffffff 6%, transparent);
+  --white-8: color-mix(in srgb, #ffffff 8%, transparent);
+  --white-10: color-mix(in srgb, #ffffff 10%, transparent);
+  --white-15: color-mix(in srgb, #ffffff 15%, transparent);
+
+  --success-6: color-mix(in srgb, var(--color-success) 6%, transparent);
+  --success-8: color-mix(in srgb, var(--color-success) 8%, transparent);
+  --success-10: color-mix(in srgb, var(--color-success) 10%, transparent);
+  --success-12: color-mix(in srgb, var(--color-success) 12%, transparent);
+  --success-15: color-mix(in srgb, var(--color-success) 15%, transparent);
+  --success-20: color-mix(in srgb, var(--color-success) 20%, transparent);
+  --success-25: color-mix(in srgb, var(--color-success) 25%, transparent);
+  --success-30: color-mix(in srgb, var(--color-success) 30%, transparent);
+
+  --warning-6: color-mix(in srgb, var(--color-warning) 6%, transparent);
+  --warning-8: color-mix(in srgb, var(--color-warning) 8%, transparent);
+  --warning-10: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  --warning-12: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  --warning-15: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  --warning-20: color-mix(in srgb, var(--color-warning) 20%, transparent);
+  --warning-25: color-mix(in srgb, var(--color-warning) 25%, transparent);
+  --warning-30: color-mix(in srgb, var(--color-warning) 30%, transparent);
+
+  --danger-8: color-mix(in srgb, var(--color-danger) 8%, transparent);
+  --danger-10: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  --danger-15: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  --danger-20: color-mix(in srgb, var(--color-danger) 20%, transparent);
+  --danger-25: color-mix(in srgb, var(--color-danger) 25%, transparent);
+  --danger-30: color-mix(in srgb, var(--color-danger) 30%, transparent);
+
+  --primary-8: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  --primary-12: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  --primary-15: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  --primary-20: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  --primary-25: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  --primary-30: color-mix(in srgb, var(--color-primary) 30%, transparent);
+
+  --suspended-12: color-mix(in srgb, var(--color-suspended) 12%, transparent);
+  --suspended-25: color-mix(in srgb, var(--color-suspended) 25%, transparent);
+  --suspended-30: color-mix(in srgb, var(--color-suspended) 30%, transparent);
+
+  --indigo-10: color-mix(in srgb, var(--color-indigo) 10%, transparent);
+  --indigo-25: color-mix(in srgb, var(--color-indigo) 25%, transparent);
+
+  --sky-10: color-mix(in srgb, var(--color-sky) 10%, transparent);
+
+  --violet: #7b2cbf;
+  --lilac: #a78bfa;
+  --violet-25: color-mix(in srgb, var(--violet) 25%, transparent);
+
+  --toggle-off-track: #333333;
+
+  --shadow-modal-brand: 0 0 60px color-mix(in srgb, var(--color-primary) 8%, transparent), var(--shadow-lg);
+  --shadow-success-focus: 0 4px 20px var(--success-30);
+
+  /* Layout / sizing tokens (avoid raw px in component inline styles) */
+  --border-width: 1px;
+  --size-icon-button: 32px;
+  --max-width-modal-sm: 400px;
+  --max-width-modal-md: 540px;
+  --max-width-modal-lg: 800px;
+  --max-width-readable: 280px;
+  --max-width-id-chip: 140px;
+  --line-height-tight: 18px;
+  --line-height-snug: 1.4;
+  --size-activity-icon: 20px;
+  --space-tab-top-radius: 8px;
+  --space-inset-page: calc(var(--space-xl) + var(--space-xs));
+  --space-block-y-lg: calc(var(--space-2xl) + var(--space-lg));
+  --space-inline-y-md: calc(var(--space-md) + var(--space-3xs));
+  --space-inline-y-sm: calc(var(--space-sm) + var(--space-3xs));
+  --space-inline-x-lg: calc(var(--space-lg) + var(--space-md));
+  --space-inline-x-xl: calc(var(--space-xl) + var(--space-md));
+  --space-inline-y-18: calc(var(--space-lg) + var(--space-2xs));
+  --space-message-send: calc(var(--space-2xl) + var(--space-xl));
+  --space-micro: 1px;
+  --space-mini: 5px;
+  --space-dense: 22px;
+  --space-dense-lg: 24px;
+  --space-thumb-offset: 2px;
+  --space-thumb-travel: 20px;
+  --space-toggle-height: 24px;
+  --space-toggle-height-sm: 22px;
+  --space-toggle-width: 44px;
+  --space-toggle-width-sm: 40px;
+  --space-toggle-knob-lg: 20px;
+  --space-toggle-knob-sm: 18px;
+  --space-min-label: 60px;
+  --space-divider: 1px;
+
+  --color-cyan: #00bcd4;
 }
