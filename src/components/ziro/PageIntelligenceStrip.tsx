@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Component, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Bot, ChevronRight, MessageSquare, SlidersHorizontal, AlertTriangle } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
@@ -8,6 +8,54 @@ import { usePageIntelligenceBindings, useResolvedPageIntelligence } from '../../
 import { useZiroShell } from '../../contexts/ZiroContext'
 import AgentWorkspace from './AgentWorkspace'
 import { agentFlowDebug, resolveSafeAgent } from '../../lib/ziro/agentSafe'
+import { AgentFallback } from './AgentFallback'
+
+class DashboardWorkspaceBoundary extends Component<
+  {
+    surfaceKey: string
+    agentId: string | null
+    onClose: () => void
+    children: ReactNode
+  },
+  { hasError: boolean }
+> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: unknown, info: { componentStack?: string }) {
+    agentFlowDebug({
+      action: 'dashboard_render_fail',
+      agentId: this.props.agentId,
+      source: 'dashboard_agent_chip',
+      meta: {
+        surfaceKey: this.props.surfaceKey,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        componentStack: info?.componentStack,
+      },
+    })
+    console.error('[DashboardWorkspaceBoundary] workspace render failed', error)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ margin: '10px 16px', padding: 12, borderRadius: 12, border: '1px solid rgba(248,113,113,0.25)', background: 'rgba(248,113,113,0.06)' }}>
+          <AgentFallback />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+            <button type="button" className="btn-ghost" onClick={this.props.onClose}>
+              Close
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 /**
  * Batch 2 — Page agent chrome: one binding-backed agent (or explicit unassigned), clickable → Agent Workspace.
@@ -112,6 +160,7 @@ export default function PageIntelligenceStrip() {
 
   const safeAssigned = resolveSafeAgent(resolved.assignedAgent)
   const safeSuggested = resolveSafeAgent(resolved.suggestedAgent)
+  const isDashboard = resolved.surfaceKey === 'dashboard'
 
   const chip = (() => {
     if (resolved.resolution === 'binding_stale') {
@@ -177,6 +226,25 @@ export default function PageIntelligenceStrip() {
           type="button"
           onClick={() => {
             if (!chip.clickable) return
+            if (isDashboard) {
+              agentFlowDebug({
+                action: 'dashboard_agent_click',
+                agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
+                source: 'dashboard_agent_chip',
+                meta: { surfaceKey: resolved.surfaceKey },
+              })
+              agentFlowDebug({
+                action: 'dashboard_agent_resolved',
+                agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
+                source: 'dashboard_agent_chip',
+                meta: {
+                  surfaceKey: resolved.surfaceKey,
+                  resolution: resolved.resolution,
+                  assignedId: safeAssigned?.id ?? null,
+                  suggestedId: safeSuggested?.id ?? null,
+                },
+              })
+            }
             agentFlowDebug({
               action: 'agent_click',
               agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
@@ -191,9 +259,9 @@ export default function PageIntelligenceStrip() {
             try {
               setWorkspaceOpen(true)
               agentFlowDebug({
-                action: 'workspace_open_state',
+                action: isDashboard ? 'dashboard_workspace_open' : 'workspace_open_state',
                 agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
-                source: 'page_chip',
+                source: isDashboard ? 'dashboard_agent_chip' : 'page_chip',
                 meta: { open: true, surfaceKey: resolved.surfaceKey },
               })
             } catch (err: unknown) {
@@ -273,13 +341,29 @@ export default function PageIntelligenceStrip() {
       </div>
 
       {workspaceOpen && (
-        <AgentWorkspace
-          key={resolved.surfaceKey}
-          open={workspaceOpen}
-          onClose={() => setWorkspaceOpen(false)}
-          resolved={resolved}
-          tenantId={tenantId}
-        />
+        isDashboard ? (
+          <DashboardWorkspaceBoundary
+            surfaceKey={resolved.surfaceKey}
+            agentId={safeAssigned?.id ?? safeSuggested?.id ?? null}
+            onClose={() => setWorkspaceOpen(false)}
+          >
+            <AgentWorkspace
+              key={resolved.surfaceKey}
+              open={workspaceOpen}
+              onClose={() => setWorkspaceOpen(false)}
+              resolved={resolved}
+              tenantId={tenantId}
+            />
+          </DashboardWorkspaceBoundary>
+        ) : (
+          <AgentWorkspace
+            key={resolved.surfaceKey}
+            open={workspaceOpen}
+            onClose={() => setWorkspaceOpen(false)}
+            resolved={resolved}
+            tenantId={tenantId}
+          />
+        )
       )}
     </div>
   )

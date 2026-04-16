@@ -152,6 +152,14 @@ export default function AgentWorkspace({
 
   useEffect(() => {
     if (!open) return
+    if (resolved.surfaceKey === 'dashboard') {
+      agentFlowDebug({
+        action: 'dashboard_render_start',
+        agentId: cardAgent?.id ?? safeAssigned?.id ?? safeSuggested?.id ?? null,
+        source: 'dashboard_agent_chip',
+        meta: { surfaceKey: resolved.surfaceKey },
+      })
+    }
     agentFlowDebug({
       action: 'open_workspace',
       agentId: cardAgent?.id ?? safeAssigned?.id ?? safeSuggested?.id ?? null,
