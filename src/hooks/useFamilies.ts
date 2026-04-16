@@ -4,6 +4,7 @@ import { batchIn } from '../lib/batchQuery'
 import { useAuthContext } from '../app/AuthContext'
 import { DEFAULT_SESSIONS_PER_MONTH, DEFAULT_RATE_TIER_CENTS } from '../lib/constants'
 import { qk } from '../lib/queryKeys'
+import { getLocationColor } from '../utils/locationColor'
 
 // ═══════════════════════════════════════
 // FAMILY TYPES
@@ -185,7 +186,9 @@ export function useFamiliesPage(opts?: { enabled?: boolean }) {
         .select('id, name, color')
         .eq('tenant_id', tenantId!)
       const locMap = new Map<string, { name: string; color: string }>()
-      locations?.forEach((l: any) => locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? '#D4226A' }))
+      locations?.forEach((l: any) => {
+        locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? getLocationColor(l.id) })
+      })
 
       // Check for overdue invoices per family (invoice_tokens + square_invoices)
       const today = new Date().toISOString().slice(0, 10)
@@ -304,7 +307,10 @@ export function useFamiliesPage(opts?: { enabled?: boolean }) {
   })
 }
 
-/** Enrich one batch of family rows (same shape as list cards) — scoped to `families` already loaded. */
+/**
+ * Enrich one batch of family rows (same shape as list cards) — scoped to `families` already loaded.
+ * Parallel PostgREST reads today; a future `get_families_roster_bundle` RPC could serve the location CRM panel in one round-trip.
+ */
 export async function enrichFamiliesForRosterBatch(families: any[], tenantId: string): Promise<Family[]> {
   if (families.length === 0) return []
   const ids = families.map(f => f.id)
@@ -357,7 +363,9 @@ export async function enrichFamiliesForRosterBatch(families: any[], tenantId: st
   }
 
   const locMap = new Map<string, { name: string; color: string }>()
-  locations?.forEach((l: any) => locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? '#D4226A' }))
+  locations?.forEach((l: any) => {
+    locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? getLocationColor(l.id) })
+  })
 
   const overdueSet = new Set((overdueTokens ?? []).map((t: any) => t.family_id))
 
@@ -457,7 +465,7 @@ export function useFamiliesRosterInfinite(params: {
   const { familyTab, locationId, rateFilter, search, sortBy, enabled } = params
 
   return useInfiniteQuery({
-    queryKey: ['families_roster', tenantId, familyTab, locationId, rateFilter, search, sortBy],
+    queryKey: [...qk.families.roster, tenantId, familyTab, locationId, rateFilter, search, sortBy],
     enabled: !!tenantId && enabled,
     initialPageParam: 0,
     staleTime: 45_000,
@@ -573,7 +581,9 @@ export function useFamilyDetail(familyId: string | undefined) {
       // Resolve location name
       const { data: locations } = await supabase.from('locations').select('id, name, color').eq('tenant_id', tenantId!)
       const locMap = new Map<string, { name: string; color: string }>()
-      locations?.forEach((l: any) => locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? '#D4226A' }))
+      locations?.forEach((l: any) => {
+        locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? getLocationColor(l.id) })
+      })
       const loc = family.primary_location_id ? locMap.get(family.primary_location_id) : null
 
       return {

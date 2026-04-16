@@ -5,12 +5,12 @@ import { toast } from '../shared/Toast'
 import { getRateEdge, stripFamily } from './familyHelpers'
 
 const PAYMENT_BADGE_STYLES: Record<string, { bg: string; color: string; border: string }> = {
-  current: { bg: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)' },
-  scheduled: { bg: 'rgba(56,189,248,0.12)', color: '#38BDF8', border: '1px solid rgba(56,189,248,0.3)' },
-  overdue: { bg: 'rgba(248,113,113,0.15)', color: '#F87171', border: '1px solid rgba(248,113,113,0.4)' },
-  paused: { bg: 'rgba(148,163,184,0.12)', color: '#94A3B8', border: '1px solid rgba(148,163,184,0.3)' },
-  no_invoice: { bg: 'rgba(255,184,0,0.12)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.3)' },
-  cancelled: { bg: 'rgba(96,96,136,0.12)', color: '#606088', border: '1px solid rgba(96,96,136,0.3)' },
+  current: { bg: 'var(--success-12)', color: 'var(--color-success)', border: '1px solid var(--success-30)' },
+  scheduled: { bg: 'var(--sky-10)', color: 'var(--color-sky)', border: '1px solid color-mix(in srgb, var(--color-sky) 30%, transparent)' },
+  overdue: { bg: 'var(--danger-15)', color: 'var(--color-danger)', border: '1px solid var(--danger-30)' },
+  paused: { bg: 'var(--white-4)', color: 'var(--text-muted)', border: 'var(--border-width) solid var(--white-8)' },
+  no_invoice: { bg: 'var(--warning-12)', color: 'var(--color-warning)', border: '1px solid var(--warning-30)' },
+  cancelled: { bg: 'var(--white-4)', color: 'var(--text-caption)', border: 'var(--border-width) solid var(--white-8)' },
 }
 
 const PAYMENT_BADGE_LABELS: Record<string, string> = {
@@ -70,7 +70,7 @@ export default function FamilyRosterRow({
   guideId?: string
 }) {
   const rateEdge = getRateEdge(f.rate_tier)
-  const locColor = f.locationColor ?? '#606088'
+  const locColor = f.locationColor ?? 'var(--text-caption)'
   const isInactive = (f.billing_status ?? 'active') === 'cancelled'
   const activeStudents = (f.students ?? []).filter((s) => s.status === 'active')
   const studentNames = activeStudents
@@ -94,14 +94,14 @@ export default function FamilyRosterRow({
         gap: '0 12px',
         alignItems: 'center',
         padding: '10px 14px',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: 'var(--border-width) solid var(--white-4)',
         cursor: 'pointer',
         fontSize: 12,
       }}
     >
       <div
         style={{
-          borderLeft: `3px solid ${isInactive ? '#606088' : locColor}`,
+          borderLeft: `3px solid ${isInactive ? 'var(--text-caption)' : locColor}`,
           paddingLeft: 10,
           minWidth: 0,
         }}
@@ -110,7 +110,7 @@ export default function FamilyRosterRow({
           <span
             style={{
               fontWeight: 700,
-              color: '#E0E0F4',
+              color: 'var(--text-secondary)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -124,9 +124,9 @@ export default function FamilyRosterRow({
                 fontSize: 8,
                 padding: '1px 5px',
                 borderRadius: 4,
-                background: 'rgba(255,184,0,0.15)',
-                color: '#FFB800',
-                border: '1px solid rgba(255,184,0,0.25)',
+                background: 'var(--warning-15)',
+                color: 'var(--color-warning)',
+                border: '1px solid var(--warning-25)',
                 fontWeight: 700,
                 flexShrink: 0,
               }}
@@ -135,7 +135,7 @@ export default function FamilyRosterRow({
             </span>
           )}
         </div>
-        {f.locationName && <div style={{ fontSize: 10, color: '#606088', marginTop: 2 }}>{f.locationName}</div>}
+        {f.locationName && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-caption)', marginTop: 2 }}>{f.locationName}</div>}
       </div>
       <div>
         <span
@@ -145,15 +145,15 @@ export default function FamilyRosterRow({
             padding: '2px 6px',
             borderRadius: 6,
             display: 'inline-block',
-            background: isInactive ? 'rgba(255,255,255,0.06)' : rateEdge.solid,
-            color: isInactive ? '#606088' : '#1A1A2E',
+            background: isInactive ? 'var(--white-6)' : rateEdge.solid,
+            color: isInactive ? 'var(--text-caption)' : 'var(--bg-base)',
           }}
         >
           ${f.monthlyTotalCents > 0 ? (f.monthlyTotalCents / 100).toFixed(0) : (f.rate_tier / 100).toFixed(0)}
           <span style={{ fontSize: 8, fontWeight: 600, opacity: 0.75 }}>/mo</span>
         </span>
       </div>
-      <div style={{ color: '#A0A0C8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+      <div style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
         {f.primary_email ? (
           <CopyText
             value={f.primary_email}
@@ -163,13 +163,13 @@ export default function FamilyRosterRow({
           '—'
         )}
       </div>
-      <div style={{ color: '#A0A0C8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {f.primary_phone ?? '—'}
       </div>
-      <div style={{ color: '#C0C0E0', lineHeight: 1.35, minWidth: 0 }}>
+      <div style={{ color: 'var(--text-subtle)', lineHeight: 1.35, minWidth: 0 }}>
         <span style={{ fontWeight: 600 }}>{f.activeStudentCount}</span>
-        {studentInstruments && <span style={{ color: '#8080A8' }}> · {studentInstruments}</span>}
-        {studentNames && <span style={{ color: '#8080A8' }}> · {studentNames}</span>}
+        {studentInstruments && <span style={{ color: 'var(--text-placard)' }}> · {studentInstruments}</span>}
+        {studentNames && <span style={{ color: 'var(--text-placard)' }}> · {studentNames}</span>}
       </div>
       <div>
         <span
@@ -180,14 +180,14 @@ export default function FamilyRosterRow({
             borderRadius: 100,
             ...(f.card_last_four
               ? {
-                  background: 'rgba(74,222,128,0.12)',
-                  color: '#4ADE80',
-                  border: '1px solid rgba(74,222,128,0.3)',
+                  background: 'var(--success-12)',
+                  color: 'var(--color-success)',
+                  border: '1px solid var(--success-30)',
                 }
               : {
-                  background: 'rgba(248,113,113,0.12)',
-                  color: '#F87171',
-                  border: '1px solid rgba(248,113,113,0.3)',
+                  background: 'var(--danger-10)',
+                  color: 'var(--color-danger)',
+                  border: '1px solid var(--danger-30)',
                 }),
           }}
         >
@@ -205,9 +205,9 @@ export default function FamilyRosterRow({
               fontWeight: 700,
               padding: '2px 6px',
               borderRadius: 100,
-              background: 'rgba(34,197,94,0.12)',
-              color: '#22C55E',
-              border: '1px solid rgba(34,197,94,0.25)',
+              background: 'var(--success-12)',
+              color: 'var(--color-success)',
+              border: '1px solid var(--success-25)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: 3,
@@ -222,9 +222,9 @@ export default function FamilyRosterRow({
               fontWeight: 700,
               padding: '2px 6px',
               borderRadius: 100,
-              background: 'rgba(239,68,68,0.12)',
-              color: '#F87171',
-              border: '1px solid rgba(239,68,68,0.3)',
+              background: 'var(--danger-10)',
+              color: 'var(--color-danger)',
+              border: '1px solid var(--danger-30)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: 3,

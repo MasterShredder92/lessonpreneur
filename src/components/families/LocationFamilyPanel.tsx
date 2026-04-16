@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import MusicLoader from '../shared/MusicLoader'
 import { useFamiliesRosterInfinite } from '../../hooks/useFamilies'
+import { getLocationColor } from '../../utils/locationColor'
 import FamilyRosterRow from './FamilyRosterRow'
 
 const RATE_OPTIONS = [
@@ -37,7 +38,7 @@ export default function LocationFamilyPanel({
 
   const effectiveLocationId = locationId === 'all' ? null : locationId
   const loc = locationId === 'all' ? null : locations?.find((l: any) => l.id === locationId)
-  const locColor = locationId === 'all' ? '#D4226A' : (locationColors[locationId] ?? '#D4226A')
+  const locColor = locationId === 'all' ? 'var(--pink)' : (locationColors[locationId] ?? getLocationColor(locationId))
 
   const rosterInfinite = useFamiliesRosterInfinite({
     familyTab: activeTab,
@@ -92,7 +93,7 @@ export default function LocationFamilyPanel({
           position: 'fixed',
           inset: 0,
           zIndex: 300,
-          background: 'rgba(2,2,9,0.72)',
+          background: 'color-mix(in srgb, var(--bg-base) 72%, transparent)',
           backdropFilter: 'blur(4px)',
           WebkitBackdropFilter: 'blur(4px)',
         }}
@@ -108,21 +109,21 @@ export default function LocationFamilyPanel({
           zIndex: 301,
           display: 'flex',
           flexDirection: 'column',
-          background: 'linear-gradient(160deg, #0C0C18 0%, #08080F 100%)',
-          borderLeft: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '-24px 0 80px rgba(0,0,0,0.7)',
+          background: 'linear-gradient(160deg, var(--surface-modal) 0%, var(--bg-base) 100%)',
+          borderLeft: 'var(--border-width) solid var(--white-8)',
+          boxShadow: '-24px 0 80px var(--overlay-scrim-70)',
           animation: 'slideInRight 260ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
         <div
           style={{
-            padding: '18px 24px',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            padding: 'var(--space-inline-y-18) var(--space-xl)',
+            borderBottom: 'var(--border-width) solid var(--white-6)',
             display: 'flex',
             alignItems: 'center',
             gap: 14,
             flexShrink: 0,
-            background: 'rgba(0,0,0,0.2)',
+            background: 'color-mix(in srgb, #000000 20%, transparent)',
           }}
         >
           <div style={{ width: 4, height: 46, borderRadius: 2, background: locColor, flexShrink: 0 }} />
@@ -131,14 +132,14 @@ export default function LocationFamilyPanel({
               style={{
                 margin: 0,
                 fontWeight: 800,
-                fontSize: 17,
-                color: '#E0E0F4',
+                fontSize: 'var(--font-size-4xl)',
+                color: 'var(--text-secondary)',
                 letterSpacing: '-0.01em',
               }}
             >
               {locationId === 'all' ? 'All Families' : (loc?.name ?? 'Families')}
             </h2>
-            <p style={{ margin: '3px 0 0', fontSize: 11, color: '#8080A8' }}>
+            <p style={{ margin: 'var(--space-3xs) 0 0', fontSize: 'var(--font-size-sm)', color: 'var(--text-placard)' }}>
               {locationId === 'all'
                 ? 'Across all locations'
                 : (loc?.city ? `${loc.city}, ${loc.state}` : '')}
@@ -147,13 +148,13 @@ export default function LocationFamilyPanel({
           <button
             onClick={onAddFamily}
             style={{
-              fontSize: 12,
+              fontSize: 'var(--font-size-lg)',
               padding: '7px 14px',
-              borderRadius: 8,
-              background: '#D4226A',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--pink)',
               border: 'none',
-              color: '#fff',
-              fontWeight: 700,
+              color: 'var(--text-primary)',
+              fontWeight: 'var(--font-weight-bold)',
               cursor: 'pointer',
               flexShrink: 0,
               letterSpacing: '-0.01em',
@@ -164,12 +165,12 @@ export default function LocationFamilyPanel({
           <button
             onClick={onClose}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: '#8080A8',
+              width: 'var(--size-icon-button)',
+              height: 'var(--size-icon-button)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--white-4)',
+              border: 'var(--border-width) solid var(--white-8)',
+              color: 'var(--text-placard)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -184,7 +185,7 @@ export default function LocationFamilyPanel({
         <div
           style={{
             padding: '0 24px',
-            borderBottom: '1px solid rgba(255,255,255,0.04)',
+            borderBottom: 'var(--border-width) solid var(--white-4)',
             flexShrink: 0,
             display: 'flex',
             gap: 0,
@@ -196,9 +197,9 @@ export default function LocationFamilyPanel({
               onClick={() => setActiveTab(tab)}
               style={{
                 padding: '11px 18px',
-                fontWeight: 700,
-                fontSize: 12,
-                color: activeTab === tab ? locColor : '#606088',
+                fontWeight: 'var(--font-weight-bold)',
+                fontSize: 'var(--font-size-lg)',
+                color: activeTab === tab ? locColor : 'var(--text-caption)',
                 background: 'none',
                 border: 'none',
                 borderBottom: `2px solid ${activeTab === tab ? locColor : 'transparent'}`,
@@ -215,12 +216,12 @@ export default function LocationFamilyPanel({
         <div
           style={{
             padding: '10px 24px',
-            borderBottom: '1px solid rgba(255,255,255,0.04)',
+            borderBottom: 'var(--border-width) solid var(--white-4)',
             display: 'flex',
-            gap: 8,
+            gap: 'var(--space-sm)',
             flexShrink: 0,
             flexWrap: 'wrap',
-            background: 'rgba(0,0,0,0.1)',
+            background: 'color-mix(in srgb, #000000 10%, transparent)',
           }}
         >
           <input
@@ -256,7 +257,7 @@ export default function LocationFamilyPanel({
           </select>
         </div>
 
-        <div style={{ padding: '6px 24px 4px', fontSize: 11, color: '#606088', flexShrink: 0 }}>
+        <div style={{ padding: '6px var(--space-xl) 4px', fontSize: 'var(--font-size-sm)', color: 'var(--text-caption)', flexShrink: 0 }}>
           {rosterInfinite.isLoading
             ? 'Loading...'
             : `${rosterRows.length}${rosterInfinite.hasNextPage ? '+' : ''} famil${rosterRows.length !== 1 ? 'ies' : 'y'}`}
@@ -267,15 +268,15 @@ export default function LocationFamilyPanel({
             style={{
               display: 'grid',
               gridTemplateColumns: gridCols,
-              gap: '0 12px',
-              padding: '7px 24px',
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#8080A8',
+              gap: '0 var(--space-md)',
+              padding: '7px var(--space-xl)',
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 'var(--font-weight-bold)',
+              color: 'var(--text-placard)',
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-              background: 'rgba(0,0,0,0.2)',
+              borderBottom: 'var(--border-width) solid var(--white-6)',
+              background: 'color-mix(in srgb, #000000 20%, transparent)',
               flexShrink: 0,
             }}
           >
@@ -315,7 +316,7 @@ export default function LocationFamilyPanel({
                 }}
               >
                 {rosterInfinite.isFetchingNextPage && (
-                  <span style={{ fontSize: 12, color: '#8080A8' }}>Loading more…</span>
+                  <span style={{ fontSize: 'var(--font-size-lg)', color: 'var(--text-placard)' }}>Loading more…</span>
                 )}
               </div>
             </>
