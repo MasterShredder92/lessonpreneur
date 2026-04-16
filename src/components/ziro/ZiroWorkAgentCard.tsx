@@ -69,7 +69,7 @@ function ActionBtn({ icon, label, color, onClick }: { icon: ReactNode; label: st
  * When `lockedExpanded`, used inside Agent Workspace overlay (no collapse).
  */
 export function ZiroWorkAgentCard({
-  agent,
+  agent: rawAgent,
   tenantId,
   isOrchestratorAttached,
   isExpanded,
@@ -87,7 +87,7 @@ export function ZiroWorkAgentCard({
   skills: ZiroSkill[]
   lockedExpanded?: boolean
 }) {
-  const resolvedAgent = resolveSafeAgent(agent)
+  const resolvedAgent = resolveSafeAgent(rawAgent)
   const agentId = resolvedAgent?.id ?? null
   const expanded = lockedExpanded || isExpanded
   const { data: agentSkills } = useAgentSkills(expanded && agentId ? agentId : null)
