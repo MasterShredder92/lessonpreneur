@@ -25,10 +25,10 @@ export default function ParentPractice() {
   useEffect(() => {
     if (students.length === 0) return
     if (initialStudent && students.some(s => s.id === initialStudent)) {
-      setSelectedStudent(initialStudent)
+      queueMicrotask(() => setSelectedStudent(initialStudent))
       return
     }
-    if (!selectedStudent) setSelectedStudent(students[0].id)
+    if (!selectedStudent) queueMicrotask(() => setSelectedStudent(students[0].id))
   }, [students, selectedStudent, initialStudent])
 
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center' }}><MusicLoader /></div>
@@ -108,7 +108,8 @@ function PracticeSession({ studentId, studentName, instrument, familyId, onOpenM
         { studentId, familyId, instrument: instrument ?? activeTool, toolUsed: activeTool, durationSeconds: timer },
         {
           onSuccess: () => toast('Practice logged!', 'success'),
-          onError: (err: any) => toast(err.message ?? 'Failed to log practice', 'error'),
+          onError: (err: unknown) =>
+            toast(err instanceof Error ? err.message : 'Failed to log practice', 'error'),
         }
       )
     }
@@ -123,7 +124,8 @@ function PracticeSession({ studentId, studentName, instrument, familyId, onOpenM
       { studentId, familyId, instrument: 'drums', toolUsed: 'drums_widget', durationSeconds: 0 },
       {
         onSuccess: () => toast('Practice session logged! 🥁', 'success'),
-        onError: (err: any) => toast(err.message ?? 'Failed to log practice', 'error'),
+        onError: (err: unknown) =>
+          toast(err instanceof Error ? err.message : 'Failed to log practice', 'error'),
       }
     )
   }, [logPractice, studentId, familyId])
@@ -238,8 +240,8 @@ function ManualEntryModal({ studentId, studentName, instrument, familyId, onClos
       })
       toast('Practice logged', 'success')
       onClose()
-    } catch (err: any) {
-      toast(err.message ?? 'Failed to log practice', 'error')
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Failed to log practice', 'error')
     }
   }
 
@@ -482,7 +484,10 @@ function VocalsRecorder() {
   }
 
   const playRecording = () => {
-    if (audioUrl) { const a = new Audio(audioUrl); a.play().catch(() => {}) }
+    if (audioUrl) {
+      const a = new Audio(audioUrl)
+      a.play().catch(() => {})
+    }
   }
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`

@@ -3,11 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { qk } from '../lib/queryKeys'
 import {
-  CRM_PAGE_INTEL_BINDING_KEYS,
+  PAGE_INTEL_BINDING_KEYS,
   getSurfaceByKey,
   resolveOperatingSurface,
+  type PageIntelBindingKey,
   type ZiroOperatingSurfaceKey,
 } from '../lib/ziro/pageSurfaceRegistry'
+import { matrixRowForPageKey } from '../lib/ziro/pageBindingMatrix'
+import type { MusicSchoolAgentCatalogSlug } from '../lib/ziro/musicSchoolAgentCatalog'
+import { resolveSafeAgent } from '../lib/ziro/agentSafe'
 import type { ZiroAgent } from './useAgents'
 
 export interface ZiroPageIntelligenceBindingRow {
@@ -15,7 +19,14 @@ export interface ZiroPageIntelligenceBindingRow {
   tenant_id: string
   page_key: string
   primary_agent_id: string | null
+  supporting_agent_ids: string[]
   updated_at: string
+}
+
+function catalogSlugOf(agent: ZiroAgent): MusicSchoolAgentCatalogSlug | null {
+  const slug = (agent.invocation_rules as { catalog_slug?: string } | undefined)?.catalog_slug
+  if (!slug) return null
+  return slug as MusicSchoolAgentCatalogSlug
 }
 
 export function usePageIntelligenceBindings(tenantId: string | null) {
@@ -25,11 +36,14 @@ export function usePageIntelligenceBindings(tenantId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ziro_page_intelligence_bindings')
-        .select('id, tenant_id, page_key, primary_agent_id, updated_at')
+        .select('id, tenant_id, page_key, primary_agent_id, supporting_agent_ids, updated_at')
         .eq('tenant_id', tenantId!)
-        .limit(80)
+        .limit(120)
       if (error) throw error
-      return (data ?? []) as ZiroPageIntelligenceBindingRow[]
+      return (data ?? []).map(row => ({
+        ...row,
+        supporting_agent_ids: Array.isArray(row.supporting_agent_ids) ? row.supporting_agent_ids : [],
+      })) as ZiroPageIntelligenceBindingRow[]
     },
   })
 }
@@ -58,43 +72,73 @@ export function scoreAgentForSurface(agent: ZiroAgent, hints: string[]): number 
   return score
 }
 
+function pickPrimaryHeuristic(pageKey: string, active: ZiroAgent[], usageCount: Map<string, number>): ZiroAgent {
+  const surface = getSurfaceByKey(pageKey as ZiroOperatingSurfaceKey)
+  const hints = surface?.agentMatchHints ?? []
+  let best: ZiroAgent | null = null
+  let bestScore = -Infinity
+  for (const a of active) {
+    const base = scoreAgentForSurface(a, hints)
+    const used = usageCount.get(a.id) ?? 0
+    const adjusted = base - used * 0.5
+    if (adjusted > bestScore) {
+      bestScore = adjusted
+      best = a
+    }
+  }
+  const i = PAGE_INTEL_BINDING_KEYS.indexOf(pageKey as PageIntelBindingKey)
+  return best ?? active[Math.max(0, i) % active.length]!
+}
+
 /**
- * Pick one active agent per CRM surface using registry match hints; prefers spreading
- * agents across pages when scores tie. Falls back to round-robin if all scores are 0.
+ * Matrix-first catalog slug picks, then hint-based spread across pages when a slug is missing.
+ * Emits `supporting_agent_ids` from matrix when those catalog agents exist.
  */
-export function suggestCrmPageBindingAssignments(agents: ZiroAgent[]): { page_key: string; primary_agent_id: string }[] {
+export function suggestPageIntelBindingAssignments(agents: ZiroAgent[]): {
+  page_key: string
+  primary_agent_id: string
+  supporting_agent_ids: string[]
+}[] {
   const active = agents.filter(a => a.status === 'active')
   if (active.length === 0) return []
 
-  const assignments: { page_key: string; primary_agent_id: string }[] = []
   const usageCount = new Map<string, number>()
+  const bySlug = (slug: MusicSchoolAgentCatalogSlug) => active.find(a => catalogSlugOf(a) === slug) ?? null
 
-  for (let i = 0; i < CRM_PAGE_INTEL_BINDING_KEYS.length; i++) {
-    const pageKey = CRM_PAGE_INTEL_BINDING_KEYS[i]
-    const surface = getSurfaceByKey(pageKey)
-    const hints = surface?.agentMatchHints ?? []
+  const assignments: { page_key: string; primary_agent_id: string; supporting_agent_ids: string[] }[] = []
 
-    let best: ZiroAgent | null = null
-    let bestScore = -Infinity
-    for (const a of active) {
-      const base = scoreAgentForSurface(a, hints)
-      const used = usageCount.get(a.id) ?? 0
-      const adjusted = base - used * 0.5
-      if (adjusted > bestScore) {
-        bestScore = adjusted
-        best = a
+  for (const pageKey of PAGE_INTEL_BINDING_KEYS) {
+    const row = matrixRowForPageKey(pageKey)
+    let primary: ZiroAgent | null = null
+    if (row?.recommendedPrimarySlug) primary = bySlug(row.recommendedPrimarySlug)
+    if (!primary) primary = pickPrimaryHeuristic(pageKey, active, usageCount)
+
+    usageCount.set(primary.id, (usageCount.get(primary.id) ?? 0) + 1)
+
+    const supportingIds: string[] = []
+    if (row) {
+      for (const s of row.recommendedSupportingSlugs) {
+        const ag = bySlug(s)
+        if (ag && ag.id !== primary.id && !supportingIds.includes(ag.id)) supportingIds.push(ag.id)
       }
     }
 
-    const chosen =
-      best ??
-      active[i % active.length]!
-
-    usageCount.set(chosen.id, (usageCount.get(chosen.id) ?? 0) + 1)
-    assignments.push({ page_key: pageKey, primary_agent_id: chosen.id })
+    assignments.push({
+      page_key: pageKey,
+      primary_agent_id: primary.id,
+      supporting_agent_ids: supportingIds,
+    })
   }
 
   return assignments
+}
+
+/** @deprecated Use suggestPageIntelBindingAssignments (includes supporting ids). */
+export function suggestCrmPageBindingAssignments(agents: ZiroAgent[]): { page_key: string; primary_agent_id: string }[] {
+  return suggestPageIntelBindingAssignments(agents).map(({ page_key, primary_agent_id }) => ({
+    page_key,
+    primary_agent_id,
+  }))
 }
 
 /** `tenant_binding` = ziro_page_intelligence_bindings.primary_agent_id resolves to an agent. No heuristic fallback for page assignment. */
@@ -115,6 +159,8 @@ export interface ResolvedPageIntelligence {
   suggestedAgent: ZiroAgent | null
   /** Binding row for this surface, if any */
   pageBinding: ZiroPageIntelligenceBindingRow | null
+  /** DB-persisted supporting agents for this page (excluding primary). */
+  assignedSupportingAgents: ZiroAgent[]
   /** Agents that scored > 0 for this surface (excluding assigned), max 3 */
   supportingAgents: ZiroAgent[]
   resolution: PageIntelligenceResolution
@@ -128,12 +174,21 @@ export function useResolvedPageIntelligence(
 ): ResolvedPageIntelligence | null {
   return useMemo(() => {
     const surface = resolveOperatingSurface(pathname)
-    const list = agents ?? []
+    const list = (agents ?? [])
+      .map(a => resolveSafeAgent(a))
+      .filter((a): a is ZiroAgent => a !== null)
     const bind = (bindings ?? []).find(b => b.page_key === surface.key) ?? null
 
     let assigned: ZiroAgent | null = null
     if (bind?.primary_agent_id) {
       assigned = list.find(a => a.id === bind.primary_agent_id) ?? null
+    }
+
+    const supportingIds = (bind?.supporting_agent_ids ?? []).filter(id => id && id !== bind?.primary_agent_id)
+    const assignedSupportingAgents: ZiroAgent[] = []
+    for (const id of supportingIds) {
+      const ag = list.find(a => a.id === id)
+      if (ag) assignedSupportingAgents.push(ag)
     }
 
     let suggested: ZiroAgent | null = null
@@ -165,32 +220,56 @@ export function useResolvedPageIntelligence(
         if (s >= 2) supporting.push(a)
       }
     }
-    supporting.sort((a, b) => scoreAgentForSurface(b, surface.agentMatchHints) - scoreAgentForSurface(a, surface.agentMatchHints))
+    supporting.sort(
+      (a, b) => scoreAgentForSurface(b, surface.agentMatchHints) - scoreAgentForSurface(a, surface.agentMatchHints),
+    )
+
+    const assignedOut = assigned ? resolveSafeAgent(assigned) : null
+    const suggestedOut = suggested ? resolveSafeAgent(suggested) : null
+    const supportingOut = supporting
+      .slice(0, 3)
+      .map(a => resolveSafeAgent(a))
+      .filter((a): a is ZiroAgent => a !== null)
+    const assignedSupportingOut = assignedSupportingAgents
+      .map(a => resolveSafeAgent(a))
+      .filter((a): a is ZiroAgent => a !== null)
 
     return {
       surfaceKey: surface.key,
       surfaceTitle: surface.title,
       intelligenceSummary: surface.intelligenceSummary,
       seedPrompt: surface.seedPromptTemplate,
-      assignedAgent: assigned,
-      suggestedAgent: suggested,
+      assignedAgent: assignedOut,
+      suggestedAgent: suggestedOut,
       pageBinding: bind,
-      supportingAgents: supporting.slice(0, 3),
+      assignedSupportingAgents: assignedSupportingOut,
+      supportingAgents: supportingOut,
       resolution,
     }
   }, [pathname, agents, bindings])
 }
 
-type UpsertBindingRow = { tenant_id: string; page_key: string; primary_agent_id: string }
+export type UpsertPageIntelBindingRow = {
+  tenant_id: string
+  page_key: string
+  primary_agent_id: string | null
+  supporting_agent_ids: string[]
+}
 
-/** Upsert CRM page ↔ primary agent rows (tenant RLS). */
+/** Upsert CRM page ↔ agent rows (tenant RLS). */
 export function useUpsertPageIntelligenceBindings(tenantId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (rows: UpsertBindingRow[]) => {
+    mutationFn: async (rows: UpsertPageIntelBindingRow[]) => {
       if (!tenantId) throw new Error('Missing tenant')
       if (rows.length === 0) throw new Error('No binding rows')
-      const { error } = await supabase.from('ziro_page_intelligence_bindings').upsert(rows, {
+      const sanitized = rows.map(r => ({
+        tenant_id: r.tenant_id,
+        page_key: r.page_key,
+        primary_agent_id: r.primary_agent_id,
+        supporting_agent_ids: (r.supporting_agent_ids ?? []).filter(id => id && id !== r.primary_agent_id),
+      }))
+      const { error } = await supabase.from('ziro_page_intelligence_bindings').upsert(sanitized, {
         onConflict: 'tenant_id,page_key',
       })
       if (error) throw error
@@ -201,11 +280,12 @@ export function useUpsertPageIntelligenceBindings(tenantId: string | null) {
   })
 }
 
-/** Build upsert payload from live agents (see suggestCrmPageBindingAssignments). */
-export function buildCrmPageBindingUpsertRows(tenantId: string, agents: ZiroAgent[]): UpsertBindingRow[] {
-  return suggestCrmPageBindingAssignments(agents).map(r => ({
+/** Build upsert payload from live agents (matrix + heuristic fallback). */
+export function buildCrmPageBindingUpsertRows(tenantId: string, agents: ZiroAgent[]): UpsertPageIntelBindingRow[] {
+  return suggestPageIntelBindingAssignments(agents).map(r => ({
     tenant_id: tenantId,
     page_key: r.page_key,
     primary_agent_id: r.primary_agent_id,
+    supporting_agent_ids: r.supporting_agent_ids,
   }))
 }

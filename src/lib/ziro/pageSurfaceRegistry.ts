@@ -26,17 +26,41 @@ export type ZiroOperatingSurfaceKey =
   | 'skills_standalone'
   | 'unknown'
 
-/** CRM surfaces that get `ziro_page_intelligence_bindings.page_key` rows (must match router paths via resolveOperatingSurface). */
-export const CRM_PAGE_INTEL_BINDING_KEYS = [
+/**
+ * Admin surfaces that participate in `ziro_page_intelligence_bindings` (must match
+ * `resolveOperatingSurface().key`). Used by Ziro Control, bulk assign, and repair scripts.
+ */
+export const PAGE_INTEL_BINDING_KEYS = [
   'dashboard',
-  'students',
   'leads',
   'schedule',
+  'students',
+  'families',
+  'retention',
   'teachers',
+  'payroll',
+  'recruitment',
   'billing',
+  'financials',
+  'integrations',
+  'settings',
+  'zirowork',
+  'ziro_insights',
+  'workflows',
+  'analytics',
+  'import',
+  'platform',
+  'performance',
+  'skills_standalone',
 ] as const satisfies readonly ZiroOperatingSurfaceKey[]
 
-export type CrmPageIntelBindingKey = (typeof CRM_PAGE_INTEL_BINDING_KEYS)[number]
+export type PageIntelBindingKey = (typeof PAGE_INTEL_BINDING_KEYS)[number]
+
+/** @deprecated Use PAGE_INTEL_BINDING_KEYS */
+export const CRM_PAGE_INTEL_BINDING_KEYS = PAGE_INTEL_BINDING_KEYS
+
+/** @deprecated Use PageIntelBindingKey */
+export type CrmPageIntelBindingKey = PageIntelBindingKey
 
 export function getSurfaceByKey(key: ZiroOperatingSurfaceKey): ZiroOperatingSurface | undefined {
   return SURFACES.find(s => s.key === key)

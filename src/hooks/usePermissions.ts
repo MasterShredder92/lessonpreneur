@@ -36,6 +36,16 @@ export function usePermissions() {
     },
   })
 
+  type PermissionOverrideRow = { permission_key: string; is_granted: boolean }
+  type PermissionGrantRow = { role: string; permission_key: string; is_granted: boolean }
+  type PermissionDefinitionRow = {
+    key: string
+    company_director_default?: boolean | null
+    studio_director_default?: boolean | null
+    teacher_default?: boolean | null
+    parent_default?: boolean | null
+  }
+
   // Resolve a single permission
   const canDo = (key: string): boolean => {
     // Owner (real role) always has full access when NOT previewing
@@ -47,17 +57,17 @@ export function usePermissions() {
     // When previewing, skip individual overrides — simulate the role cleanly
     if (!preview.active) {
       // 1. Check individual override (highest priority)
-      const override = overrides.find((o: any) => o.permission_key === key)
+      const override = (overrides as PermissionOverrideRow[]).find(o => o.permission_key === key)
       if (override) return override.is_granted
     }
 
     // 2. Check role-level grant
     const roleForGrant = effectiveRole === 'admin' ? 'company_director' : effectiveRole
-    const grant = grants.find((g: any) => g.role === roleForGrant && g.permission_key === key)
+    const grant = (grants as PermissionGrantRow[]).find(g => g.role === roleForGrant && g.permission_key === key)
     if (grant) return grant.is_granted
 
     // 3. Fall back to definition defaults
-    const def = defs.find((d: any) => d.key === key)
+    const def = (defs as PermissionDefinitionRow[]).find(d => d.key === key)
     if (def) {
       switch (roleForGrant) {
         case 'company_director': return def.company_director_default ?? false
@@ -99,10 +109,14 @@ export function usePermissions() {
   const canViewTeacherCompensation = isOwner || isCompanyDirector
   const canViewTeacherDocuments = isOwner || isCompanyDirector
 
-  // Ziro access — hard policy. Mirrors edge-function enforcement.
-  // owner / admin / company_director / studio_director only.
-  // teachers / parents / students get NO Ziro access path.
-  const canUseZiro = isOwner || isCompanyDirector || isStudioDirector
+  // Ziro access — hard policy by real signed-in role (JWT / profile), not preview role.
+  // Person-role preview changes effectiveRole for data/permission simulation but must not
+  // strip Ziro from owners/admins still navigating /admin (RouteGuard already allows that).
+  const canUseZiro =
+    actualRole === 'owner' ||
+    actualRole === 'admin' ||
+    actualRole === 'company_director' ||
+    actualRole === 'studio_director'
 
   return {
     canDo, isAtLeast,

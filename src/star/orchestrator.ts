@@ -382,7 +382,7 @@ async function findStarAgentForSkill(
   const candidates: AgentRecord[] = []
 
   for (const row of data) {
-    const agent = (row as any).ziro_agents as AgentRecord
+    const agent = (row as unknown as { ziro_agents: AgentRecord }).ziro_agents
     // Edge case: skip non-active agents (retired agent accidentally still in star_agents)
     if (agent.status !== 'active') continue
 
@@ -442,7 +442,7 @@ async function findStarAgentByInvocationRule(
   let bestScore = 0
 
   for (const row of data) {
-    const agent = (row as any).ziro_agents as AgentRecord
+    const agent = (row as unknown as { ziro_agents: AgentRecord }).ziro_agents
     if (agent.status !== 'active') continue
 
     const rules = agent.invocation_rules as { keywords?: string[] }
@@ -534,6 +534,9 @@ export async function createTempAgent(
       lifecycle_type: 'temporary',
       invocation_rules: {},
       created_by: createdBy,
+      is_visible_in_ui: false,
+      is_archived: false,
+      business_context: 'ephemeral',
     })
     .select()
     .single()
@@ -856,5 +859,7 @@ export async function orchestrateFromChat(params: {
 // ── Increment skill use count ───────────────────────────
 
 export function recordSkillUsage(skillId: string): void {
-  supabase.rpc('increment_skill_use_count', { p_skill_id: skillId }).catch(() => {})
+  supabase.rpc('increment_skill_use_count', { p_skill_id: skillId }).catch((err: unknown) => {
+    console.error('[recordSkillUsage] increment_skill_use_count failed:', err)
+  })
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, type CSSProperties } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import {
@@ -13,13 +13,20 @@ import {
   useUpsertStarConfig,
   type ZiroAgent,
 } from '../../hooks/useAgents'
-import { useSkills, type ZiroSkill } from '../../hooks/useSkills'
+import { useSkills } from '../../hooks/useSkills'
 import {
   usePageIntelligenceBindings,
   buildCrmPageBindingUpsertRows,
   useUpsertPageIntelligenceBindings,
+  type ZiroPageIntelligenceBindingRow,
 } from '../../hooks/usePageIntelligence'
-import { CRM_PAGE_INTEL_BINDING_KEYS, getSurfaceByKey } from '../../lib/ziro/pageSurfaceRegistry'
+import { PAGE_INTEL_BINDING_KEYS, getSurfaceByKey } from '../../lib/ziro/pageSurfaceRegistry'
+import {
+  resolveSafeAgent,
+  agentFlowDebug,
+  assertValidAgent,
+  navigateToZiroWorkAgentEditor,
+} from '../../lib/ziro/agentSafe'
 import { MUSIC_SCHOOL_ZIRO_AGENT_CATALOG } from '../../lib/ziro/musicSchoolAgentCatalog'
 import { useTaskHistory, type TaskHistoryRow } from '../../hooks/useTaskHistory'
 import { useRouteAnalytics } from '../../hooks/useRouteAnalytics'
@@ -74,7 +81,7 @@ const ROUTE_LABELS: Record<string, string> = {
 
 export default function ZiroWorkPage() {
   const { role, tenantId } = useAuthContext()
-  const { isOwner } = usePermissions()
+  usePermissions()
   const isAdmin = role === 'owner' || role === 'admin'
   const [searchParams] = useSearchParams()
   const [mainTab, setMainTab] = useState<MainTab>(() => {
@@ -88,8 +95,10 @@ export default function ZiroWorkPage() {
 
   useEffect(() => {
     const t = searchParams.get('zwtab')
-    if (t === 'skills' || t === 'agents' || t === 'ziro' || t === 'history' || t === 'analytics') setMainTab(t)
-    else if (searchParams.get('agentId')) setMainTab('agents')
+    queueMicrotask(() => {
+      if (t === 'skills' || t === 'agents' || t === 'ziro' || t === 'history' || t === 'analytics') setMainTab(t)
+      else if (searchParams.get('agentId')) setMainTab('agents')
+    })
   }, [searchParams])
 
   if (!isAdmin) {
@@ -159,7 +168,7 @@ export default function ZiroWorkPage() {
         </div>
 
         {mainTab === 'skills' && <SkillsManager embedded />}
-        {mainTab === 'agents' && <AgentsTab tenantId={tenantId} isOwner={isOwner} />}
+        {mainTab === 'agents' && <AgentsTab tenantId={tenantId} />}
         {mainTab === 'ziro' && <ZiroOrchestratorConfigTab tenantId={tenantId} />}
         {mainTab === 'history' && <TaskHistoryTab tenantId={tenantId} />}
         {mainTab === 'analytics' && <RouteAnalyticsTab tenantId={tenantId} />}
@@ -181,30 +190,43 @@ function ZiroOrchestratorConfigTab({ tenantId }: { tenantId: string | null }) {
   )
 }
 
-/** Section 1 — CRM page ↔ primary agent (`ziro_page_intelligence_bindings`). */
+/** Section 1 — Admin page ↔ primary + supporting agents (`ziro_page_intelligence_bindings`). */
 function ZiroControlCrmPageAgentSection({ tenantId }: { tenantId: string | null }) {
   const { data: agents, isLoading: agentsLoading } = useAgents(tenantId)
   const { data: catalogAgents, isLoading: catalogLoading } = useMusicSchoolZiroAgents(tenantId)
   const { data: bindings, isLoading: bindingsLoading } = usePageIntelligenceBindings(tenantId)
   const upsertBindings = useUpsertPageIntelligenceBindings(tenantId)
   const seedCatalog = useSeedMusicSchoolCatalogAgents(tenantId)
+  const [searchParams] = useSearchParams()
+  const [draftPrimary, setDraftPrimary] = useState<Record<string, string>>({})
 
   const activeCatalog = (catalogAgents ?? []).filter(a => a.status === 'active')
+  const activeAgentsPool = useMemo(() => (agents ?? []).filter(a => a.status === 'active'), [agents])
+
+  const byBindingKey = useMemo(() => new Map((bindings ?? []).map(b => [b.page_key, b])), [bindings])
 
   const bindingRows = useMemo(() => {
-    const byKey = new Map((bindings ?? []).map(b => [b.page_key, b]))
-    return CRM_PAGE_INTEL_BINDING_KEYS.map(page_key => {
-      const b = byKey.get(page_key)
-      const agent = agents?.find(a => a.id === b?.primary_agent_id)
+    return PAGE_INTEL_BINDING_KEYS.map(page_key => {
+      const b = byBindingKey.get(page_key)
+      const agent = resolveSafeAgent(agents?.find(a => a.id === b?.primary_agent_id) ?? null)
       const surface = getSurfaceByKey(page_key)
+      const supportingNames = (b?.supporting_agent_ids ?? [])
+        .map(id => agents?.find(a => a.id === id)?.name)
+        .filter(Boolean) as string[]
       return {
         page_key,
+        binding: b ?? null,
         surfaceTitle: surface?.title ?? page_key,
         agentName: agent?.name ?? null,
-        hasBinding: !!b?.primary_agent_id,
+        supportingSummary: supportingNames.length ? supportingNames.join(', ') : '—',
       }
     })
-  }, [bindings, agents])
+  }, [byBindingKey, agents])
+
+  const selectValueFor = (page_key: string, b: ZiroPageIntelligenceBindingRow | null) => {
+    if (Object.prototype.hasOwnProperty.call(draftPrimary, page_key)) return draftPrimary[page_key]
+    return b?.primary_agent_id ?? ''
+  }
 
   const handleInstallCatalog = () => {
     seedCatalog.mutate(undefined, {
@@ -220,26 +242,59 @@ function ZiroControlCrmPageAgentSection({ tenantId }: { tenantId: string | null 
 
   const handleAssignFromAgents = () => {
     if (!tenantId) return
-    if (activeCatalog.length === 0) {
-      toast('Install music-school catalog agents first, or activate at least one visible catalog agent.', 'error')
+    if (activeAgentsPool.length === 0) {
+      toast('Activate at least one agent to run bulk assignment.', 'error')
       return
     }
-    const payload = buildCrmPageBindingUpsertRows(tenantId, activeCatalog)
+    const payload = buildCrmPageBindingUpsertRows(tenantId, activeAgentsPool)
     upsertBindings.mutate(payload, {
-      onSuccess: () => toast('CRM pages linked to catalog agents.', 'success'),
+      onSuccess: () => {
+        setDraftPrimary({})
+        toast('Admin pages linked using the page matrix + heuristics.', 'success')
+      },
       onError: (e: Error) => toast(e.message ?? 'Could not save bindings', 'error'),
     })
   }
+
+  const saveRow = (page_key: string) => {
+    if (!tenantId) return
+    const b = byBindingKey.get(page_key) ?? null
+    const raw = selectValueFor(page_key, b)
+    const primary_agent_id = raw ? raw : null
+    const supporting_agent_ids = (b?.supporting_agent_ids ?? []).filter(id => id && id !== primary_agent_id)
+    upsertBindings.mutate(
+      [{ tenant_id: tenantId, page_key, primary_agent_id, supporting_agent_ids }],
+      {
+        onSuccess: () => {
+          setDraftPrimary(d => {
+            const next = { ...d }
+            delete next[page_key]
+            return next
+          })
+          toast(`Saved ${page_key}`, 'success')
+        },
+        onError: (e: Error) => toast(e.message ?? 'Save failed', 'error'),
+      },
+    )
+  }
+
+  const surfaceQs = searchParams.get('surface')
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  useEffect(() => {
+    if (!surfaceQs) return
+    const el = rowRefs.current[surfaceQs]
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [surfaceQs, bindings])
 
   const loading = agentsLoading || bindingsLoading || catalogLoading
 
   return (
     <section style={{ ...CARD, padding: '22px 24px' }}>
       <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#E0E0F4', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
-        CRM Page Agent Control
+        Admin Page Agent Control
       </h2>
       <p style={{ margin: '8px 0 0', fontSize: 13, color: '#8080A8', lineHeight: 1.5, maxWidth: 720 }}>
-        Bind each core CRM surface to a primary catalog agent. Data lives in{' '}
+        Bind each admin surface to a primary agent (and optional supporting agents from the agent workspace). Data lives in{' '}
         <code style={{ fontSize: 12, color: '#A0A0C8' }}>ziro_page_intelligence_bindings</code>.
       </p>
 
@@ -267,7 +322,7 @@ function ZiroControlCrmPageAgentSection({ tenantId }: { tenantId: string | null 
         <button
           type="button"
           onClick={handleAssignFromAgents}
-          disabled={loading || upsertBindings.isPending || activeCatalog.length === 0}
+          disabled={loading || upsertBindings.isPending || activeAgentsPool.length === 0}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -279,11 +334,11 @@ function ZiroControlCrmPageAgentSection({ tenantId }: { tenantId: string | null 
             background: 'rgba(59,130,246,0.14)',
             color: '#93C5FD',
             border: '1px solid rgba(59,130,246,0.35)',
-            cursor: activeCatalog.length === 0 || loading ? 'not-allowed' : 'pointer',
-            opacity: activeCatalog.length === 0 ? 0.5 : 1,
+            cursor: activeAgentsPool.length === 0 || loading ? 'not-allowed' : 'pointer',
+            opacity: activeAgentsPool.length === 0 ? 0.5 : 1,
           }}
         >
-          {upsertBindings.isPending ? 'Saving…' : 'Assign catalog agents to CRM pages'}
+          {upsertBindings.isPending ? 'Saving…' : 'Assign agents to pages (matrix + heuristics)'}
         </button>
       </div>
 
@@ -319,19 +374,31 @@ function ZiroControlCrmPageAgentSection({ tenantId }: { tenantId: string | null 
 
       <div style={{ marginTop: 22, overflowX: 'auto' }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#606088', letterSpacing: '0.06em', marginBottom: 8 }}>
-          CORE CRM PAGES — PRIMARY AGENT
+          ADMIN PAGES — PRIMARY AGENT
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ color: '#606088', textAlign: 'left' }}>
-              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Core page</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Page</th>
               <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>page_key</th>
-              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Primary agent</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Primary</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Supporting</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }} />
             </tr>
           </thead>
           <tbody>
             {bindingRows.map(r => (
-              <tr key={r.page_key} style={{ color: '#E0E0F4' }}>
+              <tr
+                key={r.page_key}
+                ref={el => {
+                  rowRefs.current[r.page_key] = el
+                }}
+                style={{
+                  color: '#E0E0F4',
+                  outline: surfaceQs === r.page_key ? '1px solid rgba(255,184,0,0.45)' : undefined,
+                  borderRadius: surfaceQs === r.page_key ? 8 : undefined,
+                }}
+              >
                 <td style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{r.surfaceTitle}</td>
                 <td
                   style={{
@@ -343,14 +410,56 @@ function ZiroControlCrmPageAgentSection({ tenantId }: { tenantId: string | null 
                 >
                   {r.page_key}
                 </td>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)', minWidth: 200 }}>
+                  <select
+                    value={selectValueFor(r.page_key, r.binding)}
+                    onChange={e =>
+                      setDraftPrimary(d => ({
+                        ...d,
+                        [r.page_key]: e.target.value,
+                      }))
+                    }
+                    style={{
+                      ...filterSelectStyle,
+                      width: '100%',
+                      maxWidth: 280,
+                      fontSize: 12,
+                    }}
+                  >
+                    <option value="">— None —</option>
+                    {(agents ?? []).map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.status})
+                      </option>
+                    ))}
+                  </select>
+                </td>
                 <td
                   style={{
                     padding: '8px 10px',
                     borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    color: r.hasBinding ? '#86EFAC' : '#F87171',
+                    fontSize: 12,
+                    color: '#A0A0C8',
+                    maxWidth: 220,
                   }}
+                  title="Edit supporting agents from the page strip → Agent workspace"
                 >
-                  {r.agentName ?? '—'}
+                  {r.supportingSummary}
+                </td>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => saveRow(r.page_key)}
+                    disabled={loading || upsertBindings.isPending}
+                    style={{
+                      ...pageBtnStyle,
+                      padding: '6px 12px',
+                      fontSize: 12,
+                      opacity: loading ? 0.5 : 1,
+                    }}
+                  >
+                    Save row
+                  </button>
                 </td>
               </tr>
             ))}
@@ -377,7 +486,7 @@ function ZiroControlGlobalOrchestratorInstructions({ tenantId }: { tenantId: str
 
   useEffect(() => {
     if (!config || dirty) return
-    setInstructions(config.instructions ?? '')
+    queueMicrotask(() => setInstructions(config.instructions ?? ''))
   }, [config, dirty])
 
   const handleSave = () => {
@@ -388,7 +497,7 @@ function ZiroControlGlobalOrchestratorInstructions({ tenantId }: { tenantId: str
           toast('Ziro configuration saved', 'success')
           setDirty(false)
         },
-        onError: (e: any) => toast(e.message, 'error'),
+        onError: (e: unknown) => toast(e instanceof Error ? e.message : 'Could not save Ziro configuration', 'error'),
       },
     )
   }
@@ -522,8 +631,9 @@ function ZiroControlGlobalOrchestratorInstructions({ tenantId }: { tenantId: str
 // AGENTS TAB
 // ═══════════════════════════════════════════════════════
 
-function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: boolean }) {
+function AgentsTab({ tenantId }: { tenantId: string | null }) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { data: agents, isLoading } = useAgents(tenantId)
   const { data: orchestratorAgents } = useStarAgents(tenantId)
   const { data: skills } = useSkills()
@@ -531,6 +641,7 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
   const [showCreate, setShowCreate] = useState(false)
   const [editingAgent, setEditingAgent] = useState<ZiroAgent | null>(null)
   const deepLinkHandledRef = useRef<string | null>(null)
+  const invalidAgentIdClearedRef = useRef(false)
 
   const orchestratorAgentIds = new Set((orchestratorAgents ?? []).map(sa => sa.agent_id))
 
@@ -539,18 +650,43 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
   const tempAgents = (agents ?? []).filter(a => a.lifecycle_type === 'temporary' && a.status !== 'retired')
   const retiredAgents = (agents ?? []).filter(a => a.status === 'retired')
 
+  const agentsById = useMemo(() => {
+    const m = new Map<string, ZiroAgent>()
+    for (const raw of agents ?? []) {
+      const a = resolveSafeAgent(raw)
+      if (a) m.set(a.id, a)
+    }
+    return m
+  }, [agents])
+
   useEffect(() => {
     if (isLoading) return
-    const id = searchParams.get('agentId')
+    const raw = searchParams.get('agentId')
+    const id = raw?.trim() ?? ''
     if (!id) {
       deepLinkHandledRef.current = null
+      invalidAgentIdClearedRef.current = false
       return
     }
-    const list = agents ?? []
-    if (!list.some(a => a.id === id)) return
+    if (!agentsById.has(id)) {
+      if (invalidAgentIdClearedRef.current) return
+      invalidAgentIdClearedRef.current = true
+      console.warn('[AgentsTab] Invalid agentId in URL, clearing and landing on Agents tab', id)
+      agentFlowDebug({
+        action: 'invalid_url_agent_id',
+        agentId: id,
+        source: 'agents_tab_deeplink',
+        meta: { cleared: true },
+      })
+      deepLinkHandledRef.current = null
+      navigate('/admin/zirowork?zwtab=agents', { replace: true })
+      return
+    }
+    invalidAgentIdClearedRef.current = false
     if (deepLinkHandledRef.current === id) return
     deepLinkHandledRef.current = id
-    setExpanded(id)
+    agentFlowDebug({ action: 'deeplink_expand', agentId: id, source: 'agents_tab', meta: {} })
+    queueMicrotask(() => setExpanded(id))
     const scrollT = window.setTimeout(() => {
       document.getElementById(`ziro-agent-card-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 100)
@@ -563,7 +699,7 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
       { replace: true },
     )
     return () => window.clearTimeout(scrollT)
-  }, [isLoading, agents, searchParams, setSearchParams])
+  }, [isLoading, agentsById, searchParams, setSearchParams, navigate])
 
   if (isLoading) return <MusicLoader />
 
@@ -601,15 +737,34 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {(agents ?? []).map(agent => (
+          {(agents ?? [])
+            .flatMap(raw => {
+              const agent = resolveSafeAgent(raw)
+              return agent ? [agent] : []
+            })
+            .map(agent => (
             <div key={agent.id} id={`ziro-agent-card-${agent.id}`}>
               <ZiroWorkAgentCard
                 agent={agent}
                 tenantId={tenantId}
                 isOrchestratorAttached={orchestratorAgentIds.has(agent.id)}
                 isExpanded={expanded === agent.id}
-                onToggle={() => setExpanded(expanded === agent.id ? null : agent.id)}
-                onEdit={() => setEditingAgent(agent)}
+                onToggle={() => {
+                  const safe = resolveSafeAgent(agent)
+                  if (!safe?.id) return
+                  setExpanded(expanded === safe.id ? null : safe.id)
+                }}
+                onEdit={() => {
+                  const safe = resolveSafeAgent(agent)
+                  if (!safe?.id?.trim()) {
+                    console.warn('[AgentsTab] Blocked edit: missing agent id', agent)
+                    toast('No agent selected', 'error')
+                    return
+                  }
+                  assertValidAgent(safe, 'AgentsTab:onEdit')
+                  agentFlowDebug({ action: 'open_edit_modal', agentId: safe.id, source: 'agents_tab', meta: {} })
+                  setEditingAgent(safe)
+                }}
                 skills={skills ?? []}
               />
             </div>
@@ -633,6 +788,7 @@ function AgentsTab({ tenantId, isOwner }: { tenantId: string | null; isOwner: bo
 
 function AgentFormModal({ tenantId, agent, onClose }: { tenantId: string | null; agent?: ZiroAgent; onClose: () => void }) {
   const isEdit = !!agent
+  if (isEdit && agent) assertValidAgent(agent, 'AgentFormModal:open')
   const { user } = useAuthContext()
   const createAgent = useCreateAgent(tenantId)
   const updateAgent = useUpdateAgent()
@@ -644,9 +800,11 @@ function AgentFormModal({ tenantId, agent, onClose }: { tenantId: string | null;
   const [profileSummary, setProfileSummary] = useState(agent?.profile_summary ?? '')
   const [lifecycle, setLifecycle] = useState<'temporary' | 'persistent'>(agent?.lifecycle_type ?? 'persistent')
   const [autoUse, setAutoUse] = useState(agent?.auto_use_by_star ?? true)
-  const [keywords, setKeywords] = useState(
-    (agent?.invocation_rules as any)?.keywords?.join(', ') ?? ''
-  )
+  const [keywords, setKeywords] = useState(() => {
+    const rules = (agent?.invocation_rules ?? {}) as Record<string, unknown>
+    const kw = rules.keywords
+    return Array.isArray(kw) ? kw.map(v => String(v)).join(', ') : ''
+  })
   const [usageTriggers, setUsageTriggers] = useState(
     (agent?.usage_triggers ?? []).join(', ')
   )
@@ -685,7 +843,7 @@ function AgentFormModal({ tenantId, agent, onClose }: { tenantId: string | null;
         usage_triggers: triggers,
       }, {
         onSuccess: () => { toast('Agent updated', 'success'); onClose() },
-        onError: (err: any) => toast(err.message, 'error'),
+        onError: (err: unknown) => toast(err instanceof Error ? err.message : 'Could not update agent', 'error'),
       })
     } else {
       createAgent.mutate({
@@ -702,7 +860,7 @@ function AgentFormModal({ tenantId, agent, onClose }: { tenantId: string | null;
         created_by: user?.id ?? null,
       }, {
         onSuccess: () => { toast('Agent created', 'success'); onClose() },
-        onError: (err: any) => toast(err.message, 'error'),
+        onError: (err: unknown) => toast(err instanceof Error ? err.message : 'Could not create agent', 'error'),
       })
     }
   }
@@ -938,6 +1096,7 @@ function TaskRunRow({ row }: { row: TaskHistoryRow }) {
 // ═══════════════════════════════════════════════════════
 
 function RouteAnalyticsTab({ tenantId }: { tenantId: string | null }) {
+  const navigate = useNavigate()
   const { data, isLoading } = useRouteAnalytics(tenantId)
 
   if (isLoading) return <MusicLoader />
@@ -1005,14 +1164,30 @@ function RouteAnalyticsTab({ tenantId }: { tenantId: string | null }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {topAgents.map(a => (
-                <div key={a.agent_id} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10,
-                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-                }}>
+                <button
+                  key={a.agent_id}
+                  type="button"
+                  onClick={() => {
+                    const raw = a.agent_id
+                    if (raw == null || typeof raw !== 'string' || !raw.trim()) {
+                      console.warn('[RouteAnalyticsTab] Missing agent_id in analytics row', a)
+                      return
+                    }
+                    const aid = raw.trim()
+                    navigateToZiroWorkAgentEditor(navigate, { id: aid }, 'route_analytics_tab', {
+                      meta: { from: 'route_analytics' },
+                    })
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10,
+                    background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', color: 'inherit',
+                  }}
+                >
                   <Bot size={14} style={{ color: '#3b82f6', flexShrink: 0 }} />
                   <span style={{ flex: 1, fontSize: 14, color: '#E0E0F4', fontWeight: 600, lineHeight: 1.4 }}>{a.agent_name ?? 'Unknown Agent'}</span>
                   <span style={{ fontSize: 13, color: '#8080A8', fontFamily: 'monospace' }}>{a.count}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}

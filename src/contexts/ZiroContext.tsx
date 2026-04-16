@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- Context provider + hooks are exported intentionally */
 import {
   createContext,
   useCallback,
@@ -27,6 +28,9 @@ export interface ZiroPageContext {
   intelligenceSummary?: string
   primaryAgentId?: string | null
   primaryAgentName?: string | null
+  /** Persisted secondary specialists for this page (from `ziro_page_intelligence_bindings.supporting_agent_ids`). */
+  supportingAgentIds?: string[]
+  supportingAgentNames?: string[]
   intelligenceResolution?: 'tenant_binding' | 'unassigned' | 'binding_stale' | 'heuristic_suggestion'
   [key: string]: unknown
 }
@@ -62,13 +66,13 @@ export function ZiroShellProvider({ children }: { children: ReactNode }) {
   const [pendingSeedMessage, setPendingSeedMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    setPageState({})
+    queueMicrotask(() => setPageState({}))
   }, [pathname, search])
 
   // Hard gate: if a forbidden role somehow has panel state set true (e.g.,
   // from a stale render or prior session), force it closed.
   useEffect(() => {
-    if (!canUseZiro && panelOpen) setPanelOpen(false)
+    if (!canUseZiro && panelOpen) queueMicrotask(() => setPanelOpen(false))
   }, [canUseZiro, panelOpen])
 
   const clearPendingSeed = useCallback(() => setPendingSeedMessage(null), [])

@@ -15,6 +15,8 @@ import {
   ArrowUpRight,
 } from 'lucide-react'
 import type { ZiroAgent } from '../../hooks/useAgents'
+import { resolveSafeAgent, agentFlowDebug, assertValidAgent } from '../../lib/ziro/agentSafe'
+import { AgentFallback } from './AgentFallback'
 import {
   useAgentSkills,
   useRetireAgent,
@@ -30,7 +32,7 @@ import {
 } from '../../hooks/useAgents'
 import type { ZiroSkill } from '../../hooks/useSkills'
 import { toast } from '../shared/Toast'
-import { CARD, pillStyle, sectionLabel, labelStyle, inputStyle } from './ziroWorkSharedStyles'
+import { CARD, pillStyle, sectionLabel, inputStyle } from './ziroWorkSharedStyles'
 
 const STATUS_COLORS: Record<string, string> = {
   active: '#22C55E',
@@ -85,8 +87,10 @@ export function ZiroWorkAgentCard({
   skills: ZiroSkill[]
   lockedExpanded?: boolean
 }) {
+  const safeAgent = resolveSafeAgent(agent)
+  const agentId = safeAgent?.id ?? null
   const expanded = lockedExpanded || isExpanded
-  const { data: agentSkills } = useAgentSkills(expanded ? agent.id : null)
+  const { data: agentSkills } = useAgentSkills(expanded && agentId ? agentId : null)
   const retireAgent = useRetireAgent()
   const activateAgent = useActivateAgent()
   const idleAgent = useIdleAgent()
@@ -99,6 +103,16 @@ export function ZiroWorkAgentCard({
   const cloneAgent = useCloneAgent(tenantId)
   const [showSkillPicker, setShowSkillPicker] = useState(false)
 
+  if (!safeAgent || !agentId) {
+    return (
+      <div style={CARD}>
+        <AgentFallback />
+      </div>
+    )
+  }
+
+  const agent = safeAgent
+  assertValidAgent(agent, 'ZiroWorkAgentCard:render')
   const statusColor = STATUS_COLORS[agent.status] ?? '#8080A8'
   const attachedSkillIds = new Set((agentSkills ?? []).map(s => s.skill_id))
   const availableSkills = skills.filter(s => !attachedSkillIds.has(s.id) && s.is_active)
@@ -272,8 +286,12 @@ export function ZiroWorkAgentCard({
                       type="button"
                       onClick={() =>
                         detachSkill.mutate(
-                          { agentId: agent.id, skillId: as.skill_id },
-                          { onSuccess: () => toast('Skill detached', 'success'), onError: (e: any) => toast(e.message, 'error') },
+                          { agentId, skillId: as.skill_id },
+                          {
+                            onSuccess: () => toast('Skill detached', 'success'),
+                            onError: (e: unknown) =>
+                              toast(e instanceof Error ? e.message : 'Could not detach skill', 'error'),
+                          },
                         )
                       }
                       style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
@@ -295,14 +313,15 @@ export function ZiroWorkAgentCard({
                     const el = e.target
                     if (!skillId || !tenantId) return
                     attachSkill.mutate(
-                      { tenantId, agentId: agent.id, skillId },
+                      { tenantId, agentId, skillId },
                       {
                         onSuccess: () => {
                           el.value = ''
                           toast('Skill attached', 'success')
                           setShowSkillPicker(false)
                         },
-                        onError: (err: any) => toast(err.message, 'error'),
+                        onError: (err: unknown) =>
+                          toast(err instanceof Error ? err.message : 'Could not attach skill', 'error'),
                       },
                     )
                   }}
@@ -386,12 +405,35 @@ export function ZiroWorkAgentCard({
               flexWrap: 'wrap',
             }}
           >
-            <ActionBtn icon={<Pencil size={13} />} label="Edit" color="#22C55E" onClick={onEdit} />
+            <ActionBtn
+              icon={<Pencil size={13} />}
+              label="Edit"
+              color="#22C55E"
+              onClick={() => {
+                if (!agentId?.trim()) {
+                  console.warn('[ZiroWorkAgentCard] Blocked edit: missing agent id')
+                  toast('No agent selected', 'error')
+                  return
+                }
+                agentFlowDebug({
+                  action: 'edit_click',
+                  agentId: agentId.trim(),
+                  source: 'agent_card',
+                  meta: { lockedExpanded },
+                })
+                onEdit()
+              }}
+            />
             <ActionBtn
               icon={<Copy size={13} />}
               label="Clone"
               color="#3b82f6"
-              onClick={() => cloneAgent.mutate(agent.id, { onSuccess: () => toast('Agent cloned', 'success'), onError: (e: any) => toast(e.message, 'error') })}
+              onClick={() =>
+                cloneAgent.mutate(agentId, {
+                  onSuccess: () => toast('Agent cloned', 'success'),
+                  onError: (e: unknown) => toast(e instanceof Error ? e.message : 'Could not clone agent', 'error'),
+                })
+              }
             />
 
             {isOrchestratorAttached ? (
@@ -399,28 +441,28 @@ export function ZiroWorkAgentCard({
                 icon={<Unlink size={13} />}
                 label="Detach from Ziro"
                 color="#FF5500"
-                onClick={() => detachFromStar.mutate(agent.id, { onSuccess: () => toast('Detached from Ziro', 'success') })}
+                onClick={() => detachFromStar.mutate(agentId, { onSuccess: () => toast('Detached from Ziro', 'success') })}
               />
             ) : agent.status === 'active' ? (
               <ActionBtn
                 icon={<Sparkles size={13} />}
                 label="Attach to Ziro"
                 color="#FFB800"
-                onClick={() => attachToStar.mutate(agent.id, { onSuccess: () => toast('Attached to Ziro', 'success') })}
+                onClick={() => attachToStar.mutate(agentId, { onSuccess: () => toast('Attached to Ziro', 'success') })}
               />
             ) : null}
 
             {agent.status === 'active' && (
-              <ActionBtn icon={<Power size={13} />} label="Pause" color="#FFB800" onClick={() => idleAgent.mutate(agent.id, { onSuccess: () => toast('Agent paused', 'success') })} />
+              <ActionBtn icon={<Power size={13} />} label="Pause" color="#FFB800" onClick={() => idleAgent.mutate(agentId, { onSuccess: () => toast('Agent paused', 'success') })} />
             )}
             {agent.status === 'idle' && (
-              <ActionBtn icon={<Power size={13} />} label="Activate" color="#22C55E" onClick={() => activateAgent.mutate(agent.id, { onSuccess: () => toast('Agent activated', 'success') })} />
+              <ActionBtn icon={<Power size={13} />} label="Activate" color="#22C55E" onClick={() => activateAgent.mutate(agentId, { onSuccess: () => toast('Agent activated', 'success') })} />
             )}
             {agent.status !== 'retired' && (
-              <ActionBtn icon={<Power size={13} />} label="Retire" color="#EF4444" onClick={() => retireAgent.mutate(agent.id, { onSuccess: () => toast('Agent retired', 'success') })} />
+              <ActionBtn icon={<Power size={13} />} label="Retire" color="#EF4444" onClick={() => retireAgent.mutate(agentId, { onSuccess: () => toast('Agent retired', 'success') })} />
             )}
             {agent.status === 'retired' && (
-              <ActionBtn icon={<RefreshCw size={13} />} label="Reactivate" color="#22C55E" onClick={() => activateAgent.mutate(agent.id, { onSuccess: () => toast('Agent reactivated', 'success') })} />
+              <ActionBtn icon={<RefreshCw size={13} />} label="Reactivate" color="#22C55E" onClick={() => activateAgent.mutate(agentId, { onSuccess: () => toast('Agent reactivated', 'success') })} />
             )}
 
             {agent.lifecycle_type === 'temporary' && agent.status !== 'retired' && (
@@ -428,7 +470,7 @@ export function ZiroWorkAgentCard({
                 icon={<ArrowUpRight size={13} />}
                 label="Make Persistent"
                 color="#3b82f6"
-                onClick={() => convertTemp.mutate(agent.id, { onSuccess: () => toast('Converted to persistent', 'success') })}
+                onClick={() => convertTemp.mutate(agentId, { onSuccess: () => toast('Converted to persistent', 'success') })}
               />
             )}
 
@@ -437,7 +479,7 @@ export function ZiroWorkAgentCard({
               label="Delete"
               color="#EF4444"
               onClick={() => {
-                if (confirm(`Delete agent "${agent.name}"?`)) deleteAgent.mutate(agent.id, { onSuccess: () => toast('Agent deleted', 'success') })
+                if (confirm(`Delete agent "${agent.name}"?`)) deleteAgent.mutate(agentId, { onSuccess: () => toast('Agent deleted', 'success') })
               }}
             />
           </div>
