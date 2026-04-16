@@ -87,8 +87,8 @@ export function ZiroWorkAgentCard({
   skills: ZiroSkill[]
   lockedExpanded?: boolean
 }) {
-  const safeAgent = resolveSafeAgent(agent)
-  const agentId = safeAgent?.id ?? null
+  const resolvedAgent = resolveSafeAgent(agent)
+  const agentId = resolvedAgent?.id ?? null
   const expanded = lockedExpanded || isExpanded
   const { data: agentSkills } = useAgentSkills(expanded && agentId ? agentId : null)
   const retireAgent = useRetireAgent()
@@ -103,7 +103,7 @@ export function ZiroWorkAgentCard({
   const cloneAgent = useCloneAgent(tenantId)
   const [showSkillPicker, setShowSkillPicker] = useState(false)
 
-  if (!safeAgent || !agentId) {
+  if (!resolvedAgent || !agentId) {
     return (
       <div style={CARD}>
         <AgentFallback />
@@ -111,7 +111,7 @@ export function ZiroWorkAgentCard({
     )
   }
 
-  const agent = safeAgent
+  const agent = resolvedAgent
   assertValidAgent(agent, 'ZiroWorkAgentCard:render')
   const statusColor = STATUS_COLORS[agent.status] ?? '#8080A8'
   const attachedSkillIds = new Set((agentSkills ?? []).map(s => s.skill_id))
