@@ -10,7 +10,6 @@ import { ZiroWorkAgentCard } from './ZiroWorkAgentCard'
 import { AgentFallback } from './AgentFallback'
 import { toast } from '../shared/Toast'
 import type { ZiroAgent } from '../../hooks/useAgents'
-import { defer } from '../../lib/defer'
 import {
   resolveSafeAgent,
   agentFlowDebug,
@@ -23,15 +22,16 @@ import {
  * Includes **persisted** page ↔ primary + supporting agent assignment (Supabase upsert).
  */
 export default function AgentWorkspace({
-  open,
   onClose,
   resolved,
   tenantId,
+  entryAgentId,
 }: {
-  open: boolean
   onClose: () => void
   resolved: ResolvedPageIntelligence
   tenantId: string | null
+  /** Agent id that should be shown when the workspace opens (chip click). */
+  entryAgentId: string | null
 }) {
   const navigate = useNavigate()
   const safeAssigned = resolveSafeAgent(resolved.assignedAgent)
@@ -52,37 +52,32 @@ export default function AgentWorkspace({
     return out
   }, [agents])
 
-  const [primaryPick, setPrimaryPick] = useState<string>('')
-  const [supportingPick, setSupportingPick] = useState<Set<string>>(new Set())
+  const initialPrimaryPick =
+    (typeof entryAgentId === 'string' && entryAgentId.trim() ? entryAgentId.trim() : '') ||
+    safeAssigned?.id ||
+    safeSuggested?.id ||
+    resolved.pageBinding?.primary_agent_id ||
+    ''
 
-  useEffect(() => {
-    if (!open) return
-    const initialPrimary =
-      safeAssigned?.id ?? safeSuggested?.id ?? resolved.pageBinding?.primary_agent_id ?? ''
+  const initialSupportingPick = useMemo(() => {
+    const primary = initialPrimaryPick
     const fromDb = new Set(resolved.pageBinding?.supporting_agent_ids ?? [])
-    if (initialPrimary) fromDb.delete(initialPrimary)
-    defer(() => {
-      setPrimaryPick(initialPrimary)
-      setSupportingPick(fromDb)
-    })
-  }, [
-    open,
-    safeAssigned?.id,
-    safeSuggested?.id,
-    resolved.pageBinding?.primary_agent_id,
-    resolved.pageBinding?.supporting_agent_ids,
-  ])
+    if (primary) fromDb.delete(primary)
+    return fromDb
+  }, [resolved.pageBinding?.supporting_agent_ids, initialPrimaryPick])
+
+  const [primaryPick, setPrimaryPick] = useState<string>(initialPrimaryPick)
+  const [supportingPick, setSupportingPick] = useState<Set<string>>(initialSupportingPick)
 
   const orchestratorIds = useMemo(() => new Set((starAgents ?? []).map(s => s.agent_id)), [starAgents])
 
   useEffect(() => {
-    if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [onClose])
 
   const saveAssignment = () => {
     if (!tenantId) {
@@ -140,7 +135,8 @@ export default function AgentWorkspace({
   }
 
   const displayAgentForCard = useMemo((): ZiroAgent | null => {
-    if (primaryPick) {
+    const pickedId = primaryPick?.trim()
+    if (pickedId) {
       const picked = pickableAgents.find(a => a.id === primaryPick)
       if (picked) return resolveSafeAgent(picked)
       return safeAssigned ?? safeSuggested
@@ -151,15 +147,6 @@ export default function AgentWorkspace({
   const cardAgent = resolveSafeAgent(displayAgentForCard)
 
   useEffect(() => {
-    if (!open) return
-    if (resolved.surfaceKey === 'dashboard') {
-      agentFlowDebug({
-        action: 'dashboard_render_start',
-        agentId: cardAgent?.id ?? safeAssigned?.id ?? safeSuggested?.id ?? null,
-        source: 'dashboard_agent_chip',
-        meta: { surfaceKey: resolved.surfaceKey },
-      })
-    }
     agentFlowDebug({
       action: 'open_workspace',
       agentId: cardAgent?.id ?? safeAssigned?.id ?? safeSuggested?.id ?? null,
@@ -177,7 +164,6 @@ export default function AgentWorkspace({
       console.warn('[AgentWorkspace] Invalid agent for card (missing id after resolve)', displayAgentForCard)
     }
   }, [
-    open,
     resolved.surfaceKey,
     resolved.resolution,
     safeAssigned?.id,
@@ -186,8 +172,6 @@ export default function AgentWorkspace({
     cardAgent,
     displayAgentForCard,
   ])
-
-  if (!open) return null
 
   return (
     <IssueContextProvider page="Ziro Work — agent focus">

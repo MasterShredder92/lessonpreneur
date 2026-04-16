@@ -1,5 +1,5 @@
-import { Component, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Bot, ChevronRight, MessageSquare, SlidersHorizontal, AlertTriangle } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -8,132 +8,29 @@ import { usePageIntelligenceBindings, useResolvedPageIntelligence } from '../../
 import { useZiroShell } from '../../contexts/ZiroContext'
 import AgentWorkspace from './AgentWorkspace'
 import { agentFlowDebug, resolveSafeAgent } from '../../lib/ziro/agentSafe'
-import { AgentFallback } from './AgentFallback'
-
-class DashboardWorkspaceBoundary extends Component<
-  {
-    surfaceKey: string
-    agentId: string | null
-    onClose: () => void
-    children: ReactNode
-  },
-  { hasError: boolean }
-> {
-  state = { hasError: false }
-
-  static getDerivedStateFromError() {
-    return { hasError: true }
-  }
-
-  componentDidCatch(error: unknown, info: { componentStack?: string }) {
-    agentFlowDebug({
-      action: 'dashboard_render_fail',
-      agentId: this.props.agentId,
-      source: 'dashboard_agent_chip',
-      meta: {
-        surfaceKey: this.props.surfaceKey,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        componentStack: info?.componentStack,
-      },
-    })
-    console.error('[DashboardWorkspaceBoundary] workspace render failed', error)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ margin: '10px 16px', padding: 12, borderRadius: 12, border: '1px solid rgba(248,113,113,0.25)', background: 'rgba(248,113,113,0.06)' }}>
-          <AgentFallback />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-            <button type="button" className="btn-ghost" onClick={this.props.onClose}>
-              Close
-            </button>
-          </div>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
 
 /**
  * Batch 2 — Page agent chrome: one binding-backed agent (or explicit unassigned), clickable → Agent Workspace.
  * Replaces the old marketing strip; still syncs Ziro shell page context for the assistant.
  *
- * On-screen debug: append `?stripDebug=1` to any `/admin/*` URL (remove after investigation).
  */
 export default function PageIntelligenceStrip() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const stripDebug = searchParams.get('stripDebug') === '1'
 
   const { tenantId } = useAuthContext()
-  const { canUseZiro, role: effectiveRole, actualRole, isPreviewActive } = usePermissions()
+  const { canUseZiro } = usePermissions()
   const { openPanel, setPageContext } = useZiroShell()
   const { data: agents } = useAgents(tenantId)
   const { data: bindings } = usePageIntelligenceBindings(tenantId)
   const resolved = useResolvedPageIntelligence(pathname, tenantId, agents, bindings)
-  const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false)
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
 
   const hideOnZirowork = pathname.startsWith('/admin/zirowork')
-  const onAdmin = pathname.startsWith('/admin')
   /** `useResolvedPageIntelligence` always returns an object; kept for clarity if that changes. */
   const hasResolved = !!resolved
   const showMainStrip = canUseZiro && hasResolved && !hideOnZirowork
-
-  const debugPanel = useMemo(() => {
-    if (!stripDebug || !onAdmin) return null
-    const surfaceKey = resolved?.surfaceKey ?? '—'
-    const agentName = resolved?.assignedAgent?.name ?? 'none'
-    const blockers: string[] = []
-    if (!canUseZiro) blockers.push('canUseZiro=false (real role not owner/admin/co-director/studio director)')
-    if (!hasResolved) blockers.push('no resolved surface')
-    if (hideOnZirowork) blockers.push('hidden on /admin/zirowork')
-    return (
-      <div
-        className="page-intelligence-strip-debug"
-        style={{
-          flexShrink: 0,
-          margin: '0 16px 8px',
-          padding: '8px 10px',
-          borderRadius: 8,
-          fontSize: 11,
-          fontFamily: 'ui-monospace, monospace',
-          lineHeight: 1.45,
-          color: '#E0E0F4',
-          background: 'rgba(255, 184, 0, 0.12)',
-          border: '1px solid rgba(255, 184, 0, 0.45)',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-        }}
-      >
-        <strong style={{ color: '#FFB800' }}>[stripDebug]</strong> strip={showMainStrip ? 'visible' : 'hidden'}
-        {blockers.length > 0 ? ` — ${blockers.join(' · ')}` : ''}
-        {'\n'}
-        canUseZiro={String(canUseZiro)} · effectiveRole={effectiveRole ?? 'null'} · actualRole={actualRole ?? 'null'} ·
-        isPreviewActive={String(isPreviewActive)}
-        {'\n'}
-        pathname={pathname}
-        {'\n'}
-        surfaceKey={surfaceKey} · assignedAgent={agentName}
-      </div>
-    )
-  }, [
-    stripDebug,
-    onAdmin,
-    showMainStrip,
-    canUseZiro,
-    hasResolved,
-    hideOnZirowork,
-    effectiveRole,
-    actualRole,
-    isPreviewActive,
-    pathname,
-    resolved?.surfaceKey,
-    resolved?.assignedAgent?.name,
-  ])
 
   useEffect(() => {
     if (!resolved) return
@@ -154,13 +51,25 @@ export default function PageIntelligenceStrip() {
     }))
   }, [resolved, setPageContext])
 
-  if (!showMainStrip) {
-    return debugPanel ? <div style={{ flexShrink: 0 }}>{debugPanel}</div> : null
-  }
+  if (!showMainStrip) return null
 
   const safeAssigned = resolveSafeAgent(resolved.assignedAgent)
   const safeSuggested = resolveSafeAgent(resolved.suggestedAgent)
-  const isDashboard = resolved.surfaceKey === 'dashboard'
+  const safeSupporting = resolved.assignedSupportingAgents
+    .map(a => resolveSafeAgent(a))
+    .filter((a): a is ZiroAgent => a !== null)
+
+  const openWorkspaceFor = (agentId: string | null, source: string) => {
+    const cleaned = typeof agentId === 'string' && agentId.trim() ? agentId.trim() : null
+    setSelectedAgentId(cleaned)
+    setIsWorkspaceOpen(true)
+    agentFlowDebug({
+      action: 'open_workspace',
+      agentId: cleaned,
+      source,
+      meta: { surfaceKey: resolved.surfaceKey },
+    })
+  }
 
   const chip = (() => {
     if (resolved.resolution === 'binding_stale') {
@@ -201,7 +110,6 @@ export default function PageIntelligenceStrip() {
 
   return (
     <div style={{ flexShrink: 0 }}>
-      {debugPanel}
       <div
         className="page-agent-strip"
         style={{
@@ -226,48 +134,7 @@ export default function PageIntelligenceStrip() {
           type="button"
           onClick={() => {
             if (!chip.clickable) return
-            if (isDashboard) {
-              agentFlowDebug({
-                action: 'dashboard_agent_click',
-                agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
-                source: 'dashboard_agent_chip',
-                meta: { surfaceKey: resolved.surfaceKey },
-              })
-              agentFlowDebug({
-                action: 'dashboard_agent_resolved',
-                agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
-                source: 'dashboard_agent_chip',
-                meta: {
-                  surfaceKey: resolved.surfaceKey,
-                  resolution: resolved.resolution,
-                  assignedId: safeAssigned?.id ?? null,
-                  suggestedId: safeSuggested?.id ?? null,
-                },
-              })
-            }
-            agentFlowDebug({
-              action: 'agent_click',
-              agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
-              source: 'page_chip',
-              meta: {
-                surfaceKey: resolved.surfaceKey,
-                resolution: resolved.resolution,
-                assignedId: safeAssigned?.id ?? null,
-                suggestedId: safeSuggested?.id ?? null,
-              },
-            })
-            try {
-              setWorkspaceOpen(true)
-              agentFlowDebug({
-                action: isDashboard ? 'dashboard_workspace_open' : 'workspace_open_state',
-                agentId: safeAssigned?.id ?? safeSuggested?.id ?? null,
-                source: isDashboard ? 'dashboard_agent_chip' : 'page_chip',
-                meta: { open: true, surfaceKey: resolved.surfaceKey },
-              })
-            } catch (err: unknown) {
-              console.error('[PageIntelligenceStrip] Failed to open workspace', err)
-              throw err
-            }
+            openWorkspaceFor(safeAssigned?.id ?? safeSuggested?.id ?? null, 'page_chip')
           }}
           style={{
             display: 'inline-flex',
@@ -291,6 +158,36 @@ export default function PageIntelligenceStrip() {
           </span>
           <ChevronRight size={16} style={{ flexShrink: 0, opacity: 0.6 }} />
         </button>
+
+        {safeSupporting.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {safeSupporting.map(a => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => openWorkspaceFor(a.id, 'supporting_chip')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 800,
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  background: 'rgba(255,255,255,0.04)',
+                  color: '#C8C8E8',
+                  cursor: 'pointer',
+                  maxWidth: 220,
+                }}
+                title={`Supporting: ${a.name}`}
+              >
+                <Bot size={14} style={{ flexShrink: 0, opacity: 0.9 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <button
@@ -340,30 +237,14 @@ export default function PageIntelligenceStrip() {
         </div>
       </div>
 
-      {workspaceOpen && (
-        isDashboard ? (
-          <DashboardWorkspaceBoundary
-            surfaceKey={resolved.surfaceKey}
-            agentId={safeAssigned?.id ?? safeSuggested?.id ?? null}
-            onClose={() => setWorkspaceOpen(false)}
-          >
-            <AgentWorkspace
-              key={resolved.surfaceKey}
-              open={workspaceOpen}
-              onClose={() => setWorkspaceOpen(false)}
-              resolved={resolved}
-              tenantId={tenantId}
-            />
-          </DashboardWorkspaceBoundary>
-        ) : (
-          <AgentWorkspace
-            key={resolved.surfaceKey}
-            open={workspaceOpen}
-            onClose={() => setWorkspaceOpen(false)}
-            resolved={resolved}
-            tenantId={tenantId}
-          />
-        )
+      {isWorkspaceOpen && (
+        <AgentWorkspace
+          key={`${resolved.surfaceKey}:${selectedAgentId ?? 'none'}`}
+          onClose={() => setIsWorkspaceOpen(false)}
+          resolved={resolved}
+          tenantId={tenantId}
+          entryAgentId={selectedAgentId}
+        />
       )}
     </div>
   )
