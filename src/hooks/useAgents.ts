@@ -21,7 +21,7 @@ function catalogAgentDefaults(row: MusicSchoolCatalogRow) {
     instructions: row.instructions,
     profile_summary: row.profile_summary,
     usage_triggers: [...row.usage_triggers],
-    auto_use_by_star: row.auto_use_by_star,
+    auto_use_by_ziro: row.auto_use_by_ziro,
     invocation_rules: { catalog_slug: row.catalog_slug },
     is_visible_in_ui: true,
     is_archived: false,
@@ -78,7 +78,7 @@ export interface ZiroAgent {
   role: string | null
   instructions: string | null
   usage_triggers: string[]
-  auto_use_by_star: boolean
+  auto_use_by_ziro: boolean
   profile_summary: string | null
   updated_at: string
   /** When false, hidden from Ziro Control catalog / CRM binding pickers (e.g. temp agents). */
@@ -294,7 +294,7 @@ export function useCreateAgent(tenantId: string | null) {
       role?: string
       instructions?: string
       usage_triggers?: string[]
-      auto_use_by_star?: boolean
+      auto_use_by_ziro?: boolean
       profile_summary?: string
     }) => {
       // Guard: block vague agent names (Policy P2)
@@ -329,7 +329,7 @@ export function useCreateAgent(tenantId: string | null) {
           role: input.role ?? null,
           instructions: input.instructions ?? null,
           usage_triggers: input.usage_triggers ?? [],
-          auto_use_by_star: input.auto_use_by_star ?? true,
+          auto_use_by_ziro: input.auto_use_by_ziro ?? true,
           profile_summary: input.profile_summary ?? null,
           is_visible_in_ui: true,
           is_archived: false,
@@ -358,7 +358,7 @@ export function useUpdateAgent() {
       role?: string | null
       instructions?: string | null
       usage_triggers?: string[]
-      auto_use_by_star?: boolean
+      auto_use_by_ziro?: boolean
       profile_summary?: string | null
       is_visible_in_ui?: boolean
       is_archived?: boolean
@@ -574,7 +574,7 @@ export function useCloneAgent(tenantId: string | null) {
           role: source.role,
           instructions: source.instructions,
           usage_triggers: source.usage_triggers ?? [],
-          auto_use_by_star: source.auto_use_by_star ?? true,
+          auto_use_by_ziro: source.auto_use_by_ziro ?? true,
           profile_summary: source.profile_summary,
           is_visible_in_ui: true,
           is_archived: false,

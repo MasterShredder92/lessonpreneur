@@ -5,7 +5,7 @@
 
 UPDATE public.ziro_agents za
 SET
-  auto_use_by_star = true,
+  auto_use_by_ziro = true,
   role = CASE coalesce(za.invocation_rules::jsonb->>'catalog_slug', '')
     WHEN 'enrollment_coordinator' THEN 'Pipeline & enrollment specialist'
     WHEN 'scheduling_placement' THEN 'Scheduling & capacity specialist'

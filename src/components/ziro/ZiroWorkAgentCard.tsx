@@ -165,8 +165,8 @@ export function ZiroWorkAgentCard({
                 <Sparkles size={9} /> ZIRO
               </span>
             )}
-            <span style={pillStyle(agent.auto_use_by_star ? '#22C55E' : '#8080A8')}>
-              {agent.auto_use_by_star ? 'AUTO' : 'EXPLICIT'}
+            <span style={pillStyle(agent.auto_use_by_ziro ? '#22C55E' : '#8080A8')}>
+              {agent.auto_use_by_ziro ? 'AUTO' : 'EXPLICIT'}
             </span>
           </div>
           {agent.role && (

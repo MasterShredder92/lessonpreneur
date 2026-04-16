@@ -800,7 +800,7 @@ function AgentFormModal({ tenantId, agent, onClose }: { tenantId: string | null;
   const [instructions, setInstructions] = useState(agent?.instructions ?? '')
   const [profileSummary, setProfileSummary] = useState(agent?.profile_summary ?? '')
   const [lifecycle, setLifecycle] = useState<'temporary' | 'persistent'>(agent?.lifecycle_type ?? 'persistent')
-  const [autoUse, setAutoUse] = useState(agent?.auto_use_by_star ?? true)
+  const [autoUse, setAutoUse] = useState(agent?.auto_use_by_ziro ?? true)
   const [keywords, setKeywords] = useState(() => {
     const rules = (agent?.invocation_rules ?? {}) as Record<string, unknown>
     const kw = rules.keywords
@@ -839,7 +839,7 @@ function AgentFormModal({ tenantId, agent, onClose }: { tenantId: string | null;
         instructions: instructions.trim() || null,
         profile_summary: profileSummary.trim() || null,
         lifecycle_type: lifecycle,
-        auto_use_by_star: autoUse,
+        auto_use_by_ziro: autoUse,
         invocation_rules: invocationRules,
         usage_triggers: triggers,
       }, {
@@ -854,7 +854,7 @@ function AgentFormModal({ tenantId, agent, onClose }: { tenantId: string | null;
         instructions: instructions.trim() || undefined,
         profile_summary: profileSummary.trim() || undefined,
         lifecycle_type: lifecycle,
-        auto_use_by_star: autoUse,
+        auto_use_by_ziro: autoUse,
         owner_type: 'user',
         invocation_rules: invocationRules,
         usage_triggers: triggers,

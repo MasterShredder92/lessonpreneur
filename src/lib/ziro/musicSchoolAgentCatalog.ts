@@ -5,7 +5,7 @@
  * `primary_skill_key` must match an active `ziro_skills.key` for the tenant (system skills).
  * Keep in sync with `classifyIntent` / orchestrator skill routing in `star/orchestrator.ts`.
  *
- * `auto_use_by_star` = Ziro delegation mode (true = auto delegate, false = explicit only).
+ * `auto_use_by_ziro` = Ziro delegation mode (true = auto delegate, false = explicit only).
  */
 export const MUSIC_SCHOOL_ZIRO_AGENT_CATALOG = [
   {
@@ -22,7 +22,7 @@ Prioritize: responding to new leads and trials within the same business day, rem
 When advising staff: suggest concrete follow-up scripts, checklist items (trial reminder, intro email, payment link), and red flags (ghosted trials, pricing confusion).
 Stay practical and school-specific; do not invent policies—surface decisions the owner must make when policy is unclear.`,
     usage_triggers: ['lead', 'trial', 'enrollment', 'pipeline', 'prospect', 'sales'],
-    auto_use_by_star: true,
+    auto_use_by_ziro: true,
   },
   {
     catalog_slug: 'scheduling_placement',
@@ -38,7 +38,7 @@ Prioritize: utilization (evening/weekend demand vs capacity), fair load across t
 When advising: propose concrete slot patterns, make-up policies, and “if/then” placement rules; flag rooms or teachers that are bottlenecks.
 Do not auto-assign real calendar rows—give clear recommendations staff can execute in their scheduler.`,
     usage_triggers: ['schedule', 'placement', 'calendar', 'capacity'],
-    auto_use_by_star: true,
+    auto_use_by_ziro: true,
   },
   {
     catalog_slug: 'retention',
@@ -54,7 +54,7 @@ Prioritize: early warning (missed lessons, payment delays, teacher notes), human
 When advising: segment risk (low/medium/high), suggest owner-approved incentives or touchpoints, and avoid guilt-based messaging.
 Escalate legal or medical situations to human staff; you provide operational retention strategy only.`,
     usage_triggers: ['retention', 'churn', 'engagement', 'at-risk'],
-    auto_use_by_star: true,
+    auto_use_by_ziro: true,
   },
   {
     catalog_slug: 'reactivation',
@@ -70,7 +70,7 @@ Prioritize: respectful timing, clear value (what changed since they left), and s
 When advising: propose short campaigns (3 touches max before pause), segment by reason for leaving when known, and pair messaging with scheduling availability.
 Never promise discounts unless staff confirm policy; phrase offers as “if approved.”`,
     usage_triggers: ['win-back', 'reactivation', 'lapsed'],
-    auto_use_by_star: true,
+    auto_use_by_ziro: true,
   },
   {
     catalog_slug: 'billing_recovery',
@@ -86,7 +86,7 @@ Prioritize: accurate balances, transparent due dates, failed payment retries, an
 When advising: draft parent-facing message options, internal checklists for staff, and simple reporting views owners can scan weekly.
 You are not legal counsel—avoid collections law advice; recommend human review for disputes.`,
     usage_triggers: ['bill', 'invoice', 'payment', 'collection', 'tuition', 'ar'],
-    auto_use_by_star: true,
+    auto_use_by_ziro: true,
   },
   {
     catalog_slug: 'parent_communication',
@@ -102,7 +102,7 @@ Prioritize: clarity (who/when/where), tone that matches the studio brand, and bu
 When advising: produce message variants (short vs detailed), call out missing info to confirm before send, and suggest timing (avoid late nights).
 Do not send messages yourself—produce drafts for staff to approve and send.`,
     usage_triggers: ['parent', 'family', 'communication', 'portal'],
-    auto_use_by_star: true,
+    auto_use_by_ziro: true,
   },
 ] as const
 
