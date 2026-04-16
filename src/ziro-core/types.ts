@@ -1,6 +1,6 @@
 /**
  * Ziro Work — page identifiers for composed business prompts.
- * Scheduling/tools mode (Schedule page) stays on `useScheduleStarChat` + `ScheduleContext`; see `useAI.ts`.
+ * Scheduling/tools mode (Schedule page) stays on `useScheduleZiroChat` + `ScheduleContext`; see `useAI.ts`.
  */
 export type ZiroPageId =
   | 'global_modal'

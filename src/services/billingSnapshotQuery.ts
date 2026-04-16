@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { getMonthStart, getNextCycleMonth, getMonthAfterNext } from '../hooks/useBillingPage'
 
-/** Same shape as dashboard `useBillingSnapshot` — single source for Star + hook. */
+/** Same shape as dashboard `useBillingSnapshot` — single source for Ziro + hook. */
 export interface BillingSnapshotData {
   collectedCents: number
   totalInvoicedCents: number

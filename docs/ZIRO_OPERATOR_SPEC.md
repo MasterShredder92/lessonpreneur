@@ -64,12 +64,12 @@ These are non-negotiable. Every implementation step must preserve all of them.
 
 ```
 ZiroContext.tsx (shell state: panel open/close, route, role, page context)
-  → star/loadGlobalContext.ts → services/starContext.ts → get_star_context() RPC
+  → ziro-core/loadGlobalContext.ts → services/ziroContext.ts → get_ziro_context() RPC
     → Full JSONB snapshot: students, families, billing, schedule, teachers, leads, retention, sessions, tasks, locations
-  → star/composePrompt.ts + pagePrompts.ts
+  → ziro-core/composePrompt.ts + pagePrompts.ts
     → Formatted system prompt with page-specific overlays
   → hooks/useAI.ts
-    → useStarBusinessChat (business Q&A) or useScheduleStarChat (scheduling tools)
+    → useZiroBusinessChat (business Q&A) or useScheduleZiroChat (scheduling tools)
   → services/aiAssistantClient.ts
     → Edge Function: /ai-assistant
 ```
@@ -181,7 +181,7 @@ Register family-detail and student-detail context so Ziro receives entity-level 
 - `src/pages/admin/StudentDetail.tsx` — register student + family context
 - `src/pages/admin/Families.tsx` — already registers; extend with selected family detail
 - `src/contexts/ZiroContext.tsx` — extend `ZiroPageContext` interface if needed
-- `src/star/composePrompt.ts` — add `family_detail` and `student_detail` page prompt templates
+- `src/ziro-core/composePrompt.ts` — add `family_detail` and `student_detail` page prompt templates
 
 **What to register:**
 - Family: id, name, students (names, instruments, statuses), rate_tier, is_military, billing_status, overdue status

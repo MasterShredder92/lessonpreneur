@@ -3,7 +3,7 @@
  * `catalog_slug` is stored in ziro_agents.invocation_rules for idempotent seed/repair.
  *
  * `primary_skill_key` must match an active `ziro_skills.key` for the tenant (system skills).
- * Keep in sync with `classifyIntent` / orchestrator skill routing in `star/orchestrator.ts`.
+ * Keep in sync with `classifyIntent` / orchestrator skill routing in `ziro-core/orchestrator/routing.ts`.
  *
  * `auto_use_by_ziro` = Ziro delegation mode (true = auto delegate, false = explicit only).
  */

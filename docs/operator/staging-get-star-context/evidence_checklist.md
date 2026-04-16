@@ -1,12 +1,12 @@
-# Evidence checklist — staging `get_star_context`
+# Evidence checklist — staging `get_ziro_context`
 
 Save under a single folder (e.g. `evidence/staging-get-star-context-<date>/`).
 
 | # | Artifact | Filename |
 |---|----------|----------|
-| 1 | `pg_get_functiondef` before migrate | `rollback_get_star_context.sql` (filled template) |
+| 1 | `pg_get_functiondef` before migrate | `rollback_get_ziro_context.sql` (filled template) |
 | 2 | Grants query output before | `grants-before.txt` |
-| 3 | `pg_get_functiondef` after migrate | `get_star_context-after.sql` |
+| 3 | `pg_get_functiondef` after migrate | `get_ziro_context-after.sql` |
 | 4 | Grants query output after | `grants-after.txt` |
 | 5 | Applied migration body (git SHA or copy) | `migration-applied.txt` |
 | 6 | Owner RPC JSON or error | `persona-owner.json` |

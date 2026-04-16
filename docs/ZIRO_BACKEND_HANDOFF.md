@@ -4,7 +4,7 @@ For the engineer doing Supabase / RPC / edge deployment. **Client containment pa
 
 ---
 
-## A. Exact SQL — inspect `get_star_context`
+## A. Exact SQL — inspect `get_ziro_context`
 
 Run in **Supabase → SQL Editor** (or `psql`). Replace nothing unless noted.
 
@@ -20,7 +20,7 @@ SELECT
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'public'
-  AND p.proname = 'get_star_context';
+  AND p.proname = 'get_ziro_context';
 ```
 
 ### A2. SECURITY DEFINER vs INVOKER
@@ -36,7 +36,7 @@ FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 JOIN pg_authid r ON r.oid = p.proowner
 WHERE n.nspname = 'public'
-  AND p.proname = 'get_star_context';
+  AND p.proname = 'get_ziro_context';
 ```
 
 - **`security_definer = true`** → function runs with **owner’s** privileges (typical for controlled RPCs). Confirm owner is intentional (often `postgres` / migration role).
@@ -49,7 +49,7 @@ SELECT pg_get_functiondef(p.oid) AS definition
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'public'
-  AND p.proname = 'get_star_context';
+  AND p.proname = 'get_ziro_context';
 ```
 
 (Optional) Shorter view via `information_schema` (may truncate very large bodies in some clients):
@@ -58,7 +58,7 @@ WHERE n.nspname = 'public'
 SELECT routine_schema, routine_name, routine_type, security_type, data_type AS return_type
 FROM information_schema.routines
 WHERE routine_schema = 'public'
-  AND routine_name = 'get_star_context';
+  AND routine_name = 'get_ziro_context';
 ```
 
 ### A4. Who can EXECUTE — grants
@@ -71,7 +71,7 @@ SELECT
   is_grantable
 FROM information_schema.routine_privileges
 WHERE routine_schema = 'public'
-  AND routine_name = 'get_star_context'
+  AND routine_name = 'get_ziro_context'
 ORDER BY grantee, privilege_type;
 ```
 
@@ -80,12 +80,12 @@ Current session’s ability to call:
 ```sql
 SELECT has_function_privilege(
   current_user,
-  'public.get_star_context(uuid)'::regprocedure,
+  'public.get_ziro_context(uuid)'::regprocedure,
   'EXECUTE'
 ) AS current_user_can_execute;
 ```
 
-(If the signature is not `(uuid)`, use the exact identity from **A1**, e.g. `'public.get_star_context(uuid, uuid)'::regprocedure`.)
+(If the signature is not `(uuid)`, use the exact identity from **A1**, e.g. `'public.get_ziro_context(uuid, uuid)'::regprocedure`.)
 
 List roles that have EXECUTE (broader than `information_schema` alone):
 
@@ -97,7 +97,7 @@ FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 CROSS JOIN pg_roles r
 WHERE n.nspname = 'public'
-  AND p.proname = 'get_star_context'
+  AND p.proname = 'get_ziro_context'
   AND r.rolname NOT LIKE 'pg_%'
 ORDER BY r.rolname;
 ```
@@ -106,7 +106,7 @@ ORDER BY r.rolname;
 
 PostgreSQL records many dependencies in `pg_depend` (not guaranteed for every dynamic SQL path or plpgsql edge case).
 
-**A5a — Objects referenced by `get_star_context` (what the function depends on)**  
+**A5a — Objects referenced by `get_ziro_context` (what the function depends on)**  
 In `pg_depend`, `objid` = dependent, `refobjid` = referenced. Here the function is the dependent.
 
 ```sql
@@ -114,7 +114,7 @@ WITH f AS (
   SELECT p.oid
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
-  WHERE n.nspname = 'public' AND p.proname = 'get_star_context'
+  WHERE n.nspname = 'public' AND p.proname = 'get_ziro_context'
 )
 SELECT
   CASE d.refclassid
@@ -129,7 +129,7 @@ WHERE d.deptype = 'n'
 ORDER BY 1;
 ```
 
-**A5b — Objects that depend on `get_star_context` (e.g. views wrapping the RPC)**  
+**A5b — Objects that depend on `get_ziro_context` (e.g. views wrapping the RPC)**  
 Here the function is the referenced object.
 
 ```sql
@@ -137,7 +137,7 @@ WITH f AS (
   SELECT p.oid
   FROM pg_proc p
   JOIN pg_namespace n ON n.oid = p.pronamespace
-  WHERE n.nspname = 'public' AND p.proname = 'get_star_context'
+  WHERE n.nspname = 'public' AND p.proname = 'get_ziro_context'
 )
 SELECT
   CASE d.classid
@@ -161,13 +161,13 @@ If **A5a** is empty or incomplete, treat **`pg_get_functiondef` output (A3)** as
 
 ### A6. Sample invocation shape (matches client)
 
-Client calls: `supabase.rpc('get_star_context', { p_tenant_id: '<tenant_uuid>' })`.
+Client calls: `supabase.rpc('get_ziro_context', { p_tenant_id: '<tenant_uuid>' })`.
 
 ```sql
 -- Use a real tenant id from your tenants table:
 -- SELECT id FROM tenants LIMIT 1;
 
-SELECT public.get_star_context('00000000-0000-0000-0000-000000000000'::uuid);
+SELECT public.get_ziro_context('00000000-0000-0000-0000-000000000000'::uuid);
 ```
 
 Replace the UUID with a valid `tenants.id`. Adjust the function name/signature if **A1** shows parameters other than a single `uuid`.
@@ -191,7 +191,7 @@ Ad-hoc: run **A6** as a user/role that mirrors production (e.g. `authenticated` 
 
 ### B1. SQL / RPC
 
-- [ ] Export current production `get_star_context` (result of **A3**) into a dated migration in git before any edit.
+- [ ] Export current production `get_ziro_context` (result of **A3**) into a dated migration in git before any edit.
 - [ ] Confirm function signature matches client: `p_tenant_id` (see `fetchStarContext` in `app/src/services/starContext.ts`).
 - [ ] Implement **server-side** role and location scoping (no reliance on client stripping for security).
 - [ ] Align returned JSON with `StarContextData` or version the RPC and update the client contract explicitly.
@@ -266,12 +266,12 @@ File hashes differ — **drift risk is active** if deploys use the wrong tree.
 **What is already fixed on the client**
 
 - Fail-closed calls: business flows require real `system_override`; interactive flow requires business and/or schedule context where applicable.
-- STAR UI waits for `get_star_context` / grid context before enabling chat; `useStarBusinessChat` enforces non-empty business context.
+- Ziro UI waits for `get_ziro_context` / grid context before enabling chat; `useZiroBusinessChat` enforces non-empty business context.
 - `postAiAssistantBusinessOverride` / `postAiAssistantInteractive` centralize HTTP to `ai-assistant`; business snapshot is sent as **`system_override`** per `aiAssistantClient.ts` and `formatStarPrompt`.
 
 **What must be verified server-side**
 
-- `get_star_context`: definition in DB (**A3**), DEFINER/INVOKER (**A2**), EXECUTE grants (**A4**), dependencies (**A5**), and that JSON reflects **role/location** policy (not client-only masking).
+- `get_ziro_context`: definition in DB (**A3**), DEFINER/INVOKER (**A2**), EXECUTE grants (**A4**), dependencies (**A5**), and that JSON reflects **role/location** policy (not client-only masking).
 - `ai-assistant`: deployed bundle is built from **`app/supabase/functions/ai-assistant/index.ts`**, includes **`system_override`** fast path, secrets set, CORS OK.
 - Remove ambiguity: **root `supabase/functions/ai-assistant/index.ts` does not implement `system_override`** — if production matches that file, STAR business chat is wrong.
 

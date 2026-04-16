@@ -263,9 +263,9 @@ export function useAgentSkills(agentId: string | null) {
 }
 
 /** Agents attached to Ziro (orchestrator roster) for this tenant. */
-export function useStarAgents(tenantId: string | null) {
+export function useZiroAgents(tenantId: string | null) {
   return useQuery({
-    queryKey: qk.agents.starAttached(tenantId),
+    queryKey: qk.agents.ziroOrchestratorRoster(tenantId),
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -391,7 +391,7 @@ export function useRetireAgent() {
     },
     onSuccess: () => {
       // Invalidate both agents list and star attachments
-      qc.invalidateQueries({ queryKey: ['ziro-star-agents'] })
+      qc.invalidateQueries({ queryKey: ['ziro-orchestrator-roster'] })
       qc.invalidateQueries({ queryKey: qk.agents.all })
     },
   })
@@ -509,7 +509,7 @@ export function useDetachSkillFromAgent() {
 
 // ── Orchestrator (Ziro) attachment ──────────────────────
 
-export function useAttachAgentToStar(tenantId: string | null) {
+export function useAttachAgentToZiro(tenantId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (agentId: string) => {
@@ -519,12 +519,12 @@ export function useAttachAgentToStar(tenantId: string | null) {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.agents.starAttached(tenantId) })
+      qc.invalidateQueries({ queryKey: qk.agents.ziroOrchestratorRoster(tenantId) })
     },
   })
 }
 
-export function useDetachAgentFromStar(tenantId: string | null) {
+export function useDetachAgentFromZiro(tenantId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (agentId: string) => {
@@ -536,7 +536,7 @@ export function useDetachAgentFromStar(tenantId: string | null) {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.agents.starAttached(tenantId) })
+      qc.invalidateQueries({ queryKey: qk.agents.ziroOrchestratorRoster(tenantId) })
     },
   })
 }
@@ -612,9 +612,9 @@ export function useCloneAgent(tenantId: string | null) {
 
 // ── Ziro orchestrator config ────────────────────────────
 
-export function useStarConfig(tenantId: string | null) {
+export function useZiroConfig(tenantId: string | null) {
   return useQuery({
-    queryKey: ['ziro-star-config', tenantId],
+    queryKey: ['ziro-orchestrator-config', tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -628,7 +628,7 @@ export function useStarConfig(tenantId: string | null) {
   })
 }
 
-export function useUpsertStarConfig(tenantId: string | null) {
+export function useUpsertZiroConfig(tenantId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: {
@@ -648,7 +648,7 @@ export function useUpsertStarConfig(tenantId: string | null) {
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['ziro-star-config', tenantId] })
+      qc.invalidateQueries({ queryKey: ['ziro-orchestrator-config', tenantId] })
     },
   })
 }

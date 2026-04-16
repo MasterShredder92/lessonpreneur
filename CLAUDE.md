@@ -81,7 +81,7 @@ LP brand palette:
   profile_locations
 - Raw SQL user creation: empty strings not NULL for all
   GoTrue string token columns
-- get_star_context() RPC = full business JSONB snapshot,
+- get_ziro_context() RPC = full business JSONB snapshot,
   granted to authenticated and service_role
 
 ---

@@ -20,7 +20,7 @@ export function FamilyHeader({
 }) {
   return (
     <div className="page-header">
-      <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: '0.5px', marginRight: 16 }}>Families</h1>
+      <h1 className="page-header-title-families">Families</h1>
       <FamilyStats countActive={countActive} countInactive={countInactive} countTotal={countTotal} />
       <FamilyActions canCreate={canCreate} canExport={canExport} onAddFamily={onAddFamily} onExportCsv={onExportCsv} />
     </div>

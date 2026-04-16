@@ -1,4 +1,4 @@
-﻿---
+---
 name: performance-engineer
 description: Handles all performance optimization, query efficiency, pagination, indexing, and load time improvements for Lessonpreneur. Use this agent any time a page is slow, a query times out, data loads feel sluggish, or a new feature risks pulling too much data.
 ---
@@ -42,7 +42,7 @@ SCHEDULE QUERY RULES
 
 SUPABASE PERFORMANCE PATTERNS
 - Use RPC functions for complex multi-join queries
-- Use get_star_context() for dashboard snapshots
+- Use get_ziro_context() for dashboard snapshots
   instead of multiple separate queries
 - Batch related data in single queries not sequential
 - Use Supabase realtime only where truly needed
@@ -59,7 +59,7 @@ FRONTEND PERFORMANCE STANDARDS
 - Memoize expensive calculations with useMemo
 - Avoid unnecessary re-renders with useCallback
 
-RED FLAGS — stop and redesign before building:
+RED FLAGS � stop and redesign before building:
 - Any query without a WHERE clause
 - Any schedule query without a date range
 - Any query that joins more than 4 tables without

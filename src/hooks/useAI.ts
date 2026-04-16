@@ -53,9 +53,9 @@ function isValidAiResponse(data: unknown): data is AiAssistantJson {
  * - **Scheduling path:** no `businessContext` → tool-use mode; pass **`scheduleContext`** from Schedule page.
  * - **Wrong mode:** neither context → scheduling assistant with empty grid (avoid).
  *
- * Prefer named hooks: **`useStarBusinessChat`** vs **`useScheduleStarChat`** instead of positional `useAI`.
+ * Prefer named hooks: **`useZiroBusinessChat`** vs **`useScheduleZiroChat`** instead of positional `useAI`.
  *
- * @deprecated Four-arg `useAI` — prefer `useStarBusinessChat` / `useScheduleStarChat`.
+ * @deprecated Four-arg `useAI` — prefer `useZiroBusinessChat` / `useScheduleZiroChat`.
  */
 export function useAI(
   tenantId: string | null,
@@ -299,29 +299,32 @@ const ZIRO_BUSINESS_GUARD_EMPTY =
   '[ZIRO INTERNAL] Configuration error: empty business context. Reply only: "Ziro is misconfigured — please refresh." Do not use scheduling tools.'
 
 /** Business snapshot / Ziro panel path — `system_override` only. Pass a non-empty string; loading states should use an explicit loading prompt, not null. */
-export function useStarBusinessChat(
+export function useZiroBusinessChat(
   tenantId: string | null,
   businessContext: string,
   options?: UseAiOptions,
 ) {
   const safe = businessContext.trim() ? businessContext : ZIRO_BUSINESS_GUARD_EMPTY
   if (import.meta.env.DEV && !businessContext.trim()) {
-    console.error('[useStarBusinessChat] Empty businessContext — using guard string to avoid scheduling-mode fallback')
+    console.error('[useZiroBusinessChat] Empty businessContext — using guard string to avoid scheduling-mode fallback')
   }
   return useAI(tenantId, null, safe, options)
 }
 
-/** Ziro slideout / business Q&A — same as `useStarBusinessChat` (legacy name retained for imports). */
-export const useZiroBusinessChat = useStarBusinessChat
+/** @deprecated Use `useZiroBusinessChat` */
+export const useStarBusinessChat = useZiroBusinessChat
 
 /**
- * Schedule page adapter: Star in **scheduling/tools** mode (grid + proposed actions).
+ * Schedule page adapter: Ziro in **scheduling/tools** mode (grid + proposed actions).
  * For school-wide business Q&A, use `useZiroGlobalContext` + `useZiroComposedBusinessPrompt` or `useZiroBusinessChat` with composed prompt.
  */
-export function useScheduleStarChat(
+export function useScheduleZiroChat(
   tenantId: string | null,
   scheduleContext: ScheduleContext | null | undefined,
   options?: UseAiOptions,
 ) {
   return useAI(tenantId, scheduleContext ?? null, null, options)
 }
+
+/** @deprecated Use `useScheduleZiroChat` */
+export const useScheduleStarChat = useScheduleZiroChat

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
 import type { ResolvedPageIntelligence } from '../../hooks/usePageIntelligence'
 import { useUpsertPageIntelligenceBindings } from '../../hooks/usePageIntelligence'
-import { useAgents, useStarAgents } from '../../hooks/useAgents'
+import { useAgents, useZiroAgents } from '../../hooks/useAgents'
 import { useSkills } from '../../hooks/useSkills'
 import { IssueContextProvider } from '../../contexts/IssueContext'
 import { ZiroWorkAgentCard } from './ZiroWorkAgentCard'
@@ -37,7 +37,7 @@ export default function AgentWorkspace({
   const safeAssigned = resolveSafeAgent(resolved.assignedAgent)
   const safeSuggested = resolveSafeAgent(resolved.suggestedAgent)
   const { data: agents } = useAgents(tenantId)
-  const { data: starAgents } = useStarAgents(tenantId)
+  const { data: ziroAgents } = useZiroAgents(tenantId)
   const { data: skills } = useSkills()
   const upsertBindings = useUpsertPageIntelligenceBindings(tenantId)
 
@@ -69,7 +69,7 @@ export default function AgentWorkspace({
   const [primaryPick, setPrimaryPick] = useState<string>(initialPrimaryPick)
   const [supportingPick, setSupportingPick] = useState<Set<string>>(initialSupportingPick)
 
-  const orchestratorIds = useMemo(() => new Set((starAgents ?? []).map(s => s.agent_id)), [starAgents])
+  const orchestratorIds = useMemo(() => new Set((ziroAgents ?? []).map(s => s.agent_id)), [ziroAgents])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

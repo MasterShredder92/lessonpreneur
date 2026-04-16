@@ -1,6 +1,6 @@
-# Persona test matrix — `get_star_context`
+# Persona test matrix — `get_ziro_context`
 
-**Invoke:** App login or `supabase.rpc('get_star_context', { p_tenant_id: '<UUID>' })` with that user’s session JWT.  
+**Invoke:** App login or `supabase.rpc('get_ziro_context', { p_tenant_id: '<UUID>' })` with that user’s session JWT.  
 **Do not use** SQL Editor as superuser for these rows (no `auth.uid()`).
 
 | Persona | Tenant id | Expected HTTP / RPC | Must hold | Must not hold (fail) |

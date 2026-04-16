@@ -24,7 +24,7 @@ const PLANS = [
       'AI-powered scheduling',
       'Automated payment collection',
       'Student & family portal',
-      'Star AI studio advisor',
+      'Ziro AI studio advisor',
     ],
   },
   {
@@ -39,7 +39,7 @@ const PLANS = [
       'Multi-teacher management',
       'Payroll & financial dashboards',
       'Lead pipeline & follow-up',
-      'Star AI studio advisor',
+      'Ziro AI studio advisor',
     ],
   },
   {

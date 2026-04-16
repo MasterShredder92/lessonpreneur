@@ -408,7 +408,8 @@ export const qk = {
     list: (tenantId: string | null) => ['ziro-agents', tenantId] as const,
     detail: (id: string) => ['ziro-agents', 'detail', id] as const,
     skills: (agentId: string) => ['ziro-agent-skills', agentId] as const,
-    starAttached: (tenantId: string | null) => ['ziro-star-agents', tenantId] as const,
+    /** Agents attached to the Ziro orchestrator roster (`ziro_agents` join rows). */
+    ziroOrchestratorRoster: (tenantId: string | null) => ['ziro-orchestrator-roster', tenantId] as const,
   },
 
   // ── Moderation ─────────────────────────────────

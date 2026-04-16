@@ -6,7 +6,7 @@
  * - **Scope:** `buildZiroUserScope` — same rules as Dashboard billing location + `usePermissions` effective role.
  * - **Routing:** `routeTask` — 4-tier waterfall: direct > skill > agent > temp_agent.
  *
- * **Scheduling tools** (grid + tools) are intentionally separate: `useScheduleStarChat` / `postAiAssistantInteractive`.
+ * **Scheduling tools** (grid + tools) are intentionally separate: `useScheduleZiroChat` / `postAiAssistantInteractive`.
  */
 export type { ZiroPageAttach, ZiroPageId } from './types'
 export type { ZiroUserScope, ZiroUserScopeInput } from './resolveScope'

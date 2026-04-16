@@ -107,7 +107,7 @@ Store scripts under e.g. `scripts/e2e/` or `tests/e2e/`; document env vars for C
 ## Out of scope for this ticket (follow-ups)
 
 - CRM UI panel rendering ordered intake from JSON (can ship after row exists)  
-- Ziro / `get_star_context` JSON injection (separate ticket)  
+- Ziro / `get_ziro_context` JSON injection (separate ticket)  
 - Backfill historical leads without `intake_submissions` (optional migration script)  
 
 ---

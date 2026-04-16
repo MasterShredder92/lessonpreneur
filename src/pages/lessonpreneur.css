@@ -13,6 +13,11 @@
   font-family: var(--font-body);
 }
 
+.lp-page > main {
+  padding: 0;
+  margin: 0;
+}
+
 .lp-reset * { box-sizing: border-box; }
 .lp-reset { margin: 0; padding: 0; }
 .lp-reset a { text-decoration: none; color: inherit; }

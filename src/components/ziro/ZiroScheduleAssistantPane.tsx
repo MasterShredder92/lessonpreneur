@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { X, Send, Sparkles } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
-import { useScheduleStarChat, type ScheduleContext } from '../../hooks/useAI'
+import { useScheduleZiroChat, type ScheduleContext } from '../../hooks/useAI'
 import { qk } from '../../lib/queryKeys'
 import { useZiroShell } from '../../contexts/ZiroContext'
 import { ZiroAssistantFeedback } from './ZiroAssistantFeedback'
@@ -12,7 +12,7 @@ const SUGGESTIONS = ['Move Maddox to 3:30 today', 'Find coverage for all callout
 
 /**
  * Schedule-specific assistant (edge tool-use + grid). Mounted only on /admin/schedule when
- * `pageContext.scheduleContext` is set — keeps `useScheduleStarChat` out of the business panel.
+ * `pageContext.scheduleContext` is set — keeps `useScheduleZiroChat` out of the business panel.
  */
 export function ZiroScheduleAssistantPane({
   onClose,
@@ -36,7 +36,7 @@ export function ZiroScheduleAssistantPane({
     confirmAction,
     rejectAction,
     aiSessionId,
-  } = useScheduleStarChat(tenantId, ctx, {
+  } = useScheduleZiroChat(tenantId, ctx, {
     getClientPageContext: () => pageContext as Record<string, unknown>,
   })
 

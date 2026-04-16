@@ -6,11 +6,11 @@ import {
   useAgents,
   useMusicSchoolZiroAgents,
   useSeedMusicSchoolCatalogAgents,
-  useStarAgents,
+  useZiroAgents,
   useCreateAgent,
   useUpdateAgent,
-  useStarConfig,
-  useUpsertStarConfig,
+  useZiroConfig,
+  useUpsertZiroConfig,
   type ZiroAgent,
 } from '../../hooks/useAgents'
 import { useSkills } from '../../hooks/useSkills'
@@ -479,8 +479,8 @@ function ZiroControlCrmPageAgentSection({ tenantId }: { tenantId: string | null 
 
 /** Section 2 — optional Ziro star global instructions (collapsed by default). */
 function ZiroControlGlobalOrchestratorInstructions({ tenantId }: { tenantId: string | null }) {
-  const { data: config, isLoading } = useStarConfig(tenantId)
-  const upsert = useUpsertStarConfig(tenantId)
+  const { data: config, isLoading } = useZiroConfig(tenantId)
+  const upsert = useUpsertZiroConfig(tenantId)
   const [open, setOpen] = useState(false)
   const [instructions, setInstructions] = useState('')
   const [dirty, setDirty] = useState(false)
@@ -636,7 +636,7 @@ function AgentsTab({ tenantId }: { tenantId: string | null }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { data: agents, isLoading } = useAgents(tenantId)
-  const { data: orchestratorAgents } = useStarAgents(tenantId)
+  const { data: orchestratorAgents } = useZiroAgents(tenantId)
   const { data: skills } = useSkills()
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)

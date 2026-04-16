@@ -15,14 +15,7 @@ import { FamilyTags } from '../../components/families/FamilyTags'
 import FamilyLocationGrid from '../../components/families/FamilyLocationGrid'
 import LocationFamilyPanel from '../../components/families/LocationFamilyPanel'
 import { FamilyDetailModal } from '@/components/families/FamilyDetailModal'
-
-// Location brand colors — keyed by Supabase UUID (CLAUDE.md authoritative source)
-const LOCATION_COLORS: Record<string, string> = {
-  'f7b52dd5-12ee-437f-9c60-f8adf454ac31': '#A333FF', // Bellevue
-  'cebd97d4-c241-4de2-8ade-49e5cc0070d5': '#00A5E8', // Elkhorn
-  '40c67ffc-91b5-46a9-94bd-6ddffdfb7638': '#00A651', // Gretna
-  'd48229c1-b70a-4d29-893e-5079887dab76': '#D41113', // Omaha
-}
+import { LOCATION_BRAND_COLORS } from '../../utils/locationColor'
 
 // ═══════════════════════════════════════
 // FAMILIES PAGE
@@ -99,7 +92,7 @@ export default function Families() {
       <FamilyLocationGrid
         locations={locations}
         locationCounts={locationCounts}
-        locationColors={LOCATION_COLORS}
+        locationColors={LOCATION_BRAND_COLORS}
         totalActive={tabCounts?.active}
         onSelectLocation={onSelectLocation}
         isStudioDirector={isStudioDirector}
@@ -116,7 +109,7 @@ export default function Families() {
           onAddFamily={() => setShowAddFamily(true)}
           onOpenFamily={setSelectedFamilyId}
           navigate={navigate}
-          locationColors={LOCATION_COLORS}
+          locationColors={LOCATION_BRAND_COLORS}
         />
       )}
 

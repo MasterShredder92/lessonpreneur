@@ -4,7 +4,7 @@ Distinct `profiles.role` values observed: **owner**, **admin**, **parent**, **st
 
 `company_director` was **not** present — **do not** put it in SQL whitelists. If product later adds the enum value, add it explicitly with intended scope (likely same as `admin`/`owner` for this RPC).
 
-## Allowed to call `get_star_context` (after migration + splice)
+## Allowed to call `get_ziro_context` (after migration + splice)
 
 | Role | Behavior |
 |------|----------|

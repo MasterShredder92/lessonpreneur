@@ -24,8 +24,8 @@ import {
   useIdleAgent,
   useConvertTempAgent,
   useDeleteAgent,
-  useAttachAgentToStar,
-  useDetachAgentFromStar,
+  useAttachAgentToZiro,
+  useDetachAgentFromZiro,
   useAttachSkillToAgent,
   useDetachSkillFromAgent,
   useCloneAgent,
@@ -96,8 +96,8 @@ export function ZiroWorkAgentCard({
   const idleAgent = useIdleAgent()
   const convertTemp = useConvertTempAgent()
   const deleteAgent = useDeleteAgent()
-  const attachToStar = useAttachAgentToStar(tenantId)
-  const detachFromStar = useDetachAgentFromStar(tenantId)
+  const attachToZiro = useAttachAgentToZiro(tenantId)
+  const detachFromZiro = useDetachAgentFromZiro(tenantId)
   const attachSkill = useAttachSkillToAgent()
   const detachSkill = useDetachSkillFromAgent()
   const cloneAgent = useCloneAgent(tenantId)
@@ -441,14 +441,14 @@ export function ZiroWorkAgentCard({
                 icon={<Unlink size={13} />}
                 label="Detach from Ziro"
                 color="#FF5500"
-                onClick={() => detachFromStar.mutate(agentId, { onSuccess: () => toast('Detached from Ziro', 'success') })}
+                onClick={() => detachFromZiro.mutate(agentId, { onSuccess: () => toast('Detached from Ziro', 'success') })}
               />
             ) : agent.status === 'active' ? (
               <ActionBtn
                 icon={<Sparkles size={13} />}
                 label="Attach to Ziro"
                 color="#FFB800"
-                onClick={() => attachToStar.mutate(agentId, { onSuccess: () => toast('Attached to Ziro', 'success') })}
+                onClick={() => attachToZiro.mutate(agentId, { onSuccess: () => toast('Attached to Ziro', 'success') })}
               />
             ) : null}
 

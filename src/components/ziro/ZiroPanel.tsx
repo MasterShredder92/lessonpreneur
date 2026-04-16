@@ -96,16 +96,16 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
   const { tenantId, profile } = useAuthContext()
   const ziroShell = useZiroShell()
   const { pendingSeedMessage, clearPendingSeed } = ziroShell
-  const { data: starContext, isLoading: starCtxLoading, isFetching: starCtxFetching, error: starCtxError } = useZiroGlobalContext()
+  const { data: ziroContext, isLoading: ziroCtxLoading, isFetching: ziroCtxFetching, error: ziroCtxError } = useZiroGlobalContext()
   const theme = useTheme()
 
   // Gate only on initial load — allow background refetches to proceed without blocking the UI.
   // Also treat errors as "ready" so the panel degrades gracefully instead of hanging.
-  const starSnapshotReady = !starCtxLoading || !!starCtxError
+  const ziroSnapshotReady = !ziroCtxLoading || !!ziroCtxError
   const businessSystemPrompt = useMemo(() => {
-    if (!starSnapshotReady) return ZIRO_BUSINESS_LOADING_PROMPT
+    if (!ziroSnapshotReady) return ZIRO_BUSINESS_LOADING_PROMPT
     const base =
-      starContext?.summary?.trim() ||
+      ziroContext?.summary?.trim() ||
       'Business context unavailable — answer only from what the user tells you.'
     const ctxBlock = [
       '--- ZIRO SHELL CONTEXT (structured; do not ignore) ---',
@@ -137,7 +137,7 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
       'Do not append ZIRO_ACTION lines for normal Q&A.',
     ].join('\n')
     return `${base}\n\n${ctxBlock}${actionHint}`
-  }, [starSnapshotReady, starContext?.summary, ziroShell])
+  }, [ziroSnapshotReady, ziroContext?.summary, ziroShell])
 
   const [pendingReassign, setPendingReassign] = useState<ZiroReassignProposal | null>(null)
   const [reassignWorking, setReassignWorking] = useState(false)
@@ -351,7 +351,7 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
   })
   ziroAiSessionRef.current = aiSessionId
 
-  const starChatReady = starSnapshotReady
+  const ziroChatReady = ziroSnapshotReady
 
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -359,12 +359,12 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
   const seedSentRef = useRef(false)
 
   useEffect(() => {
-    if (!pendingSeedMessage || !starChatReady || seedSentRef.current) return
+    if (!pendingSeedMessage || !ziroChatReady || seedSentRef.current) return
     seedSentRef.current = true
     const msg = pendingSeedMessage
     clearPendingSeed()
     sendMessage(msg)
-  }, [pendingSeedMessage, starChatReady, clearPendingSeed, sendMessage])
+  }, [pendingSeedMessage, ziroChatReady, clearPendingSeed, sendMessage])
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
   const isTablet = typeof window !== 'undefined' && window.innerWidth >= 768 && window.innerWidth < 1024
@@ -386,25 +386,25 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   const handleSend = useCallback(() => {
-    if (!inputValue.trim() || isLoading || !starChatReady) return
+    if (!inputValue.trim() || isLoading || !ziroChatReady) return
     sendMessage(inputValue.trim())
     setInputValue('')
-  }, [inputValue, isLoading, sendMessage, starChatReady])
+  }, [inputValue, isLoading, sendMessage, ziroChatReady])
 
   const handleChip = useCallback(
     (text: string) => {
-      if (!starChatReady || isLoading) return
+      if (!ziroChatReady || isLoading) return
       sendMessage(text)
     },
-    [sendMessage, starChatReady, isLoading],
+    [sendMessage, ziroChatReady, isLoading],
   )
 
   const handleNewChat = useCallback(() => {
     clearConversation()
   }, [clearConversation])
 
-  const raw = starContext?.raw ?? null
-  const billingSnapshot = starContext?.billingSnapshot ?? null
+  const raw = ziroContext?.raw ?? null
+  const billingSnapshot = ziroContext?.billingSnapshot ?? null
   const schoolName = theme.studioName || 'Your School'
 
   const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant')?.content ?? ''
@@ -735,7 +735,7 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
                 <button
                   key={chip}
                   onClick={() => handleChip(chip)}
-                  disabled={isLoading || !starChatReady}
+                  disabled={isLoading || !ziroChatReady}
                   style={{
                     fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)',
                     background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
@@ -767,8 +767,8 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSend() }}
-                disabled={isLoading || !starChatReady}
-                placeholder={starChatReady ? 'Ask Ziro anything about your business...' : 'Loading school snapshot…'}
+                disabled={isLoading || !ziroChatReady}
+                placeholder={ziroChatReady ? 'Ask Ziro anything about your business...' : 'Loading school snapshot…'}
                 style={{
                   flex: 1, padding: '10px 14px', borderRadius: 10, fontSize: 13,
                   background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
@@ -777,7 +777,7 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
               />
               <button
                 onClick={handleSend}
-                disabled={isLoading || !inputValue.trim() || !starChatReady}
+                disabled={isLoading || !inputValue.trim() || !ziroChatReady}
                 style={{
                   width: 38, height: 38, borderRadius: 10, flexShrink: 0,
                   background: inputValue.trim() ? 'linear-gradient(135deg, #D4226A, #FF5500)' : 'rgba(255,255,255,0.04)',
@@ -799,7 +799,7 @@ function ZiroPanelBody({ onClose }: { onClose: () => void }) {
             minWidth: 0,
             minHeight: isMobile ? 240 : 0,
           }}>
-            {!starSnapshotReady ? (
+            {!ziroSnapshotReady ? (
               <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', padding: 24 }}>
                 Loading school snapshot…
               </div>

@@ -391,7 +391,7 @@ D:\music-school-os\app\
 - Calendar month boundaries: `date_trunc('month', now())::date` and `(date_trunc('month', now()) + interval '1 month')::date`
 - Studio director location scoping: join `profile_locations` → `locations` → `square_location_id`
 - Teacher queries use `teacher_locations` table (not `profile_locations`)
-- `get_star_context()` RPC = single server-side call returning full business JSONB snapshot
+- `get_ziro_context()` RPC = single server-side call returning full business JSONB snapshot
 - Batch UPDATE statements in groups of ~100 per `execute_sql` for large migrations
 
 ## Other Critical Technical Rules

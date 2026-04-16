@@ -99,7 +99,7 @@ export async function routeTask(tenantId: string, intent: OrchestrationIntent): 
   try {
     const skill = intent.suggested_skill_key ? await matchSkill(tenantId, intent.suggested_skill_key) : null
     if (skill) {
-      const attachedAgent = await findStarAgentForSkill(tenantId, skill.id)
+      const attachedAgent = await findZiroAgentForSkill(tenantId, skill.id)
       if (attachedAgent) {
         await supabase
           .from('ziro_agents')
@@ -129,7 +129,7 @@ export async function routeTask(tenantId: string, intent: OrchestrationIntent): 
 
   // Tier 3: Agent
   try {
-    const agentByRule = await findStarAgentByInvocationRule(tenantId, intent.intent_summary)
+    const agentByRule = await findZiroAgentByInvocationRule(tenantId, intent.intent_summary)
     if (agentByRule) {
       await supabase
         .from('ziro_agents')
@@ -234,7 +234,7 @@ export async function matchSkill(tenantId: string, suggestedKey?: string): Promi
   return data as SkillMatch
 }
 
-async function findStarAgentForSkill(tenantId: string, skillId: string): Promise<AgentRecord | null> {
+async function findZiroAgentForSkill(tenantId: string, skillId: string): Promise<AgentRecord | null> {
   const { data, error } = await supabase
     .from('ziro_agents')
     .select(
@@ -278,7 +278,7 @@ async function findStarAgentForSkill(tenantId: string, skillId: string): Promise
   return candidates[0]
 }
 
-async function findStarAgentByInvocationRule(
+async function findZiroAgentByInvocationRule(
   tenantId: string,
   intentSummary: string,
 ): Promise<AgentRecord | null> {
