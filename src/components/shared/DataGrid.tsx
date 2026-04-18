@@ -67,21 +67,21 @@ export default function DataGrid({
   if (role !== 'owner') {
     return createPortal(
       <div style={{
-        position: 'fixed', inset: 0, zIndex: 99999, background: '#0A0918',
+        position: 'fixed', inset: 0, zIndex: 99999, background: 'var(--surface-master)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <Lock size={40} style={{ color: '#606088', marginBottom: 12 }} />
-          <p style={{ fontSize: 16, fontWeight: 700, color: '#8080A8' }}>Access Restricted</p>
-          <p style={{ fontSize: 12, color: '#606088', marginTop: 6 }}>
+          <Lock size={40} style={{ color: 'var(--text-caption)', marginBottom: 'var(--space-md)' }} />
+          <p style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-placard)' }}>Access Restricted</p>
+          <p style={{ fontSize: 'var(--font-size-lg)', color: 'var(--text-caption)', marginTop: 'var(--space-6)' }}>
             Only the account owner can access the Master Editor.
           </p>
           <button
             onClick={onClose}
             style={{
-              marginTop: 16, padding: '8px 20px', borderRadius: 8,
-              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-              color: '#A0A0C8', cursor: 'pointer', fontSize: 12,
+              marginTop: 'var(--space-lg)', padding: 'var(--space-sm) var(--space-2xl)', borderRadius: 'var(--radius-sm)',
+              background: 'var(--white-6)', border: 'var(--border-width) solid var(--white-10)',
+              color: 'var(--text-muted)', cursor: 'pointer', fontSize: 'var(--font-size-lg)',
             }}
           >
             Go Back
@@ -287,7 +287,7 @@ export default function DataGrid({
 
   return createPortal(
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 99999, background: '#0A0918',
+      position: 'fixed', inset: 0, zIndex: 99999, background: 'var(--surface-master)',
       display: 'flex', flexDirection: 'column',
     }}>
       {/* Close button — always visible, floats top-right */}
@@ -303,21 +303,21 @@ export default function DataGrid({
       <div className="datagrid-header">
         {/* Row 1: Title centered */}
         <div className="datagrid-header-row1">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
-            <Lock size={14} style={{ color: '#FFB800' }} />
-            <span style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4' }}>{title}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', justifyContent: 'center', width: '100%' }}>
+            <Lock size={14} style={{ color: 'var(--color-warning)' }} />
+            <span style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-secondary)' }}>{title}</span>
           </div>
         </div>
         {/* Row 2: Meta + Search + Actions */}
         <div className="datagrid-header-row2">
           <span style={{
-            fontSize: 9, padding: '2px 8px', borderRadius: 5,
-            background: 'rgba(255,184,0,0.12)', color: '#FFB800',
-            fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+            fontSize: 'var(--font-size-2xs)', padding: 'var(--space-2xs) var(--space-sm)', borderRadius: 'var(--space-mini)',
+            background: 'var(--warning-12)', color: 'var(--color-warning)',
+            fontWeight: 'var(--font-weight-bold)', textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
             Owner Only
           </span>
-          <span style={{ fontSize: 11, color: '#8080A8' }}>
+          <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-placard)' }}>
             {filtered.length} {table.replace(/_/g, ' ')}
           </span>
           <input
@@ -325,21 +325,21 @@ export default function DataGrid({
             onChange={e => setSearch(e.target.value)}
             placeholder="Search..."
             style={{
-              padding: '6px 12px', borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: 'rgba(255,255,255,0.04)',
-              color: '#E0E0F4', fontSize: 12, outline: 'none', flex: 1, minWidth: 80,
+              padding: 'var(--space-6) var(--space-md)', borderRadius: 'var(--radius-sm)',
+              border: 'var(--border-width) solid var(--white-10)',
+              background: 'var(--white-4)',
+              color: 'var(--text-secondary)', fontSize: 'var(--font-size-lg)', outline: 'none', flex: 1, minWidth: 'calc(var(--space-lg) * 5)',
             }}
           />
           <button
             onClick={() => setShowLog(!showLog)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '6px 14px', borderRadius: 8,
-              background: showLog ? 'rgba(255,184,0,0.12)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${showLog ? 'rgba(255,184,0,0.25)' : 'rgba(255,255,255,0.08)'}`,
-              color: showLog ? '#FFB800' : '#8080A8',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-mini)',
+              padding: 'var(--space-6) var(--space-18)', borderRadius: 'var(--radius-sm)',
+              background: showLog ? 'var(--warning-12)' : 'var(--white-4)',
+              border: `var(--border-width) solid ${showLog ? 'var(--warning-25)' : 'var(--white-8)'}`,
+              color: showLog ? 'var(--color-warning)' : 'var(--text-placard)',
+              fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)', cursor: 'pointer',
             }}
           >
             <ScrollText size={13} /> Audit Log
@@ -347,11 +347,11 @@ export default function DataGrid({
           <button
             onClick={handleAddRow}
             style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '6px 14px', borderRadius: 8,
-              background: 'rgba(34,197,94,0.1)',
-              border: '1px solid rgba(34,197,94,0.25)',
-              color: '#22C55E', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-mini)',
+              padding: 'var(--space-6) var(--space-18)', borderRadius: 'var(--radius-sm)',
+              background: 'var(--success-10)',
+              border: 'var(--border-width) solid var(--success-25)',
+              color: 'var(--color-success)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)', cursor: 'pointer',
             }}
           >
             <Plus size={13} /> Add Row
@@ -362,21 +362,21 @@ export default function DataGrid({
       {/* Audit Log Panel */}
       {showLog && (
         <div style={{
-          maxHeight: 200, overflowY: 'auto',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          background: 'rgba(255,184,0,0.02)', padding: '12px 24px',
+          maxHeight: 'calc(var(--space-5xl) * 5)', overflowY: 'auto',
+          borderBottom: 'var(--border-width) solid var(--white-8)',
+          background: 'var(--warning-6)', padding: 'var(--space-md) var(--space-xl)',
         }}>
           <div style={{
-            fontSize: 10, fontWeight: 700, color: '#FFB800',
-            textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8,
+            fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-warning)',
+            textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 'var(--space-sm)',
           }}>
             Activity Log
           </div>
           {auditLog && auditLog.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
               {auditLog.map((log: any) => (
-                <div key={log.id} style={{ fontSize: 11, color: '#A0A0C8', display: 'flex', gap: 8 }}>
-                  <span style={{ color: '#606088', flexShrink: 0, width: 130 }}>
+                <div key={log.id} style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', display: 'flex', gap: 'var(--space-sm)' }}>
+                  <span style={{ color: 'var(--text-caption)', flexShrink: 0, width: 'calc(var(--space-lg) * 8 + var(--space-xs))' }}>
                     {new Date(log.created_at).toLocaleString('en-US', {
                       month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                     })}
@@ -386,7 +386,7 @@ export default function DataGrid({
               ))}
             </div>
           ) : (
-            <p style={{ fontSize: 11, color: '#606088' }}>No activity yet.</p>
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-caption)' }}>No activity yet.</p>
           )}
         </div>
       )}
@@ -394,7 +394,7 @@ export default function DataGrid({
       {/* Grid */}
       <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
         {isLoading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#8080A8' }}>Loading...</div>
+          <div style={{ padding: 'var(--space-5xl)', textAlign: 'center', color: 'var(--text-placard)' }}>Loading...</div>
         ) : (
           <table style={{
             borderCollapse: 'collapse',
@@ -404,11 +404,11 @@ export default function DataGrid({
               <tr>
                 <th style={{
                   position: 'sticky', left: 0, top: 0, zIndex: 3,
-                  width: 180, minWidth: 180, padding: '8px 10px',
-                  background: '#0D0B1A',
-                  borderBottom: '2px solid rgba(255,255,255,0.08)',
-                  borderRight: '2px solid rgba(255,255,255,0.08)',
-                  fontSize: 10, fontWeight: 700, color: '#8080A8',
+                  width: 'calc(var(--space-5xl) * 4 + var(--space-2xl))', minWidth: 'calc(var(--space-5xl) * 4 + var(--space-2xl))', padding: 'var(--space-sm) var(--space-10)',
+                  background: 'var(--surface-modal)',
+                  borderBottom: 'calc(2 * var(--border-width)) solid var(--white-8)',
+                  borderRight: 'calc(2 * var(--border-width)) solid var(--white-8)',
+                  fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-placard)',
                   textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'left',
                 }}>
                   Name
@@ -420,11 +420,11 @@ export default function DataGrid({
                     style={{
                       position: 'sticky', top: 0, zIndex: 2,
                       width: col.width, minWidth: col.width,
-                      padding: '8px 8px', background: '#0D0B1A',
-                      borderBottom: '2px solid rgba(255,255,255,0.08)',
-                      borderRight: '1px solid rgba(255,255,255,0.04)',
-                      fontSize: 9, fontWeight: 700,
-                      color: col.custom ? '#FFB800' : '#8080A8',
+                      padding: 'var(--space-sm)', background: 'var(--surface-modal)',
+                      borderBottom: 'calc(2 * var(--border-width)) solid var(--white-8)',
+                      borderRight: 'var(--border-width) solid var(--white-4)',
+                      fontSize: 'var(--font-size-2xs)', fontWeight: 'var(--font-weight-bold)',
+                      color: col.custom ? 'var(--color-warning)' : 'var(--text-placard)',
                       textTransform: 'uppercase', letterSpacing: '0.06em',
                       textAlign: 'left', cursor: 'context-menu',
                     }}
@@ -436,10 +436,10 @@ export default function DataGrid({
                   onClick={handleAddColumn}
                   style={{
                     position: 'sticky', top: 0, zIndex: 2,
-                    width: 40, minWidth: 40, padding: '8px 4px',
-                    background: '#0D0B1A',
-                    borderBottom: '2px solid rgba(255,255,255,0.08)',
-                    cursor: 'pointer', textAlign: 'center', color: '#606088',
+                    width: 'var(--space-5xl)', minWidth: 'var(--space-5xl)', padding: 'var(--space-sm) var(--space-xs)',
+                    background: 'var(--surface-modal)',
+                    borderBottom: 'calc(2 * var(--border-width)) solid var(--white-8)',
+                    cursor: 'pointer', textAlign: 'center', color: 'var(--text-caption)',
                   }}
                   title="Add column"
                 >
@@ -447,9 +447,9 @@ export default function DataGrid({
                 </th>
                 <th style={{
                   position: 'sticky', top: 0, zIndex: 2,
-                  width: 40, minWidth: 40, padding: '8px 4px',
-                  background: '#0D0B1A',
-                  borderBottom: '2px solid rgba(255,255,255,0.08)',
+                  width: 'var(--space-5xl)', minWidth: 'var(--space-5xl)', padding: 'var(--space-sm) var(--space-xs)',
+                  background: 'var(--surface-modal)',
+                  borderBottom: 'calc(2 * var(--border-width)) solid var(--white-8)',
                 }} />
               </tr>
             </thead>
@@ -462,18 +462,18 @@ export default function DataGrid({
                   <tr
                     key={row.id}
                     style={{
-                      background: ri % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
+                      background: ri % 2 === 0 ? 'var(--white-3)' : 'transparent',
                     }}
                   >
                     <td
                       onContextMenu={e => handleContextMenu(e, 'row', row.id, displayName)}
                       style={{
                         position: 'sticky', left: 0, zIndex: 1,
-                        padding: '6px 10px',
-                        background: ri % 2 === 0 ? '#100E1E' : '#0D0B1A',
-                        borderRight: '2px solid rgba(255,255,255,0.08)',
-                        borderBottom: '1px solid rgba(255,255,255,0.04)',
-                        fontSize: 11, fontWeight: 700, color: '#E0E0F4',
+                        padding: 'var(--space-6) var(--space-10)',
+                        background: ri % 2 === 0 ? 'var(--surface-raised)' : 'var(--surface-modal)',
+                        borderRight: 'calc(2 * var(--border-width)) solid var(--white-8)',
+                        borderBottom: 'var(--border-width) solid var(--white-4)',
+                        fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-secondary)',
                         whiteSpace: 'nowrap', cursor: 'context-menu',
                       }}
                     >
@@ -492,9 +492,9 @@ export default function DataGrid({
                             <td
                               key={col.key}
                               style={{
-                                padding: 2,
-                                borderBottom: '1px solid rgba(255,255,255,0.04)',
-                                borderRight: '1px solid rgba(255,255,255,0.04)',
+                                padding: 'var(--space-2xs)',
+                                borderBottom: 'var(--border-width) solid var(--white-4)',
+                                borderRight: 'var(--border-width) solid var(--white-4)',
                               }}
                             >
                               <select
@@ -506,10 +506,10 @@ export default function DataGrid({
                                 }}
                                 onBlur={() => setEditCell(null)}
                                 style={{
-                                  width: '100%', padding: '6px 8px',
-                                  background: 'rgba(255,184,0,0.08)',
-                                  border: '2px solid #FFB800', borderRadius: 4,
-                                  color: '#E0E0F4', fontSize: 11, outline: 'none',
+                                  width: '100%', padding: 'var(--space-6) var(--space-sm)',
+                                  background: 'var(--warning-8)',
+                                  border: 'calc(2 * var(--border-width)) solid var(--color-warning)', borderRadius: 'var(--radius-2xs)',
+                                  color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)', outline: 'none',
                                 }}
                               >
                                 <option value="">--</option>
@@ -524,9 +524,9 @@ export default function DataGrid({
                           <td
                             key={col.key}
                             style={{
-                              padding: 2,
-                              borderBottom: '1px solid rgba(255,255,255,0.04)',
-                              borderRight: '1px solid rgba(255,255,255,0.04)',
+                              padding: 'var(--space-2xs)',
+                              borderBottom: 'var(--border-width) solid var(--white-4)',
+                              borderRight: 'var(--border-width) solid var(--white-4)',
                             }}
                           >
                             <textarea
@@ -542,10 +542,10 @@ export default function DataGrid({
                                 }
                               }}
                               style={{
-                                width: '100%', minHeight: 60, padding: '6px 8px',
-                                background: 'rgba(255,184,0,0.08)',
-                                border: '2px solid #FFB800', borderRadius: 4,
-                                color: '#E0E0F4', fontSize: 11, outline: 'none',
+                                width: '100%', minHeight: 'var(--space-min-label)', padding: 'var(--space-6) var(--space-sm)',
+                                background: 'var(--warning-8)',
+                                border: 'calc(2 * var(--border-width)) solid var(--color-warning)', borderRadius: 'var(--radius-2xs)',
+                                color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)', outline: 'none',
                                 resize: 'vertical', fontFamily: 'inherit',
                                 boxSizing: 'border-box',
                               }}
@@ -564,24 +564,24 @@ export default function DataGrid({
                             }
                           }}
                           style={{
-                            padding: '6px 10px',
-                            borderBottom: '1px solid rgba(255,255,255,0.04)',
-                            borderRight: '1px solid rgba(255,255,255,0.04)',
-                            fontSize: 11,
-                            color: isReadOnly ? '#606088' : (value ? '#C0C0E0' : '#363656'),
+                            padding: 'var(--space-6) var(--space-10)',
+                            borderBottom: 'var(--border-width) solid var(--white-4)',
+                            borderRight: 'var(--border-width) solid var(--white-4)',
+                            fontSize: 'var(--font-size-sm)',
+                            color: isReadOnly ? 'var(--text-caption)' : (value ? 'var(--text-subtle)' : 'var(--text-empty)'),
                             cursor: isReadOnly ? 'default' : 'pointer',
                             maxWidth: col.width, overflow: 'hidden',
                             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             position: 'relative',
-                            background: isSaved ? 'rgba(34,197,94,0.08)' : undefined,
+                            background: isSaved ? 'var(--success-8)' : undefined,
                           }}
                           title={isReadOnly ? value : (value || 'Click to edit')}
                         >
                           {value || '\u2014'}
                           {isSaved && (
                             <span style={{
-                              position: 'absolute', top: 2, right: 4,
-                              fontSize: 8, color: '#22C55E', fontWeight: 700,
+                              position: 'absolute', top: 'var(--space-2xs)', right: 'var(--space-xs)',
+                              fontSize: 'var(--font-size-2xs)', color: 'var(--color-success)', fontWeight: 'var(--font-weight-bold)',
                             }}>
                               Saved
                             </span>
@@ -590,22 +590,22 @@ export default function DataGrid({
                       )
                     })}
                     <td style={{
-                      padding: '4px',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      padding: 'var(--space-xs)',
+                      borderBottom: 'var(--border-width) solid var(--white-4)',
                     }} />
                     <td style={{
-                      padding: '4px',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      padding: 'var(--space-xs)',
+                      borderBottom: 'var(--border-width) solid var(--white-4)',
                       textAlign: 'center',
                     }}>
                       <button
                         onClick={() => handleDeleteRow(row.id, displayName)}
                         style={{
                           background: 'none', border: 'none',
-                          color: '#363656', cursor: 'pointer', padding: 4,
+                          color: 'var(--text-empty)', cursor: 'pointer', padding: 'var(--space-xs)',
                         }}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#363656')}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-danger)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-empty)')}
                         title="Delete row"
                       >
                         <Trash2 size={12} />
@@ -623,11 +623,11 @@ export default function DataGrid({
           <button
             onClick={handleAddRow}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              margin: '8px 14px', padding: '8px 16px', borderRadius: 8,
-              background: 'rgba(34,197,94,0.06)',
-              border: '1px dashed rgba(34,197,94,0.2)',
-              color: '#22C55E', fontSize: 11, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 'var(--space-6)',
+              margin: 'var(--space-sm) var(--space-18)', padding: 'var(--space-sm) var(--space-lg)', borderRadius: 'var(--radius-sm)',
+              background: 'var(--success-6)',
+              border: 'var(--border-width) dashed var(--success-20)',
+              color: 'var(--color-success)', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)',
               cursor: 'pointer', width: 'fit-content',
             }}
           >
@@ -645,10 +645,10 @@ export default function DataGrid({
           />
           <div style={{
             position: 'fixed', left: contextMenu.x, top: contextMenu.y,
-            zIndex: 10001, background: '#1A1830',
-            border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-            padding: 4, minWidth: 160,
+            zIndex: 10001, background: 'var(--surface-raised)',
+            border: 'var(--border-width) solid var(--white-15)',
+            borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)',
+            padding: 'var(--space-xs)', minWidth: 'calc(var(--space-lg) * 10)',
           }}>
             {contextMenu.type === 'row' ? (
               <button
@@ -657,12 +657,12 @@ export default function DataGrid({
                   setContextMenu(null)
                 }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  width: '100%', padding: '8px 12px', borderRadius: 6,
+                  display: 'flex', alignItems: 'center', gap: 'var(--space-sm)',
+                  width: '100%', padding: 'var(--space-sm) var(--space-md)', borderRadius: 'var(--radius-xs)',
                   background: 'none', border: 'none',
-                  color: '#EF4444', fontSize: 12, cursor: 'pointer', textAlign: 'left',
+                  color: 'var(--color-danger)', fontSize: 'var(--font-size-lg)', cursor: 'pointer', textAlign: 'left',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--danger-8)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
                 <Trash2 size={13} /> Delete &quot;{contextMenu.name}&quot;
@@ -673,18 +673,18 @@ export default function DataGrid({
                   <button
                     onClick={() => handleDeleteColumn(contextMenu.id)}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      width: '100%', padding: '8px 12px', borderRadius: 6,
+                      display: 'flex', alignItems: 'center', gap: 'var(--space-sm)',
+                      width: '100%', padding: 'var(--space-sm) var(--space-md)', borderRadius: 'var(--radius-xs)',
                       background: 'none', border: 'none',
-                      color: '#EF4444', fontSize: 12, cursor: 'pointer', textAlign: 'left',
+                      color: 'var(--color-danger)', fontSize: 'var(--font-size-lg)', cursor: 'pointer', textAlign: 'left',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--danger-8)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                   >
                     <Trash2 size={13} /> Delete Column &quot;{contextMenu.name}&quot;
                   </button>
                 ) : (
-                  <div style={{ padding: '8px 12px', fontSize: 11, color: '#606088' }}>
+                  <div style={{ padding: 'var(--space-sm) var(--space-md)', fontSize: 'var(--font-size-sm)', color: 'var(--text-caption)' }}>
                     Built-in column — cannot delete
                   </div>
                 )}

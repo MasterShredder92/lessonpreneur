@@ -5,9 +5,9 @@ import { usePreviewMode } from '../../hooks/usePreviewMode'
 import { useLocations } from '../../hooks/useLocations'
 
 const ROLE_ROUTES: Record<string, string> = {
-  owner: '/admin/dashboard',
-  company_director: '/admin/dashboard',
-  studio_director: '/admin/dashboard',
+  owner: '/admin',
+  company_director: '/admin',
+  studio_director: '/admin',
   teacher: '/teacher/dashboard',
   parent: '/parent/dashboard',
 }
@@ -65,7 +65,7 @@ export default function RoleSwitcher() {
       return
     }
     startPreview(roleKey)
-    navigate(ROLE_ROUTES[roleKey] ?? '/admin/dashboard')
+    navigate(ROLE_ROUTES[roleKey] ?? '/admin')
   }
 
   const handleLocationChange = (locationId: string) => {

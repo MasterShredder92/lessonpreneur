@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Bell, Check, CheckCheck, X } from 'lucide-react'
 import { useNotificationCenter } from '../../hooks/useNotificationCenter'
+import { adminPathToSurface, useAdminSurface } from '../../contexts/AdminSurfaceContext'
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -18,7 +18,7 @@ export default function NotificationBell({ sidebarOpen }: { sidebarOpen: boolean
   const { notifications, unreadCount, markRead, markAllRead, requestPermission } = useNotificationCenter()
   const [open, setOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
-  const navigate = useNavigate()
+  const { setSurface } = useAdminSurface()
 
   // Request browser notification permission on mount
   useEffect(() => { requestPermission() }, [requestPermission])
@@ -46,22 +46,22 @@ export default function NotificationBell({ sidebarOpen }: { sidebarOpen: boolean
         {unreadCount > 0 && (
           <span style={{
             position: 'absolute',
-            top: sidebarOpen ? 6 : 4,
-            right: sidebarOpen ? undefined : 6,
-            left: sidebarOpen ? 22 : undefined,
-            minWidth: 16,
-            height: 16,
-            borderRadius: 8,
-            background: '#D4226A',
-            color: '#fff',
-            fontSize: 10,
-            fontWeight: 700,
+            top: sidebarOpen ? 'var(--space-6)' : 'var(--space-xs)',
+            right: sidebarOpen ? undefined : 'var(--space-6)',
+            left: sidebarOpen ? 'var(--space-dense)' : undefined,
+            minWidth: 'var(--space-lg)',
+            height: 'var(--space-lg)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--color-primary)',
+            color: 'var(--text-primary)',
+            fontSize: 'var(--font-size-xs)',
+            fontWeight: 'var(--font-weight-bold)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '0 4px',
+            padding: `0 var(--space-xs)`,
             lineHeight: 1,
-            boxShadow: '0 0 6px rgba(212,34,106,0.6)',
+            boxShadow: `0 0 var(--space-sm) var(--primary-30)`,
           }}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
@@ -71,31 +71,31 @@ export default function NotificationBell({ sidebarOpen }: { sidebarOpen: boolean
       {open && (
         <div style={{
           position: 'fixed',
-          left: sidebarOpen ? 224 : 66,
-          bottom: 60,
-          width: 340,
-          maxHeight: 420,
-          background: 'rgba(16,14,28,0.97)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 12,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          left: sidebarOpen ? 'calc(var(--space-4xl) * 7)' : 'calc(var(--space-4xl) * 2 + var(--space-2xs))',
+          bottom: 'var(--space-min-label)',
+          width: 'calc(var(--space-5xl) * 8 + var(--space-2xl))',
+          maxHeight: 'calc(var(--space-5xl) * 10 + var(--space-2xl))',
+          background: 'var(--bg-surface-deep)',
+          border: 'var(--border-width) solid var(--white-8)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-md)',
           zIndex: 9999,
           display: 'flex',
           flexDirection: 'column',
-          backdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(var(--space-2xl))',
         }}>
           {/* Header */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '12px 14px 10px',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            padding: 'var(--space-md) var(--space-18) var(--space-10)',
+            borderBottom: 'var(--border-width) solid var(--white-6)',
           }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#E0E0F4', letterSpacing: 0.3 }}>
+            <span style={{ fontSize: 'var(--font-size-md)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-secondary)', letterSpacing: 0.3 }}>
               Notifications
             </span>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 'var(--space-6)', alignItems: 'center' }}>
               {unreadCount > 0 && (
                 <button
                   onClick={() => markAllRead()}
@@ -103,14 +103,14 @@ export default function NotificationBell({ sidebarOpen }: { sidebarOpen: boolean
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    color: '#8080A8',
-                    fontSize: 11,
-                    fontWeight: 600,
+                    color: 'var(--text-placard)',
+                    fontSize: 'var(--font-size-sm)',
+                    fontWeight: 'var(--font-weight-medium)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
-                    padding: '2px 6px',
-                    borderRadius: 4,
+                    gap: 'var(--space-xs)',
+                    padding: 'var(--space-2xs) var(--space-6)',
+                    borderRadius: 'var(--radius-2xs)',
                   }}
                   title="Mark all read"
                 >
@@ -121,7 +121,7 @@ export default function NotificationBell({ sidebarOpen }: { sidebarOpen: boolean
                 onClick={() => setOpen(false)}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#606088', padding: 2,
+                  color: 'var(--text-caption)', padding: 'var(--space-2xs)',
                 }}
               >
                 <X size={14} />
@@ -130,13 +130,13 @@ export default function NotificationBell({ sidebarOpen }: { sidebarOpen: boolean
           </div>
 
           {/* List */}
-          <div style={{ overflowY: 'auto', flex: 1, padding: '4px 0' }}>
+          <div style={{ overflowY: 'auto', flex: 1, padding: 'var(--space-xs) 0' }}>
             {notifications.length === 0 ? (
               <div style={{
-                padding: '40px 20px',
+                padding: 'var(--space-5xl) var(--space-2xl)',
                 textAlign: 'center',
-                color: '#606088',
-                fontSize: 13,
+                color: 'var(--text-caption)',
+                fontSize: 'var(--font-size-md)',
               }}>
                 No notifications yet
               </div>
@@ -147,41 +147,42 @@ export default function NotificationBell({ sidebarOpen }: { sidebarOpen: boolean
                   onClick={() => {
                     if (!n.read) markRead(n.id)
                     if (n.route) {
-                      navigate(n.route)
+                      const s = adminPathToSurface(n.route)
+                      if (s) setSurface(s)
                       setOpen(false)
                     }
                   }}
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: 10,
+                    gap: 'var(--space-10)',
                     width: '100%',
-                    padding: '10px 14px',
-                    background: n.read ? 'transparent' : 'rgba(212,34,106,0.06)',
+                    padding: 'var(--space-10) var(--space-18)',
+                    background: n.read ? 'transparent' : 'var(--primary-8)',
                     border: 'none',
-                    borderLeft: n.read ? '3px solid transparent' : '3px solid #D4226A',
+                    borderLeft: n.read ? `calc(3 * var(--border-width)) solid transparent` : `calc(3 * var(--border-width)) solid var(--color-primary)`,
                     cursor: n.route ? 'pointer' : 'default',
                     textAlign: 'left',
                     fontFamily: 'inherit',
                     transition: 'background 150ms ease',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(212,34,106,0.06)')}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--white-4)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = n.read ? 'transparent' : 'var(--primary-8)')}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontSize: 12,
-                      fontWeight: n.read ? 500 : 700,
-                      color: n.read ? '#A0A0B8' : '#E0E0F4',
+                      fontSize: 'var(--font-size-lg)',
+                      fontWeight: n.read ? 'var(--font-weight-medium)' : 'var(--font-weight-bold)',
+                      color: n.read ? 'var(--text-muted)' : 'var(--text-secondary)',
                       lineHeight: 1.4,
-                      marginBottom: 2,
+                      marginBottom: 'var(--space-2xs)',
                     }}>
                       {n.title}
                     </div>
                     {n.body && (
                       <div style={{
-                        fontSize: 11,
-                        color: '#8080A8',
+                        fontSize: 'var(--font-size-sm)',
+                        color: 'var(--text-placard)',
                         lineHeight: 1.35,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -190,18 +191,18 @@ export default function NotificationBell({ sidebarOpen }: { sidebarOpen: boolean
                         {n.body}
                       </div>
                     )}
-                    <div style={{ fontSize: 10, color: '#606088', marginTop: 3 }}>
+                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-caption)', marginTop: 'var(--space-3xs)' }}>
                       {timeAgo(n.created_at)}
                     </div>
                   </div>
                   {!n.read && (
                     <div style={{
-                      width: 8, height: 8, borderRadius: 4,
-                      background: '#D4226A', flexShrink: 0, marginTop: 4,
+                      width: 'var(--space-sm)', height: 'var(--space-sm)', borderRadius: 'var(--radius-2xs)',
+                      background: 'var(--color-primary)', flexShrink: 0, marginTop: 'var(--space-xs)',
                     }} />
                   )}
                   {n.read && (
-                    <Check size={12} style={{ color: '#404060', flexShrink: 0, marginTop: 3 }} />
+                    <Check size={12} style={{ color: 'var(--text-empty)', flexShrink: 0, marginTop: 'var(--space-3xs)' }} />
                   )}
                 </button>
               ))

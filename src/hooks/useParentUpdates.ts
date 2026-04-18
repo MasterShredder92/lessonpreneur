@@ -177,7 +177,7 @@ Rules:
           studioName: brand?.studio_name ?? 'Adkins Music Lessons',
           primaryColor: brand?.primary_color ?? '#D4226A',
           logoUrl: brand?.logo_circle_path ? supabase.storage.from('brand-assets').getPublicUrl(brand.logo_circle_path).data.publicUrl : null,
-          websiteDomain: brand?.website_domain ?? 'lessonpreneur.io',
+          websiteDomain: brand?.website_domain ?? 'zirowork.io',
           appUrl: window.location.origin,
         }
         const email = progressUpdateEmail(emailBrand, {

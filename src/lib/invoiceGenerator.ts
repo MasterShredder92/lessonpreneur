@@ -507,7 +507,7 @@ async function buildInvoicePdf(params: {
     doc.setFontSize(16)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(br, bg, bb)
-    doc.text('Lessonpreneur', nameStart, y + 5)
+    doc.text('ZiroWork', nameStart, y + 5)
   }
 
   // "INVOICE" label — right aligned
@@ -710,17 +710,17 @@ async function buildInvoicePdf(params: {
   doc.line(margin, footerY - 6, pageW - margin, footerY - 6)
   doc.setGState(OPAQUE)
 
-  // Location name or Lessonpreneur
+  // Location name or ZiroWork
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...TEXT_DIM)
-  const footerLeft = branding ? branding.name : 'Lessonpreneur'
+  const footerLeft = branding ? branding.name : 'ZiroWork'
   doc.text(footerLeft, margin + 2, footerY)
 
-  // "Powered by Lessonpreneur" on the right
+  // "Powered by ZiroWork" on the right
   doc.setTextColor(...TEXT_DIM)
   doc.setGState(DIM_50)
-  doc.text('Powered by Lessonpreneur', pageW - margin - 2, footerY, { align: 'right' })
+  doc.text('Powered by ZiroWork', pageW - margin - 2, footerY, { align: 'right' })
   doc.setGState(OPAQUE)
 
   // Location contact line

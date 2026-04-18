@@ -15,9 +15,9 @@ const VIEW_TABS: {
   /** Minimum role level required to see this tab (person-role preview only). */
   minRole: 'owner' | 'company_director'
 }[] = [
-  { key: 'owner', label: 'Owner', icon: Crown, route: '/admin/dashboard', minRole: 'owner' },
-  { key: 'company_director', label: 'Co-Director', icon: ClipboardList, route: '/admin/dashboard', minRole: 'company_director' },
-  { key: 'studio_director', label: 'Studio Director', icon: Music2, route: '/admin/dashboard', minRole: 'company_director' },
+  { key: 'owner', label: 'Owner', icon: Crown, route: '/admin', minRole: 'owner' },
+  { key: 'company_director', label: 'Co-Director', icon: ClipboardList, route: '/admin', minRole: 'company_director' },
+  { key: 'studio_director', label: 'Studio Director', icon: Music2, route: '/admin', minRole: 'company_director' },
   { key: 'teacher', label: 'Teachers', icon: GraduationCap, route: '/teacher/dashboard', minRole: 'company_director' },
   { key: 'parent', label: 'Parents', icon: Users, route: '/parent/dashboard', minRole: 'company_director' },
 ]
@@ -84,7 +84,7 @@ export default function TopViewTabs() {
         locationId: firstLocation.id,
         locationName: firstLocation.name,
       })
-      navigate('/admin/dashboard')
+      navigate('/admin')
       return
     }
 

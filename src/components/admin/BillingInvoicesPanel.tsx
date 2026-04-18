@@ -72,9 +72,9 @@ function squareLinkMissingAriaLabel(familyLabel: string): string {
 }
 
 const INVOICES_PANEL_HELP = [
-  'Payment reconciliation only — lesson schedules and recurrence are managed in Lessonpreneur, not in Square.',
+  'Payment reconciliation only — lesson schedules and recurrence are managed in ZiroWork, not in Square.',
   'Default: invoices dated this month, plus any overdue unpaid invoices (any date). Use Date range for Full history or a custom period. Use Search family to match a family name; widen the date range to see that family’s older invoices.',
-  'An em dash (—) under Family means this Square row is not linked to a Lessonpreneur family (customer or email match missing on sync).',
+  'An em dash (—) under Family means this Square row is not linked to a ZiroWork family (customer or email match missing on sync).',
   'View in Square opens the hosted invoice on square.com in a new tab—a web page, not a PDF or file download.',
 ].join(' ')
 

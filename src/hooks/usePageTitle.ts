@@ -10,7 +10,7 @@ import { ZW } from '../config/zwBrand'
 
  * Full document titles (no extra suffix) for public marketing, auth edge, and Adkins enrollment.
 
- * Uses ZiroWork ↔ Lessonpreneur hierarchy from zwBrand.
+ * Uses ZiroWork branding from zwBrand.
 
  */
 
@@ -55,6 +55,8 @@ function resolveFullPublicTitle(pathname: string): string | null {
 
 
 const ROUTE_TITLES: Record<string, string> = {
+
+  '/admin': 'Dashboard',
 
   '/admin/dashboard': 'Dashboard',
 

@@ -10,10 +10,10 @@ interface ToastItem {
 }
 
 const VARIANT_STYLES: Record<ToastVariant, { bg: string; border: string; color: string }> = {
-  success: { bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.3)', color: '#22C55E' },
-  error:   { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)', color: '#EF4444' },
-  warning: { bg: 'rgba(255,184,0,0.12)', border: 'rgba(255,184,0,0.3)', color: '#FFB800' },
-  info:    { bg: 'rgba(56,189,248,0.12)', border: 'rgba(56,189,248,0.3)', color: '#38BDF8' },
+  success: { bg: 'var(--success-12)', border: 'var(--success-30)', color: 'var(--color-success)' },
+  error:   { bg: 'var(--danger-10)', border: 'var(--danger-30)', color: 'var(--color-danger)' },
+  warning: { bg: 'var(--warning-12)', border: 'var(--warning-30)', color: 'var(--color-warning)' },
+  info:    { bg: 'var(--sky-10)', border: 'var(--sky-20)', color: 'var(--color-sky)' },
 }
 
 let _nextId = 0
@@ -43,18 +43,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <>
       {children}
       {createPortal(
-        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 999999, display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', top: 'var(--space-2xl)', right: 'var(--space-2xl)', zIndex: 999999, display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', pointerEvents: 'none' }}>
           {toasts.map(t => {
             const s = VARIANT_STYLES[t.variant]
             return (
               <div key={t.id} style={{
                 pointerEvents: 'auto',
-                padding: '12px 20px', borderRadius: 10,
-                background: '#1A1830', border: `1px solid ${s.border}`,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                color: s.color, fontSize: 13, fontWeight: 600,
+                padding: 'var(--space-md) var(--space-2xl)', borderRadius: 'var(--radius-md)',
+                background: s.bg, border: `var(--border-width) solid ${s.border}`,
+                boxShadow: 'var(--shadow-md)',
+                color: s.color, fontSize: 'var(--font-size-md)', fontWeight: 'var(--font-weight-medium)',
                 animation: 'toast-in 200ms ease',
-                maxWidth: 360,
+                maxWidth: 'calc(var(--space-2xl) * 18)',
               }}>
                 {t.message}
               </div>
@@ -63,7 +63,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         </div>,
         document.body
       )}
-      <style>{`@keyframes toast-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }`}</style>
+      <style>{`@keyframes toast-in { from { opacity: 0; transform: translateX(var(--space-5xl)); } to { opacity: 1; transform: translateX(0); } }`}</style>
     </>
   )
 }

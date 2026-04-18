@@ -408,7 +408,7 @@ export default function PayInvoice() {
             }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#FBBF24', marginBottom: 10, fontFamily: BEBAS, letterSpacing: '0.04em' }}>Pay through your school</div>
               <p style={{ fontSize: 13, color: TEXT_MUTED, lineHeight: 1.65, margin: 0 }}>
-                Card payments are not processed in this app. Lessonpreneur does not send billing or payment instructions to Square from here.
+                Card payments are not processed in this app. ZiroWork does not send billing or payment instructions to Square from here.
                 Please pay using the method your studio uses (in person, bank transfer, or the payment link your school sent outside this page).
               </p>
               {fam.primary_phone && (

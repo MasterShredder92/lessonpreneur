@@ -38,7 +38,7 @@ export function classifyIntent(
   if (proposalPatterns.some(p => p.test(assistantAnswer))) {
     return {
       classification: 'skill_proposal',
-      intent_summary: 'STAR proposed a new skill',
+      intent_summary: 'Assistant proposed a new skill',
     }
   }
 

@@ -50,9 +50,9 @@ export default function LandingPage() {
         <Reveal><WhoItsForSection /></Reveal>
         <Reveal><ChaosStackSection /></Reveal>
         <InlineTestimonial
-          quote={`I built ${ZW.product} on ${ZW.parent} from the pressure of holding a real music school together and refusing to believe chaos was the only way.`}
+          quote={`I built ${ZW.parent} from the pressure of holding a real music school together and refusing to believe chaos was the only way.`}
           name="Zachary Adkins"
-          descriptor={`Founder, ${ZW.parent} & ${ZW.product} · Owner, Adkins Music Lessons`}
+          descriptor={`Founder, ${ZW.parent} · Owner, Adkins Music Lessons`}
           align="left"
         />
         <Reveal><RevenueLeakSection /></Reveal>

@@ -63,8 +63,7 @@ export function pickAiAssistantAnswerText(data: AiAssistantJson | null | undefin
 /**
  * Single HTTP path for `ai-assistant` (Ziro panel, Students insight, Schedule chat, etc.).
  * Supabase Edge gateway expects:
- * - `Authorization: Bearer <user access_token>` — end-user JWT
- * - `apikey: <anon key>` — project anon key (omit → HTTP 401 from gateway)
+ * - `Authorization: Bearer <user access_token>` — end-user JWT (falls back to anon key when needed)
  *
  * Do not call `fetch(EDGE_FUNCTIONS.aiAssistant, …)` elsewhere; extend this helper if needed.
  */

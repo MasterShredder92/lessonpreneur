@@ -75,7 +75,7 @@ export function getOnboardingSystemPrompt(tenantName: string, progress: Onboardi
     `Current step: ${step}`,
   ].join('\n')
 
-  return `You are Ziro, the AI onboarding assistant for Lessonpreneur. A new music school just signed up and you're helping them get set up. Be warm, encouraging, and practical. Guide them step by step.
+  return `You are Ziro, the AI onboarding assistant for ZiroWork. A new music school just signed up and you're helping them get set up. Be warm, encouraging, and practical. Guide them step by step.
 
 Current setup status:
 ${statusLines}

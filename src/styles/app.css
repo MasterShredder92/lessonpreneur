@@ -1,12 +1,211 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap');
 @import './tokens.css';
 @import './global.css';
 @import './components.css';
+
+/* ═══════════════════════════════════════════════════════════
+   App shell — charcoal gradient, neon accents, Inter (500/600)
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-weight-body: 500;
+  --font-weight-semibold: 600;
+
+  /* Charcoal base + subtle neon wash */
+  --bg-charcoal-gradient:
+    radial-gradient(120% 90% at 50% -15%, rgba(57, 255, 154, 0.07) 0%, transparent 42%),
+    radial-gradient(80% 55% at 100% 0%, rgba(30, 30, 38, 0.9) 0%, transparent 55%),
+    radial-gradient(70% 50% at 0% 100%, rgba(18, 18, 24, 0.95) 0%, transparent 50%),
+    linear-gradient(168deg, #0a0a0f 0%, #131318 38%, #0c0c11 72%, #101016 100%);
+
+  /* Neon green accent system */
+  --neon-green: #39ff8e;
+  --neon-green-soft: color-mix(in srgb, var(--neon-green) 28%, transparent);
+  --neon-green-muted: color-mix(in srgb, var(--neon-green) 14%, transparent);
+  --neon-green-border: color-mix(in srgb, var(--neon-green) 38%, transparent);
+  --neon-green-glow: 0 0 28px color-mix(in srgb, var(--neon-green) 22%, transparent);
+  --neon-green-text: #7dffc0;
+  --accent-neon: var(--neon-green);
+
+  /* Spacing scale (4px grid; aliases to tokens for consistency) */
+  --sp-0: 0;
+  --sp-1: var(--space-2xs);
+  --sp-2: var(--space-xs);
+  --sp-3: var(--space-sm);
+  --sp-4: var(--space-md);
+  --sp-5: var(--space-lg);
+  --sp-6: var(--space-2xl);
+  --sp-7: var(--space-3xl);
+  --sp-8: var(--space-4xl);
+  --sp-page-x: var(--space-inset-page);
+  --sp-page-y: var(--space-block-y-lg);
+
+  /* Focus rings (keyboard / controls) */
+  --focus-ring-color: color-mix(in srgb, var(--neon-green) 55%, transparent);
+  --focus-ring: 0 0 0 2px var(--bg-base, #0a0a0f), 0 0 0 4px var(--focus-ring-color);
+  --focus-ring-subtle: 0 0 0 3px color-mix(in srgb, var(--neon-green) 18%, transparent);
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: var(--font-weight-body);
+  background: var(--bg-charcoal-gradient);
+  background-attachment: fixed;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Interactive focus — visible, on-brand (keyboard) */
+:where(button, [role='button'], a, summary):focus-visible {
+  outline: none;
+}
+
+:where(button, [role='button'], a):focus-visible:not(:disabled) {
+  box-shadow: var(--focus-ring);
+}
+
+:where(input, select, textarea):focus-visible:not(:disabled) {
+  outline: none;
+  box-shadow: var(--focus-ring-subtle);
+}
+
+/* Card primitives */
+.ui-card {
+  background: linear-gradient(150deg, var(--bg-surface), var(--bg-surface-deep));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--sp-5);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-body);
+}
+
+.ui-card__header {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--sp-4);
+  letter-spacing: -0.02em;
+}
+
+.ui-card__body { font-size: var(--font-size-md); line-height: var(--line-height-snug); }
+
+.ui-card--interactive {
+  transition:
+    border-color var(--smooth),
+    box-shadow var(--smooth),
+    transform var(--smooth);
+  cursor: default;
+}
+
+.ui-card--interactive:is(a, button, [role='button'], label) {
+  cursor: pointer;
+}
+
+.ui-card--interactive:hover {
+  border-color: var(--neon-green-border);
+  box-shadow: var(--shadow-card-hover), var(--neon-green-glow);
+  transform: translateY(-2px);
+}
+
+.ui-card--compact { padding: var(--sp-4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-card--interactive:hover {
+    transform: none;
+  }
+}
+
+/* Data tables — premium density + neon hover cue */
+.data-table-wrap {
+  border-color: color-mix(in srgb, var(--neon-green) 8%, var(--border));
+}
+
+.data-table thead th {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-muted);
+  border-bottom-color: color-mix(in srgb, var(--neon-green) 12%, transparent);
+}
+
+.data-table tbody tr {
+  transition: background var(--fast), box-shadow var(--fast);
+}
+
+.data-table tbody tr:hover {
+  background: color-mix(in srgb, var(--neon-green) 6%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--neon-green-soft);
+}
+
+.data-table tbody td {
+  font-weight: var(--font-weight-body);
+}
+
+.data-table tbody td:first-child {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Forms — align with neon focus + body weight */
+.form-input,
+.form-select {
+  font-weight: var(--font-weight-body);
+  border-radius: var(--radius-md);
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+
+.form-input:hover:not(:disabled),
+.form-select:hover:not(:disabled) {
+  border-color: var(--border-hover);
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: var(--neon-green-border);
+  box-shadow: var(--focus-ring-subtle);
+}
+
+.form-field label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  font-weight: var(--font-weight-body);
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+
+.form-field input:hover:not(:disabled),
+.form-field select:hover:not(:disabled),
+.form-field textarea:hover:not(:disabled) {
+  border-color: var(--border-hover);
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  border-color: var(--neon-green-border);
+  box-shadow: var(--focus-ring-subtle);
+}
+
+.filter-select:hover {
+  border-color: var(--border-hover);
+}
+
+.filter-select:focus {
+  border-color: var(--neon-green-border);
+  box-shadow: var(--focus-ring-subtle);
+}
 
 /* APP LAYOUT */
 .admin-shell {
   display: flex;
   min-height: 100vh;
-  background: #020209;
+  background: var(--bg-charcoal-gradient);
   position: relative;
 }
 
@@ -251,10 +450,23 @@
 .admin-sidebar.collapsed .sidebar-username { opacity: 0; }
 .admin-main { flex: 1; overflow: auto; display: flex; flex-direction: column; position: relative; z-index: 3; }
 
+/* Right-docked agent panel (Ziro Work) — content gutter so the panel never covers the main column */
+@media (min-width: 1025px) {
+  .admin-shell--agent .admin-main {
+    padding-right: 300px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .admin-shell--agent .agent-panel {
+    display: none;
+  }
+}
+
 /* LOGIN */
 .login-page {
   min-height: 100vh;
-  background: #020209;
+  background: var(--bg-charcoal-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -308,12 +520,12 @@
 .form-row { display: flex; gap: 12px; }
 .modal-form { display: flex; flex-direction: column; gap: 16px; padding: 22px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 8px; }
-.loading-screen { display: flex; align-items: center; justify-content: center; background: #020209; }
+.loading-screen { display: flex; align-items: center; justify-content: center; background: var(--bg-charcoal-gradient); }
 .loading-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #D4226A; border-radius: 50%; animation: spin 0.6s linear infinite; }
 @keyframes musicLoaderPulse { 0% { transform: scaleY(0.3); opacity: 0.5; } 100% { transform: scaleY(1); opacity: 1; } }
 
 /* Portal shells main content */
-.portal-main { background: #020209; min-height: 100vh; }
+.portal-main { background: var(--bg-charcoal-gradient); min-height: 100vh; }
 
 /* Page transitions */
 .page-transition-in { animation: pageFadeIn 150ms ease-out both; }
@@ -772,7 +984,7 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 .slot-picker-slot.selected { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.25); color: #22C55E; }
 .callout-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .callout-panel { background: linear-gradient(150deg, rgba(22,20,40,0.99), rgba(16,14,30,0.99)); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 80px rgba(0,0,0,0.8); }
-.intake-page { min-height: 100vh; background: #020209; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
+.intake-page { min-height: 100vh; background: var(--bg-charcoal-gradient); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
 .intake-card { background: linear-gradient(150deg, rgba(22,20,40,0.98), rgba(16,14,30,0.99)); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 40px; width: 100%; max-width: 560px; box-shadow: 0 24px 80px rgba(0,0,0,0.8); }
 .intake-title { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
 .intake-subtitle { font-size: 13px; color: #A0A0C8; margin-bottom: 28px; }
@@ -785,7 +997,7 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
 .intake-confirmation h2 { font-size: 22px; margin-bottom: 8px; }
 .billing-placeholder { text-align: center; padding: 64px 24px; }
 .billing-placeholder h2 { font-size: 22px; margin-bottom: 8px; }
-.portal-shell { min-height: 100vh; background: #020209; }
+.portal-shell { min-height: 100vh; background: var(--bg-charcoal-gradient); }
 .portal-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; }
 .portal-nav { display: flex; gap: 16px; padding: 0 24px; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .portal-nav a { padding: 12px 0; font-size: 13px; font-weight: 500; color: #A0A0C8; border-bottom: 2px solid transparent; }
@@ -1137,7 +1349,7 @@ select option { background: #1a1a2e; color: #E0E0F4; font-size: 13px; padding: 8
   z-index: 0;
 }
 
-/* STAR — AI COACH */
+/* Leads agent (Star) — accent avatar chrome */
 .star-avatar {
   width: 32px; height: 32px; min-width: 32px;
   border-radius: 10px;

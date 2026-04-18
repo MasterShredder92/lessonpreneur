@@ -48,7 +48,7 @@ export default function ShareableProgressCard({
 
   const brandColor = LOCATION_BRAND_COLORS[locationId ?? ''] ?? '#D4226A'
   const locationName = LOCATION_NAMES[locationId ?? ''] ?? ''
-  const domain = LOCATION_DOMAINS[locationId ?? ''] ?? 'lessonpreneur.io'
+  const domain = LOCATION_DOMAINS[locationId ?? ''] ?? 'zirowork.io'
 
   const hypeLine = progressIndicator === 'crushing_it'
     ? `${studentFirstName} is CRUSHING IT!`

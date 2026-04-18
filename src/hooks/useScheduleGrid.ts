@@ -354,3 +354,118 @@ export function useStudentsForAssignment(options?: { enabled?: boolean }) {
     },
   })
 }
+
+/** Normalize schedule time keys for comparison (handles "9:00:00" vs "09:00"). */
+export function scheduleSlotKey(t: string): string {
+  const parts = t.trim().split(':')
+  const h = Number(parts[0] ?? 0)
+  const m = Number(String(parts[1] ?? '0').slice(0, 2))
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+/** Contiguous booked slots for the same student on one teacher row (30-min grid). */
+export function contiguousBookedSlotRange(
+  blocks: GridBlock[],
+  teacherId: string,
+  studentId: string,
+  timeSlots: string[],
+  anchorIdx: number,
+): { startIdx: number; endIdx: number } {
+  const sk = scheduleSlotKey
+  const hasStudent = (idx: number) => {
+    const slot = timeSlots[idx]
+    if (!slot) return false
+    const b = blocks.find(x => x.teacher_id === teacherId && sk(x.start_time) === sk(slot))
+    return b?.student_id === studentId
+  }
+  if (anchorIdx < 0 || anchorIdx >= timeSlots.length || !hasStudent(anchorIdx)) {
+    return { startIdx: Math.max(0, anchorIdx), endIdx: Math.max(0, anchorIdx) }
+  }
+  let start = anchorIdx
+  while (start > 0 && hasStudent(start - 1)) start--
+  let end = anchorIdx
+  while (end < timeSlots.length - 1 && hasStudent(end + 1)) end++
+  return { startIdx: start, endIdx: end }
+}
+
+export interface ResizeBookedSessionSpanParams {
+  blocks: GridBlock[]
+  timeSlots: string[]
+  anchorBlock: GridBlock
+  /** Inclusive end slot index in `timeSlots` for the session after resize */
+  newEndIdx: number
+}
+
+/** Extend or shrink a booked run along the slot grid (same teacher + student). */
+export function useResizeBookedSessionSpan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ blocks, timeSlots, anchorBlock, newEndIdx }: ResizeBookedSessionSpanParams) => {
+      if (!anchorBlock.student_id) throw new Error('Only booked sessions can be resized')
+      const tid = anchorBlock.teacher_id
+      const sid = anchorBlock.student_id
+      const sk = scheduleSlotKey
+      const anchorIdx = timeSlots.findIndex(s => sk(s) === sk(anchorBlock.start_time))
+      if (anchorIdx < 0) throw new Error('Anchor slot not in grid')
+
+      const { startIdx, endIdx: curEndIdx } = contiguousBookedSlotRange(blocks, tid, sid, timeSlots, anchorIdx)
+      const clamped = Math.max(startIdx, Math.min(newEndIdx, timeSlots.length - 1))
+      if (clamped === curEndIdx) return { changed: 0 }
+
+      const blockAt = (idx: number): GridBlock | undefined =>
+        blocks.find(b => b.teacher_id === tid && sk(b.start_time) === sk(timeSlots[idx]))
+
+      if (clamped > curEndIdx) {
+        for (let i = curEndIdx + 1; i <= clamped; i++) {
+          const ob = blockAt(i)
+          if (!ob?.block_id) throw new Error('Missing block row')
+          if (ob.student_id || ob.status !== 'available' || ob.block_type !== 'open_time') {
+            throw new Error('Can only extend into open slots')
+          }
+          const assignType: BlockType =
+            anchorBlock.block_type !== 'open_time' && anchorBlock.block_type !== 'not_bookable'
+              ? anchorBlock.block_type
+              : 'student_session'
+          const { error } = await supabase
+            .from('schedule_blocks')
+            .update({
+              student_id: sid,
+              status: 'booked' as const,
+              block_type: assignType,
+              is_recurring: anchorBlock.is_recurring,
+            })
+            .eq('id', ob.block_id)
+            .eq('status', 'available')
+            .eq('block_type', 'open_time')
+          if (error) throw error
+        }
+      } else {
+        for (let i = curEndIdx; i > clamped; i--) {
+          const b = blockAt(i)
+          if (b?.student_id === sid && b.block_id) {
+            const { error } = await supabase
+              .from('schedule_blocks')
+              .update({
+                student_id: null,
+                status: 'available' as const,
+                is_recurring: false,
+                block_type: 'open_time' as const,
+              })
+              .eq('id', b.block_id)
+            if (error) throw error
+          }
+        }
+      }
+
+      return { changed: Math.abs(clamped - curEndIdx) }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.schedule.all })
+      qc.invalidateQueries({ queryKey: qk.students.blocks })
+      qc.invalidateQueries({ queryKey: qk.schedule.availableBlocks })
+      qc.invalidateQueries({ queryKey: qk.students.forAssignment })
+      qc.invalidateQueries({ queryKey: qk.schedule.intelligence })
+      qc.invalidateQueries({ queryKey: qk.dashboard.all })
+    },
+  })
+}

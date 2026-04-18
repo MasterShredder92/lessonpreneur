@@ -285,7 +285,7 @@ export default function LogoHubSection() {
             maxWidth: '600px',
           }}
         >
-          Lessonpreneur by ZiroWork takes everything running your school manually costs you — and turns it
+          ZiroWork takes everything running your school manually costs you — and turns it
           into revenue, time, and control.
         </p>
 
@@ -376,7 +376,7 @@ export default function LogoHubSection() {
               </svg>
               <img
                 src="/lp-logo.png"
-                alt="Lessonpreneur by ZiroWork"
+                alt="ZiroWork"
                 className="lp-hub-center-logo"
                 style={{
                   position: 'relative',

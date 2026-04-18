@@ -225,8 +225,8 @@ function WelcomeModal({ onStart, onSkip, saving }: { onStart: () => void; onSkip
   return (
     <div style={overlayStyle}>
       <div style={{ ...cardStyle, maxWidth: 380, padding: 24, textAlign: 'center' }}>
-        <img src="/lp-logo.png" alt="Lessonpreneur" style={{ width: 56, height: 56, marginBottom: 12, borderRadius: 12 }} />
-        <div style={{ fontSize: 19, fontWeight: 800, color: '#FFFFFF', marginBottom: 10 }}>Welcome to Lessonpreneur</div>
+        <img src="/lp-logo.png" alt="ZiroWork" style={{ width: 56, height: 56, marginBottom: 12, borderRadius: 12 }} />
+        <div style={{ fontSize: 19, fontWeight: 800, color: '#FFFFFF', marginBottom: 10 }}>Welcome to ZiroWork</div>
         <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 22 }}>
           You're logged in as a Studio Director. Let's take 2 minutes to show you around so you can hit the ground running.
         </div>
@@ -244,7 +244,7 @@ function CompletionModal({ onConfirm, saving }: { onConfirm: () => void; saving:
   return (
     <div style={overlayStyle}>
       <div style={{ ...cardStyle, maxWidth: 380, padding: 24, textAlign: 'center' }}>
-        <img src="/lp-logo.png" alt="Lessonpreneur" style={{ width: 56, height: 56, marginBottom: 12, borderRadius: 12 }} />
+        <img src="/lp-logo.png" alt="ZiroWork" style={{ width: 56, height: 56, marginBottom: 12, borderRadius: 12 }} />
         <div style={{ fontSize: 19, fontWeight: 800, color: '#FFFFFF', marginBottom: 10 }}>You're all set!</div>
         <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5, marginBottom: 8 }}>
           You now know the essentials. The platform will feel natural fast &mdash; just use it like a real day.
@@ -253,7 +253,7 @@ function CompletionModal({ onConfirm, saving }: { onConfirm: () => void; saving:
           Questions? Your owner has your back.
         </div>
         <button onClick={onConfirm} disabled={saving} style={{ ...primaryBtn, width: '100%', opacity: saving ? 0.7 : 1 }}>
-          {saving ? 'Saving...' : 'Start Using Lessonpreneur'}
+          {saving ? 'Saving...' : 'Start using ZiroWork'}
         </button>
       </div>
     </div>

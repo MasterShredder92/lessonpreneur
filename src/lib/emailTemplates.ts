@@ -1,5 +1,5 @@
 /**
- * Email HTML templates for Lessonpreneur.
+ * Email HTML templates for ZiroWork OS.
  * All templates are mobile-responsive, studio-branded, and clean.
  * Brand data (color, logo, studio name) is passed in per-render.
  */
@@ -9,15 +9,15 @@ export interface EmailBrand {
   primaryColor: string
   logoUrl: string | null
   websiteDomain: string
-  appUrl: string  // e.g. https://app.lessonpreneur.io
+  appUrl: string // absolute app origin (e.g. https://app.example.com)
 }
 
 const DEFAULT_BRAND: EmailBrand = {
   studioName: 'Adkins Music Lessons',
   primaryColor: '#D4226A',
   logoUrl: null,
-  websiteDomain: 'lessonpreneur.io',
-  appUrl: 'https://app.lessonpreneur.io',
+  websiteDomain: 'zirowork.io',
+  appUrl: 'https://app.zirowork.io',
 }
 
 function layout(brand: EmailBrand, content: string, unsubscribeUrl?: string): string {

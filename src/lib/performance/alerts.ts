@@ -434,20 +434,13 @@ export function scoreCls(score: number | null): 'good' | 'needs-improvement' | '
 
 // ─── Route → file mapping ────────────────────────────────────────────────────
 
+const ADMIN_SHELL_HINT =
+  'src/components/layout/AdminShell.tsx + src/components/dashboard/ZiroDashboard.tsx + src/components/ziro/ZiroPanel.tsx (surface-driven)'
+
 const ROUTE_FILE_MAP: Record<string, string> = {
   '/login': 'src/pages/Login.tsx',
-  '/admin/dashboard': 'src/pages/admin/Dashboard.tsx + src/hooks/useDashboard.ts',
-  '/admin/students': 'src/pages/admin/Students.tsx + src/hooks/useStudents.ts',
-  '/admin/teachers': 'src/pages/admin/Teachers.tsx + src/hooks/useTeachers.ts',
-  '/admin/leads': 'src/pages/admin/Leads.tsx + src/hooks/useLeads.ts',
-  '/admin/families': 'src/pages/admin/Families.tsx + src/hooks/useStudents.ts',
-  '/admin/billing': 'src/pages/admin/Billing.tsx + src/hooks/useBilling.ts',
-  '/admin/settings': 'src/pages/admin/Settings.tsx',
-  '/admin/financials': 'src/pages/admin/Financials.tsx',
-  '/admin/retention': 'src/pages/admin/Retention.tsx + src/hooks/useRetention.ts',
-  '/admin/payroll': 'src/pages/admin/Payroll.tsx',
-  '/admin/integrations': 'src/pages/admin/Integrations.tsx',
-  '/admin/zirowork': 'src/pages/admin/ZiroWorkPage.tsx',
+  '/admin': 'src/components/dashboard/ZiroDashboard.tsx + src/hooks/useDashboard.ts',
+  '/admin/dashboard': 'src/components/dashboard/ZiroDashboard.tsx + src/hooks/useDashboard.ts',
   '/teacher/dashboard': 'src/pages/teacher/TeacherDashboard.tsx',
   '/parent/dashboard': 'src/pages/parent/ParentDashboard.tsx',
 }
@@ -463,11 +456,7 @@ const QUERY_HOOK_MAP: Record<string, string> = {
 
 function resolveRouteFiles(route: string): string {
   if (ROUTE_FILE_MAP[route]) return ROUTE_FILE_MAP[route]
-  // Try prefix match for schedule routes like /admin/schedule/2026-04-14
-  if (route.startsWith('/admin/schedule')) return 'src/pages/admin/ScheduleDetail.tsx + src/hooks/useScheduleGrid.ts'
-  // Generic admin route
-  const slug = route.replace('/admin/', '').split('/')[0]
-  if (slug) return `src/pages/admin/${slug.charAt(0).toUpperCase() + slug.slice(1)}.tsx (likely)`
+  if (route.startsWith('/admin')) return ADMIN_SHELL_HINT
   return 'Unknown — inspect route manually'
 }
 
@@ -547,7 +536,7 @@ Avg execution time: ${avgMs ?? '?'}ms (threshold: 500ms)
 Max execution time: ${maxMs ?? '?'}ms
 Occurrences: ${occurrences ?? '?'}
 
-DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+DETECTED BY: SPEED performance monitoring system on zirowork.io
 
 FILES TO INSPECT:
 ${hookFile}
@@ -623,7 +612,7 @@ Route: ${route ?? 'unknown'}
 Avg ${vital}: ${avgMs ?? '?'}ms (warning: ${threshold.warning}ms, critical: ${threshold.critical}ms)
 Samples: ${sampleCount ?? '?'}
 
-DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+DETECTED BY: SPEED performance monitoring system on zirowork.io
 
 FILES TO INSPECT:
 ${files}
@@ -669,7 +658,7 @@ Route: ${route ?? 'unknown'}
 Avg INP: ${avgInp ?? '?'}ms (warning: 200ms, critical: 500ms)
 Samples: ${sampleCount ?? '?'}
 
-DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+DETECTED BY: SPEED performance monitoring system on zirowork.io
 
 FILES TO INSPECT:
 ${files}
@@ -708,7 +697,7 @@ Route: ${route ?? 'unknown'}
 Avg CLS: ${avgCls?.toFixed(4) ?? '?'} (warning: 0.1, critical: 0.25)
 Samples: ${sampleCount ?? '?'}
 
-DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+DETECTED BY: SPEED performance monitoring system on zirowork.io
 
 FILES TO INSPECT:
 ${files}
@@ -742,7 +731,7 @@ Severity: ${alert.severity.toUpperCase()}
 Slow query rate: ${details?.rate_pct ?? '?'}% of all queries exceed 500ms
 Slow queries: ${details?.slow_count ?? '?'} out of ${details?.total_count ?? '?'} total
 
-DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+DETECTED BY: SPEED performance monitoring system on zirowork.io
 
 TASK:
 1. Go to Settings > SPEED tab in the app. Review the "Slow Queries" table for the top offenders.
@@ -797,7 +786,7 @@ Severity: ${alert.severity.toUpperCase()}
 Message: ${alert.message}
 Details: ${JSON.stringify(alert.details, null, 2)}
 
-DETECTED BY: SPEED performance monitoring system on lessonpreneur.io
+DETECTED BY: SPEED performance monitoring system on zirowork.io
 
 Investigate this alert, identify the root cause, fix it, and verify the fix.
 Do NOT silence the alert — fix the actual performance issue.
@@ -941,7 +930,7 @@ export function generateBulkFixPrompts(
   })
 
   return `SPEED — Batched performance fix (${filter})
-Tenant product: lessonpreneur.io admin app (Vite + React + Supabase).
+Tenant product: ZiroWork admin app (Vite + React + Supabase).
 
 You are given ${list.length} unique issues (deduped). Fix them in priority order (critical first). For each issue, report exact files changed and verify with npm run build.
 

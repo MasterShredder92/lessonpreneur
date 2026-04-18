@@ -4,11 +4,13 @@ import { useOnboardingPipeline, useCompleteTouchpoint, TOUCHPOINTS, type Onboard
 import { toast } from '../shared/Toast'
 import { ChevronDown, ChevronRight, Check, AlertTriangle } from 'lucide-react'
 import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
+import { useAdminSurface } from '../../contexts/AdminSurfaceContext'
 
 export default function OnboardingPipeline() {
   const { data: sequences } = useOnboardingPipeline()
   const completeTouchpoint = useCompleteTouchpoint()
   const navigate = useNavigate()
+  const { setSurface } = useAdminSurface()
   const [expanded, setExpanded] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -179,7 +181,7 @@ export default function OnboardingPipeline() {
                     </div>
 
                     <button
-                      onClick={() => navigate(`/admin/students?id=${seq.student_id}`)}
+                      onClick={() => setSurface('students')}
                       style={{
                         padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600,
                         background: 'rgba(255,255,255,0.04)', color: '#A0A0C8',
@@ -194,7 +196,7 @@ export default function OnboardingPipeline() {
             )
           })}
           {sorted.length > 12 && (
-            <div onClick={() => navigate('/admin/students')} style={{ textAlign: 'center', fontSize: 11, color: '#8080A8', padding: 4, cursor: 'pointer' }}>
+            <div onClick={() => setSurface('students')} style={{ textAlign: 'center', fontSize: 11, color: '#8080A8', padding: 4, cursor: 'pointer' }}>
               + {sorted.length - 12} more in onboarding
             </div>
           )}

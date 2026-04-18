@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
+import { SUPABASE_ANON_BEARER, SUPABASE_ANON_KEY } from './config'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseAnonKey = SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
@@ -38,6 +39,16 @@ function blocksDirectPerformanceAlertsInsert(input: RequestInfo | URL, init?: Re
   }
 }
 
+function normalizeSupabaseHeaders(headers?: HeadersInit): Headers | undefined {
+  if (!headers) return undefined
+  const normalized = new Headers(headers)
+  if (normalized.has('apikey')) normalized.delete('apikey')
+  if (!normalized.has('Authorization') && SUPABASE_ANON_BEARER) {
+    normalized.set('Authorization', SUPABASE_ANON_BEARER)
+  }
+  return normalized
+}
+
 // Global fetch wrapper with timeout — prevents hung mutations; Edge Functions get a longer budget.
 const fetchWithTimeout: typeof fetch = (input, init) => {
   if (blocksDirectPerformanceAlertsInsert(input, init)) {
@@ -60,7 +71,11 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
       new DOMException(`Request timed out after ${Math.round(timeoutMs / 1000)}s`, 'TimeoutError'),
     )
   }, timeoutMs)
-  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeoutId))
+  return fetch(input, {
+    ...init,
+    signal: controller.signal,
+    headers: normalizeSupabaseHeaders(init?.headers),
+  }).finally(() => clearTimeout(timeoutId))
 }
 
 // Window-level singleton guard — prevents duplicate GoTrueClient instances

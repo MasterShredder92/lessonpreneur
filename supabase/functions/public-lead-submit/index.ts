@@ -6,9 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Hardcoded fallback — single-tenant deployment safety net.
-// If tenant lookup ever fails, we still capture the lead.
-const FALLBACK_TENANT_ID = '00000000-0000-0000-0000-000000000001'
+const LEGACY_SLUG_MAP: Record<string, string> = {
+  adkinsmusiclessons: 'adkins-music-lessons',
+}
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -99,29 +99,40 @@ Deno.serve(async (req) => {
       return json({ success: false, error: `Missing required fields: ${missing.join(', ')}` }, 400)
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    )
+    const supabaseUrl =
+      Deno.env.get('SUPABASE_URL') ??
+      Deno.env.get('PUBLIC_LEAD_SUPABASE_URL')
+    const serviceRoleKey =
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
+      Deno.env.get('PUBLIC_LEAD_SERVICE_ROLE_KEY')
 
-    // ── Resolve tenant — with fallback ──
-    let tenantId: string
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('Missing Supabase runtime configuration')
+      return json({ success: false, error: 'Server misconfiguration' }, 500)
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey)
+
+    const normalizedSlug = String(school_slug).trim().toLowerCase()
+    const canonicalSlug = LEGACY_SLUG_MAP[normalizedSlug] ?? normalizedSlug
+
+    // ── Resolve tenant ──
     const { data: tenant, error: tenantErr } = await supabase
       .from('tenants')
       .select('id')
-      .eq('slug', school_slug)
+      .eq('slug', canonicalSlug)
       .single()
 
     if (tenantErr || !tenant) {
-      console.warn(`Tenant lookup failed for slug "${school_slug}": ${tenantErr?.message || 'not found'} — using fallback tenant`)
-      tenantId = FALLBACK_TENANT_ID
-    } else {
-      tenantId = tenant.id
+      console.warn(`Tenant lookup failed for slug "${canonicalSlug}": ${tenantErr?.message || 'not found'}`)
+      return json({ success: false, error: 'Invalid tenant slug' }, 400)
     }
+    const tenantId = tenant.id
+    body.school_slug = canonicalSlug
 
     const scope = await assertTenantScopedPayload(supabase, tenantId, body)
     if (!scope.ok) {
-      console.error(`Scope validation failed: ${scope.error}`, { location_id, school_slug })
+      console.error(`Scope validation failed: ${scope.error}`, { location_id, school_slug: canonicalSlug })
       return json({ success: false, error: scope.error }, 400)
     }
 
@@ -269,13 +280,12 @@ Deno.serve(async (req) => {
 
     if (leadErr) {
       console.error('Lead insert error:', leadErr.code, leadErr.message, { email: cleanEmail, location_id, intake_id: intakeSubmissionId })
-      // Intake was already saved — return partial success so the customer isn't shown an error
       return json({
-        success: true,
+        success: false,
         lead_id: null,
         intake_submission_id: intakeSubmissionId,
-        warning: 'Lead record pending — intake was captured successfully.',
-      })
+        error: 'Lead insert failed',
+      }, 500)
     }
 
     // ── PRIORITY 4: Secondary leads (multi-student) — best-effort ──

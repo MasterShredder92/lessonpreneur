@@ -15,9 +15,9 @@ interface ConfirmModalProps {
 }
 
 const VARIANT_COLORS = {
-  warning: { bg: 'rgba(255,184,0,0.08)', border: 'rgba(255,184,0,0.2)', icon: '#FFB800', btn: '#FFB800' },
-  danger: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)', icon: '#EF4444', btn: '#DC0000' },
-  info: { bg: 'rgba(56,189,248,0.08)', border: 'rgba(56,189,248,0.2)', icon: '#38BDF8', btn: '#38BDF8' },
+  warning: { bg: 'var(--warning-8)', border: 'var(--warning-20)', icon: 'var(--color-warning)', btn: 'var(--color-warning)' },
+  danger: { bg: 'var(--danger-8)', border: 'var(--danger-20)', icon: 'var(--color-danger)', btn: 'var(--red-dark)' },
+  info: { bg: 'var(--sky-8)', border: 'var(--sky-20)', icon: 'var(--color-sky)', btn: 'var(--color-sky)' },
 }
 
 export default function ConfirmModal({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', variant = 'warning', requireReason = false, reasonLabel = 'Reason — Required', onConfirm, onCancel }: ConfirmModalProps) {
@@ -26,23 +26,23 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirm',
   const canConfirm = !requireReason || reason.trim().length > 0
 
   return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onCancel}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: '0 16px', background: '#141224', border: `1px solid ${colors.border}`, borderRadius: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'var(--overlay-scrim-70)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onCancel}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 'var(--max-width-confirm)', margin: '0 var(--space-lg)', background: 'var(--surface-modal)', border: `var(--border-width) solid ${colors.border}`, borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-elevated)', overflow: 'hidden' }}>
         {/* Header with icon */}
-        <div style={{ padding: '20px 24px 16px', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: colors.bg, border: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ padding: 'var(--space-2xl) var(--space-xl) var(--space-lg)', display: 'flex', alignItems: 'flex-start', gap: 'calc(var(--space-md) + var(--space-2xs))' }}>
+          <div style={{ width: 'var(--space-5xl)', height: 'var(--space-5xl)', borderRadius: 'var(--radius-md)', background: colors.bg, border: `var(--border-width) solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <AlertTriangle size={20} style={{ color: colors.icon }} />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4', marginBottom: 4 }}>{title}</div>
-            <div style={{ fontSize: 13, color: '#A0A0C8', lineHeight: 1.5 }}>{message}</div>
+            <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-secondary)', marginBottom: 'var(--space-xs)' }}>{title}</div>
+            <div style={{ fontSize: 'var(--font-size-md)', color: 'var(--text-muted)', lineHeight: 1.5 }}>{message}</div>
           </div>
         </div>
 
         {/* Reason field */}
         {requireReason && (
-          <div style={{ padding: '0 24px 16px' }}>
-            <label style={{ fontSize: 10, fontWeight: 700, color: colors.icon, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>{reasonLabel}</label>
+          <div style={{ padding: '0 var(--space-xl) var(--space-lg)' }}>
+            <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-bold)', color: colors.icon, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 'var(--space-6)' }}>{reasonLabel}</label>
             <textarea
               value={reason}
               onChange={e => setReason(e.target.value)}
@@ -50,9 +50,9 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirm',
               autoFocus
               rows={2}
               style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10,
-                border: `1px solid ${reason.trim() ? 'rgba(255,255,255,0.1)' : colors.border}`,
-                background: 'rgba(255,255,255,0.04)', color: '#E0E0F4', fontSize: 13,
+                width: '100%', padding: 'var(--space-10) calc(var(--space-md) + var(--space-2xs))', borderRadius: 'var(--radius-md)',
+                border: `var(--border-width) solid ${reason.trim() ? 'var(--white-10)' : colors.border}`,
+                background: 'var(--white-4)', color: 'var(--text-secondary)', fontSize: 'var(--font-size-md)',
                 outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
               }}
             />
@@ -60,10 +60,10 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirm',
         )}
 
         {/* Actions */}
-        <div style={{ padding: '12px 24px 20px', display: 'flex', gap: 8 }}>
+        <div style={{ padding: 'var(--space-md) var(--space-xl) var(--space-2xl)', display: 'flex', gap: 'var(--space-sm)' }}>
           <button
             onClick={onCancel}
-            style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8080A8', cursor: 'pointer', fontWeight: 600, fontSize: 13, minHeight: 44 }}
+            style={{ flex: 1, padding: 'var(--space-md) var(--space-lg)', borderRadius: 'var(--radius-md)', background: 'var(--white-4)', border: 'var(--border-width) solid var(--white-8)', color: 'var(--text-placard)', cursor: 'pointer', fontWeight: 'var(--font-weight-medium)', fontSize: 'var(--font-size-md)', minHeight: 'var(--space-message-send)' }}
           >
             {cancelLabel}
           </button>
@@ -71,9 +71,9 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirm',
             onClick={() => canConfirm && onConfirm(reason.trim() || undefined)}
             disabled={!canConfirm}
             style={{
-              flex: 1, padding: '12px 16px', borderRadius: 10, border: 'none', cursor: canConfirm ? 'pointer' : 'not-allowed',
-              background: canConfirm ? colors.btn : '#606088', color: '#fff', fontWeight: 700, fontSize: 13,
-              opacity: canConfirm ? 1 : 0.5, minHeight: 44,
+              flex: 1, padding: 'var(--space-md) var(--space-lg)', borderRadius: 'var(--radius-md)', border: 'none', cursor: canConfirm ? 'pointer' : 'not-allowed',
+              background: canConfirm ? colors.btn : 'var(--text-caption)', color: 'var(--text-primary)', fontWeight: 'var(--font-weight-bold)', fontSize: 'var(--font-size-md)',
+              opacity: canConfirm ? 1 : 0.5, minHeight: 'var(--space-message-send)',
             }}
           >
             {confirmLabel}

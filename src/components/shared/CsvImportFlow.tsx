@@ -19,6 +19,16 @@ interface Props {
   onClose: () => void
 }
 
+const SUMMARY_BADGE_TOKENS: Record<string, { bg: string; border: string; color: string }> = {
+  'Ready to import': { bg: 'var(--success-10)', border: 'var(--success-25)', color: 'var(--color-success)' },
+  'Duplicates (skip)': { bg: 'var(--white-6)', border: 'var(--white-15)', color: 'var(--text-placard)' },
+  'Possible duplicates': { bg: 'var(--warning-10)', border: 'var(--warning-25)', color: 'var(--color-warning)' },
+  'Errors (skip)': { bg: 'var(--danger-10)', border: 'var(--danger-25)', color: 'var(--color-danger)' },
+  Added: { bg: 'var(--success-10)', border: 'var(--success-25)', color: 'var(--color-success)' },
+  Skipped: { bg: 'var(--white-6)', border: 'var(--white-15)', color: 'var(--text-placard)' },
+  Failed: { bg: 'var(--danger-10)', border: 'var(--danger-25)', color: 'var(--color-danger)' },
+}
+
 export default function CsvImportFlow({ title, templateCsv, templateFilename, requiredColumns, onCheck, onRun, onReset, status, progress, preview, result, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
@@ -62,21 +72,21 @@ export default function CsvImportFlow({ title, templateCsv, templateFilename, re
   const totalPages = Math.ceil(filteredRows.length / pageSize)
 
   return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={handleClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'var(--overlay-scrim-70)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-2xl)' }} onClick={handleClose}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        width: '100%', maxWidth: 720, maxHeight: '92vh', display: 'flex', flexDirection: 'column',
-        background: '#141224', borderRadius: 20, border: '1px solid rgba(212,34,106,0.15)',
-        boxShadow: '0 0 60px rgba(212,34,106,0.08), 0 24px 60px rgba(0,0,0,0.5)',
+        width: '100%', maxWidth: 'var(--max-width-csv)', maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+        background: 'var(--surface-modal)', borderRadius: 'var(--radius-2xl)', border: 'var(--border-width) solid var(--primary-15)',
+        boxShadow: 'var(--shadow-modal-brand)',
       }}>
-        <div style={{ height: 3, background: 'linear-gradient(90deg, #D4226A, #7B2CBF)', borderRadius: '20px 20px 0 0' }} />
+        <div style={{ height: 'var(--space-3xs)', background: 'var(--grad-brand)', borderRadius: 'var(--radius-2xl) var(--radius-2xl) 0 0' }} />
 
         {/* Header */}
-        <div style={{ padding: '20px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontSize: 18, fontWeight: 800, color: '#E0E0F4' }}>{title}</span>
-          <button onClick={handleClose} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#8080A8' }}><X size={16} /></button>
+        <div style={{ padding: 'var(--space-2xl) var(--space-xl) var(--space-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <span style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-secondary)' }}>{title}</span>
+          <button onClick={handleClose} style={{ background: 'var(--white-4)', border: 'var(--border-width) solid var(--white-8)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-6)', cursor: 'pointer', color: 'var(--text-placard)' }}><X size={16} /></button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 var(--space-xl) var(--space-xl)' }}>
           {/* STEP 1 — UPLOAD */}
           {status === 'idle' && (
             <>
@@ -85,32 +95,32 @@ export default function CsvImportFlow({ title, templateCsv, templateFilename, re
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
                 onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
                 style={{
-                  border: '2px dashed rgba(212,34,106,0.25)', borderRadius: 16, padding: '40px 20px',
-                  textAlign: 'center', cursor: 'pointer', background: 'rgba(212,34,106,0.03)',
+                  border: 'var(--dash-border-primary)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-5xl) var(--space-2xl)',
+                  textAlign: 'center', cursor: 'pointer', background: 'var(--primary-8)',
                   transition: 'all 200ms',
                 }}
               >
-                <Upload size={28} style={{ color: '#D4226A', marginBottom: 12 }} />
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4' }}>Drop your CSV here or click to browse</div>
-                <div style={{ fontSize: 12, color: '#8080A8', marginTop: 4 }}>.csv files only</div>
+                <Upload size={28} style={{ color: 'var(--color-primary)', marginBottom: 'var(--space-md)' }} />
+                <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-secondary)' }}>Drop your CSV here or click to browse</div>
+                <div style={{ fontSize: 'var(--font-size-lg)', color: 'var(--text-placard)', marginTop: 'var(--space-xs)' }}>.csv files only</div>
               </div>
               <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
 
-              {parseError && <div className="form-error" style={{ marginTop: 12 }}>{parseError}</div>}
+              {parseError && <div className="form-error" style={{ marginTop: 'var(--space-md)' }}>{parseError}</div>}
 
               <button onClick={downloadTemplate} style={{
-                marginTop: 16, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-                borderRadius: 8, background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.2)',
-                color: '#38BDF8', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                marginTop: 'var(--space-lg)', display: 'flex', alignItems: 'center', gap: 'var(--space-6)', padding: 'var(--space-sm) var(--space-lg)',
+                borderRadius: 'var(--radius-sm)', background: 'var(--sky-8)', border: 'var(--border-width) solid var(--sky-20)',
+                color: 'var(--color-sky)', fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-medium)', cursor: 'pointer',
               }}>Download Template</button>
             </>
           )}
 
           {/* STEP 2 — CHECKING */}
           {status === 'checking' && (
-            <div style={{ padding: '40px 0', textAlign: 'center' }}>
+            <div style={{ padding: 'var(--space-5xl) 0', textAlign: 'center' }}>
               <MusicLoader />
-              <div style={{ fontSize: 14, color: '#A0A0C8', marginTop: 12 }}>Checking {rowCount} rows for duplicates...</div>
+              <div style={{ fontSize: 'var(--font-size-lg)', color: 'var(--text-muted)', marginTop: 'var(--space-md)' }}>Checking {rowCount} rows for duplicates...</div>
             </div>
           )}
 
@@ -118,47 +128,47 @@ export default function CsvImportFlow({ title, templateCsv, templateFilename, re
           {status === 'ready' && preview && (
             <>
               {/* Summary */}
-              <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-                <SummaryBadge icon={<CheckCircle size={14} />} color="#22C55E" label="Ready to import" count={preview.newCount} />
-                <SummaryBadge icon={<SkipForward size={14} />} color="#8080A8" label="Duplicates (skip)" count={preview.dupCount} />
-                <SummaryBadge icon={<AlertTriangle size={14} />} color="#FFB800" label="Possible duplicates" count={preview.possibleDupCount} />
-                <SummaryBadge icon={<XCircle size={14} />} color="#EF4444" label="Errors (skip)" count={preview.errorCount} />
+              <div style={{ display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)', flexWrap: 'wrap' }}>
+                <SummaryBadge icon={<CheckCircle size={14} />} label="Ready to import" count={preview.newCount} />
+                <SummaryBadge icon={<SkipForward size={14} />} label="Duplicates (skip)" count={preview.dupCount} />
+                <SummaryBadge icon={<AlertTriangle size={14} />} label="Possible duplicates" count={preview.possibleDupCount} />
+                <SummaryBadge icon={<XCircle size={14} />} label="Errors (skip)" count={preview.errorCount} />
               </div>
 
-              <div style={{ fontSize: 12, color: '#8080A8', marginBottom: 12 }}>{fileName} — {preview.totalInFile} rows total</div>
+              <div style={{ fontSize: 'var(--font-size-lg)', color: 'var(--text-placard)', marginBottom: 'var(--space-md)' }}>{fileName} — {preview.totalInFile} rows total</div>
 
               {/* Filter */}
-              <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 'var(--space-xs)', marginBottom: 'var(--space-10)' }}>
                 {['', 'new', 'duplicate', 'possible_duplicate', 'error'].map((f) => (
                   <button key={f} onClick={() => { setStatusFilter(f); setPage(0) }} style={{
-                    padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer',
-                    background: statusFilter === f ? 'rgba(212,34,106,0.1)' : 'rgba(255,255,255,0.03)',
-                    color: statusFilter === f ? '#E8488A' : '#8080A8',
-                    border: `1px solid ${statusFilter === f ? 'rgba(212,34,106,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                    padding: 'var(--space-xs) var(--space-10)', borderRadius: 'var(--radius-xs)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', cursor: 'pointer',
+                    background: statusFilter === f ? 'var(--primary-12)' : 'var(--white-3)',
+                    color: statusFilter === f ? 'var(--pink-light)' : 'var(--text-placard)',
+                    border: `var(--border-width) solid ${statusFilter === f ? 'var(--primary-20)' : 'var(--white-6)'}`,
                   }}>{f === '' ? 'All' : f === 'new' ? 'New' : f === 'duplicate' ? 'Duplicate' : f === 'possible_duplicate' ? 'Possible' : 'Error'}</button>
                 ))}
               </div>
 
               {/* Row table */}
-              <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <div style={{ maxHeight: 'calc(var(--space-5xl) * 7 + var(--space-2xl))', overflowY: 'auto', border: 'var(--border-width) solid var(--white-6)', borderRadius: 'var(--radius-md)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)' }}>
                   <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <th style={{ padding: '6px 10px', textAlign: 'left', color: '#8080A8', fontWeight: 700 }}>#</th>
-                      <th style={{ padding: '6px 10px', textAlign: 'left', color: '#8080A8', fontWeight: 700 }}>Name</th>
-                      <th style={{ padding: '6px 10px', textAlign: 'left', color: '#8080A8', fontWeight: 700 }}>Status</th>
-                      <th style={{ padding: '6px 10px', textAlign: 'left', color: '#8080A8', fontWeight: 700 }}>Reason</th>
+                    <tr style={{ background: 'var(--white-3)' }}>
+                      <th style={{ padding: 'var(--space-6) var(--space-10)', textAlign: 'left', color: 'var(--text-placard)', fontWeight: 'var(--font-weight-bold)' }}>#</th>
+                      <th style={{ padding: 'var(--space-6) var(--space-10)', textAlign: 'left', color: 'var(--text-placard)', fontWeight: 'var(--font-weight-bold)' }}>Name</th>
+                      <th style={{ padding: 'var(--space-6) var(--space-10)', textAlign: 'left', color: 'var(--text-placard)', fontWeight: 'var(--font-weight-bold)' }}>Status</th>
+                      <th style={{ padding: 'var(--space-6) var(--space-10)', textAlign: 'left', color: 'var(--text-placard)', fontWeight: 'var(--font-weight-bold)' }}>Reason</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pageRows.map((r) => (
-                      <tr key={r.idx} style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
-                        <td style={{ padding: '5px 10px', color: '#606088' }}>{r.idx + 2}</td>
-                        <td style={{ padding: '5px 10px', color: '#C0C0E0' }}>{r.data.first_name} {r.data.last_name}</td>
-                        <td style={{ padding: '5px 10px' }}>
+                      <tr key={r.idx} style={{ borderTop: 'var(--border-width) solid var(--white-3)' }}>
+                        <td style={{ padding: 'var(--space-mini) var(--space-10)', color: 'var(--text-caption)' }}>{r.idx + 2}</td>
+                        <td style={{ padding: 'var(--space-mini) var(--space-10)', color: 'var(--text-subtle)' }}>{r.data.first_name} {r.data.last_name}</td>
+                        <td style={{ padding: 'var(--space-mini) var(--space-10)' }}>
                           <StatusPill status={r.status} />
                         </td>
-                        <td style={{ padding: '5px 10px', color: '#8080A8' }}>{r.reason ?? ''}</td>
+                        <td style={{ padding: 'var(--space-mini) var(--space-10)', color: 'var(--text-placard)' }}>{r.reason ?? ''}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -167,21 +177,21 @@ export default function CsvImportFlow({ title, templateCsv, templateFilename, re
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, fontSize: 11, color: '#8080A8' }}>
-                  <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="btn-ghost" style={{ fontSize: 10, padding: '2px 8px' }}>Prev</button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)', fontSize: 'var(--font-size-sm)', color: 'var(--text-placard)' }}>
+                  <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="btn-ghost" style={{ fontSize: 'var(--font-size-xs)', padding: 'var(--space-2xs) var(--space-sm)' }}>Prev</button>
                   <span>{page + 1} / {totalPages}</span>
-                  <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="btn-ghost" style={{ fontSize: 10, padding: '2px 8px' }}>Next</button>
+                  <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="btn-ghost" style={{ fontSize: 'var(--font-size-xs)', padding: 'var(--space-2xs) var(--space-sm)' }}>Next</button>
                 </div>
               )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--space-lg)' }}>
                 <button className="btn-ghost" onClick={handleClose}>Cancel</button>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 11, color: '#8080A8', marginBottom: 4 }}>
+                  <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-placard)', marginBottom: 'var(--space-xs)' }}>
                     This will add {preview.newCount + preview.possibleDupCount} new records. Skipping {preview.dupCount} duplicates.
                   </div>
-                  <button className="btn-primary" onClick={onRun} disabled={preview.newCount === 0} style={{ fontSize: 13, padding: '10px 24px' }}>
+                  <button className="btn-primary" onClick={onRun} disabled={preview.newCount === 0} style={{ fontSize: 'var(--font-size-md)', padding: 'var(--space-10) var(--space-xl)' }}>
                     Run Import
                   </button>
                 </div>
@@ -191,39 +201,39 @@ export default function CsvImportFlow({ title, templateCsv, templateFilename, re
 
           {/* STEP 5 — IMPORTING */}
           {status === 'importing' && (
-            <div style={{ padding: '40px 0', textAlign: 'center' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#E0E0F4', marginBottom: 12 }}>Importing...</div>
-              <div style={{ width: '100%', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #D4226A, #E8488A)', borderRadius: 4, transition: 'width 300ms ease' }} />
+            <div style={{ padding: 'var(--space-5xl) 0', textAlign: 'center' }}>
+              <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-bold)', color: 'var(--text-secondary)', marginBottom: 'var(--space-md)' }}>Importing...</div>
+              <div style={{ width: '100%', height: 'var(--space-sm)', borderRadius: 'var(--radius-2xs)', background: 'var(--white-6)', overflow: 'hidden' }}>
+                <div style={{ width: `${progress}%`, height: '100%', background: 'var(--grad-primary)', borderRadius: 'var(--radius-2xs)', transition: 'width 300ms ease' }} />
               </div>
-              <div style={{ fontSize: 12, color: '#A0A0C8', marginTop: 8 }}>{progress}%</div>
+              <div style={{ fontSize: 'var(--font-size-lg)', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>{progress}%</div>
             </div>
           )}
 
           {/* STEP 6 — RESULTS */}
           {status === 'done' && result && (
-            <div style={{ padding: '20px 0' }}>
-              <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                <CheckCircle size={28} style={{ color: '#22C55E', marginBottom: 8 }} />
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#22C55E' }}>Import Complete</div>
+            <div style={{ padding: 'var(--space-2xl) 0' }}>
+              <div style={{ textAlign: 'center', marginBottom: 'var(--space-2xl)' }}>
+                <CheckCircle size={28} style={{ color: 'var(--color-success)', marginBottom: 'var(--space-sm)' }} />
+                <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-success)' }}>Import Complete</div>
               </div>
 
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 20 }}>
-                <SummaryBadge icon={<CheckCircle size={14} />} color="#22C55E" label="Added" count={result.added} />
-                <SummaryBadge icon={<SkipForward size={14} />} color="#8080A8" label="Skipped" count={result.skipped} />
-                <SummaryBadge icon={<XCircle size={14} />} color="#EF4444" label="Failed" count={result.failed} />
+              <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', marginBottom: 'var(--space-2xl)' }}>
+                <SummaryBadge icon={<CheckCircle size={14} />} label="Added" count={result.added} />
+                <SummaryBadge icon={<SkipForward size={14} />} label="Skipped" count={result.skipped} />
+                <SummaryBadge icon={<XCircle size={14} />} label="Failed" count={result.failed} />
               </div>
 
               {result.errors.length > 0 && (
-                <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.1)', borderRadius: 10, padding: 12, maxHeight: 150, overflowY: 'auto', marginBottom: 16 }}>
+                <div style={{ background: 'var(--danger-8)', border: 'var(--border-width) solid var(--danger-20)', borderRadius: 'var(--radius-md)', padding: 'var(--space-md)', maxHeight: 'calc(var(--space-5xl) * 3 + var(--space-3xl))', overflowY: 'auto', marginBottom: 'var(--space-lg)' }}>
                   {result.errors.map((e, i) => (
-                    <div key={i} style={{ fontSize: 11, color: '#EF4444', padding: '2px 0' }}>{e}</div>
+                    <div key={i} style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-danger)', padding: 'var(--space-2xs) 0' }}>{e}</div>
                   ))}
                 </div>
               )}
 
               <div style={{ textAlign: 'center' }}>
-                <button className="btn-primary" onClick={handleClose} style={{ fontSize: 13, padding: '10px 30px' }}>Done</button>
+                <button className="btn-primary" onClick={handleClose} style={{ fontSize: 'var(--font-size-md)', padding: 'var(--space-10) var(--space-3xl)' }}>Done</button>
               </div>
             </div>
           )}
@@ -234,23 +244,24 @@ export default function CsvImportFlow({ title, templateCsv, templateFilename, re
   )
 }
 
-function SummaryBadge({ icon, color, label, count }: { icon: React.ReactNode; color: string; label: string; count: number }) {
+function SummaryBadge({ icon, label, count }: { icon: React.ReactNode; label: string; count: number }) {
+  const t = SUMMARY_BADGE_TOKENS[label] ?? SUMMARY_BADGE_TOKENS['Errors (skip)']
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: `${color}10`, border: `1px solid ${color}25` }}>
-      <span style={{ color }}>{icon}</span>
-      <span style={{ fontSize: 14, fontWeight: 800, color }}>{count}</span>
-      <span style={{ fontSize: 11, color: '#A0A0C8' }}>{label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-6)', padding: 'var(--space-6) var(--space-md)', borderRadius: 'var(--radius-sm)', background: t.bg, border: `var(--border-width) solid ${t.border}` }}>
+      <span style={{ color: t.color }}>{icon}</span>
+      <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-bold)', color: t.color }}>{count}</span>
+      <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>{label}</span>
     </div>
   )
 }
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
-    new: { bg: 'rgba(34,197,94,0.1)', color: '#22C55E', label: 'New' },
-    duplicate: { bg: 'rgba(96,96,136,0.1)', color: '#8080A8', label: 'Duplicate' },
-    possible_duplicate: { bg: 'rgba(255,184,0,0.1)', color: '#FFB800', label: 'Possible' },
-    error: { bg: 'rgba(239,68,68,0.1)', color: '#EF4444', label: 'Error' },
+    new: { bg: 'var(--success-10)', color: 'var(--color-success)', label: 'New' },
+    duplicate: { bg: 'var(--white-6)', color: 'var(--text-placard)', label: 'Duplicate' },
+    possible_duplicate: { bg: 'var(--warning-10)', color: 'var(--color-warning)', label: 'Possible' },
+    error: { bg: 'var(--danger-10)', color: 'var(--color-danger)', label: 'Error' },
   }
   const s = map[status] ?? map.error
-  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: s.bg, color: s.color }}>{s.label}</span>
+  return <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-bold)', padding: 'var(--space-2xs) var(--space-sm)', borderRadius: 'var(--radius-2xs)', background: s.bg, color: s.color }}>{s.label}</span>
 }

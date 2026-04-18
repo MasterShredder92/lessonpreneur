@@ -170,7 +170,7 @@ const INTEGRATION_FIELDS: Record<string, IntegrationFieldConfig> = {
     ],
     helpUrl: 'https://zapier.com/app/zaps',
     helpLabel: 'Zapier Dashboard',
-    note: 'Create a Zap with a "Webhooks by Zapier" trigger to receive events from Lessonpreneur.',
+    note: 'Create a Zap with a "Webhooks by Zapier" trigger to receive events from ZiroWork.',
   },
   'make': {
     type: 'webhook_outbound',
@@ -198,7 +198,7 @@ const INTEGRATION_FIELDS: Record<string, IntegrationFieldConfig> = {
   'custom-api': {
     type: 'lp_api',
     fields: [],
-    note: 'Generate an API token to access the Lessonpreneur API. Tokens are managed in the API Tokens section below.',
+    note: 'Generate an API token to access the ZiroWork API. Tokens are managed in the API Tokens section below.',
   },
   // ─── Documents ───
   'signwell': {
@@ -460,7 +460,7 @@ export default function IntegrationConnectModal({ integrationId, integrationName
         <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, margin: '0 16px', background: '#141224', border: '1px solid rgba(212,34,106,0.2)', borderRadius: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
           <div style={{ padding: '20px 24px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4' }}>Lessonpreneur API</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#E0E0F4' }}>ZiroWork API</div>
               <div style={{ fontSize: 12, color: '#8080A8', marginTop: 2 }}>Generate tokens in the API Tokens section</div>
             </div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#606088', cursor: 'pointer', padding: 4 }}><X size={18} /></button>

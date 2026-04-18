@@ -11,6 +11,7 @@ import { RouteGuard } from './RouteGuard'
 import { LocationContext } from '../config/LocationContext'
 import type { LocKey } from '../config/locations'
 import { PreviewModeProvider } from '../hooks/usePreviewMode'
+import { startLeadFailsafeWorker } from '../lib/leadFailsafe'
 function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
@@ -63,7 +64,6 @@ const ViolinLessonsLanding = lazy(() => import('../pages/ViolinLessonsLanding'))
 const FluteLessonsLanding = lazy(() => import('../pages/FluteLessonsLanding'))
 const SignupLanding = lazy(() => import('../pages/SignupLanding'))
 const ThankYou = lazy(() => import('../pages/ThankYou'))
-const LessonpreneurLanding = lazy(() => import('../pages/LessonpreneurLanding'))
 const KidsLessonsPage = lazy(() => import('../pages/KidsLessonsPage'))
 const AdultLessonsPage = lazy(() => import('../pages/AdultLessonsPage'))
 const BeginnerLessonsPage = lazy(() => import('../pages/BeginnerLessonsPage'))
@@ -87,27 +87,6 @@ import InstallPrompt from '../components/shared/InstallPrompt'
 import LoginPage from '../pages/Login'
 
 // Admin pages (lazy)
-const Dashboard = lazy(() => import('../pages/admin/Dashboard'))
-const Schedule = lazy(() => import('../pages/admin/Schedule'))
-const Students = lazy(() => import('../pages/admin/Students'))
-const Teachers = lazy(() => import('../pages/admin/Teachers'))
-const Families = lazy(() => import('../pages/admin/Families'))
-const Leads = lazy(() => import('../pages/admin/Leads'))
-const Billing = lazy(() => import('../pages/admin/Billing'))
-const Payroll = lazy(() => import('../pages/admin/Payroll'))
-const Retention = lazy(() => import('../pages/admin/Retention'))
-const Financials = lazy(() => import('../pages/admin/Financials'))
-const Recruitment = lazy(() => import('../pages/admin/Recruitment'))
-const Settings = lazy(() => import('../pages/admin/Settings'))
-const Platform = lazy(() => import('../pages/admin/Platform'))
-const ImportPage = lazy(() => import('../pages/admin/Import'))
-const Workflows = lazy(() => import('../pages/admin/Workflows'))
-const Analytics = lazy(() => import('../pages/admin/Analytics'))
-const IntegrationsPage = lazy(() => import('../pages/admin/Integrations'))
-const ZiroInsights = lazy(() => import('../pages/admin/ZiroInsights'))
-const SkillsManager = lazy(() => import('../pages/admin/SkillsManager'))
-const ZiroWorkPage = lazy(() => import('../pages/admin/ZiroWorkPage'))
-const PerformancePage = lazy(() => import('../pages/admin/Performance'))
 
 // Teacher/Parent/Student pages (lazy)
 const TeacherDashboard = lazy(() => import('../pages/teacher/TeacherDashboard'))
@@ -168,7 +147,7 @@ function HomepageRouter() {
     return <Navigate to={legacyPath} replace />
   }
 
-  // SaaS domain (lessonpreneur.io, localhost, preview deploys) → SaaS landing
+  // SaaS / marketing host → primary landing
   return <LandingPageV2 />
 }
 
@@ -237,6 +216,11 @@ const queryClient = new QueryClient({
 })
 
 export default function App() {
+  useEffect(() => {
+    const stop = startLeadFailsafeWorker()
+    return () => stop()
+  }, [])
+
   return (
     <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -257,7 +241,7 @@ export default function App() {
             <Route path="/start" element={<VSLPage />} />
             <Route path="/get-started" element={<LeadCaptureFormPage />} />
             <Route path="/trial" element={<CardCapturePage />} />
-            <Route path="/lessonpreneur" element={<LessonpreneurLanding />} />
+            <Route path="/lessonpreneur" element={<Navigate to="/" replace />} />
             {/* ── Supporting SEO pages ── */}
             <Route path="/about" element={<AboutPage />} />
             <Route path="/locations" element={<LocationsPage />} />
@@ -299,38 +283,7 @@ export default function App() {
             <Route path="/vocals" element={<Navigate to="/omaha/vocals" replace />} />
             <Route path="/thank-you" element={<ThankYou />} />
 
-            {/* Admin routes — owner + admin */}
-            <Route
-              path="/admin"
-              element={
-                <RouteGuard allowedRoles={['owner', 'admin', 'company_director', 'studio_director']}>
-                  <AdminShell />
-                </RouteGuard>
-              }
-            >
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="leads" element={<Leads />} />
-              <Route path="schedule" element={<Schedule />} />
-              <Route path="families" element={<Families />} />
-              <Route path="students" element={<Students />} />
-              <Route path="retention" element={<Retention />} />
-              <Route path="teachers" element={<Teachers />} />
-              <Route path="billing" element={<Billing />} />
-              <Route path="payroll" element={<Payroll />} />
-              <Route path="financials" element={<Financials />} />
-              <Route path="recruitment" element={<Recruitment />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="platform" element={<Platform />} />
-              <Route path="import" element={<ImportPage />} />
-              <Route path="workflows" element={<Workflows />} />
-              <Route path="analytics" element={<Analytics />} />
-              <Route path="integrations" element={<IntegrationsPage />} />
-              <Route path="ziro-insights" element={<ZiroInsights />} />
-              <Route path="skills" element={<SkillsManager />} />
-              <Route path="zirowork" element={<ZiroWorkPage />} />
-              <Route path="performance" element={<PerformancePage />} />
-            </Route>
+            <Route path="/admin/*" element={<AdminShell />} />
 
             {/* Teacher routes */}
             <Route

@@ -203,4 +203,19 @@
   --space-divider: 1px;
 
   --color-cyan: #00bcd4;
+
+  /* Phase 0 — CRM shell + modals (aliases only) */
+  --surface-master: #0a0918; /* Master Editor / "void" backdrop */
+  --surface-tooltip: color-mix(in srgb, var(--surface-modal) 95%, transparent);
+  --shadow-elevated: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --max-width-confirm: 420px;
+  --max-width-csv: 720px;
+  --sky-20: color-mix(in srgb, var(--color-sky) 20%, transparent);
+  --sky-8: color-mix(in srgb, var(--color-sky) 8%, transparent);
+  --stroke-brand-soft: color-mix(in srgb, var(--color-primary) 38%, transparent);
+  --stroke-violet-soft: color-mix(in srgb, var(--violet) 28%, transparent);
+  --stroke-accent-soft: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  --stroke-primary-ring: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  --stroke-primary-25: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  --dash-border-primary: 2px dashed var(--primary-25);
 }

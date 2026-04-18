@@ -12,7 +12,7 @@ export interface ThemeData {
 
 const DEFAULT_THEME: ThemeData = {
   primaryColor: '#f59e0b',
-  studioName: 'Lessonpreneur',
+  studioName: 'ZiroWork',
   logoUrl: null,
 }
 

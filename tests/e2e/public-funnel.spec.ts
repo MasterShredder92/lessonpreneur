@@ -38,8 +38,6 @@ async function postPublicLeadSubmit(body: Record<string, unknown>) {
 
       Authorization: `Bearer ${key}`,
 
-      apikey: key,
-
     },
 
     body: JSON.stringify(body),
@@ -106,19 +104,19 @@ test.describe('Public funnel', () => {
 
 
 
-test.describe('CRM lead detail (requires auth)', () => {
+test.describe('Admin shell (requires auth)', () => {
 
   test.skip(
 
     !process.env.E2E_EMAIL || !process.env.E2E_PASSWORD,
 
-    'Set E2E_EMAIL and E2E_PASSWORD to run CRM smoke',
+    'Set E2E_EMAIL and E2E_PASSWORD to run admin smoke',
 
   )
 
 
 
-  test('Leads page opens lead modal', async ({ page }) => {
+  test('loads /admin after login', async ({ page }) => {
 
     await page.goto('/login')
 
@@ -130,19 +128,13 @@ test.describe('CRM lead detail (requires auth)', () => {
 
     await page.getByRole('button', { name: /sign in|log in/i }).click()
 
-    await page.waitForURL(/admin|leads|dashboard/i, { timeout: 30_000 })
+    await page.waitForURL(/\/admin/i, { timeout: 30_000 })
 
-    await page.goto('/admin/leads')
+    await page.goto('/admin')
 
     await page.waitForLoadState('networkidle')
 
-    const first = page.locator('[data-guide-id="lead-contact"], .lead-card, [class*="lead"]').first()
-
-    if (await first.count()) {
-
-      await first.click()
-
-    }
+    await expect(page).toHaveURL(/\/admin$/)
 
   })
 
@@ -150,7 +142,7 @@ test.describe('CRM lead detail (requires auth)', () => {
 
 
 
-test.describe('Intake: edge → CRM → conversion → student', () => {
+test.describe.skip('Intake: edge → CRM → conversion → student (CRM UI removed — restore with Ziro surfaces or API-only flow)', () => {
 
   test.skip(
 

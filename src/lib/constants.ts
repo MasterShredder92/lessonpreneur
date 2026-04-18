@@ -1,33 +1,33 @@
 export type NavItem = {
   label: string
-  path: string
+  surface: string
   icon: string
-  children?: { label: string; path: string }[]
+  children?: { label: string; surface: string }[]
 }
 
 export const ADMIN_NAV_ITEMS: NavItem[] = [
-  { label: 'Studio Overview', path: '/admin/dashboard', icon: 'dashboard' },
-  { label: 'New Members', path: '/admin/leads', icon: 'user-plus' },
-  { label: 'Schedule', path: '/admin/schedule', icon: 'calendar' },
+  { label: 'Studio Overview', surface: 'dashboard', icon: 'dashboard' },
+  { label: 'New Members', surface: 'leads', icon: 'user-plus' },
+  { label: 'Schedule', surface: 'schedule', icon: 'calendar' },
   // divider
-  { label: 'Roster', path: '', icon: 'users', children: [
-    { label: 'Students', path: '/admin/students' },
-    { label: 'Families', path: '/admin/families' },
+  { label: 'Roster', surface: '', icon: 'users', children: [
+    { label: 'Students', surface: 'students' },
+    { label: 'Families', surface: 'families' },
   ]},
-  { label: 'Backstage', path: '', icon: 'shield', children: [
-    { label: 'Retention', path: '/admin/retention' },
+  { label: 'Backstage', surface: '', icon: 'shield', children: [
+    { label: 'Retention', surface: 'retention' },
   ]},
   // divider
-  { label: 'The Band', path: '', icon: 'guitar', children: [
-    { label: 'Teachers', path: '/admin/teachers' },
-    { label: 'Payroll', path: '/admin/payroll' },
-    { label: 'Recruitment', path: '/admin/recruitment' },
+  { label: 'The Band', surface: '', icon: 'guitar', children: [
+    { label: 'Teachers', surface: 'teachers' },
+    { label: 'Payroll', surface: 'payroll' },
+    { label: 'Recruitment', surface: 'recruitment' },
   ]},
-  { label: 'Your Books', path: '', icon: 'book', children: [
-    { label: 'Billing', path: '/admin/billing' },
-    { label: 'Financials', path: '/admin/financials' },
+  { label: 'Your Books', surface: '', icon: 'book', children: [
+    { label: 'Billing', surface: 'billing' },
+    { label: 'Financials', surface: 'financials' },
   ]},
-  { label: 'Ziro Work', path: '/admin/zirowork', icon: 'zap' },
+  { label: 'Ziro Work', surface: 'zirowork', icon: 'zap' },
 ]
 
 export const LESSON_LOOKBACK_DAYS = 28
@@ -61,10 +61,10 @@ export const RATE_TIERS = {
 } as const
 
 export const ROLE_DEFAULT_ROUTES: Record<string, string> = {
-  owner: '/admin/dashboard',
-  admin: '/admin/dashboard',
-  company_director: '/admin/dashboard',
-  studio_director: '/admin/dashboard',
+  owner: '/admin',
+  admin: '/admin',
+  company_director: '/admin',
+  studio_director: '/admin',
   teacher: '/teacher/schedule',
   parent: '/parent/dashboard',
   student: '/parent/dashboard',

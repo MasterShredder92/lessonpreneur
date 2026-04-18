@@ -10,6 +10,7 @@ import { instrumentWithEmojiTitle } from '../../utils/instrumentEmoji'
 import { qk } from '../../lib/queryKeys'
 import { toast } from '../shared/Toast'
 import DuplicateStudentReviewPanel from '../admin/DuplicateStudentReviewPanel'
+import { useAdminSurface } from '../../contexts/AdminSurfaceContext'
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
@@ -37,6 +38,7 @@ type Step = 'family' | 'schedule' | 'confirm' | 'done'
 
 export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) {
   const navigate = useNavigate()
+  const { setSurface } = useAdminSurface()
   const qc = useQueryClient()
   const { tenantId } = useAuthContext()
 
@@ -580,16 +582,16 @@ export default function ConvertLeadModal({ lead, onClose, onConverted }: Props) 
               {error && <div className="form-error">{error}</div>}
 
               <div className="modal-actions" style={{ justifyContent: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <button className="btn-primary" onClick={() => navigate(`/admin/students?id=${result.student_id}`)}>
+                <button className="btn-primary" onClick={() => setSurface('students')}>
                   View Student Profile
                 </button>
                 {resultFamilyId && (
-                  <button className="btn-ghost" onClick={() => navigate(`/admin/families?family=${resultFamilyId}`)}>
+                  <button className="btn-ghost" onClick={() => setSurface('families')}>
                     View Family
                   </button>
                 )}
                 {invoiceCreated && (
-                  <button className="btn-ghost" onClick={() => navigate('/admin/billing')}>
+                  <button className="btn-ghost" onClick={() => setSurface('billing')}>
                     Go to Billing
                   </button>
                 )}

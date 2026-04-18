@@ -22,7 +22,7 @@ const LEGACY_HOST_MAP: Record<string, string> = {
 
 const NOINDEX_PATHS = new Set(['/start', '/trial', '/thank-you', '/get-started'])
 
-// Paths where this middleware does SEO work for lessonpreneur.io / adkinsmusiclessons.com
+// Paths where this middleware does SEO work for marketing / location sites
 const SEO_PATHS = new Set([
   '/omaha', '/omaha/piano', '/omaha/guitar', '/omaha/vocals', '/omaha/drums', '/omaha/more', '/omaha/violin-lessons', '/omaha/flute-lessons',
   '/bellevue', '/bellevue/piano', '/bellevue/guitar', '/bellevue/vocals', '/bellevue/drums', '/bellevue/more', '/bellevue/violin-lessons', '/bellevue/flute-lessons',

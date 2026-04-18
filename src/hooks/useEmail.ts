@@ -41,7 +41,7 @@ export function useEmailBrand(locationId: string | null) {
         studioName: data?.studio_name ?? 'Adkins Music Lessons',
         primaryColor: data?.primary_color ?? '#D4226A',
         logoUrl,
-        websiteDomain: data?.website_domain ?? 'lessonpreneur.io',
+        websiteDomain: data?.website_domain ?? 'zirowork.io',
         appUrl: window.location.origin,
       }
     },
@@ -151,7 +151,7 @@ export async function sendEmailForCommunication(
     studioName,
     primaryColor: brand?.primary_color ?? '#D4226A',
     logoUrl: brand?.logo_circle_path ? supabase.storage.from('brand-assets').getPublicUrl(brand.logo_circle_path).data.publicUrl : null,
-    websiteDomain: brand?.website_domain ?? 'lessonpreneur.io',
+    websiteDomain: brand?.website_domain ?? 'zirowork.io',
     appUrl: window.location.origin,
   }
 

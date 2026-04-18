@@ -16,7 +16,7 @@ export default function PreviewBanner() {
 
   const handleExit = () => {
     stopPreview()
-    navigate('/admin/dashboard')
+    navigate('/admin')
   }
 
   const config = ROLE_CONFIG[preview.role] ?? ROLE_CONFIG.teacher

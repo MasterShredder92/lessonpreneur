@@ -199,7 +199,7 @@ export default function RevenueLeakSection() {
           textAlign: 'center',
         }}
       >
-        Here's what operational chaos is actually costing you — and what Lessonpreneur by ZiroWork would plug.
+        Here's what operational chaos is actually costing you — and what ZiroWork would plug.
       </p>
 
       <div style={{ marginTop: '40px', maxWidth: '720px', marginLeft: 'auto', marginRight: 'auto' }}>
@@ -299,7 +299,7 @@ export default function RevenueLeakSection() {
                         opacity: 0.9,
                       }}
                     >
-                      With Lessonpreneur by ZiroWork
+                      With ZiroWork
                     </div>
                     <div
                       className="lp-compare-big"

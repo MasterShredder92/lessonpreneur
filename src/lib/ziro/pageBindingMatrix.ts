@@ -22,7 +22,7 @@ export type PageBindingMatrixRow = {
 export const PAGE_AGENT_SKILL_MATRIX: readonly PageBindingMatrixRow[] = [
   {
     page_key: 'dashboard',
-    subpageNotes: '/admin, /admin/dashboard',
+    subpageNotes: '/admin',
     purpose: 'Cross-studio priorities and health signals.',
     recommendedPrimarySlug: 'enrollment_coordinator',
     recommendedSupportingSlugs: ['retention'],

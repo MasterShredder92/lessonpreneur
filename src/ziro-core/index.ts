@@ -1,5 +1,5 @@
 /**
- * Ziro Work — unified business AI context layer (Lessonpreneur OS).
+ * ZiroWork — unified business AI context layer for the music-school OS.
  *
  * - **Global context:** `loadZiroGlobalContext` + `formatZiroPrompt` (live RPC + billing snapshot for role/location scope).
  * - **Page context:** `appendPageContextToZiroPrompt` — thin adapters; no duplicate metric definitions here.

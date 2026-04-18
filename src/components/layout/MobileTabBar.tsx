@@ -1,33 +1,33 @@
 import { useState, useRef, useCallback, type ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { LayoutDashboard, CalendarDays, Users, UserPlus, Menu, ShieldCheck, Guitar, BookOpen, Settings2, Plug, ChevronRight, X, LogOut } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import StudioDirectorIssueButton from '../shared/StudioDirectorIssueButton'
+import { useAdminSurface, type AdminSurfaceKey } from '../../contexts/AdminSurfaceContext'
 
 const TABS = [
-  { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Studio' },
-  { path: '/admin/schedule', icon: CalendarDays, label: 'Schedule' },
-  { path: '/admin/students', icon: Users, label: 'Roster' },
-  { path: '/admin/leads', icon: UserPlus, label: 'New Members' },
-  { path: '__more__', icon: Menu, label: 'More' },
+  { surface: 'dashboard', icon: LayoutDashboard, label: 'Studio' },
+  { surface: 'schedule', icon: CalendarDays, label: 'Schedule' },
+  { surface: 'students', icon: Users, label: 'Roster' },
+  { surface: 'leads', icon: UserPlus, label: 'New Members' },
+  { surface: '__more__', icon: Menu, label: 'More' },
 ]
 
 const MORE_SECTIONS = [
   { header: 'ROSTER', items: [
-    { path: '/admin/families', icon: Users, label: 'Families' },
+    { surface: 'families', icon: Users, label: 'Families' },
   ]},
   { header: 'BACKSTAGE', items: [
-    { path: '/admin/retention', icon: ShieldCheck, label: 'Retention' },
-    { path: '/admin/recruitment', icon: ShieldCheck, label: 'Recruitment' },
+    { surface: 'retention', icon: ShieldCheck, label: 'Retention' },
+    { surface: 'recruitment', icon: ShieldCheck, label: 'Recruitment' },
   ]},
   { header: 'THE BAND', items: [
-    { path: '/admin/teachers', icon: Guitar, label: 'Teachers' },
-    { path: '/admin/payroll', icon: Guitar, label: 'Payroll' },
+    { surface: 'teachers', icon: Guitar, label: 'Teachers' },
+    { surface: 'payroll', icon: Guitar, label: 'Payroll' },
   ]},
   { header: 'YOUR BOOKS', items: [
-    { path: '/admin/billing', icon: BookOpen, label: 'Billing' },
-    { path: '/admin/financials', icon: BookOpen, label: 'Financials' },
+    { surface: 'billing', icon: BookOpen, label: 'Billing' },
+    { surface: 'financials', icon: BookOpen, label: 'Financials' },
   ]},
 ]
 
@@ -35,7 +35,7 @@ const DISMISS_THRESHOLD = 80
 
 export default function MobileTabBar() {
   const [moreOpen, setMoreOpen] = useState(false)
-  const navigate = useNavigate()
+  const { surface, setSurface } = useAdminSurface()
   const { profile, role, signOut } = useAuthContext()
 
   // Drag-to-dismiss state
@@ -85,10 +85,10 @@ export default function MobileTabBar() {
     dragOffset.current = 0
   }, [closeSheet])
 
-  const goTo = useCallback((path: string) => {
-    navigate(path)
+  const goTo = useCallback((s: AdminSurfaceKey) => {
+    setSurface(s)
     setMoreOpen(false)
-  }, [navigate])
+  }, [setSurface])
 
   return (
     <>
@@ -108,7 +108,7 @@ export default function MobileTabBar() {
         zIndex: 9990,
       }}>
         {TABS.map(tab => {
-          if (tab.path === '__more__') {
+          if (tab.surface === '__more__') {
             return (
               <button
                 key="more"
@@ -134,11 +134,11 @@ export default function MobileTabBar() {
             )
           }
           return (
-            <NavLink
-              key={tab.path}
-              to={tab.path}
-              onClick={() => setMoreOpen(false)}
-              style={({ isActive }) => ({
+            <button
+              key={tab.surface}
+              type="button"
+              onClick={() => { setSurface(tab.surface as AdminSurfaceKey); setMoreOpen(false) }}
+              style={{
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
@@ -146,15 +146,17 @@ export default function MobileTabBar() {
                 justifyContent: 'center',
                 gap: 2,
                 height: 56,
-                textDecoration: 'none',
-                color: isActive ? '#D4226A' : 'rgba(255,255,255,0.4)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: surface === (tab.surface as AdminSurfaceKey) ? '#D4226A' : 'rgba(255,255,255,0.4)',
                 WebkitTapHighlightColor: 'transparent',
                 transition: 'color 150ms ease',
-              })}
+              }}
             >
               <tab.icon size={22} />
               <span style={{ fontSize: 10, fontWeight: 600 }}>{tab.label}</span>
-            </NavLink>
+            </button>
           )
         })}
       </nav>
@@ -237,9 +239,9 @@ export default function MobileTabBar() {
 
             <div style={{ padding: '0 20px' }}>
               {MORE_SECTIONS.map(section => {
-                const HIDDEN_FOR_STUDIO_DIR = ['/admin/recruitment', '/admin/payroll', '/admin/financials']
+                const HIDDEN_FOR_STUDIO_DIR = ['recruitment', 'payroll', 'financials']
                 const items = role === 'studio_director'
-                  ? section.items.filter(i => !HIDDEN_FOR_STUDIO_DIR.includes(i.path))
+                  ? section.items.filter(i => !HIDDEN_FOR_STUDIO_DIR.includes(i.surface))
                   : section.items
                 if (items.length === 0) return null
                 return (
@@ -249,8 +251,8 @@ export default function MobileTabBar() {
                   </div>
                   {items.map(item => (
                     <button
-                      key={item.path}
-                      onClick={() => goTo(item.path)}
+                      key={item.surface}
+                      onClick={() => goTo(item.surface as AdminSurfaceKey)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -277,7 +279,7 @@ export default function MobileTabBar() {
               {/* Divider + Integrations + Settings */}
               <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.08)', marginTop: 8 }}>
                 {role !== 'studio_director' && <button
-                  onClick={() => goTo('/admin/integrations')}
+                  onClick={() => goTo('integrations')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -297,7 +299,7 @@ export default function MobileTabBar() {
                   <ChevronRight size={16} style={{ color: '#363656' }} />
                 </button>}
                 <button
-                  onClick={() => goTo('/admin/settings')}
+                  onClick={() => goTo('settings')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

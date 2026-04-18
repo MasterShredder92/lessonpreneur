@@ -1,0 +1,74 @@
+/* ZiroWork OS — premium admin shell tokens */
+.zw-shell {
+  --zw-charcoal: #0a0b0f;
+  --zw-charcoal-mid: #12141c;
+  --zw-charcoal-elevated: #181b26;
+  --zw-neon: #39ff14;
+  --zw-neon-soft: rgba(57, 255, 20, 0.18);
+  --zw-lime: #c8ff00;
+  --zw-lime-soft: rgba(200, 255, 0, 0.12);
+  --zw-glass: rgba(24, 27, 38, 0.72);
+  --zw-glass-border: rgba(255, 255, 255, 0.08);
+  --zw-text: #e8eaf4;
+  --zw-text-muted: #8b90a8;
+  --zw-gloss: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, transparent 50%);
+  min-height: 100vh;
+  background: var(--zw-charcoal);
+  color: var(--zw-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.zw-shell__bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(57, 255, 20, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(200, 255, 0, 0.06), transparent),
+    linear-gradient(180deg, var(--zw-charcoal) 0%, #060708 100%);
+}
+
+.zw-shell__grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 300px) 1fr;
+  min-height: 100vh;
+}
+
+@media (max-width: 900px) {
+  .zw-shell__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.zw-shell__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100vh;
+}
+
+/* Agent chat — viewport dock (not in sidebar) so it stays reachable on every surface */
+.agent-panel.agent-panel--floating {
+  position: fixed;
+  z-index: 55;
+  top: 72px;
+  bottom: 96px;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  width: min(300px, calc(100vw - 24px));
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .agent-panel.agent-panel--floating {
+    top: auto;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    bottom: 88px; /* clears command (⌘K) FAB */
+    max-height: min(44vh, 400px);
+    border-radius: 16px;
+  }
+}

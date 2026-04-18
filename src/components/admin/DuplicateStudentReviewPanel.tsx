@@ -6,6 +6,7 @@ import { useAuthContext } from '../../app/AuthContext'
 import { useStudentDuplicateReviews, useResolveStudentDuplicateReview } from '../../hooks/useStudentDuplicateReviews'
 import { toast } from '../shared/Toast'
 import type { DuplicateReviewRow } from '../../hooks/useStudentDuplicateReviews'
+import { useAdminSurface } from '../../contexts/AdminSurfaceContext'
 
 export type DuplicateReviewPanelProps = {
   variant?: 'full' | 'compact'
@@ -37,6 +38,7 @@ export default function DuplicateStudentReviewPanel({
   onResolved,
 }: DuplicateReviewPanelProps) {
   const navigate = useNavigate()
+  const { setSurface } = useAdminSurface()
   const { tenantId } = useAuthContext()
   const { data: allReviews, isLoading, isFetching } = useStudentDuplicateReviews()
   const resolve = useResolveStudentDuplicateReview()
@@ -134,7 +136,7 @@ export default function DuplicateStudentReviewPanel({
           Duplicate review not loaded yet. Check{' '}
           <button
             type="button"
-            onClick={() => navigate('/admin/families')}
+            onClick={() => setSurface('families')}
             style={{ background: 'none', border: 'none', color: '#5EEAD4', cursor: 'pointer', fontWeight: 700 }}
           >
             Families
@@ -200,7 +202,7 @@ export default function DuplicateStudentReviewPanel({
           Showing {maxItems} of {allReviews?.length}. Open{' '}
           <button
             type="button"
-            onClick={() => navigate('/admin/families')}
+            onClick={() => setSurface('families')}
             style={{ background: 'none', border: 'none', color: '#5EEAD4', cursor: 'pointer', fontWeight: 700, padding: 0 }}
           >
             Families
@@ -208,7 +210,7 @@ export default function DuplicateStudentReviewPanel({
           or{' '}
           <button
             type="button"
-            onClick={() => navigate('/admin/leads?view=enrolled')}
+            onClick={() => setSurface('leads')}
             style={{ background: 'none', border: 'none', color: '#5EEAD4', cursor: 'pointer', fontWeight: 700, padding: 0 }}
           >
             Leads → Enrolled
@@ -296,20 +298,20 @@ function ReviewCard({
         <button
           type="button"
           disabled={resolve.isPending}
-          onClick={() => navigate(`/admin/students?id=${r.new_student_id}`)}
+          onClick={() => setSurface('students')}
           style={btnGhost}
         >
           Edit new student
         </button>
-        <button type="button" disabled={resolve.isPending} onClick={() => navigate(`/admin/students?id=${r.candidate_existing_student_id}`)} style={btnGhost}>
+        <button type="button" disabled={resolve.isPending} onClick={() => setSurface('students')} style={btnGhost}>
           Edit matched student
         </button>
         {r.lead_id && (
-          <button type="button" disabled={resolve.isPending} onClick={() => navigate('/admin/leads?view=enrolled')} style={btnGhost}>
+          <button type="button" disabled={resolve.isPending} onClick={() => setSurface('leads')} style={btnGhost}>
             Leads (Enrolled)
           </button>
         )}
-        <button type="button" disabled={resolve.isPending} onClick={() => navigate(`/admin/families?family=${r.family_id}`)} style={btnGhost}>
+        <button type="button" disabled={resolve.isPending} onClick={() => setSurface('families')} style={btnGhost}>
           Family roster
         </button>
       </div>

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { Bot, ChevronRight, MessageSquare, SlidersHorizontal, AlertTriangle } from 'lucide-react'
 import { useAuthContext } from '../../app/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -8,6 +7,7 @@ import { usePageIntelligenceBindings, useResolvedPageIntelligence } from '../../
 import { useZiroShell } from '../../contexts/ZiroContext'
 import AgentWorkspace from './AgentWorkspace'
 import { agentFlowDebug, resolveSafeAgent } from '../../lib/ziro/agentSafe'
+import { useAdminSurface, surfaceToVirtualPathname } from '../../contexts/AdminSurfaceContext'
 
 /**
  * Batch 2 — Page agent chrome: one binding-backed agent (or explicit unassigned), clickable → Agent Workspace.
@@ -15,8 +15,8 @@ import { agentFlowDebug, resolveSafeAgent } from '../../lib/ziro/agentSafe'
  *
  */
 export default function PageIntelligenceStrip() {
-  const { pathname } = useLocation()
-  const navigate = useNavigate()
+  const { surface, setSurface } = useAdminSurface()
+  const pathname = surfaceToVirtualPathname(surface)
 
   const { tenantId } = useAuthContext()
   const { canUseZiro } = usePermissions()
@@ -27,7 +27,7 @@ export default function PageIntelligenceStrip() {
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
 
-  const hideOnZirowork = pathname.startsWith('/admin/zirowork')
+  const hideOnZirowork = surface === 'zirowork'
   /** `useResolvedPageIntelligence` always returns an object; kept for clarity if that changes. */
   const hasResolved = !!resolved
   const showMainStrip = canUseZiro && hasResolved && !hideOnZirowork
@@ -215,7 +215,7 @@ export default function PageIntelligenceStrip() {
           <button
             type="button"
             className="btn-ghost"
-            onClick={() => navigate(`/admin/zirowork?zwtab=ziro&surface=${encodeURIComponent(resolved.surfaceKey)}`)}
+            onClick={() => setSurface('zirowork')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',

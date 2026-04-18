@@ -10,7 +10,7 @@
  *   })
  */
 import { supabase } from './supabase'
-import { SUPABASE_ANON_KEY } from './config'
+import { SUPABASE_ANON_BEARER, SUPABASE_ANON_KEY } from './config'
 import { checkCircuit, recordFailure, recordSuccess } from './circuitBreaker'
 
 export class SafeFetchError extends Error {
@@ -59,6 +59,12 @@ function getHeaderCaseInsensitive(headers: Record<string, string>, key: string):
     if (k.toLowerCase() === target) return v
   }
   return undefined
+}
+
+function stripApikeyHeader(headers: Record<string, string>): void {
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === 'apikey') delete headers[key]
+  }
 }
 
 /** Check if a JWT access token is expired or about to expire. */
@@ -142,12 +148,17 @@ export async function safeFetch<T = unknown>(
   try {
     const doFetch = async (authToken: string | undefined): Promise<T> => {
       const baseHeaders: Record<string, string> = { ...extra }
+      stripApikeyHeader(baseHeaders)
       if (!getHeaderCaseInsensitive(baseHeaders, 'Content-Type')) {
         baseHeaders['Content-Type'] = 'application/json'
       }
       if (!getHeaderCaseInsensitive(baseHeaders, 'Authorization')) {
         const authorizationToken = authToken ?? SUPABASE_ANON_KEY
-        if (authorizationToken) baseHeaders['Authorization'] = `Bearer ${authorizationToken}`
+        if (authorizationToken) {
+          baseHeaders['Authorization'] = `Bearer ${authorizationToken}`
+        } else if (SUPABASE_ANON_BEARER) {
+          baseHeaders['Authorization'] = SUPABASE_ANON_BEARER
+        }
       }
 
       const res = await fetch(url, {

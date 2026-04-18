@@ -10,6 +10,7 @@ import { ZiroWorkAgentCard } from './ZiroWorkAgentCard'
 import { AgentFallback } from './AgentFallback'
 import { toast } from '../shared/Toast'
 import type { ZiroAgent } from '../../hooks/useAgents'
+import { useAdminSurface } from '../../contexts/AdminSurfaceContext'
 import {
   resolveSafeAgent,
   agentFlowDebug,
@@ -34,6 +35,7 @@ export default function AgentWorkspace({
   entryAgentId: string | null
 }) {
   const navigate = useNavigate()
+  const { setSurface } = useAdminSurface()
   const safeAssigned = resolveSafeAgent(resolved.assignedAgent)
   const safeSuggested = resolveSafeAgent(resolved.suggestedAgent)
   const { data: agents } = useAgents(tenantId)
@@ -375,7 +377,7 @@ export default function AgentWorkspace({
                   type="button"
                   onClick={() => {
                     onClose()
-                    navigate(`/admin/zirowork?zwtab=ziro&surface=${encodeURIComponent(resolved.surfaceKey)}`)
+                    setSurface('zirowork')
                   }}
                   style={{
                     padding: '10px 18px',
@@ -400,13 +402,8 @@ export default function AgentWorkspace({
                 isExpanded
                 onToggle={() => {}}
                 onEdit={() => {
-                  const ok = navigateToZiroWorkAgentEditor(navigate, cardAgent, 'workspace_card', {
-                    beforeNavigate: onClose,
-                    meta: { surfaceKey: resolved.surfaceKey },
-                  })
-                  if (!ok) {
-                    toast('No agent selected — cannot open editor.', 'error')
-                  }
+                  onClose()
+                  setSurface('zirowork')
                 }}
                 skills={skills ?? []}
                 lockedExpanded

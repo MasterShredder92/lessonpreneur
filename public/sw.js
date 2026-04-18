@@ -1,8 +1,8 @@
-// Lessonpreneur Service Worker v6
+// ZiroWork Service Worker
 // Network-first. Only cache static assets (JS/CSS/images) as offline fallback.
 // NEVER cache index.html, API calls, or landing page assets.
 
-const CACHE_NAME = 'lessonpreneur-v6'
+const CACHE_NAME = 'zirowork-v1'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -51,12 +51,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request).catch(() => caches.match('/offline.html').then((r) => r || new Response('Offline', { status: 503 })))
     )
-    return
-  }
-
-  // NEVER cache landing page assets — always network, no fallback
-  if (url.pathname.includes('LessonpreneurLanding') || url.pathname.includes('lessonpreneur-landing')) {
-    event.respondWith(fetch(request))
     return
   }
 
