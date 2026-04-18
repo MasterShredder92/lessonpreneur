@@ -1,7 +1,7 @@
 /**
  * safeFetch — centralized edge-function / API fetch wrapper.
  *
- * Handles: auth token, apikey header, res.ok check, JSON parse safety,
+ * Handles: auth token, res.ok check, JSON parse safety,
  * abort timeout, and normalized error messages.
  *
  * Usage:
@@ -29,7 +29,7 @@ interface SafeFetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   /** Timeout in ms (default: 30_000). */
   timeoutMs?: number
-  /** Skip auth token — for unauthenticated endpoints. */
+  /** Skip session auth token lookup; anon Authorization fallback is still applied. */
   skipAuth?: boolean
   /** Extra headers merged after defaults. */
   headers?: Record<string, string>
@@ -51,6 +51,14 @@ function shouldRetry(status: number, retryStatuses: number[]): boolean {
 
 async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function getHeaderCaseInsensitive(headers: Record<string, string>, key: string): string | undefined {
+  const target = key.toLowerCase()
+  for (const [k, v] of Object.entries(headers)) {
+    if (k.toLowerCase() === target) return v
+  }
+  return undefined
 }
 
 /** Check if a JWT access token is expired or about to expire. */
@@ -79,7 +87,7 @@ async function getFreshToken(): Promise<string> {
 }
 
 /**
- * Fetch a Supabase edge function (or any URL) with automatic auth, apikey,
+ * Fetch a Supabase edge function (or any URL) with automatic auth,
  * timeout, res.ok enforcement, and safe JSON parsing.
  *
  * On 401, refreshes the session token and retries once before failing.
@@ -103,10 +111,14 @@ export async function safeFetch<T = unknown>(
   const retryBaseMs = opts.retryBaseMs ?? 1000
   const retryStatuses = opts.retryStatuses ?? DEFAULT_RETRY_STATUSES
 
-  // Auth — ensure token is fresh before sending
+  // Auth — prefer a fresh user token, but always fall back to anon auth header.
   let token: string | undefined
   if (!skipAuth) {
-    token = await getFreshToken()
+    try {
+      token = await getFreshToken()
+    } catch {
+      token = undefined
+    }
   }
 
   const circuitKey = new URL(url).pathname
@@ -129,16 +141,19 @@ export async function safeFetch<T = unknown>(
 
   try {
     const doFetch = async (authToken: string | undefined): Promise<T> => {
-      const baseHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
+      const baseHeaders: Record<string, string> = { ...extra }
+      if (!getHeaderCaseInsensitive(baseHeaders, 'Content-Type')) {
+        baseHeaders['Content-Type'] = 'application/json'
       }
-      if (authToken) baseHeaders['Authorization'] = `Bearer ${authToken}`
-      if (SUPABASE_ANON_KEY) baseHeaders['apikey'] = SUPABASE_ANON_KEY
+      if (!getHeaderCaseInsensitive(baseHeaders, 'Authorization')) {
+        const authorizationToken = authToken ?? SUPABASE_ANON_KEY
+        if (authorizationToken) baseHeaders['Authorization'] = `Bearer ${authorizationToken}`
+      }
 
       const res = await fetch(url, {
         method,
         signal: controller.signal,
-        headers: { ...baseHeaders, ...extra },
+        headers: baseHeaders,
         body: body ? JSON.stringify(body) : undefined,
       })
 

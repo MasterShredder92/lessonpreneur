@@ -11,6 +11,7 @@ import { SCHOOL_CONFIG } from '../config/school'
 import { ZW } from '../config/zwBrand'
 import { EDGE_FUNCTIONS } from '../lib/config'
 import { safeFetch } from '../lib/safeFetch'
+import { bufferLeadSubmission, markLeadSubmissionFailed, markLeadSubmissionSent } from '../lib/leadFailsafe'
 import { useLocationHours } from '../hooks/useLocationHours'
 import './signup.css'
 
@@ -348,7 +349,6 @@ export default function SignupLanding() {
         candidates_found: number
         matched_teacher: { id: string; display_name: string; customer_facing_match_summary: string | null } | null
       }>(EDGE_FUNCTIONS.publicTeacherMatch, {
-        skipAuth: true,
         body: {
           school_slug: SCHOOL_CONFIG.slug,
           location_id: locId,
@@ -398,6 +398,7 @@ export default function SignupLanding() {
 
     setSubmitting(true)
     setSubmitError('')
+    let bufferedLeadId: string | null = null
 
     try {
       const locId = LOCATIONS[preferredLoc].locationId
@@ -446,12 +447,14 @@ export default function SignupLanding() {
         students,
       }
 
+      bufferedLeadId = bufferLeadSubmission(payload)
+
       const result = await safeFetch<{
         success?: boolean
         error?: string
         lead_id?: string
         intake_submission_id?: string
-      }>(EDGE_FUNCTIONS.publicLeadSubmit, { body: payload, skipAuth: true, timeoutMs: 15_000 })
+      }>(EDGE_FUNCTIONS.publicLeadSubmit, { body: payload, timeoutMs: 15_000 })
 
       if (!result.success) {
         throw new Error(
@@ -460,11 +463,22 @@ export default function SignupLanding() {
         )
       }
 
+      markLeadSubmissionSent(bufferedLeadId, {
+        lead_id: result.lead_id,
+        intake_submission_id: result.intake_submission_id,
+      })
+
       const allInstruments = [...selectedInstruments, ...additionalStudents.flatMap(s => s.instruments)]
       trackLead(LOCATIONS[preferredLoc].name, additionalStudents.length + 1, [...new Set(allInstruments)])
 
       navigate(`/thank-you?location=${preferredLoc}`)
     } catch (err: any) {
+      if (bufferedLeadId) {
+        await markLeadSubmissionFailed(
+          bufferedLeadId,
+          err?.message || 'Lead submission failed',
+        )
+      }
       console.error('Enrollment error:', err)
       setSubmitError(err?.message || 'Something went wrong. Please call us directly to complete your enrollment.')
     } finally {
