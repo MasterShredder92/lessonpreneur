@@ -307,148 +307,37 @@ export function useFamiliesPage(opts?: { enabled?: boolean }) {
   })
 }
 
-/**
- * Enrich one batch of family rows (same shape as list cards) — scoped to `families` already loaded.
- * Parallel PostgREST reads today; a future `get_families_roster_bundle` RPC could serve the location CRM panel in one round-trip.
- */
-export async function enrichFamiliesForRosterBatch(families: any[], tenantId: string): Promise<Family[]> {
-  if (families.length === 0) return []
-  const ids = families.map(f => f.id)
-  const today = new Date().toISOString().slice(0, 10)
-
-  const [
-    { data: students },
-    { data: locations },
-    { data: overdueTokens },
-    { data: effectiveRates },
-    { data: squareInvoices },
-    { data: agreementFiles },
-  ] = await Promise.all([
-    supabase
-      .from('students')
-      .select('id, family_id, first_name, last_name, instrument, status, teacher_id, student_display_id, counts_toward_family_tier')
-      .eq('tenant_id', tenantId)
-      .in('family_id', ids),
-    supabase.from('locations').select('id, name, color').eq('tenant_id', tenantId),
-    supabase
-      .from('invoice_tokens')
-      .select('family_id')
-      .eq('tenant_id', tenantId)
-      .in('family_id', ids)
-      .not('status', 'in', '("paid","cancelled","expired")')
-      .lt('due_date', today),
-    supabase.from('student_effective_rate').select('family_id, monthly_cents').eq('tenant_id', tenantId).in('family_id', ids),
-    supabase
-      .from('square_invoices')
-      .select('family_id, status, requested_amount, amount_paid, due_date, invoice_date')
-      .eq('tenant_id', tenantId)
-      .in('family_id', ids)
-      .not('family_id', 'is', null)
-      .not('status', 'in', '("CANCELED","DRAFT")')
-      .order('invoice_date', { ascending: false }),
-    supabase.from('family_files').select('family_id').eq('tenant_id', tenantId).eq('file_type', 'enrollment_agreement').in('family_id', ids),
-  ])
-
-  const teacherIds = [...new Set((students ?? []).filter((s: any) => s.teacher_id).map((s: any) => s.teacher_id!))]
-  const teacherMap = new Map<string, string>()
-  if (teacherIds.length > 0) {
-    const { data: teachers } = await supabase
-      .from('teachers')
-      .select('id, first_name, last_name, profile:profiles!teachers_profile_id_fkey(first_name, last_name)')
-      .eq('tenant_id', tenantId)
-      .in('id', teacherIds)
-    teachers?.forEach((t: any) => {
-      teacherMap.set(t.id, `${t.first_name ?? t.profile?.first_name ?? ''} ${t.last_name ?? t.profile?.last_name ?? ''}`.trim())
-    })
+function rosterFamilyFromRpcBundle(row: Record<string, unknown>): Family {
+  const locId = row.primary_location_id as string | null
+  const rawColor = row.locationColor as string | null | undefined
+  const locationColor =
+    rawColor != null && rawColor !== '' ? rawColor : (locId ? getLocationColor(locId) : null)
+  const inst = row.instrumentList
+  const instrumentList = Array.isArray(inst) ? (inst.filter((x) => typeof x === 'string') as string[]) : []
+  const tnames = row.teacherNames
+  const teacherNames = Array.isArray(tnames) ? (tnames.filter((x) => typeof x === 'string') as string[]) : []
+  const pay = row.paymentStatus
+  const paymentStatus: Family['paymentStatus'] =
+    pay === 'cancelled' || pay === 'paused' || pay === 'overdue' || pay === 'scheduled' || pay === 'no_invoice'
+      ? pay
+      : 'current'
+  const latest = row.latestInvoice
+  const latestInvoice: Family['latestInvoice'] =
+    latest != null && typeof latest === 'object'
+      ? (latest as Family['latestInvoice'])
+      : null
+  const overdueRaw = row.overdueAmountDisplay
+  const overdueAmountDisplay = typeof overdueRaw === 'string' ? overdueRaw : null
+  return {
+    ...(row as unknown as Family),
+    instrumentList,
+    teacherNames,
+    locationColor,
+    paymentStatus,
+    latestInvoice,
+    overdueAmountDisplay,
+    students: Array.isArray(row.students) ? (row.students as FamilyStudent[]) : [],
   }
-
-  const locMap = new Map<string, { name: string; color: string }>()
-  locations?.forEach((l: any) => {
-    locMap.set(l.id, { name: l.name.replace(' Music Lessons', ''), color: l.color ?? getLocationColor(l.id) })
-  })
-
-  const overdueSet = new Set((overdueTokens ?? []).map((t: any) => t.family_id))
-
-  const monthlyByFamily = new Map<string, number>()
-  for (const r of effectiveRates ?? []) {
-    monthlyByFamily.set(r.family_id, (monthlyByFamily.get(r.family_id) ?? 0) + (r.monthly_cents ?? 0))
-  }
-
-  const squareByFamily = new Map<string, { hasScheduled: boolean; hasOverdue: boolean; hasPaid: boolean; overdueCents: number; latest: { status: string; amountCents: number; date: string } | null }>()
-  for (const inv of squareInvoices ?? []) {
-    const entry = squareByFamily.get(inv.family_id) ?? { hasScheduled: false, hasOverdue: false, hasPaid: false, overdueCents: 0, latest: null }
-    const s = (inv.status ?? '').toUpperCase()
-    if (s === 'SCHEDULED' || s === 'RECURRING') entry.hasScheduled = true
-    if (s === 'PAID' || s === 'PARTIALLY_REFUNDED') entry.hasPaid = true
-    if (s === 'UNPAID' && inv.due_date && inv.due_date < today) {
-      entry.hasOverdue = true
-      entry.overdueCents += (inv.requested_amount ?? 0) - (inv.amount_paid ?? 0)
-    }
-    if (!entry.latest) {
-      const amt = s === 'PARTIALLY_REFUNDED' ? (inv.amount_paid ?? 0) : (inv.requested_amount ?? 0)
-      entry.latest = { status: s, amountCents: amt, date: inv.due_date ?? inv.invoice_date ?? '' }
-    }
-    squareByFamily.set(inv.family_id, entry)
-  }
-
-  const agreementSet = new Set((agreementFiles ?? []).map((f: any) => f.family_id))
-
-  const familyStudents = new Map<string, FamilyStudent[]>()
-  students?.forEach((s: any) => {
-    const list = familyStudents.get(s.family_id) ?? []
-    list.push({
-      ...s,
-      teacher_name: s.teacher_id ? teacherMap.get(s.teacher_id) ?? '---' : '---',
-    })
-    familyStudents.set(s.family_id, list)
-  })
-
-  return families.map((f: any) => {
-    const studs = familyStudents.get(f.id) ?? []
-    const activeStuds = studs.filter((s) => s.status === 'active')
-    const tierEligible = activeStuds.filter((s) => (s as FamilyStudent).counts_toward_family_tier !== false)
-    const instruments = [...new Set(activeStuds.map((s) => s.instrument).filter(Boolean))]
-    const tNames = [...new Set(
-      activeStuds
-        .map((s) => s.teacher_id ? teacherMap.get(s.teacher_id!) : null)
-        .filter(Boolean) as string[],
-    )]
-    const loc = f.primary_location_id ? locMap.get(f.primary_location_id) : null
-    return {
-      ...f,
-      billing_status: f.billing_status ?? 'active',
-      rate_tier: f.rate_tier ?? DEFAULT_RATE_TIER_CENTS,
-      balance: f.balance ?? 0,
-      activeStudentCount: activeStuds.length,
-      tierEligibleStudentCount: tierEligible.length,
-      instrumentList: instruments,
-      students: studs,
-      teacherNames: tNames,
-      locationName: loc?.name ?? null,
-      locationColor: loc?.color ?? null,
-      hasOverdueInvoice: overdueSet.has(f.id) || (f.overdue_balance_cents ?? 0) > 0 || (squareByFamily.get(f.id)?.hasOverdue ?? false),
-      paymentStatus: (() => {
-        const bs = f.billing_status ?? 'active'
-        if (bs === 'cancelled') return 'cancelled' as const
-        if (bs === 'paused') return 'paused' as const
-        const sq = squareByFamily.get(f.id)
-        const isOverdue = overdueSet.has(f.id) || (f.overdue_balance_cents ?? 0) > 0 || (sq?.hasOverdue ?? false)
-        if (isOverdue) return 'overdue' as const
-        if (sq?.hasScheduled) return 'scheduled' as const
-        if (sq?.hasPaid) return 'current' as const
-        if (activeStuds.length > 0 && !sq) return 'no_invoice' as const
-        return 'current' as const
-      })(),
-      overdueAmountDisplay: (() => {
-        const sq = squareByFamily.get(f.id)
-        const cents = (f.overdue_balance_cents ?? 0) || (sq?.overdueCents ?? 0)
-        return cents > 0 ? `$${(cents / 100).toFixed(0)}` : null
-      })(),
-      monthlyTotalCents: monthlyByFamily.get(f.id) ?? 0,
-      latestInvoice: squareByFamily.get(f.id)?.latest ?? null,
-      has_enrollment_agreement: agreementSet.has(f.id),
-    } as Family
-  })
 }
 
 export type FamiliesRosterSort = 'az' | 'za' | 'newest' | 'oldest'
@@ -471,36 +360,21 @@ export function useFamiliesRosterInfinite(params: {
     staleTime: 45_000,
     queryFn: async ({ pageParam: offset }) => {
       const PAGE = FAMILIES_ROSTER_PAGE
-      let q = supabase
-        .from('families')
-        .select(
-          'id, tenant_id, name, parent_name, primary_contact_name, primary_email, primary_phone, billing_status, rate_tier, primary_location_id, card_brand, card_last_four, square_customer_id, balance, overdue_balance_cents, created_at, is_military',
-        )
-        .eq('tenant_id', tenantId!)
-
-      if (familyTab === 'active') q = q.neq('billing_status', 'cancelled')
-      else if (familyTab === 'inactive') q = q.eq('billing_status', 'cancelled')
-
-      if (locationId) q = q.eq('primary_location_id', locationId)
-      if (rateFilter) q = q.eq('rate_tier', rateFilter)
-
-      const qtrim = search.trim()
-      if (qtrim) {
-        const esc = qtrim.replace(/%/g, '\\%').replace(/_/g, '\\_')
-        const t = `%${esc}%`
-        q = q.or(`name.ilike.${t},primary_email.ilike.${t},primary_phone.ilike.${t},parent_name.ilike.${t},primary_contact_name.ilike.${t}`)
-      }
-
-      if (sortBy === 'az') q = q.order('name', { ascending: true })
-      else if (sortBy === 'za') q = q.order('name', { ascending: false })
-      else if (sortBy === 'newest') q = q.order('created_at', { ascending: false })
-      else q = q.order('created_at', { ascending: true })
-
-      q = q.range(offset, offset + PAGE - 1)
-      const { data: famRaw, error } = await q
+      const { data, error } = await supabase.rpc('get_families_roster_bundle', {
+        p_tenant_id: tenantId!,
+        p_family_tab: familyTab,
+        p_location_id: locationId,
+        p_rate_filter: rateFilter,
+        p_search: search,
+        p_sort_by: sortBy,
+        p_offset: offset,
+        p_limit: PAGE,
+      })
       if (error) throw error
-      const rows = await enrichFamiliesForRosterBatch(famRaw ?? [], tenantId!)
-      return { rows, nextOffset: offset + (famRaw?.length ?? 0), hasMore: (famRaw?.length ?? 0) === PAGE }
+      const bundle = data as { families?: Record<string, unknown>[] } | null
+      const rawRows = bundle?.families ?? []
+      const rows = rawRows.map(rosterFamilyFromRpcBundle)
+      return { rows, nextOffset: offset + rawRows.length, hasMore: rawRows.length === PAGE }
     },
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextOffset : undefined),
   })
@@ -1028,3 +902,6 @@ export function useFamilyActivityLog(familyId: string | undefined, limit = 20) {
     },
   })
 }
+
+// Backward-compat export for legacy admin surfaces still importing this hook from useFamilies.
+export { useFamilyInvoices } from './useFamilyInvoices'
