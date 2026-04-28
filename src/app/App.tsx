@@ -4,18 +4,17 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@ta
 import { toastMutationError } from '../lib/errors'
 import { AuthProvider } from './AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { useLocationSEO } from '../hooks/useLocationSEO'
+// Adkins hooks removed
 import { ErrorBoundary } from './ErrorBoundary'
 import { ToastProvider } from '../components/shared/Toast'
 import { RouteGuard } from './RouteGuard'
-import { LocationContext } from '../config/LocationContext'
-import type { LocKey } from '../config/locations'
+// Adkins config removed
 import { PreviewModeProvider } from '../hooks/usePreviewMode'
 function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
   usePageTitle()
-  useLocationSEO()
+  // Adkins SEO removed
   return null
 }
 
@@ -53,23 +52,9 @@ function PageLoader() {
 const LandingPageV2 = lazy(() => import('../pages/LandingPage'))
 const Intake = lazy(() => import('../pages/Intake'))
 const PayInvoice = lazy(() => import('../pages/PayInvoice'))
-const AdkinsLanding = lazy(() => import('../pages/AdkinsLanding'))
-const DrumsLanding = lazy(() => import('../pages/DrumsLanding'))
-const GuitarLanding = lazy(() => import('../pages/GuitarLanding'))
-const VocalsLanding = lazy(() => import('../pages/VocalsLanding'))
-const PianoLanding = lazy(() => import('../pages/PianoLanding'))
-const MoreLanding = lazy(() => import('../pages/MoreLanding'))
-const ViolinLessonsLanding = lazy(() => import('../pages/ViolinLessonsLanding'))
-const FluteLessonsLanding = lazy(() => import('../pages/FluteLessonsLanding'))
-const SignupLanding = lazy(() => import('../pages/SignupLanding'))
-const ThankYou = lazy(() => import('../pages/ThankYou'))
+// Adkins website pages removed — now in adkins-music-website repo
 const LessonpreneurLanding = lazy(() => import('../pages/LessonpreneurLanding'))
-const KidsLessonsPage = lazy(() => import('../pages/KidsLessonsPage'))
-const AdultLessonsPage = lazy(() => import('../pages/AdultLessonsPage'))
-const BeginnerLessonsPage = lazy(() => import('../pages/BeginnerLessonsPage'))
-const PrivateLessonsPage = lazy(() => import('../pages/PrivateLessonsPage'))
-const AboutPage = lazy(() => import('../pages/AboutPage'))
-const LocationsPage = lazy(() => import('../pages/LocationsPage'))
+const ThankYou = lazy(() => import('../pages/ThankYou'))
 // FamilyPortal removed — parents use authenticated login
 
 // Public funnel pages
@@ -120,14 +105,7 @@ const ParentPractice = lazy(() => import('../pages/parent/ParentPractice'))
 const ParentBilling = lazy(() => import('../pages/parent/ParentBilling'))
 const ParentAccount = lazy(() => import('../pages/parent/ParentAccount'))
 
-/** Wraps AdkinsLanding with a specific location context */
-function LocationLanding({ loc }: { loc: LocKey }) {
-  return (
-    <LocationContext.Provider value={loc}>
-      <AdkinsLanding />
-    </LocationContext.Provider>
-  )
-}
+// LocationLanding removed — Adkins website moved to separate repo
 
 /**
  * Client-side hostname gate for the "/" route.
@@ -258,13 +236,7 @@ export default function App() {
             <Route path="/get-started" element={<LeadCaptureFormPage />} />
             <Route path="/trial" element={<CardCapturePage />} />
             <Route path="/lessonpreneur" element={<LessonpreneurLanding />} />
-            {/* ── Supporting SEO pages ── */}
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/locations" element={<LocationsPage />} />
-            <Route path="/kids-music-lessons" element={<KidsLessonsPage />} />
-            <Route path="/adult-music-lessons" element={<AdultLessonsPage />} />
-            <Route path="/beginner-music-lessons" element={<BeginnerLessonsPage />} />
-            <Route path="/private-music-lessons" element={<PrivateLessonsPage />} />
+            {/* Adkins website routes removed */}} />
 
             {/* ── Location-specific nested routes ── */}
             {/* /omaha, /gretna, /bellevue, /elkhorn + instrument sub-routes */}
@@ -288,15 +260,7 @@ export default function App() {
                 <Route path="signup" element={<SignupLanding />} />
               </Route>
             ))}
-
-            {/* Legacy /site route — defaults to Omaha */}
-            <Route path="/site" element={<Navigate to="/omaha" replace />} />
-
-            {/* Flat instrument routes — redirect to /omaha/ equivalents */}
-            <Route path="/drums" element={<Navigate to="/omaha/drums" replace />} />
-            <Route path="/guitar" element={<Navigate to="/omaha/guitar" replace />} />
-            <Route path="/piano" element={<Navigate to="/omaha/piano" replace />} />
-            <Route path="/vocals" element={<Navigate to="/omaha/vocals" replace />} />
+            {/* Adkins flat routes removed */}} />
             <Route path="/thank-you" element={<ThankYou />} />
 
             {/* Admin routes — owner + admin */}
