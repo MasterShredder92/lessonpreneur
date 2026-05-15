@@ -1,3 +1,13 @@
+## Agent Startup Rule
+
+Before scanning this repo, read `.agent/repo-digest.md`.
+
+Use the digest as the primary orientation layer. Only open source files after the digest identifies the relevant paths. Do not broad-scan the repo unless the digest is missing, stale, wrong, or targeted reads fail.
+
+No customer-facing, payment, email, ad, deploy, production data, or destructive database action without explicit Zach approval.
+
+---
+
 # LESSONPRENEUR — PROJECT RULES
 
 Stacks on top of global CLAUDE.md. All global rules apply.
